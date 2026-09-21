@@ -46,7 +46,7 @@ Future provider/MCP/scheduler/admin work remains in [MIGRATION.md](MIGRATION.md)
 
 ## Observed publication
 
-The public `v0.1.0` tag resolves to [`d2ac94082a31b64a95482dc6b97727b119955d1c`](https://github.com/ssheleg/project-observatory-open-source/tree/d2ac94082a31b64a95482dc6b97727b119955d1c). GitHub reports the new repository PUBLIC; its initial remote `main` matched that revision. Private vulnerability reporting is enabled. The original operational repository was not made public.
+The public `v0.1.0` tag resolves to [`d2ac94082a31b64a95482dc6b97727b119955d1c`](https://github.com/ssheleg/project-observatory-open-source/tree/d2ac94082a31b64a95482dc6b97727b119955d1c). GitHub reports the new repository PUBLIC; its initial remote `main` matched that revision. Private vulnerability reporting is enabled. GitHub Secret Scanning and secret-scanning push protection were enabled and their repository API status checked; provider validity checks remain disabled. These platform guards supplement the release checks and are not a proof that every secret shape is detectable. The original operational repository was not made public.
 
 The final pre-publication gate inspected **36 files and 38 historical blobs**, including the static site, against the local **302-identifier** denylist: passed, no findings. Git authors/committers were inspected separately and use generic project contributor metadata. The annotated release tag contains only the product/version description.
 
