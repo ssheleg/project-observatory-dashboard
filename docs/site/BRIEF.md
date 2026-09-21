@@ -34,3 +34,10 @@ Run `python3 docs/site/check.py` on the exact static tree; browser-check desktop
 - SITE-07: Reader reaches Harness from Skills or Observatory and understands Skills, observation and in-development asset creation as separate components.
 
 The full-engine article follows the same paper/forest tokens and system fonts. The author-provided request authorizes the update; brand voice is still recorded as an inferred draft, not a separately approved brand pack.
+
+## Returning visitor after deployment
+
+A visitor with the previous CSS/JS in browser cache must receive the assets matching
+the new HTML. Local stylesheet/script URLs carry their content digest. The static
+gate rejects missing or stale digests; verification reuses a previously visited
+production browser and checks responsive landing/article layout after deployment.
