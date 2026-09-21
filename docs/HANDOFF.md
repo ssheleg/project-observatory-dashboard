@@ -55,3 +55,9 @@ accounts only after explicit enablement. Future interface improvements are bound
 in [UI-PLAN.md](ux/UI-PLAN.md). Existing live installations need a deliberate
 backup/root/home migration and host restart; no implicit switch was made here.
 Social drafts remain unpublished. Preserve the local-only rule above.
+
+## Latest editorial delivery
+
+The Claude Code credential-copy article and channel posts were revised and the
+website redeployed. See the [editorial handoff](runs/2026-09-21-credential-copy-editorial.md)
+for its source revision, checks and deployment; the package release above is unchanged.
