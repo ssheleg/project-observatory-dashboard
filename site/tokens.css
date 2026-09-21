@@ -324,3 +324,15 @@ em, i { font-style: italic; font-synthesis-style: none; }
     --dur-marquee: 0s;
   }
 }
+
+/* Observatory editorial extension: user-requested long-form reading roles.
+   Field Notes colors and spacing remain authoritative; no remote font request. */
+:root {
+  --article-font: Georgia, "Times New Roman", serif;
+  --article-text: 1.25rem;
+  --article-text-mobile: 1.125rem;
+  --article-leading: 1.8;
+  --article-headline: 3.25rem;
+  --article-headline-mobile: 2.25rem;
+  --article-measure: 42rem;
+}

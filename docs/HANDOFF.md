@@ -69,3 +69,7 @@ revival to repeated key warnings and monitoring. The
 [origin-story handoff](runs/2026-09-21-observatory-origin-story.md) supersedes the
 previous article wording and contains its source ledger, validation and production
 receipt. The canonical URL is unchanged. Social posts remain unpublished drafts.
+
+## Illustrated reading and SEO update
+
+[Latest bounded handoff](runs/2026-09-21-reading-seo.md) records the cross-site article, reading and search work, checks and delivery status.

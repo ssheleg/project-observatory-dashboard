@@ -1,12 +1,12 @@
 # I went looking for forgotten projects. I found copies of my API keys
 
-I wanted to answer a fairly ordinary question: what do I actually have in all these project folders?
+I wanted to know what was worth rescuing from my project folders.
 
 Which folder belongs to which repository? What still works? What is half finished? What would be worth picking up again now that coding agents can help me move faster?
 
-I started building something to help me answer those questions. Then I started finding copies of credentials in places I hadn't intended to store them.
+I began with a project inventory: connect the folders to their repositories, work out what still ran, and decide what to pick up next. Following those connections eventually took me into local stores containing copies of my API keys.
 
-That is how a project inventory became Project Observatory.
+Project Observatory grew out of that investigation.
 
 ## The projects I wanted to come back to
 
@@ -20,6 +20,8 @@ I wanted a map I could work from: folders connected to repositories, an audit of
 
 That question also needed to stay answered. If an agent worked on a project, I wanted to see what changed. If I came back later, I wanted the next investigation to begin with what I'd already learned.
 
+The progression: project folders → repository inventory → credential ownership → ongoing observation.
+
 ## Then there were the key warnings
 
 Alongside that work, I kept running into notifications about exposed keys. Another key, another warning, another interruption to whatever I was trying to build.
@@ -30,7 +32,7 @@ Once you're trying to understand a project, its credentials become part of the p
 
 Key management became part of the inventory. Then came a more uncomfortable question: **where else had those values ended up?**
 
-I could point to where a key was supposed to live. That didn't mean I could account for the copies created while working with it.
+> I could point to where a key was supposed to live. I couldn't account for all the copies.
 
 ## What monitoring made visible
 
@@ -38,31 +40,37 @@ When I started monitoring, I could see credential copies in the surrounding tool
 
 One reviewed cleanup in my setup recorded **202 value-replacement events** across local memory stores: **66 in claude-mem SQLite and 136 in Chroma SQLite**. That record is from 14 September 2026.
 
-Those numbers describe cleanup events, not 202 different keys or confirmed break-ins. The evidence shows retained local copies; it does not show that an attacker obtained them. I've published the [aggregate and its limits](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md), keeping project names, credential values and raw records private.
+Reviewed cleanup: claude-mem SQLite, 66 value replacements; Chroma SQLite, 136. These are events, not unique keys or confirmed breaches.
 
-I knew where I had put the secret. I couldn’t account for where it now existed. Even a small number of valid credentials in an unexpected place would have been worth investigating. Here, I had a record of repeated replacements across stores that weren't supposed to be my credential inventory.
+The evidence shows retained local copies; it does not show that an attacker obtained them. I've published the [aggregate and its limits](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md), keeping project names, credential values and raw records private.
+
+I had been looking at where credentials were configured. Now I also had to look at the history left by using them. A memory store could hold a copy long after I had finished the task that put it there.
 
 This was where the project became more serious for me. I still wanted to know which old idea to revive. But the same system also needed to help me understand the environment in which I was asking agents to work.
 
 ## Your agent's work can outlive the session
 
-If you use Claude Code, it's worth looking at the tools around it as well as the repository it edits.
+In a Claude Code workflow, the repository is only part of what gets written to disk.
 
 Consider a diagnostic command that prints configuration containing a key. Its output becomes available to the agent. A configured memory integration may then process information from that tool result. Finishing the task doesn't, by itself, remove a retained copy.
 
-That's an example of a possible route, not a reconstruction of every copy I found. The relevant mechanisms are documented: Claude Code's [hook inputs include the session transcript path](https://code.claude.com/docs/en/hooks#common-input-fields), and [PostToolUse receives tool inputs and responses](https://code.claude.com/docs/en/hooks#posttooluse). The separate claude-mem project documents [capturing tool observations through a hook](https://docs.claude-mem.ai/architecture/hooks#stage-3-posttooluse).
+Illustrative route: a command prints a credential → the agent receives the output → a configured transcript or memory integration may retain a copy.
+
+The mechanisms behind that example are documented: Claude Code's [hook inputs include the session transcript path](https://code.claude.com/docs/en/hooks#common-input-fields), and [PostToolUse receives tool inputs and responses](https://code.claude.com/docs/en/hooks#posttooluse). The separate claude-mem project documents [capturing tool observations through a hook](https://docs.claude-mem.ai/architecture/hooks#stage-3-posttooluse).
 
 claude-mem is an optional third-party integration, not Claude Code's built-in memory. Chroma is a storage component. Those names identify stores in my setup; finding copies there isn't evidence of a vulnerability in either project.
 
 You can keep `.env` out of Git and still have a credential in a transcript, a diagnostic export or a memory store. Those artifacts may later be backed up or shared for debugging. A clean repository doesn't tell you what is inside them.
 
-The question I now want answered before sharing an agent session is simple: does this history also contain access to something?
+Before I share a session, I want to know whether the history contains a credential that still works.
+
+
 
 ## Other builders are looking at the same backlog
 
 A [post in r/ClaudeCode](https://www.reddit.com/r/ClaudeCode/comments/1tjj77i/what_is_a_good_way_to_clean_up_keyssecrets_from/) puts the problem plainly. The author says they used to enter keys into conversations, later adopted better secret storage, and now want to remove the old secrets without losing the conversations.
 
-That is a community member's account, not a study of how often this happens. But it captures a useful distinction: improving how you handle credentials today doesn't clean up yesterday's history.
+It's one person's account, but the backlog is familiar: better secret storage today doesn't clean up yesterday's conversations.
 
 There is also a more direct attack scenario. [Check Point Research documented Claude Code configuration vulnerabilities](https://research.checkpoint.com/2026/rce-and-api-token-exfiltration-through-claude-code-project-files-cve-2025-59536/) that included API-key exfiltration through a malicious project configuration. **The reported issues were patched before publication.** Their report links to a [video demonstration of the attack](https://www.youtube.com/watch?v=jMeeVxqU3hY).
 
@@ -70,7 +78,7 @@ That research concerns attacker-driven theft, which is different from the local 
 
 ## Why I kept the project inventory
 
-It would have been easy to turn this into a tool that only looks for secrets. I still needed the rest of the picture.
+The project inventory was still useful. I needed it to understand what a finding belonged to and what changing a credential might break.
 
 A finding is easier to act on when you can connect it to a project, understand the service involved, and see the work already done. The same applies to an abandoned project: recent activity, missing setup and unresolved findings all affect whether it makes sense to pick it up again.
 
@@ -80,7 +88,7 @@ For credentials, it can compare locally known secret values against supported ar
 
 This has practical limits: known-value scans won't catch every unknown or encoded secret, and cleaning a local copy doesn't revoke a key at its provider. If you find a valid credential somewhere it shouldn't be, review its access and revoke or rotate it. Cleanup and revocation solve different parts of the problem.
 
-I wanted the next warning to come with context: what project it belonged to, where a copy had been found, and what I had already checked. I wanted to be able to return to a finding, see what had been checked, and decide what still needed attention, without starting another investigation from memory.
+I wanted the next warning to come with context: which project it belonged to, where a copy had been found, and what I'd already checked. That would let me pick up the investigation instead of starting it again.
 
 ## Your projects, your workspace
 
@@ -90,6 +98,6 @@ The [getting-started section](https://observatory.sshlg.me/#start) includes a pr
 
 For me, this began with wanting to find something worth working on again. Following that question took me into repositories, project state, account access, old conversations and memory stores. Each step exposed another part of my development environment that I needed to understand.
 
-That's why I call it an observatory. I still want to know what is worth reviving. I also want to know what has been happening while I wasn't looking.
+> I still want to know what is worth reviving. I also want to know what has been happening while I wasn't looking.
 
 Originally published in [Project Observatory field notes](https://observatory.sshlg.me/field-notes/).

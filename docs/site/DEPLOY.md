@@ -1,6 +1,6 @@
 # Public website deployment
 
-The deployment input is the eleven reviewed files in `site/`, checked by [`check.py`](check.py). This directory is separate from the application's private generated dashboard. Never deploy an Observatory home, repository root, database or generated dashboard.
+The deployment input is the thirteen reviewed files in `site/`, checked by [`check.py`](check.py). This directory is separate from the application's private generated dashboard. Never deploy an Observatory home, repository root, database or generated dashboard.
 
 ## Validate and preview
 
@@ -33,3 +33,7 @@ Wrangler may create a local `.wrangler/` cache. It is ignored by Git and is not 
 ## Full-engine site review
 
 Both landing and article checked at 320px and 1440px: document width equals viewport. Cover loads at its native 1672×941 ratio. Synthetic toggle, prompt copy success and keyboard skip link worked; the browser reported no console warnings/errors. These checks cover the reviewed flows, not a complete accessibility certification. The generated illustration contains no runtime screenshot.
+
+## Illustrated article and 404 contract
+
+Run `python3 tools/build_article.py --check` before publishing. The Markdown source, figures and article HTML must agree. The thirteen-file deployment includes both reviewed illustrations and `404.html`. An unknown path must return HTTP 404 with the recovery page, never HTTP 200 with the home page. Validate actual status after deployment; a local Python static server does not reproduce Pages fallback routing.

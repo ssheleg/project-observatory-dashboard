@@ -54,3 +54,13 @@ production browser and checks responsive landing/article layout after deployment
   experience, reviewed local aggregate, community self-report and patched external
   research. Reading and video links work without third-party embeds. The existing
   canonical URL and visual system remain stable.
+
+- SITE-10: Reader skims the origin story through a deck, reading-time estimate,
+  section links and original pull quotes; chart labels preserve replacement-event
+  units, and the conceptual copy diagram says it is illustrative. Each figure has
+  visible text/caption and remains useful without JavaScript. At 320px nothing
+  requires horizontal document scrolling. The original cartoon is decoration,
+  not evidence. Typography uses the documented editorial extension of Field Notes.
+- SITE-11: A visitor follows a broken Observatory URL -> real 404 response, clear
+  message and working links to home, the article and setup. Search crawlers never
+  receive the home page under the unknown URL with a success status.

@@ -10,8 +10,9 @@ import tempfile
 import shutil
 
 ROOT = Path(__file__).resolve().parents[2] / 'site'
-ALLOWED = {'index.html', 'style.css', 'tokens.css', 'app.js', 'mark.svg', 'robots.txt', 'sitemap.xml', 'llms.txt', '_headers', 'field-notes/index.html', 'assets/observatory-cover.png'}
+ALLOWED = {'index.html', 'style.css', 'tokens.css', 'app.js', 'mark.svg', 'robots.txt', 'sitemap.xml', 'llms.txt', '_headers', 'field-notes/index.html', 'assets/observatory-cover.png', 'assets/credential-copies-cartoon.png', '404.html'}
 COVER_HASH = '70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833'
+IMAGE_HASHES = {"assets/observatory-cover.png": COVER_HASH, "assets/credential-copies-cartoon.png": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c"}
 class Page(HTMLParser):
     def __init__(self):
         super().__init__(); self.ids=[]; self.links=[]; self.assets=[]; self.headings=0
@@ -31,9 +32,9 @@ def check(root):
     pages={}
     for rel in sorted(files):
         p=root/rel
-        if rel == 'assets/observatory-cover.png':
+        if rel in IMAGE_HASHES:
             data=p.read_bytes()
-            if hashlib.sha256(data).hexdigest()!=COVER_HASH or not data.startswith(b'\x89PNG\r\n\x1a\n'): failures.append('unreviewed cover image')
+            if hashlib.sha256(data).hexdigest()!=IMAGE_HASHES[rel] or not data.startswith(b'\x89PNG\r\n\x1a\n'): failures.append('unreviewed cover image')
             continue
         try: body=p.read_text()
         except UnicodeError:
@@ -69,14 +70,15 @@ def check(root):
 if __name__=='__main__':
     errors=check(ROOT)
     if '--self-test' in sys.argv:
-        cases=('unexpected-file','private-marker','aggregate-mismatch','image-tamper','article-anchor','article-link','stale-asset','unversioned-asset')
+        cases=('unexpected-file','private-marker','aggregate-mismatch','image-tamper','cartoon-tamper','article-anchor','article-link','stale-asset','unversioned-asset')
         for case in cases:
             with tempfile.TemporaryDirectory() as temporary:
                 root=Path(temporary)/'site';shutil.copytree(ROOT,root)
                 if case=='unexpected-file':(root/'extra.txt').write_text('synthetic')
                 elif case=='private-marker':(root/'app.js').write_text('// /Users/synthetic')
-                elif case=='image-tamper':
-                    with (root/'assets/observatory-cover.png').open('ab') as f:f.write(b'changed')
+                elif case in {'image-tamper','cartoon-tamper'}:
+                    name='observatory-cover.png' if case=='image-tamper' else 'credential-copies-cartoon.png'
+                    with (root/'assets'/name).open('ab') as f:f.write(b'changed')
                 elif case=='stale-asset':
                     with (root/'style.css').open('a') as f:f.write('\n/* changed */\n')
                 elif case=='unversioned-asset':

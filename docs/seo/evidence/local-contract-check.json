@@ -1,0 +1,101 @@
+{
+  "passed": true,
+  "pages": [
+    {
+      "url": "https://observatory.sshlg.me/",
+      "jsonld_nodes": 2,
+      "primary_headings": 1,
+      "section_anchors": 6
+    },
+    {
+      "url": "https://observatory.sshlg.me/field-notes/",
+      "jsonld_nodes": 2,
+      "primary_headings": 1,
+      "section_anchors": 8
+    },
+    {
+      "url": "https://skills.sshlg.me/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 4
+    },
+    {
+      "url": "https://skills.sshlg.me/agents/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/harness/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 2
+    },
+    {
+      "url": "https://skills.sshlg.me/routing/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 13
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/make-skill/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/xr-dev/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/sheleg-dev/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/telegram-dev/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/agent-sync/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/sheleg-design/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/seo-aeo-audit/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/super-ux/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/task-pipeline/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/agent-stack/",
+      "jsonld_nodes": 3,
+      "primary_headings": 1,
+      "section_anchors": 1
+    }
+  ]
+}

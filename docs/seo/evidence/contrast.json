@@ -1,0 +1,42 @@
+[
+  {
+    "foreground": "ink",
+    "background": "paper",
+    "ratio": 15.43
+  },
+  {
+    "foreground": "muted",
+    "background": "paper",
+    "ratio": 5.16
+  },
+  {
+    "foreground": "rust",
+    "background": "paper",
+    "ratio": 6.28
+  },
+  {
+    "foreground": "green",
+    "background": "paper",
+    "ratio": 5.29
+  },
+  {
+    "foreground": "ink",
+    "background": "figure",
+    "ratio": 16.12
+  },
+  {
+    "foreground": "muted",
+    "background": "figure",
+    "ratio": 5.39
+  },
+  {
+    "foreground": "rust",
+    "background": "figure",
+    "ratio": 6.56
+  },
+  {
+    "foreground": "green",
+    "background": "figure",
+    "ratio": 5.52
+  }
+]

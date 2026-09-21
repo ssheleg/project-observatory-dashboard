@@ -50,7 +50,9 @@ jobs:
       - name: Public tree and complete Git blob history
         run: python tools/check_public_release.py --history
       - name: Public static site allowlist and negative probes
-        run: python docs/site/check.py --self-test
+        run: |
+          python docs/site/check.py --self-test
+          python tools/build_article.py --check
       - name: Installed CLI sterile demo
         shell: bash
         run: |
