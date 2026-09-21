@@ -24,3 +24,6 @@ full = ["mcp==2.1.1", "jsonschema==4.26.0", "sqlite-vec==0.1.9", "google-auth==2
 
 [tool.setuptools.package-data]
 observatory = ["engine/**/*", "engine/skill/.claude-plugin/*.json", "engine/skill/plugins/*/.claude-plugin/*.json"]
+
+[tool.setuptools.exclude-package-data]
+observatory = ["**/__pycache__/*", "**/*.pyc", "**/*.pyo"]

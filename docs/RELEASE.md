@@ -15,7 +15,7 @@ and tests are additional. Private operational Git history was not imported.
 
 The inspected `project_observatory-0.2.0-py3-none-any.whl` has 236 runtime files and
 242 total archive entries. Runtime bytes match the source inventory and launcher.
-SHA-256: `ea62d91884f2ca75ae17bcf6b7157a4668aed535db49795ddd0800fb97413153`.
+SHA-256: `67d12b81be8e31e78ca916e917f3a590f51e073ce088539a141d07a97460a815`.
 ZIP timestamps can change a subsequent build's digest; each released artifact must
 pass the package checker again. No private workspace or public marketing image is
 inside the wheel.
@@ -75,3 +75,11 @@ Historical fixed-root and clipboard-only action instructions were replaced with
 configured paths or protected-file/stdin instructions. The exported source keeps
 its inventory current. The final reviewed wheel corresponds to inventory SHA-256
 `96977e67994b46c66b5ce2df4131daf1ed8f423c210eb13b114f931f8e542798`.
+
+### Source-checkout build regression
+
+Compiling all distributed Python modules before building exposed bytecode caches
+being included by recursive package data. Packaging now explicitly excludes
+`__pycache__`, `.pyc` and `.pyo` files. The matrix compiles before building, and
+`tools/check_package.py` independently rejects every unlisted archive member.
+Local dirty-cache build: 236 runtime files / 242 archive members, no extras.
