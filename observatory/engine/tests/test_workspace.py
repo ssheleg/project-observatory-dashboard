@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+from run_portable import runtime_environment
 
 class WorkspaceTests(unittest.TestCase):
     def setUp(self):
@@ -17,7 +18,7 @@ class WorkspaceTests(unittest.TestCase):
         self.home = self.base / "instance"
         self.user = self.base / "user"
         self.user.mkdir()
-        self.env = {"PATH": os.environ.get("PATH", ""), "HOME": str(self.user),
+        self.env = {**runtime_environment(), "PATH": os.environ.get("PATH", ""), "HOME": str(self.user),
                     "OBSERVATORY_HOME": str(self.home), "PYTHONDONTWRITEBYTECODE": "1", "LC_ALL": "C"}
     def tearDown(self):
         self.temp.cleanup()

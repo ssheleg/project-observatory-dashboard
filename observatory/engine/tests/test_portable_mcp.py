@@ -22,7 +22,8 @@ def setup():
     temp=tempfile.TemporaryDirectory(prefix='observatory-synthetic-')
     atexit.register(temp.cleanup)
     base=Path(temp.name).resolve(); _BASE=base
-    env={'PATH':os.environ['PATH'],'HOME':str(base/'user'),'LANG':'en_US.UTF-8',
+    from run_portable import runtime_environment
+    env={**runtime_environment(),'PATH':os.environ['PATH'],'HOME':str(base/'user'),'LANG':'en_US.UTF-8',
          'PYTHONDONTWRITEBYTECODE':'1','OBSERVATORY_HOME':str(base/'runtime'),
          'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':os.devnull}
     os.environ.clear();os.environ.update(env)

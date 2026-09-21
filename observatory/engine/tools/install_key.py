@@ -162,9 +162,9 @@ def main(argv: list[str]) -> int:
         print("  the provider reports NO limit on this key — it can spend the "
               "whole account balance")
     else:
-        print(f"  limit {limit}, remaining {rem}, reset {reset or 'NEVER — a '
-              'lifetime cap, which drifts from a monthly budget until the key '
-              'dies for no visible reason (trap T17)'}")
+        reset_label = reset or ('NEVER — a lifetime cap, which drifts from a monthly '
+                                'budget until the key dies for no visible reason')
+        print(f"  limit {limit}, remaining {rem}, reset {reset_label}")
     if a.consumer == "claude-mem":
         print("  restart the worker so it picks this up:")
         print("    use the restart command for your configured companion installation")

@@ -233,8 +233,8 @@ def cmd_diff(conn) -> int:
         return 1
     if old is None:
         print(notes[0] if notes else "nothing to compare against yet")
-        print(f"{conn.execute('SELECT count(*) FROM deltas WHERE consumed_at IS NULL')
-                .fetchone()[0]} unconsumed delta(s) waiting for the agent")
+        pending = conn.execute('SELECT count(*) FROM deltas WHERE consumed_at IS NULL').fetchone()[0]
+        print(f"{pending} unconsumed delta(s) waiting for the agent")
         return 0
     for note in notes:
         print(f"  NOTE: {note}")

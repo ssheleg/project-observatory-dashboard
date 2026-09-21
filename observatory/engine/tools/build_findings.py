@@ -2166,10 +2166,10 @@ def collect() -> list[dict]:
                 "detail": (f"{others:.1f} was spent by something else using the same "
                            f"key — measured {doc.get('checked_at')}"
                            + (f", {age:.0f}h ago" if age is not None else "")
-                           + f". {('The key is SPENT, and the two steps that spend have '
+                           + '. ' + (('The key is SPENT, and the two steps that spend have '
                                        'stopped with it: `agent` no longer interprets a delta '
                                        'and `index` no longer embeds what it wrote. Everything '
-                                       'deterministic keeps running. ') if spent else ''}"
+                                       'deterministic keeps running. ') if spent else '')
                            + f"{('Only ' + format(float(remaining), '.1f') + ' remains, and when a key is spent this system stops with it. ') if (low and not spent) else ''}"
                              "This system's own ceilings are measured against its own "
                              "journal, so a neighbour's spending no longer disables it "

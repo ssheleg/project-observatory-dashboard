@@ -30,7 +30,7 @@ jobs:
       - name: Synthetic runtime and privacy tests
         run: python -m unittest discover -s tests -v
       - name: Complete engine offline compatibility and security matrix
-        run: project-observatory full check
+        run: project-observatory full check --report-dir "${{ runner.temp }}/observatory-full-check"
       - name: Build and inspect the installable archive
         shell: bash
         run: |
@@ -67,3 +67,12 @@ jobs:
           "$runtime_root/venv/bin/project-observatory" full upgrade
       - name: No tracked changes
         run: git diff --exit-code
+
+      - name: Preserve synthetic compatibility logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-check-${{ matrix.os }}-${{ matrix.python }}
+          path: ${{ runner.temp }}/observatory-full-check
+          if-no-files-found: ignore
+          retention-days: 7

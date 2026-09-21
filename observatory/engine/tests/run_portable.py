@@ -83,12 +83,20 @@ def copy_source(target: Path) -> None:
         shutil.copyfile(source, destination)
 
 
+def runtime_environment() -> dict[str, str]:
+                                                                         
+                                                                           
+    return {name: os.environ[name] for name in
+            ('LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH')
+            if name in os.environ}
+
+
 def clean_env(base: Path) -> dict[str, str]:
     user, temporary = base / 'user', base / 'tmp'
     user.mkdir(); temporary.mkdir()
     runtime = base / 'runtime'
     return {
-        'PATH': os.environ.get('PATH', ''), 'HOME': str(user),
+        **runtime_environment(), 'PATH': os.environ.get('PATH', ''), 'HOME': str(user),
         'TMPDIR': str(temporary), 'LANG': 'C.UTF-8', 'LC_ALL': 'C',
         'PYTHONDONTWRITEBYTECODE': '1', 'OBSERVATORY_HOME': str(runtime),
         'OBSERVATORY_REGISTRY': str(runtime / 'registry'),
@@ -133,6 +141,9 @@ def run_suite(name: str, base: Path, template: Path, timeout: int) -> dict:
               'fail_assertions': len(re.findall(r'^\s*FAIL\b',output,re.M)),
               'skip_assertions': len(re.findall(r'^\s*SKIP\b',output,re.M)),
               'unittest_cases': sum(map(int,re.findall(r'Ran (\d+) tests? in',output)))}
+    if code != 0:
+        result['failure_tail'] = output[-6000:]
+    result['log'] = name + '/run.log'
     print(result['status'] + ' ' + result['file'],file=sys.stderr,flush=True)
     return result
 
@@ -143,6 +154,7 @@ def main() -> int:
                         help='Run a named subset; omitted runs the entire explicit set.')
     parser.add_argument('--jobs',type=int,default=4)
     parser.add_argument('--timeout',type=int,default=120,help='Seconds per suite.')
+    parser.add_argument('--report-dir', type=Path, help='Write only synthetic suite logs and the summary to a new directory.')
     parser.add_argument('--keep',action='store_true',help='Keep private synthetic logs and source sandboxes.')
     args=parser.parse_args()
     if args.jobs < 1 or args.timeout < 1: parser.error('jobs and timeout must be positive')
@@ -156,6 +168,13 @@ def main() -> int:
                 'status':'PASS' if all(row['status']=='PASS' for row in results) else 'FAIL',
                 'suites':results,'not_run':list(NOT_RUN),
                 'suite_count':len(results),'python':sys.version.split()[0]}
+        if args.report_dir:
+            args.report_dir.mkdir(mode=0o700, parents=True, exist_ok=False)
+            for row in results:
+                target=args.report_dir / row['log']; target.parent.mkdir(mode=0o700)
+                shutil.copyfile(base / row['log'], target); target.chmod(0o600)
+            summary=args.report_dir / 'summary.json'
+            summary.write_text(json.dumps(report, indent=2) + '\n'); summary.chmod(0o600)
         if args.keep:report['private_logs']=str(base)
         print(json.dumps(report,indent=2))
         return 0 if report['status']=='PASS' else 1
