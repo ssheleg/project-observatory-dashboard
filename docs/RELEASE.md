@@ -43,3 +43,15 @@ The inspected archive contains 12 entries: six `observatory` source modules and 
 The release owner must verify the final combined commit, public remote HEAD, repository visibility and deployed static artifact. The GitHub CI matrix separately exercises Python 3.11 and 3.14 on Linux and 3.14 on macOS; local success does not claim those remote jobs already ran. Windows has not been validated.
 
 Future provider/MCP/scheduler/admin work remains in [MIGRATION.md](MIGRATION.md); UI work is broken into scenario-driven packets in [UI-PLAN.md](ux/UI-PLAN.md). The private predecessor remains a separate operational system and must not be made public as a substitute for this distribution.
+
+## Observed publication
+
+The public `v0.1.0` tag resolves to [`d2ac94082a31b64a95482dc6b97727b119955d1c`](https://github.com/ssheleg/project-observatory-open-source/tree/d2ac94082a31b64a95482dc6b97727b119955d1c). GitHub reports the new repository PUBLIC; its initial remote `main` matched that revision. Private vulnerability reporting is enabled. The original operational repository was not made public.
+
+The final pre-publication gate inspected **36 files and 38 historical blobs**, including the static site, against the local **302-identifier** denylist: passed, no findings. Git authors/committers were inspected separately and use generic project contributor metadata. The annotated release tag contains only the product/version description.
+
+A fresh clone over the public HTTPS URL passed the history gate, static self-tests and **27 runtime tests**. [CI run 35586799064](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35586799064) passed all three jobs: Python 3.11 on Linux, Python 3.14 on Linux, and Python 3.14 on macOS. No Windows claim is added.
+
+Cloudflare Pages production deployment `8e675a83-d974-4e11-86cb-cafd9df48183` reports `success` and source commit `d2ac94082a31b64a95482dc6b97727b119955d1c`; the custom domain reports `active`. Both <https://observatory.sshlg.me/> and <https://project-observatory.pages.dev/> returned the exact reviewed `site/index.html` through curl. HTML SHA-256: `47bdd990ec26ac5d18af7f3b88aa6d61296450b6fe1341a53cb6738f5d8fa188`. The custom host returned HTTP 200 with the declared CSP, frame, content-type and permissions headers. The live page also rendered its explanation, historical count boundary and Python 3.11 onboarding in the browser. Python urllib requests returned 403; browser and curl access succeeded, so universal client compatibility is not claimed.
+
+Only the eight public assets plus `_headers` were uploaded. No local dashboard or state was deployed. Existing authorized credentials were supplied locally to the deployment client and are not part of this repository or receipt. See [deployment instructions](site/DEPLOY.md) for repeatable validation and publication.

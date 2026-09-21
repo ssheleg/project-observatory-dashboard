@@ -19,6 +19,6 @@ project-observatory --home "$HOME/.local/share/observatory-fresh-demo" doctor
 
 Runtime tests cover synthetic first run, local Git ahead/dirty state, malicious Git clean filters, symlink scope changes, metadata redaction, private-file modes, read-only SQLite and generated-column bounds, invalid export state and HTTP Host/Origin controls. No live provider or real credential verification is implied by those tests. Actual checks, independent review hashes, package inspection and the synthetic browser walkthrough are in [RELEASE.md](RELEASE.md).
 
-Prerequisites: Python 3.11+, optional Git, local macOS/Linux shell. Remote publication and static-site deployment are verified by the release owner after final full-tree privacy review. No existing repository should be made public to complete that release.
+Prerequisites: Python 3.11+, optional Git, local macOS/Linux shell. The public v0.1.0 release and static deployment are verified in [RELEASE.md](RELEASE.md#observed-publication); the website is https://observatory.sshlg.me/. No existing repository should be made public to complete that release.
 
 Exact next development task after the portable release: M01, transactional project enrollment and removal with stable identity, followed by M02 history query/project detail. Read the acceptance criteria and related scenarios before implementation. Provider, MCP and scheduler work remains explicitly pending; do not reconstruct the feature boundary from chat.

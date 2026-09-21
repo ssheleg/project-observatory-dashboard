@@ -27,3 +27,5 @@ After deployment, compare the served HTML with `site/index.html`, inspect respon
 ## Browser review on 2026-09-21
 
 The same content was rendered in dawn and paper-led variants at 1440×900. Dawn was selected for separation of the introduction from the paper evidence sections. At 390×844, the installation command wrapped without document overflow (document and viewport both 390px). The synthetic toggle displayed the redacted finding, and the copy control produced its success state. Missing-JavaScript content remains present in the original HTML, including both example states. No claim of a complete WCAG conformance audit is made.
+
+Wrangler may create a local `.wrangler/` cache. It is ignored by Git and is not a release input. Run source publication checks from a clean checkout; the release gate deliberately rejects runtime cache files that remain in the prospective public tree.

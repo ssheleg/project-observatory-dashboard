@@ -10,3 +10,6 @@ dist/
 .DS_Store
 .observatory/
 node_modules/
+
+# Deployment client cache is private runtime state.
+.wrangler/
