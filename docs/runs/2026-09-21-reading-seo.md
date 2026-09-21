@@ -37,8 +37,21 @@ The fixed editorial direction reused the existing brand rather than introducing 
 | Owner | Source and integration | Delivery | Entry |
 |---|---|---|---|
 | [Observatory](https://github.com/ssheleg/project-observatory-open-source) | `codex/observatory-visual-seo` → main [0dca204](https://github.com/ssheleg/project-observatory-open-source/commit/0dca20438372c0359786327f2ddf98747dc44845), [PR 8](https://github.com/ssheleg/project-observatory-open-source/pull/8) | Cloudflare `69a58836-27a3-4ab5-b841-e18130b5b9a9`; production verified | [Receipt](../seo/evidence/production-2026-09-21.json), [article](https://observatory.sshlg.me/field-notes/) |
-| [Skills](https://github.com/ssheleg/sshlg-skills) | `codex/skills-seo-readability` → main [8f76ad7](https://github.com/ssheleg/sshlg-skills/commit/8f76ad754c812519f8954f9bdbc6cc13f8dd0e1a), [PR 150](https://github.com/ssheleg/sshlg-skills/pull/150) | [Exact-source Pages run](https://github.com/ssheleg/sshlg-skills/actions/runs/35611252365); production receipt will be added after completion | [Owner handoff](https://github.com/ssheleg/sshlg-skills/blob/8f76ad754c812519f8954f9bdbc6cc13f8dd0e1a/docs/runs/2026-09-21-reading-seo.md) |
+| [Skills](https://github.com/ssheleg/sshlg-skills) | `codex/skills-seo-readability` → main [8f76ad7](https://github.com/ssheleg/sshlg-skills/commit/8f76ad754c812519f8954f9bdbc6cc13f8dd0e1a), [PR 150](https://github.com/ssheleg/sshlg-skills/pull/150) | [Exact-source Pages run](https://github.com/ssheleg/sshlg-skills/actions/runs/35611252365); successful deployment; 33 served files match its artifact | [Owner handoff](https://github.com/ssheleg/sshlg-skills/blob/8f76ad754c812519f8954f9bdbc6cc13f8dd0e1a/docs/runs/2026-09-21-reading-seo.md) |
 
 Both source revisions were fetched from their public remotes in fresh checkouts.
 All eleven relative plan/audit/handoff links resolved. The article renderer check
 passed in the fresh Observatory checkout. Member submodule pins are unchanged.
+
+## Final cross-site verification
+
+[Production crawl](../seo/evidence/production-crawl-2026-09-21.json) passes all sixteen
+indexable URLs; both unknown-route probes return 404. Observatory matches all twelve
+served source files. Skills matches all thirty-three files of its actual Pages
+artifact; fourteen locally generated PNGs have identical decoded pixels but different
+compression bytes. Its owner records that distinction in the final receipt.
+
+The production article chart was reviewed at 320px: 18px body, readable labels and
+no horizontal overflow. The full-width article has four figures and two pull quotes.
+No code or deployment work remains. Indexing is pending external processing and
+PageSpeed remains quota-limited; neither blocks this completed content release.
