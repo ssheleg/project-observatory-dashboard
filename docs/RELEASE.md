@@ -15,7 +15,7 @@ and tests are additional. Private operational Git history was not imported.
 
 The inspected `project_observatory-0.2.0-py3-none-any.whl` has 236 runtime files and
 242 total archive entries. Runtime bytes match the source inventory and launcher.
-SHA-256: `2627bfdbbc50fa466b74888fc7ce3eafc7eab825f86523c0b7f1f51a7bdd2327`.
+SHA-256: `ea62d91884f2ca75ae17bcf6b7157a4668aed535db49795ddd0800fb97413153`.
 ZIP timestamps can change a subsequent build's digest; each released artifact must
 pass the package checker again. No private workspace or public marketing image is
 inside the wheel.
@@ -24,7 +24,7 @@ inside the wheel.
 
 | Check | Observed result | Boundary |
 |---|---|---|
-| Full engine `full check` on exported source | 33/33 suites PASS, 854 assertion checks and 166 unittest cases,zero skipped suites | Synthetic offline sources; Python 3.14.7/macOS |
+| Full engine `full check` on exported source | 33/33 suites PASS, 854 assertion checks and 170 unittest cases,zero skipped suites | Synthetic offline sources; Python 3.14.7/macOS with SQLite extensions |
 | Root compatibility/launcher/release-gate tests | 42 unittest cases PASS | Old 0.1 CLI and full launcher separation |
 | Source exporter regressions | 14 PASS | Explicit docs/profile inclusion, source sanitization/allowlist |
 | Archive verification | 236 runtime entries, 242 total,byte-exact | Hardened checker PASS, including RECORD integrity and exact metadata allowlist |
@@ -59,4 +59,19 @@ are private plaintext files; the authenticated local reveal operation still exis
 Read [COMPATIBILITY.md](COMPATIBILITY.md), [SECURITY.md](../SECURITY.md) and the
 [0.1 historical receipt](RELEASE-0.1.md) for the separate compatibility runtime.
 
-Final public tree/history check: 294 files and 43 historical blobs, 302 private identifiers,zero findings before this source commit. Ten additional negative tests cover filename/case privacy, image tamper/history and wheel metadata/symlink/RECORD boundaries. The gate is repeated on the committed public history in CI.
+Final public tree/history check: 295 files and 329 historical blobs, 302 private identifiers,zero findings before this source commit. Ten additional negative tests cover filename/case privacy, image tamper/history and wheel metadata/symlink/RECORD boundaries. The gate is repeated on the committed public history in CI.
+
+## Cross-platform corrections before release
+
+The remote matrix exposed Python 3.11 f-string syntax and tokenizer assumptions;
+those were corrected without dropping suites. macOS setup-python lacked loadable
+SQLite extensions. The full engine now checks its SQLite/sqlite-vec prerequisite
+before initialization, migration, doctor or upgrade writes, with a no-write
+regression. macOS CI uses Homebrew Python 3.14 and explicitly checks extension
+support. The installation guide names this requirement. Failure logs from synthetic
+CI are retained so a failed suite cannot hide behind a summary-only result.
+
+Historical fixed-root and clipboard-only action instructions were replaced with
+configured paths or protected-file/stdin instructions. The exported source keeps
+its inventory current. The final reviewed wheel corresponds to inventory SHA-256
+`96977e67994b46c66b5ce2df4131daf1ed8f423c210eb13b114f931f8e542798`.

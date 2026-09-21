@@ -6,7 +6,7 @@ Version 0.2 brings the original engine into the public distribution: project and
 
 ## Start with your own workspace
 
-The complete engine supports macOS and Linux, Python 3.11+ and SQLite 3.37+. Git and Node.js are needed for the complete local checks.
+The complete engine supports macOS and Linux, Python 3.11+ and SQLite 3.37+ with loadable-extension support. Git and Node.js are needed for the complete local checks. On macOS, use an extension-enabled Python build such as Homebrew Python; some bundled builds cannot load sqlite-vec. The [onboarding guide](docs/ONBOARDING.md) checks this before setup.
 
 ```sh
 git clone https://github.com/ssheleg/project-observatory-open-source.git

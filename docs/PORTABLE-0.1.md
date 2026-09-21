@@ -1,8 +1,8 @@
-# Project Observatory
+# Portable 0.1 compatibility reference
 
 **A local observation layer for agent-operated projects.** Register the folders you own, measure their current state, and give your agent a concrete next action. Project Observatory belongs to the [ssheleg harness](https://skills.sshlg.me/harness/): skills guide the work; Observatory reports what changed around it.
 
-This is the **portable edition**, a new public distribution. It includes local project observation, credential metadata and explicit known-value exposure checks. It does not include the private predecessor's operational inventory, history, cloud credentials or provider integrations. See the [migration map](MIGRATION.md) for the exact boundary.
+These are the retained **0.1 compatibility commands**. Their smaller workspace remains separate from the full engine added in 0.2. They include local project observation, credential metadata and explicit known-value exposure checks. For the complete engine, use the [current onboarding guide](ONBOARDING.md) and [migration map](MIGRATION.md).
 
 ## Try it without accounts or keys
 
@@ -22,7 +22,7 @@ project-observatory --home "$HOME/.local/share/observatory-demo" serve
 
 Open the localhost URL printed by `serve`. The demo creates one fictional project and a fictional transcript containing a known synthetic value twice. These are demonstration occurrences, not real incidents. Use a new demo home if that sample directory already exists.
 
-Prefer agent-led setup? Copy the complete [onboarding prompt](ONBOARDING.md#give-this-prompt-to-your-agent). It starts with the demo, explains the scope, and keeps credentials out of chat.
+Prefer agent-led setup? Copy the complete [onboarding prompt](PORTABLE-0.1-ONBOARDING.md#give-this-prompt-to-your-agent). It starts with the demo, explains the scope, and keeps credentials out of chat.
 
 ## Observe your own projects
 
@@ -58,7 +58,7 @@ project-observatory secret list
 project-observatory leaks scan --file /absolute/path/to/a/local-artifact.txt
 ```
 
-`secret put` prompts invisibly in a local terminal or reads standard input. Never place a value in a command argument, an agent message or a Git file. Stored values are redacted from CLI results, findings, exports and the dashboard, including when a known value appears inside a metadata label. See [safe local input and child-process injection](ONBOARDING.md#optional-secret-input) and the [threat model](../SECURITY.md).
+`secret put` prompts invisibly in a local terminal or reads standard input. Never place a value in a command argument, an agent message or a Git file. Stored values are redacted from CLI results, findings, exports and the dashboard, including when a known value appears inside a metadata label. See [safe local input and child-process injection](PORTABLE-0.1-ONBOARDING.md#optional-secret-input) and the [threat model](../SECURITY.md).
 
 This is **known-value matching**, not universal secret detection. A zero-match result says nothing about unknown values, transformed/encoded copies, skipped targets or earlier versions. Local artifacts containing copied credentials are not evidence that an upstream vendor was breached.
 
