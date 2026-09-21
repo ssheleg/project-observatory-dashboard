@@ -18,6 +18,7 @@ ALLOWED_TOP = {".github", "observatory", "tests", "tools", "docs", "site"}
 ALLOWED_ROOT = {".gitignore", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "pyproject.toml", "AGENTS.md", "requirements-full.lock"}
 SKIP = {".git", ".venv", "__pycache__", "node_modules", "build", "dist"}
 PUBLIC_IMAGES = {
+    "site/assets/credential-copies-cartoon.png": {"8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c"},
     "site/assets/observatory-cover.png": {"70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833"},
 }
 

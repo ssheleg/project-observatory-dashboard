@@ -5,7 +5,7 @@ Locale parity threshold: 80%
 Derived-from: inferred
 Status: draft
 Humanization: on
-Humanization pass: own
+Humanization pass: humanizer + editorial review
 Last calibrated: 2026-09-21
 
 ## Axes
@@ -66,3 +66,12 @@ Explain the aggregate's limits beside the number once, with a link to the full
 case study. External discussions add perspective; they do not corroborate the
 private case. This direction replaces the previous field-notes article as the
 voice example. The wider brand pack remains an inferred draft.
+
+## Illustrated article
+
+Humanization pass for the visual-reading update: humanizer, within copywriting.
+Retain first-person testimony and source qualifiers; remove repeated explanations,
+fake alternatives and stock advice. Pull quotes repeat the author's own text and
+never impersonate an external testimonial. The original cartoon is a dry aside
+about workflow copies, not evidence or ridicule of users. The body uses editorial
+paragraphs rather than a uniform stack of single-line assertions.

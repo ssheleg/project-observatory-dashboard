@@ -17,3 +17,8 @@ This file indexes the two distinct runtime paths. The table below describes the 
 Cross-scenario constraints: no hidden enrollment, unknown ownership remains unknown, no value in chat, no provider request without a separately implemented opt-in, no administrative mutation from the dashboard, and no deployment of generated private HTML.
 
 The next UI work is [UI-PLAN.md](UI-PLAN.md), with explicit done conditions. Update this file in the same change as any new user path.
+
+The public reading update adds SITE-10 (editorial figures, navigation, static text
+alternatives) and SITE-11 (404 recovery) in [the site scenario base](../site/BRIEF.md).
+The user explicitly authorized the visual direction and autonomous implementation;
+reading outcomes remain unobserved until reader feedback exists.

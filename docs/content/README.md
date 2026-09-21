@@ -71,3 +71,7 @@ short social drafts retain their credential-risk angle and link to this story;
 none were published to an account. The website preview and metadata use the new
 headline. Humanization is on with an own editorial pass; its measured changes
 are recorded beside the handoff.
+
+## Illustrated reading edition
+
+[Illustration provenance](ILLUSTRATIONS.md) records the chart units, diagram boundaries and generated cartoon. Rebuild with `python3 tools/build_article.py`; CI checks source/HTML parity. The original social cover remains available. No social post was sent.
