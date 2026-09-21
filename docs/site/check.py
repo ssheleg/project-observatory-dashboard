@@ -2,7 +2,7 @@
 """Validate the public static tree without reading any runtime state."""
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit, unquote
+from urllib.parse import urlsplit, unquote, parse_qs
 import hashlib
 import sys
 import json
@@ -54,6 +54,9 @@ def check(root):
             target=((root/path.lstrip('/')) if path.startswith('/') else (source.parent/path) if path else source).resolve()
             if target.is_dir():target=target/'index.html'
             if not target.is_relative_to(root) or not target.is_file(): failures.append('unresolved local reference');continue
+            if ref in page.assets and target.suffix in {'.css', '.js'}:
+                digest=hashlib.sha256(target.read_bytes()).hexdigest()[:12]
+                if parse_qs(url.query) != {'v': [digest]}: failures.append('missing or stale asset version')
             if url.fragment and (target not in pages or unquote(url.fragment) not in pages[target].ids): failures.append('missing anchor')
     text=(root/'index.html').read_text() if (root/'index.html').is_file() else ''
     for required in ['SYNTHETIC EXAMPLE','known secret values','COMPLETE LOCAL ENGINE','Never paste them into agent chat','docs/ONBOARDING.md','docs/MIGRATION.md']:
@@ -66,7 +69,7 @@ def check(root):
 if __name__=='__main__':
     errors=check(ROOT)
     if '--self-test' in sys.argv:
-        cases=('unexpected-file','private-marker','aggregate-mismatch','image-tamper','article-anchor','article-link')
+        cases=('unexpected-file','private-marker','aggregate-mismatch','image-tamper','article-anchor','article-link','stale-asset','unversioned-asset')
         for case in cases:
             with tempfile.TemporaryDirectory() as temporary:
                 root=Path(temporary)/'site';shutil.copytree(ROOT,root)
@@ -74,6 +77,12 @@ if __name__=='__main__':
                 elif case=='private-marker':(root/'app.js').write_text('// /Users/synthetic')
                 elif case=='image-tamper':
                     with (root/'assets/observatory-cover.png').open('ab') as f:f.write(b'changed')
+                elif case=='stale-asset':
+                    with (root/'style.css').open('a') as f:f.write('\n/* changed */\n')
+                elif case=='unversioned-asset':
+                    target=root/'index.html'
+                    import re
+                    target.write_text(re.sub(r'(style\.css)\?v=[a-f0-9]+', r'\1', target.read_text()))
                 elif case in {'article-anchor','article-link'}:
                     target=root/'field-notes/index.html'
                     target.write_text(target.read_text().replace('href="../#start"','href="../#absent"' if case=='article-anchor' else 'href="../../private.html"'))
