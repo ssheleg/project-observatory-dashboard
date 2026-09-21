@@ -74,8 +74,22 @@ The public release gate with the local-only private denylist passed: 302 files,
 389 historical blobs, 302 private identifiers, zero findings. It checks patterns
 and identifiers, not an absolute absence of every possible private fact.
 
-Remote CI and deployment are pending. The production receipt will be added after
-successful exact-source publication.
+Completed. Source [8fd0858](https://github.com/ssheleg/project-observatory-open-source/commit/8fd0858af86ec8d5e5015e9eb5d0d481edc2e866)
+merged through [PR6](https://github.com/ssheleg/project-observatory-open-source/pull/6)
+after all Linux Python 3.11/3.14 and macOS Python 3.14 jobs passed in
+[push CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35606152890)
+and [PR CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35606194423).
+
+Cloudflare deployment `89e79cbe-f9e4-4f12-8fbe-25258d778711` serves that source at
+the [canonical article](https://observatory.sshlg.me/field-notes/). Ten served asset
+bodies match source SHA-256 digests; response security headers match the static
+policy. Browser production check: new title and author, cover loaded, no overflow
+at 390px, no console warnings/errors. [Machine receipt](2026-09-21-origin-story-production.json).
+
+A fresh checkout of source branch commit `a2061fc4972b0643cb803b98bd88d0107b341bac`
+passed the static gate and resolved 24 repository-relative handoff/packet links.
+The merged source has the identical tree. This documentation-only receipt requires
+no second deployment and does not alter the package release.
 
 ## Context, local-only rule and next task
 

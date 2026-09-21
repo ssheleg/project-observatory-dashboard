@@ -61,3 +61,11 @@ Social drafts remain unpublished. Preserve the local-only rule above.
 The Claude Code credential-copy article and channel posts were revised and the
 website redeployed. See the [editorial handoff](runs/2026-09-21-credential-copy-editorial.md)
 for its source revision, checks and deployment; the package release above is unchanged.
+
+## Latest owner-origin article delivery
+
+The field-notes article now tells the owner's path from project inventory and
+revival to repeated key warnings and monitoring. The
+[origin-story handoff](runs/2026-09-21-observatory-origin-story.md) supersedes the
+previous article wording and contains its source ledger, validation and production
+receipt. The canonical URL is unchanged. Social posts remain unpublished drafts.
