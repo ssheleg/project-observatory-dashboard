@@ -41,3 +41,8 @@ A visitor with the previous CSS/JS in browser cache must receive the assets matc
 the new HTML. Local stylesheet/script URLs carry their content digest. The static
 gate rejects missing or stale digests; verification reuses a previously visited
 production browser and checks responsive landing/article layout after deployment.
+
+- SITE-08: A reader arriving from a credential-risk post gets the same concrete
+  question in the article headline, sees local-retention evidence with its limits,
+  and reaches a redacted inspection/response path. Claude Code, claude-mem and
+  Chroma remain distinct; no breach or universal exposure is asserted.

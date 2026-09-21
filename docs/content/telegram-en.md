@@ -1,11 +1,12 @@
-The complete Project Observatory engine is now open source.
+You kept your API key out of Git. Did you keep it out of your Claude Code history?
 
-It grew out of a problem around agent work: the task finishes, but output stays in logs, memory and reports. An earlier local remediation pass recorded 202 value-replacement events: 66 in claude-mem SQLite and 136 in Chroma SQLite. That is not a count of unique keys or proof of remote exfiltration. Project identities and raw records remain private.
+A diagnostic command prints a credential. The result can remain in a session record. An optional memory plugin can retain it after the task is finished.
 
-Observatory collects repository state, Git activity, metrics, findings and history from a directory you choose. It includes local dashboards, CLI, MCP, optional integrations and known-value credential scans. Provider access, background jobs and supported memory remediation are enabled separately.
+Your app still works. Nothing about that tells you where the key was copied.
 
-Everyone runs the same code with their own private workspace: their projects, configuration, keys and reports. Updates have version checks, preview, backup and restore.
+In our local setup, a cleanup pass recorded 202 value-replacement events: 66 in claude-mem SQLite and 136 in Chroma SQLite. These were retained local copies, not 202 unique keys or proof of theft.
 
-Your coding agent guides setup. Start locally, then add the integrations you need. Enter keys locally, never in the chat.
+I built Project Observatory to inspect selected artifacts for known credential values without repeating those values in the findings. The full engine is now open source; your keys and project data stay in your own workspace.
 
-The case, full story and setup: https://observatory.sshlg.me/field-notes/
+I wrote up how copies can accumulate, what we actually found, and what to check before sharing another transcript:
+https://observatory.sshlg.me/field-notes/

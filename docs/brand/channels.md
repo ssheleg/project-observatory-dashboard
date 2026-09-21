@@ -99,3 +99,10 @@ Forbidden: physics: none | brand: claims without a source, humor in errors or de
 CTA: one relevant next action
 Proof: source file, test or reviewed observation
 Locales: English for public documentation, Russian for the inherited local interface; posts authored per language
+
+## Telegram adaptations
+
+Telegram RU/EN posts use the blog register above in a shorter format: a specific
+reader risk, the observed mechanism and one article link. Write each locale
+independently. No claim that the reader is already compromised or that Claude Code
+ships a third-party memory plugin. X posts use the same evidence with fewer details.

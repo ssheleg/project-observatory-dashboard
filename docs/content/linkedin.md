@@ -1,14 +1,18 @@
-When an agent finishes a task, the repository is only part of what remains.
+Your API key can stay out of Git and still end up in your agent's memory.
 
-Tool output can persist in transcripts, memory databases and reports. In an earlier local deployment, our remediation records counted 202 value-replacement events: 66 in claude-mem SQLite and 136 in Chroma SQLite.
+When reviewing a Claude Code workflow, the repository is only part of the picture. A command can print a credential into a tool result. Session history can retain it. An optional memory integration can carry information from that result into a separate store.
 
-These are replacement events, not unique credentials or proof of remote exfiltration. The public account keeps that distinction explicit and excludes project identities, credential labels and raw records.
+The task finishes. The application works. The copied key may still be valid.
 
-I built Project Observatory to inspect this surrounding state alongside the projects themselves. It collects repository activity, metrics, findings and history, with local dashboards, CLI and MCP access. Provider integrations and remediation are optional.
+In our local setup, a remediation pass recorded 66 value-replacement events in claude-mem SQLite and 136 in Chroma SQLite: 202 events in total.
 
-The complete engine is now open source. Each user keeps their own configuration, credentials and observations in a private workspace outside the installed code. An agent guides setup without asking for secret values in the conversation. Versioned contracts, upgrade preview and backup/restore support future changes.
+These were retained local credential copies. The count is not a count of unique keys, and the evidence does not establish theft or a vulnerability in those products.
 
-For teams experimenting with agent workflows, the useful question is: what evidence will the next person or agent have when they return to this project?
+It changed the question I wanted to answer: where else did a credential go after a tool used it?
 
-The story, boundaries and setup:
+I built Project Observatory to help inspect that surrounding state. It checks selected artifacts for locally known secret values and records findings without repeating the values. The full engine is open source, with private projects, credentials and observations owned by each installation.
+
+Before sharing an agent transcript or a support bundle, inspect its contents. If a valid key appears somewhere unintended, revocation and removal are separate tasks.
+
+The full write-up covers the copy paths, our evidence and a practical starting point:
 https://observatory.sshlg.me/field-notes/
