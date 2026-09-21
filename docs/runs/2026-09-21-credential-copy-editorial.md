@@ -71,6 +71,21 @@ site/field-notes/index.html. Brand facts and case-study scope constrain all chan
 adaptations. Do not include real keys, project identities, raw logs or private
 receipts. A new security case needs evidence review before any public claim.
 
-Next release step: integrate after CI, deploy the reviewed static tree, verify the
-canonical article and record the production source revision. No package release
-or live private installation change is needed. No social message is authorized.
+## Production delivery
+
+Complete. Source [ba96b75](https://github.com/ssheleg/project-observatory-open-source/commit/ba96b7587ed1f0d85130547f68897228340f1e85)
+merged via PR4 after all supported jobs passed in
+[CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35604193868).
+Cloudflare deployment `a21edd50-d8f9-4e38-9298-c67d4299b441` serves that exact source.
+All ten public asset bodies match source bytes; response headers match the static
+policy. The canonical article was opened in a browser after deployment: new title,
+loaded cover, no mobile overflow or console warnings/errors.
+[Machine receipt](2026-09-21-editorial-production.json).
+
+The public-tree/history check before the source commit inspected 299 files and
+368 historical blobs against 302 private identifiers with zero findings. CI also
+rechecks the public history. No new raw incident evidence was accessed or published.
+
+Next task: the operator can copy the reviewed posts from docs/content. No social
+account message was sent. Runtime, package version and private services are unchanged.
+This documentation-only receipt does not require another site deployment.
