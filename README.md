@@ -1,90 +1,79 @@
 # Project Observatory
 
-**A local observation layer for agent-operated projects.** Register the folders you own, measure their current state, and give your agent a concrete next action. Project Observatory belongs to the [ssheleg harness](https://skills.sshlg.me/harness/): skills guide the work; Observatory reports what changed around it.
+**See what changed across your projects, what needs attention, and where agent work left a trace.** Project Observatory is the local observation component of the [ssheleg harness](https://skills.sshlg.me/harness/). Skills guide the work; Observatory records and checks the state around it.
 
-This is the **portable edition**, a new public distribution. It includes local project observation, credential metadata and explicit known-value exposure checks. It does not include the private predecessor's operational inventory, history, cloud credentials or provider integrations. See the [migration map](docs/MIGRATION.md) for the exact boundary.
+Version 0.2 brings the original engine into the public distribution: project and repository inventory, findings, history, metrics, a local dashboard, MCP, credential tools and optional provider integrations. Every user supplies their own project paths, accounts and keys. Private operational data and Git history are excluded from the source distribution.
 
-## Try it without accounts or keys
+## Start with your own workspace
 
-Python 3.11+ and Git are the prerequisites. The runtime has no third-party Python dependencies. The documented shell commands target macOS and Linux; Windows support has not been validated.
+The complete engine supports macOS and Linux, Python 3.11+ and SQLite 3.37+. Git and Node.js are needed for the complete local checks.
 
 ```sh
 git clone https://github.com/ssheleg/project-observatory-open-source.git
 cd project-observatory-open-source
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install .
-python -m unittest discover -s tests -v
-python tools/check_public_release.py --history
-project-observatory --home "$HOME/.local/share/observatory-demo" demo
-project-observatory --home "$HOME/.local/share/observatory-demo" serve
+python -m pip install -c requirements-full.lock '.[full]'
+export OBSERVATORY_HOME="$HOME/.local/share/project-observatory-full"
+project-observatory full init
+project-observatory full configure sources projects "$HOME/projects"
+project-observatory full local
+project-observatory full doctor
 ```
 
-Open the localhost URL printed by `serve`. The demo creates one fictional project and a fictional transcript containing a known synthetic value twice. These are demonstration occurrences, not real incidents. Use a new demo home if that sample directory already exists.
+Use an existing directory you own in place of `$HOME/projects`. The first run needs no provider credentials. Open `docs/dashboard/index.html` inside your private workspace. An agent can guide the setup: give it the [onboarding prompt](docs/AGENT-ONBOARDING.md), or run `project-observatory full onboard`.
 
-Prefer agent-led setup? Copy the complete [onboarding prompt](docs/ONBOARDING.md#give-this-prompt-to-your-agent). It starts with the demo, explains the scope, and keeps credentials out of chat.
+## What the complete engine does
 
-## Observe your own projects
-
-```sh
-project-observatory init
-project-observatory project discover "$HOME/projects" --depth 2
-project-observatory project add example-app "$HOME/projects/example-app"
-project-observatory scan
-project-observatory dashboard
-project-observatory serve
-```
-
-Discovery is a preview: it enrolls nothing. `project add` records a directory you explicitly selected. `scan` reads only registered roots; it never fetches from Git remotes, calls providers or runs project build commands.
-
-| What you can ask | What this edition measures | Evidence |
+| Question | Capability | Implementation |
 |---|---|---|
-| Is work still only on this machine? | Git dirty files, upstream presence, ahead/behind against local tracking refs | [`git_metrics`](observatory/core.py), synthetic Git E2E test |
-| How large is this project? | Bounded source-file count and bytes; root npm dependency counts | [`observe_project`](observatory/core.py) |
-| Where are environment variables reused? | Variable names, presence, file permissions and machine-local HMAC fingerprints | [`env_pairs` and `observe_project`](observatory/core.py) |
-| Did a known secret get copied into an artifact? | Exact byte matches against local slots in explicit files or SQLite targets | [`scan_leaks`](observatory/credentials.py) |
-| What needs attention next? | Deterministic findings, a remedy, partial-observation warnings | [`findings`](observatory/core.py), [local dashboard](observatory/dashboard.py) |
-| Can I share a summary? | Aggregates with project names, paths, variable names and fingerprints omitted | [`public_export`](observatory/core.py) |
+| What projects and repositories exist? | Filesystem discovery, explicit ownership rules, repository and provider inventory | [collectors](observatory/engine/collectors), [configuration](observatory/engine/configuration.py) |
+| What changed? | Git events, project timelines, append-only reasoning and review proposals | [store](observatory/engine/store), [survey](observatory/engine/survey.py) |
+| What needs attention? | Findings with evidence, acknowledgements and coverage/degradation signals | [finding rules](observatory/engine/tools/build_findings.py) |
+| Is a project growing or costing more? | Versioned metric plugins for source/dependency size, branches, releases, hosting and traffic | [plugin contract](observatory/engine/plugins/README.md) |
+| Where are credentials used or copied? | Named slots, environment metadata, known-value scans, rotation and movement records | [vault](observatory/engine/tools/vault.py), [scanner](observatory/engine/tools/scan_leaks.py) |
+| Can another agent inspect the same facts? | MCP tools and resources, input/output schemas, proposal authority checks | [MCP server](observatory/engine/mcp/server.py), [wire contract](observatory/engine/fabric/FABRIC-CONFORMANCE.md) |
+| Can it observe continuously? | Explicitly enabled workspace-specific scheduling and optional model interpretation | [scheduler](observatory/engine/tools/install_launchd.py), [agent](observatory/engine/agent/observe.py) |
 
-`status` prints the most recent snapshot and its timestamp; it does not secretly run a new scan. The local SQLite history retains the most recent 100 snapshots. Files inside dependency/build/cache directories and symlinked files are excluded from observation. Git external filters are disabled and submodules ignored for safety, so dirty-file counts may differ from a customized Git workflow.
+Optional integrations include GitHub, Bitbucket, Cloudflare, Heroku, Google analytics/search, domain observations, agent sessions and a local knowledge base. Connecting one does not connect all of them. Model calls, remote environment reads, notifications and remediation are opt-in. See [onboarding](docs/ONBOARDING.md) for settings and credential entry.
 
-## Credentials stay local
+The local dashboard is private. The public `site/` is a separate marketing artifact and cannot read your workspace. Deploying the website must never upload generated dashboard pages, registries, keys or transcripts.
 
-The local workflow needs no API keys. Optional known-value exposure scanning uses secrets you deliberately add to private local slots:
+## Code is shared. State is yours.
+
+| Installed code | Private workspace | External sources |
+|---|---|---|
+| Engine, schemas, generic defaults, tests and companion skills | Configuration, registries, SQLite history, keys, journals and generated pages | Only paths and accounts explicitly configured by the user |
+
+Values enter credential tools locally through stdin. Agents work with names, and the command runner filters exact known values from captured output. This is accidental-output protection, not a sandbox against a hostile child process. The authenticated local credential UI can reveal a selected value on request; that is an explicit operation, not part of ordinary reports.
+
+Known-value scanning cannot find unknown or transformed values. A copied value in an agent transcript or local memory store does not prove a vendor breach. [Security boundaries](SECURITY.md) describe what is and is not protected.
+
+## Updates preserve supported contracts
+
+Application versions, workspace/config formats, database migrations, plugin API and tool schemas have separate compatibility rules. Newer unsupported state is refused. Updates preserve optional settings, back up SQLite including committed WAL data, and support restore into a separate home.
 
 ```sh
-project-observatory secret put EXAMPLE_TOKEN
-project-observatory secret list
-project-observatory leaks scan --file /absolute/path/to/a/local-artifact.txt
+project-observatory full upgrade
+# Stop all writers before either command below.
+project-observatory full workspace-backup --writers-stopped
+project-observatory full upgrade --apply --writers-stopped
 ```
 
-`secret put` prompts invisibly in a local terminal or reads standard input. Never place a value in a command argument, an agent message or a Git file. Stored values are redacted from CLI results, findings, exports and the dashboard, including when a known value appears inside a metadata label. See [safe local input and child-process injection](docs/ONBOARDING.md#optional-secret-input) and the [threat model](SECURITY.md).
+Read [compatibility and recovery](docs/COMPATIBILITY.md) before upgrading. The original `full backup` retains its database-only meaning. `workspace-backup` covers the managed workspace; externally referenced stores require separate backups.
 
-This is **known-value matching**, not universal secret detection. A zero-match result says nothing about unknown values, transformed/encoded copies, skipped targets or earlier versions. Local artifacts containing copied credentials are not evidence that an upstream vendor was breached.
+**Existing 0.1 commands remain available.** `project-observatory init`, `scan`, `serve`, `secret`, `leaks` and the other original commands keep their previous namespace and state format. They are documented in the [0.1 compatibility guide](docs/PORTABLE-0.1.md). The full engine has a separate default home; it never silently reinterprets the portable workspace. [CLI contract](observatory/engine/docs/CLI-COMPATIBILITY.md).
 
-## Commands and exit status
-
-| Command | Behavior |
-|---|---|
-| `init`, `doctor` | Create empty private state; check prerequisites without provider calls |
-| `demo` | Create isolated fictional examples; scan and build the dashboard |
-| `project discover ROOT` | Preview candidates up to a bounded depth |
-| `project add NAME PATH`, `project list` | Explicitly enroll and inspect local scope |
-| `scan`, `status` | Measure scope; read the last recorded snapshot |
-| `dashboard`, `serve --port 47311` | Build private HTML; serve a read-only loopback view |
-| `secret put NAME`, `secret list` | Store through local input; list names only |
-| `secret run --env ENV_NAME NAME -- COMMAND` | Inject a slot into one process; suppress its output |
-| `leaks scan --file PATH [--sqlite]` | Scan explicit artifacts against known slots |
-| `export` | Print de-identified aggregate project statistics |
-
-Global `--home PATH` must precede the command. Otherwise `OBSERVATORY_HOME` or `~/.local/share/project-observatory` is used. Exit codes: `0` completed, `2` invalid/degraded leak scan or operational error; leak scan returns `1` for matches. `secret run` returns the child exit code. Ordinary project findings do not make `scan` fail.
-
-## Build and contribute
+## Verify and contribute
 
 ```sh
 python -m unittest discover -s tests -v
+project-observatory full check
+python tools/check_public_release.py --history
 ```
 
-The tests create temporary projects, a local bare Git remote, fictional credentials and SQLite stores. They do not use cloud accounts or the user's project inventory. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [migration acceptance criteria](docs/MIGRATION.md), and the [handoff](docs/HANDOFF.md). Public marketing lives in `site/`; generated dashboards belong in private state and must never be deployed.
+Checks use synthetic projects and credentials. Real provider acceptance, external host admission and real credential rotation are separate checks and are reported as untested by the offline suite. The [source inventory](observatory/engine/SOURCE-INVENTORY.json) records the reviewed export; it is not a guarantee that a pattern scanner can recognize every private fact.
 
-MIT licensed. Source and website examples are synthetic unless explicitly identified as a separately reviewed observation.
+[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Migration map](docs/MIGRATION.md) · [Release handoff](docs/HANDOFF.md)
+
+MIT licensed.

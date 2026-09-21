@@ -1,0 +1,26 @@
+{
+  "id": "heroku-cost",
+  "title": "What a project costs to keep running",
+  "script": "heroku_cost.py",
+  "metrics": [
+    {
+      "name": "heroku.cost_usd_month",
+      "unit": "usd",
+      "label": "хостинг $/мес",
+      "role": "hosting.cost.usd_month",
+      "means": "Estimated monthly cost from published on-demand dyno rates and billed_price for add-ons owned by the project's applications. Attached add-ons owned elsewhere are excluded to avoid double counting. This is a capacity estimate, not an invoice or a measurement of per-second billing."
+    },
+    {
+      "name": "heroku.dynos",
+      "unit": "count",
+      "label": "дино",
+      "means": "How many dynos the project's applications have scaled, summed across them. The companion to the cost: a bill that grew because a worker was added is a different fact from one that grew because a dyno was resized, and the two are indistinguishable from money alone."
+    }
+  ],
+  "every_hours": 24,
+  "requires": [
+    "registry:heroku-apps.json"
+  ],
+  "why": "Preserve daily snapshots of the registry's estimated monthly Heroku cost and scaled dynos. Comparing the series helps distinguish scaling changes from changes in application size or add-on ownership.",
+  "api_version": 1
+}

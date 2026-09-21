@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/record-input.schema.json",
+  "title": "project.record — input",
+  "description": "Append a note, or propose a registry change. Both are proposals; neither is canon.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner"
+  ],
+  "properties": {
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who is writing. Required and has no default: this provider does not manufacture caller identity, and a write that could claim the operator's authority by omission is the defect the requirement exists to refuse."
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The minimal claim or episode. A full transcript is evidence, and evidence is linked rather than stored."
+    },
+    "why": {
+      "type": "string",
+      "description": "What it meant. The field no diff contains."
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^project:"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "memoryId": {
+      "type": "string",
+      "description": "Correct an existing record; requires expectedRevision."
+    },
+    "expectedRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The revision the caller read. A mismatch returns a conflict; there is no last-write-wins."
+    },
+    "targetId": {
+      "type": "string",
+      "description": "For a registry proposal: project:… | repository:… | domain:…"
+    },
+    "patch": {
+      "type": "object",
+      "description": "For a registry proposal: the fields to change."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+""                                                                                 
+from __future__ import annotations
+import json
+import os
+import re
+from pathlib import Path
+
+VERSION = "0.2.0"
+CONFIG_VERSION = 1
+WORKSPACE_VERSION = 1
+SOURCE = Path(__file__).resolve().parent
+
+class ConfigurationError(RuntimeError):
+    pass
+
+def home() -> Path:
+    value = os.environ.get("OBSERVATORY_HOME")
+    if value and not Path(value).expanduser().is_absolute():
+        raise ConfigurationError("OBSERVATORY_HOME must be an absolute path")
+    return Path(value).expanduser() if value else Path.home() / ".local/share/project-observatory-full"
+
+def version_tuple(value: str) -> tuple[int, int, int]:
+    if not isinstance(value, str) or not re.fullmatch(r"\d+\.\d+\.\d+", value):
+        raise ConfigurationError("Invalid compatibility version")
+    return tuple(map(int, value.split(".")))
+
+def read_json(file: Path) -> dict:
+    if any(p.is_symlink() for p in (file, *file.parents)):
+        raise ConfigurationError("Configuration paths must not contain symbolic links")
+    try:
+        value = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise ConfigurationError(f"Cannot read configuration file: {file.name}") from None
+    if not isinstance(value, dict):
+        raise ConfigurationError(f"Expected an object in {file.name}")
+    return value
+
+def validate_workspace(base: Path | None = None, *, required: bool = False) -> dict:
+    base = base or home()
+    if (base / "upgrade-in-progress.json").exists():
+        raise ConfigurationError("Interrupted workspace upgrade; restore its verified snapshot into a new home")
+    marker = base / "workspace.json"
+    if marker.is_symlink():
+        raise ConfigurationError("Workspace marker must not be a symbolic link")
+    if not marker.exists():
+        if required:
+            raise ConfigurationError("Workspace is not initialized; run observatory.py init")
+        return {}
+    doc = read_json(marker)
+    v = doc.get("format_version")
+    if type(v) is not int or v != WORKSPACE_VERSION:
+        raise ConfigurationError("Unsupported workspace format; use a compatible Observatory release")
+    for field in ("minimum_reader", "minimum_writer"):
+        if version_tuple(doc.get(field)) > version_tuple(VERSION):
+            raise ConfigurationError("This workspace requires a newer Observatory release")
+    return doc
+
+def load(base: Path | None = None) -> dict:
+    base = base or home()
+    validate_workspace(base)
+    file = base / "config" / "settings.json"
+    if file.is_symlink():
+        raise ConfigurationError("Settings must not be a symbolic link")
+    if not file.exists():
+        return {"schema_version": CONFIG_VERSION, "sources": {}, "integrations": {}, "features": {}}
+    doc = read_json(file)
+    if type(doc.get("schema_version")) is not int or doc["schema_version"] != CONFIG_VERSION:
+        raise ConfigurationError("Unsupported configuration schema; run a compatible release")
+    for key in ("sources", "integrations", "features"):
+        if not isinstance(doc.get(key, {}), dict):
+            raise ConfigurationError(f"Configuration {key} must be an object")
+    for key, value in doc.get("sources", {}).items():
+        if not isinstance(value, str) or not Path(value).expanduser().is_absolute():
+            raise ConfigurationError(f"Source {key} must be an absolute path")
+    for section in ("integrations", "features"):
+        if any(type(v) is not bool for v in doc.get(section, {}).values()):
+            raise ConfigurationError(f"Configuration {section} values must be boolean")
+    required = doc.get("must_understand", [])
+    if not isinstance(required, list) or required:
+        raise ConfigurationError("Configuration requires unsupported capabilities")
+    return doc
+
+def source_path(name: str, fallback: str, env: str | None = None) -> Path:
+    if env and os.environ.get(env):
+        value = Path(os.environ[env]).expanduser()
+        if not value.is_absolute():
+            raise ConfigurationError(f"{env} must be an absolute path")
+        return value
+    value = load().get("sources", {}).get(name)
+    return Path(value).expanduser() if value else home() / "unconfigured" / fallback
+
+def enabled(name: str, section: str = "integrations") -> bool:
+    if section == "integrations" and os.environ.get("OBSERVATORY_OFFLINE") == "1":
+        return False
+    return load().get(section, {}).get(name, False) is True
+
+REGISTRY_VERSIONS = {"projects.json": 2, "repositories.json": 2, "relations.json": 2}
+
+def validate_registry_document(file: Path, doc: dict) -> None:
+    if not isinstance(doc, dict):
+        raise ConfigurationError(f"Registry {file.name} must be an object")
+    version = doc.get("schema_version", 1)
+    maximum = REGISTRY_VERSIONS.get(file.name, 1)
+    if type(version) is not int or version < 1 or version > maximum:
+        raise ConfigurationError(f"Unsupported registry format in {file.name}; use a compatible release")
+
+def validate_registries(directory: Path) -> None:
+    if directory.is_symlink():
+        raise ConfigurationError("Registry directory must not be a symbolic link")
+    if directory.is_dir():
+        for file in directory.glob("*.json"):
+            validate_registry_document(file, read_json(file))

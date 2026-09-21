@@ -1,0 +1,150 @@
+{
+  "relations.json": {
+    "schema_version": null,
+    "relation_types": {},
+    "relations": [],
+    "updated_on": null
+  },
+  "sources.json": {
+    "schema_version": null,
+    "sources": []
+  },
+  "env-inventory.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "root": null,
+    "totals": {},
+    "files": [],
+    "shared": [],
+    "degraded": []
+  },
+  "cloudflare-zones.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "scanned_on": null,
+    "accounts": [],
+    "degraded": [],
+    "zones": [],
+    "totals": {},
+    "source_refs": []
+  },
+  "mcp-servers.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "scanned_on": null,
+    "own_server": null,
+    "own_declared": null,
+    "degraded": [],
+    "servers": [],
+    "totals": {},
+    "source_refs": []
+  },
+  "google-properties.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "totals": {},
+    "credentials": [],
+    "accounts": [],
+    "properties": [],
+    "search_console": [],
+    "degraded": []
+  },
+  "remote-env.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "provider": null,
+    "totals": {},
+    "apps": [],
+    "degraded": []
+  },
+  "duplicate-repo-names.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "groups": []
+  },
+  "repositories.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "repositories": []
+  },
+  "projects.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "projects": []
+  },
+  "findings.json": {
+    "schema_version": null,
+    "built_at": null,
+    "counts": {},
+    "acknowledged": null,
+    "resolved_since_last_run": [],
+    "findings": []
+  },
+  "heroku-apps.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "account": null,
+    "teams": [],
+    "price_list": {},
+    "totals": {},
+    "apps": [],
+    "remotes_to_unknown_apps": [],
+    "degraded": []
+  },
+  "domains.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "domains": []
+  },
+  "credentials.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "totals": {},
+    "credentials": [],
+    "destinations": {},
+    "unlisted_destinations": [],
+    "degraded": [],
+    "registers_unreadable": []
+  },
+  "products.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "roles": [],
+    "products": [],
+    "degraded": [],
+    "totals": {},
+    "source_refs": []
+  },
+  "stale-remotes.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_refs": [],
+    "clones": []
+  },
+  "domain-liveness.json": {
+    "schema_version": null,
+    "source_refs": [],
+    "scanned_on": null,
+    "verification": {},
+    "hosts": [],
+    "degraded": []
+  },
+  "domain-exclusions.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "source_ref": null,
+    "meaning": null,
+    "domains": []
+  }
+}

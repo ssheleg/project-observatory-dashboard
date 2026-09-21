@@ -4,11 +4,23 @@
   "reviewed_date": "2026-09-21",
   "unit": "value-replacement events",
   "surfaces": [
-    {"name": "claude-mem SQLite", "count": 66},
-    {"name": "Chroma SQLite", "count": 136}
+    {
+      "name": "claude-mem SQLite",
+      "count": 66
+    },
+    {
+      "name": "Chroma SQLite",
+      "count": 136
+    }
   ],
   "total": 202,
-  "not_a_count_of": ["unique cells", "unique credentials", "security incidents", "vendor vulnerabilities"],
+  "not_a_count_of": [
+    "unique cells",
+    "unique credentials",
+    "security incidents",
+    "vendor vulnerabilities"
+  ],
   "raw_evidence_public": false,
-  "public_edition_automatic_scrubbing": false
+  "public_edition_automatic_scrubbing": false,
+  "full_engine_opt_in_remediation": true
 }

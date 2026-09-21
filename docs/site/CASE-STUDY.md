@@ -1,6 +1,6 @@
 # Credential copies in local agent memory
 
-This is a reviewed aggregate from an earlier local deployment, not a benchmark of the portable edition and not a vendor vulnerability report.
+This is a reviewed aggregate from an earlier local deployment, not a benchmark of the public release and not a vendor vulnerability report.
 
 ## What was observed
 
@@ -12,7 +12,7 @@ These are replacement events, not unique database cells, distinct credentials, s
 
 Before inspection, retained memory records contained copies of values intended to remain in credential storage. The local deployment identified those copies and recorded its replacements. A replacement is only part of the response: credential rotation or revocation belongs at the provider; retention and remaining copies still need review.
 
-The portable public edition supports opt-in matching of known values against explicitly selected text files and SQLite data. It reports a redacted finding and a next action. It **does not ship the earlier deployment's automatic database scrubbing**, and this case study is not a claim that it does.
+The full public engine includes known-value scanning and an explicitly enabled companion-memory remediation tool. That tool creates private backups before changing supported stores. The default local pipeline does not enable remediation, rotate credentials or revoke them at a provider. The smaller compatibility CLI retains its read-only exposure checks. Neither workflow proves that all copies, embeddings or historical backups have been erased.
 
 ## Provenance and limits
 

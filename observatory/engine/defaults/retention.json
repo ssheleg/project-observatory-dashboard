@@ -1,0 +1,29 @@
+{
+  "ledger": {
+    "proposed_days": 90,
+    "observed_days": 180,
+    "rejected_days": 30,
+    "never": [
+      "supported",
+      "contested",
+      "stale",
+      "superseded",
+      "archived"
+    ],
+    "owner_exempt": [
+      "operator",
+      "agent:estate-history"
+    ]
+  },
+  "events_days": 365,
+  "observations_days": 90,
+  "fingerprints_keep": 3,
+  "metrics_days": 400,
+  "metrics_keep_per_series": 2,
+  "deltas": "dropped once consumed by the agent",
+  "scans": "never — they are the spine the deltas and fingerprints hang from",
+  "tombstones": "never — they ARE the audit trail an erasure leaves",
+  "wallet_events": 500,
+  "wallet_days": 60,
+  "wallet_months": 12
+}

@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-output.schema.json",
+  "title": "estate.survey \u2014 output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "surveyedAt",
+    "scanId",
+    "scope",
+    "counts",
+    "projects",
+    "evidence",
+    "degraded"
+  ],
+  "properties": {
+    "surveyedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scanId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "object"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projects",
+        "repositories",
+        "owners"
+      ],
+      "properties": {
+        "projects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owners": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "ownership",
+          "lifecycle",
+          "repositories",
+          "membershipRules"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^project:"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ownership": {
+            "enum": [
+              "owned",
+              "work-bitbucket",
+              "external",
+              "local-only"
+            ]
+          },
+          "lifecycle": {
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "descriptionSource": {
+            "type": "string"
+          },
+          "localFolders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "repositories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "host",
+                "nameWithOwner"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^repository:"
+                },
+                "host": {
+                  "enum": [
+                    "github",
+                    "bitbucket"
+                  ]
+                },
+                "nameWithOwner": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "enum": [
+                    "public",
+                    "private",
+                    "internal",
+                    "unknown"
+                  ]
+                },
+                "defaultBranch": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "fork": {
+                  "type": "boolean"
+                },
+                "lastPushedOn": {
+                  "type": "string"
+                },
+                "discoveredBy": {
+                  "enum": [
+                    "github-api",
+                    "local-remote-only"
+                  ]
+                }
+              }
+            }
+          },
+          "sites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "host",
+                "confidence",
+                "evidence"
+              ],
+              "properties": {
+                "host": {
+                  "type": "string"
+                },
+                "ownedDomain": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "confidence": {
+                  "enum": [
+                    "registry-confirmed",
+                    "declared-not-in-registry"
+                  ]
+                },
+                "evidence": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "stack": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastActivityOn": {
+            "type": "string"
+          },
+          "hasVaultNote": {
+            "type": "boolean"
+          },
+          "membershipRules": {
+            "type": "array",
+            "description": "One entry per repository, naming the rule that justified the link. An empty array is only valid for a project with no repositories.",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "activityTier": {
+            "type": "string",
+            "description": "The MEASURED activity tier \u2014 when the project last moved, as opposed to `lifecycle`, which is what its owner declared. The vocabulary and its thresholds arrive at `activityTiers`, in order."
+          },
+          "lastSessionOn": {
+            "type": "string",
+            "description": "The day an agent session last worked in this project, when that is known. Answers where work happened with no commit; absent when nothing measured it, which is not the same as never."
+          },
+          "recentActivity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "weeks",
+              "commits",
+              "sessions",
+              "workedDays",
+              "sessionsUnmeasured"
+            ],
+            "description": "Activity aggregated across recentActivityWindow. Omitted when weekly rollups do not cover the project; absence is not zero activity. sessionsUnmeasured counts weeks without session measurements. workedDays aggregates per project-week and must not be summed across projects; estateWork reports estate-wide activity.",
+            "properties": {
+              "weeks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessions": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "workedDays": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessionsUnmeasured": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "description": "Resolvable references for the survey itself: the source ids in the registry that produced it."
+    },
+    "degraded": {
+      "type": "array",
+      "description": "Sources that could not be read this run. An empty array asserts full coverage; it is never omitted.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "reason"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "nextCursor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Present only when more projects remain in this scope. `counts.projects` stays the total for the WHOLE scope, so `projects.length < counts.projects` together with this field is unambiguous \u2014 a shrunken count would have been a lie about the estate."
+    },
+    "activityTiers": {
+      "type": "array",
+      "description": "The activity vocabulary this survey answers in, in threshold order, with the unmeasured tier last. Shipped because a tier a host cannot order is half an answer, and because the thresholds are the operator's to move.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "means"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "maxDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Upper bound in days since the project last moved. Null for the last tier and for the unmeasured one."
+          },
+          "means": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recentActivityWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowDays"
+      ],
+      "description": "The window every project's `recentActivity` was summed over. `windowDays` is the rule \u2014 the boundary of the `active` tier, so a host colours and sorts by one definition of recent. `weeksFrom` is the earliest week the sum actually reached, absent when no week fell inside the window.",
+      "properties": {
+        "windowDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "weeksFrom": {
+          "type": "string"
+        }
+      }
+    },
+    "estateWork": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windowDays",
+        "weeksFrom"
+      ],
+      "description": "What the ESTATE did over the same span as every project's `recentActivity`. `commits` and `projectsWorked` come from the same rollup as the rows, so adding the rows up gives the same number. `workedDays` cannot be derived from the rows at all and is a distinct count of days: a Tuesday two projects were both worked on is one Tuesday. Absent when no store is readable, which is not the same as an estate that did nothing. `commitsUnattributed` is the part of `commits` belonging to a project the registry no longer holds \u2014 the rollup outlives its source by design, so `commits` minus this equals what adding every project's own figure gives.",
+      "properties": {
+        "windowDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "weeksFrom": {
+          "type": "string"
+        },
+        "commits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "projectsWorked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workedDays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "commitsUnattributed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

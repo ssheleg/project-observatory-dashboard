@@ -1,38 +1,98 @@
 # Security and privacy boundary
 
-Project Observatory portable edition observes explicitly selected local projects. It is not a credential isolation boundary against the same operating-system user, malware, an untrusted child process or a privileged administrator. The implementation is in [`observatory/`](observatory/); synthetic security tests live in [`tests/test_observatory.py`](tests/test_observatory.py).
+Project Observatory observes the projects and sources its user configures. It
+is not isolation from the same operating-system user, malicious plugins or child
+processes, malware, or a privileged administrator. A local agent with filesystem
+access can still read files that the operating system permits it to read.
 
-## What stays private
+## Public code and private data
 
-The state directory is outside source by default. It contains configured absolute paths, project metadata, names and equality fingerprints, local history and optional plaintext secret slots. POSIX directories use mode 700 and files use mode 600; secret reads reject wider permissions. No claim of encrypted-at-rest storage is made. Use OS disk encryption and an appropriately secured account.
+The full engine lives under `observatory/engine`. Its versioned workspace lives
+outside source and contains configuration, project metadata, registries, SQLite
+history, keys, journals, backups and generated dashboards. These artifacts are
+private even when they contain only names or fingerprints. Default credential
+files are plaintext with private POSIX permissions, not an encrypted vault.
+Externally configured secret stores are outside workspace backups.
 
-Environment values are read transiently for HMAC equality fingerprints. The salt is random per installation and stays local. Fingerprints are still sensitive equality metadata and are omitted from aggregate exports. Snapshots retain the most recent 100 observations. No automatic external backup or retention erasure guarantee is provided.
+Never publish runtime state, source exports from providers, transcripts, real
+screenshots, or private installation history. `site/` alone is the public static
+artifact. The release gate checks allowlisted paths, credential patterns,
+reviewed image hashes, source metadata and public Git history. A separate local
+private-identifier list is used during maintainer review and is never committed.
+No scanner can prove the absence of every personal fact or credential shape.
 
-Never publish runtime config, SQLite files, generated dashboards, credential slots, transcripts or real screenshots. Never copy the private predecessor's Git history or inventory into this distribution. `site/` is the public static artifact; runtime state is not a deployment input.
+## Input and output
 
-## Input and output controls
+Full-engine project secrets enter `tools/vault.py` through stdin. Ordinary
+listing and movement records contain names and metadata. `tools/use_secret.py`
+provides values to one child process and filters exact known values from its
+captured output. Encodings, transformations, direct network transmissions and
+files written by that child are outside this filter. Run only trusted commands.
 
-- Secret input is a hidden local prompt or stdin. No secret-value argument exists.
-- Secret listing returns names only. Child-process injection suppresses stdout/stderr; the child is not sandboxed.
-- Known-value findings contain slot names, opaque target identifiers and counts. They contain no raw matching value or snippet.
-- General OS failures omit exception details that might reveal sensitive filenames. CLI `status` and project listings still deliberately contain private metadata; keep their output local.
-- Project discovery previews scope without enrolling it. No provider calls, remote fetch, model spend, auto-scheduler, desktop notifications or third-party memory writes occur.
-- Project traversal ignores symlinked files/directories and common dependency/build directories. State writes reject symlinks. These checks are not a defense against a malicious same-user process racing filesystem changes.
+The credential UI can reveal a selected inventoried value after an explicit,
+authenticated local request. Reveal is deliberately different from a report;
+users must not copy its result into an agent transcript or public issue.
+Free-form incident notes are user input, not a guarantee that arbitrary secrets
+inside a note will be recognized and redacted. Never include a value in a note.
 
-## Local dashboard
+Named-key management at a provider changes a live account. Issuance, delivery,
+local rotation and provider revocation are separate outcomes; a local replacement
+must not be presented as proof that the old credential was revoked.
 
-The server binds only `127.0.0.1`. Exact Host/Origin checks reject DNS-rebinding hostnames and prefix lookalikes. It serves one read-only route with no-store, a restrictive Content Security Policy, no scripts, and no credential reveal/provisioning routes. HTML data is escaped. This is an unauthenticated local view accessible to processes/users able to reach that loopback port; do not proxy it onto a public network or use it on an untrusted shared host.
+## Observation and effects
+
+`full local` uses an offline scope and invokes no provider or executable metric
+plugin. Other explicitly selected commands can call configured providers.
+Integrations, paid interpretation, embeddings, scheduling, notifications,
+retention, memory remediation and projections require their documented opt-ins.
+User-added metric plugins are trusted executable code, not sandboxed extensions.
+Their manifest API/version and path checks do not make hostile code safe.
+
+The full engine preserves original observation and remediation capabilities.
+Read each command's scope before use. Memory remediation has its own opt-in and
+private backups; removal from selected live stores is not a promise to erase
+past backups, other databases or remote copies.
+
+## Local HTTP boundary
+
+The full dashboard services bind loopback and validate the exact Host and Origin
+before protected actions. The keyserver requires a local token for credential
+operations and rejects malformed requests before provider effects. UI pages and
+local overview endpoints still expose private metadata to processes able to
+reach them. Do not reverse-proxy these services onto a public network or treat
+them as a multi-tenant service.
+
+The retained 0.1 `serve` command remains a separate read-only local overview,
+without the full keyserver's reveal or provisioning features. Its child-secret
+runner suppresses output rather than using the full engine's streaming filter.
+The two interfaces have distinct state formats and security tests.
+
+## Upgrades and backups
+
+Unknown future workspace/config/database formats are refused. Supported database
+migrations use verified SQLite snapshots including committed WAL data. Stop all
+writers first; older executables cannot honor new locks. Restore into a new home
+and use the matching application version. Protect snapshots as secrets, and
+back up external configured stores independently. See
+[compatibility](docs/COMPATIBILITY.md) for supported contracts and recovery.
 
 ## Detection limits
 
-Known-value matching detects only exact byte copies of explicitly stored slots. Unknown, encoded, transformed, split, short or rotated-away values are outside that evidence. Bounded input sizes, unreadable files and missing sources are reported as partial/degraded. A zero-match result is not a clean bill of health. Several named slots may share one value; occurrences per slot are not counts of unique credentials or incidents.
+Known-value matching detects copies of locally known values in the inspected
+artifacts. Unknown, encoded, transformed, split or rotated-away values may not
+be covered. Missing inputs and partial results must not be interpreted as clean
+results. Several slots can hold one credential; occurrences, unique credentials
+and incidents are different units.
 
-Local exposure in a transcript or memory database establishes that a value reached that artifact. It does not establish remote exfiltration, a vendor breach or an upstream product vulnerability. Demo data is fictional.
+An occurrence in a local transcript or memory database proves that a value
+reached that artifact. It does not prove exfiltration, a vendor breach or a
+vulnerability in the storage library. Public examples are synthetic unless
+explicitly identified as a separately reviewed historical observation.
 
-## Reporting an issue
+## Report an issue privately
 
-Use the repository's private vulnerability-reporting channel if available. Otherwise contact the maintainer through the contact route on [sshlg.me](https://sshlg.me/) before sharing sensitive details. A public issue may describe the class and a synthetic reproduction. Never attach a real token, inventory, log, private path or customer identifier. Do not test a live credential or other users' data to prove a report.
-
-## Release check
-
-Before publication, inspect the complete prospective Git tree and archive, including docs, fixtures, comments and the site. Token-shape scanning alone cannot detect private project names or relationships. Run synthetic tests from a fresh checkout with empty HOME/state and inspect supported Python versions. A clean new repository is required; deleting private data from a tip commit does not remove it from history.
+Use this repository's private vulnerability-reporting channel. If unavailable,
+contact the maintainer through [sshlg.me](https://sshlg.me/) before sharing
+sensitive details. Public issues may describe the class and a synthetic
+reproduction. Never attach a real key, inventory, log, private path or customer
+identifier, and do not test another person's accounts to demonstrate a report.

@@ -1,0 +1,6 @@
+What stays behind when an agent finishes?
+
+Project Observatory tracks projects, metrics and credential copies in local artifacts. The full engine is open source; your keys and data stay in your own workspace.
+
+Setup + the local memory case:
+https://observatory.sshlg.me/

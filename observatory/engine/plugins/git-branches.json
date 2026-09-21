@@ -1,0 +1,17 @@
+{
+  "id": "git-branches",
+  "title": "Local branches per project",
+  "script": "git_branches.py",
+  "metrics": [
+    {
+      "name": "git.branches",
+      "unit": "branches",
+      "label": "веток",
+      "means": "How many local branches each of the project's checkouts holds, summed. A branch that exists on no remote is work this machine is the only copy of, which is what `clone.local-only-branch` reports one at a time; this counts them so the trend is visible."
+    }
+  ],
+  "every_hours": 24,
+  "requires": [],
+  "why": "Track local branch counts across each project over time. Changes in the count complement repository findings about work that has not reached a remote.",
+  "api_version": 1
+}

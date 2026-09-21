@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-timeline-output.schema.json",
+  "title": "project.timeline — output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "projectId",
+    "since",
+    "events",
+    "degraded"
+  ],
+  "$defs": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "ref",
+          "occurredAt"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^project:"
+    },
+    "since": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "events": {
+      "$ref": "#/$defs/events"
+    },
+    "degraded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "reason"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

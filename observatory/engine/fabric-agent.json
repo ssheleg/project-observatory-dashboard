@@ -1,0 +1,225 @@
+{
+  "contractVersion": "0.1.0",
+  "provider": {
+    "id": "https://github.com/ssheleg/project-observatory-open-source",
+    "revision": 4,
+    "contentHash": "sha256:caf7842fafd7220dc4dcc92007b7816d3ca72b16549015717c196b17b92955c1",
+    "createdAt": "2026-09-03T13:22:35Z",
+    "createdBy": "https://github.com/ssheleg",
+    "name": "Project Observatory",
+    "identity": {
+      "subject": "https://github.com/ssheleg/project-observatory-open-source",
+      "method": "local-install"
+    },
+    "supportedContractVersions": [
+      "0.1.0"
+    ],
+    "description": "Local project inventory and agent memory with configurable private data sources. Bundled schemas describe wire compatibility; external host admission is unverified."
+  },
+  "capabilities": [
+    {
+      "id": "https://github.com/ssheleg/project-observatory-open-source/capabilities/estate.survey",
+      "name": "estate.survey",
+      "inputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-input.schema.json",
+      "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-output.schema.json",
+      "effect": "none",
+      "idempotency": "supported",
+      "dataClasses": [
+        "project-internal",
+        "public"
+      ],
+      "profile": {
+        "kind": "mcp",
+        "protocolRevision": "2026-07-28",
+        "connection": {
+          "mode": "stdio",
+          "executableRef": "observatory-install:mcp-server",
+          "args": [
+            "--stdio"
+          ]
+        },
+        "requiredFeatures": [
+          "tool:observatory_status"
+        ],
+        "probes": [
+          {
+            "id": "survey-single-project",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/admission-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "none",
+            "assertions": [
+              "result validates against capability-output.schema.json",
+              "counts.projects == 1 and projects[0].id equals the requested id",
+              "membershipRules has exactly one entry per repository",
+              "evidence is non-empty and every entry resolves to a registry source id",
+              "degraded is present, even when empty",
+              "registry git status and ledger max revision are unchanged after the call"
+            ]
+          },
+          {
+            "id": "survey-rejects-name-inference",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/name-inference-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "none",
+            "assertions": [
+              "result validates against capability-output.schema.json",
+              "every repository returned is one the project's notes name or a link verified by hand",
+              "every repository of that owner which is absent is absent because it anchors its own project",
+              "every returned repository is named in a membershipRules entry"
+            ]
+          },
+          {
+            "id": "survey-declares-degradation",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/degradation-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "none",
+            "assertions": [
+              "with the event store unreachable the call still returns a typed result",
+              "degraded names the store and its reason",
+              "degraded names each bitbucket workspace whose listing was not read, carrying the collector's own reason; it is silent when every workspace was listed",
+              "repositories known only from a local remote carry discoveredBy=local-remote-only"
+            ]
+          }
+        ]
+      },
+      "description": "Return the typed state of every project in a scope. Deterministic: filesystem, git, GitHub and Bitbucket listings and the projects wiki, merged under named rules. No model participates, so the same scope over the same machine returns the same survey."
+    },
+    {
+      "id": "https://github.com/ssheleg/project-observatory-open-source/capabilities/project.detail",
+      "name": "project.detail",
+      "inputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-detail-input.schema.json",
+      "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-detail-output.schema.json",
+      "effect": "none",
+      "idempotency": "supported",
+      "dataClasses": [
+        "project-internal",
+        "public"
+      ],
+      "profile": {
+        "kind": "mcp",
+        "protocolRevision": "2026-07-28",
+        "connection": {
+          "mode": "stdio",
+          "executableRef": "observatory-install:mcp-server",
+          "args": [
+            "--stdio"
+          ]
+        },
+        "requiredFeatures": [
+          "tool:observatory_project"
+        ],
+        "probes": [
+          {
+            "id": "detail-carries-every-section",
+            "description": "A bounded probe against an explicitly selected synthetic fixture workspace.",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/project-detail-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-detail-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "none",
+            "assertions": [
+              "result validates against project-detail-output.schema.json",
+              "the requested project is the one returned",
+              "every section is present, so an empty one means measured-and-empty",
+              "a note carries the state that qualifies it, never a bare sentence",
+              "a finding says whether it is about the project or one of its repositories",
+              "registry git status and ledger max revision are unchanged after the call"
+            ]
+          }
+        ]
+      },
+      "description": "Everything known about ONE project: identity and membership rules, the weekly activity series, the latest measurement of every plugin metric, the conclusions the observatory has drawn (each with the state that qualifies it), and the findings open against the project or its repositories. Every section degrades on its own \u2014 a store that will not open does not remove the registry's half of the answer."
+    },
+    {
+      "id": "https://github.com/ssheleg/project-observatory-open-source/capabilities/project.timeline",
+      "name": "project.timeline",
+      "inputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-timeline-input.schema.json",
+      "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-timeline-output.schema.json",
+      "effect": "none",
+      "idempotency": "supported",
+      "dataClasses": [
+        "project-internal",
+        "public"
+      ],
+      "profile": {
+        "kind": "mcp",
+        "protocolRevision": "2026-07-28",
+        "connection": {
+          "mode": "stdio",
+          "executableRef": "observatory-install:mcp-server",
+          "args": [
+            "--stdio"
+          ]
+        },
+        "requiredFeatures": [
+          "tool:observatory_timeline"
+        ],
+        "probes": [
+          {
+            "id": "timeline-answers-in-camel-case-with-parsed-payloads",
+            "description": "A bounded probe against an explicitly selected synthetic fixture workspace.",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/project-timeline-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-timeline-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "none",
+            "assertions": [
+              "result validates against project-timeline-output.schema.json",
+              "every event carries occurredAt, never the store's column name",
+              "the payload is an object, not a JSON string the caller must parse",
+              "the events are newest first",
+              "registry git status and ledger max revision are unchanged after the call"
+            ]
+          }
+        ]
+      },
+      "description": "Commits and recorded events for one project, newest first, paged by `limit` and bounded by `since`. Payloads arrive parsed: a host must not have to know how this system serialises one."
+    },
+    {
+      "id": "https://github.com/ssheleg/project-observatory-open-source/capabilities/project.record",
+      "name": "project.record",
+      "description": "Append a note about a project, or propose a change to the typed registry. Both land as proposals: the ledger accepts state 'proposed' from an automated writer and nothing else, and a registry proposal never touches registry/*.json. Neither call can approve its own proposal.",
+      "inputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/record-input.schema.json",
+      "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/record-output.schema.json",
+      "effect": "draft",
+      "idempotency": "none",
+      "dataClasses": [
+        "project-internal"
+      ],
+      "profile": {
+        "kind": "mcp",
+        "protocolRevision": "2026-07-28",
+        "connection": {
+          "mode": "stdio",
+          "executableRef": "observatory-install:mcp-server",
+          "args": [
+            "--stdio"
+          ]
+        },
+        "requiredFeatures": [
+          "tool:observatory_record",
+          "tool:observatory_propose",
+          "tool:observatory_recall"
+        ],
+        "probes": [
+          {
+            "id": "record-proposes-and-refuses",
+            "inputFixture": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/fixtures/record-input.json",
+            "outputSchema": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/record-output.schema.json",
+            "timeoutMs": 30000,
+            "sideEffectCeiling": "draft",
+            "assertions": [
+              "the probe runs against a scratch store; no row reaches the operator's ledger",
+              "a well-formed write is accepted in state 'proposed', never higher",
+              "a write with no owner is refused before the ledger is touched",
+              "a stale expectedRevision returns RevisionConflict carrying the current revision",
+              "another owner's record cannot be corrected: OwnerRefused",
+              "a registry proposal leaves registry/projects.json byte-identical"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

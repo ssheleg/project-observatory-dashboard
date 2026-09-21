@@ -1,0 +1,17 @@
+{
+  "id": "dependency-weight",
+  "title": "Direct dependencies declared per project",
+  "script": "dependency_weight.py",
+  "metrics": [
+    {
+      "name": "deps.direct",
+      "unit": "packages",
+      "label": "зависимостей",
+      "means": "Distinct DIRECT dependencies declared across the project's manifests, namespaced by ecosystem. Direct only, never the lockfile's transitive closure: what the operator decided is the direct set, and a change in it is a decision somebody made. `devDependencies` is excluded — a linter is not part of the project's surface area. A Gradle build that computes its dependencies in a loop is undercounted, which is why this says declared."
+    }
+  ],
+  "every_hours": 24,
+  "requires": [],
+  "why": "Track the declared direct dependency surface across project ecosystems. A count over time helps explain dependency growth and maintenance work without treating transitive lockfile entries as direct choices.",
+  "api_version": 1
+}

@@ -1,0 +1,6 @@
+{
+  "ga4_report": "https://analytics.google.com/analytics/web/#/p{pid}/reports/intelligenthome",
+  "ga4_admin": "https://analytics.google.com/analytics/web/#/a{aid}p{pid}/admin",
+  "search_console_site": "https://search.google.com/search-console?resource_id={site}",
+  "cloud_project": "https://console.cloud.google.com/home/dashboard?project={project}"
+}

@@ -7,6 +7,7 @@ It must never be committed. This scanner prints categories/counts, not values.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -14,27 +15,57 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_TOP = {".github", "observatory", "tests", "tools", "docs", "site"}
-ALLOWED_ROOT = {".gitignore", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "pyproject.toml", "AGENTS.md"}
+ALLOWED_ROOT = {".gitignore", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "pyproject.toml", "AGENTS.md", "requirements-full.lock"}
 SKIP = {".git", ".venv", "__pycache__", "node_modules", "build", "dist"}
+PUBLIC_IMAGES = {
+    "site/assets/observatory-cover.png": {"70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833"},
+}
+
+
+def approved_image(relative: str, data: bytes) -> bool:
+    return (relative in PUBLIC_IMAGES and data.startswith(b"\x89PNG\r\n\x1a\n")
+            and len(data) <= 4 * 1024 * 1024
+            and hashlib.sha256(data).hexdigest() in PUBLIC_IMAGES[relative])
 EXTENSIONS = {".py", ".md", ".toml", ".yml", ".yaml", ".json", ".html", ".css", ".js", ".svg", ".txt", ".xml"}
 # Compose token-shape patterns so the detector's own source is not a fixture hit.
 PATTERNS = {
     "provider-token-shape": re.compile(r"\b(?:" + "gh[pousr]_" + r"[A-Za-z0-9]{30,}|" + "github_pat_" + r"[A-Za-z0-9_]{40,}|" + "sk-" + r"(?:proj-|or-v1-|ant-api03-)?[A-Za-z0-9_-]{30,}|" + "AKIA" + r"[A-Z0-9]{16}|" + "AIza" + r"[A-Za-z0-9_-]{30,})"),
     "private-key-block": re.compile("-----BEGIN " + r"(?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    "personal-machine-path": re.compile(r"/(?:" + "Users" + r"|home)/[A-Za-z0-9_.-]+/"),
+    "personal-machine-path": re.compile(r"(?<![A-Za-z0-9_.:/-])(?:file://)?/(?:" + "Users" + r"|home)/[A-Za-z0-9_.-]+/"),
     "credential-url": re.compile(r"https?://[^\s/@:]+:[^\s/@]+@"),
 }
 
 
 def scan_text(text: str, deny: list[str]) -> dict[str, int]:
     hits = {kind: len(rx.findall(text)) for kind, rx in PATTERNS.items()}
-    hits["private-identifier"] = sum(len(re.findall(r"(?<![A-Za-z0-9_.-])" + re.escape(value) + r"(?:\.git)?(?![A-Za-z0-9_.-])", text)) for value in deny if value)
+    hits["private-identifier"] = sum(len(re.findall(r"(?<![A-Za-z0-9_.-])" + re.escape(value) + r"(?:\.git)?(?![A-Za-z0-9_.-])", text, re.IGNORECASE)) for value in deny if value)
     return {kind: n for kind, n in hits.items() if n}
 
 
+def scan_path(relative: str, deny: list[str]) -> dict[str, int]:
+    hits = scan_text(relative, deny)
+    for kind, count in scan_text(Path(relative).stem, deny).items():
+        hits[kind] = max(hits.get(kind, 0), count)
+    return hits
+
+
 def allowed_path(rel: Path) -> bool:
+    if rel.as_posix() in PUBLIC_IMAGES:
+        return True
     if any(x in SKIP or x.endswith(".egg-info") for x in rel.parts):
         return False
+    if rel.parts[:2] == ("observatory", "engine"):
+        engine = Path(*rel.parts[2:])
+        # Runtime source is public; a runtime database or credential directory never is.
+        if any(x.startswith(".env") or x in {"registry", "secrets", "raw", "backups", "logs"} for x in engine.parts):
+            return False
+        if engine.parts and engine.parts[0] == "store":
+            return len(engine.parts) == 2 and (engine.suffix == ".py" or str(engine) == "store/schema.sql")
+        if engine.suffix == ".sh":
+            return str(engine) in {"tools/tick.sh", "tools/gate.sh", "skill/plugins/observatory-log/hooks/record-turn.sh", "skill/plugins/observatory-log/hooks/session-start.sh"}
+        if any(x.startswith(".") for x in engine.parts):
+            return str(engine) in {"skill/.claude-plugin/marketplace.json", "skill/plugins/observatory-log/.claude-plugin/plugin.json"}
+        return bool(engine.suffix in EXTENSIONS or engine.suffix == ".mjs")
     allowed = (len(rel.parts) == 1 and str(rel) in ALLOWED_ROOT) or (len(rel.parts) > 1 and rel.parts[0] in ALLOWED_TOP)
     return bool(allowed and not any(x.startswith(".env") or x in {"registry", "secrets", "store"} for x in rel.parts)
                 and (rel.suffix in EXTENSIONS or str(rel) in ALLOWED_ROOT or rel.name in {"_headers", "_redirects", "robots.txt"}))
@@ -54,8 +85,14 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
             continue
         index = len(files)
         files.append(str(rel))
+        for kind, n in scan_path(rel.as_posix(), deny).items():
+            findings.append({"file_index": index, "kind": "path:" + kind, "count": n})
         if not allowed_path(rel):
             findings.append({"file_index": index, "kind": "outside-public-allowlist", "count": 1})
+        if rel.as_posix() in PUBLIC_IMAGES:
+            if not approved_image(rel.as_posix(), p.read_bytes()):
+                findings.append({"file_index": index, "kind": "unreviewed-image", "count": 1})
+            continue
         if p.stat().st_size > 2 * 1024 * 1024:
             findings.append({"file_index": index, "kind": "oversized-public-file", "count": 1})
             continue
@@ -83,7 +120,7 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
             for rel in set(x.strip("\n") for x in paths.stdout.split("\0") if x.strip("\n")):
                 if not allowed_path(Path(rel)):
                     findings.append({"kind": "history:forbidden-path", "count": 1})
-                for category, n in scan_text(rel, deny).items():
+                for category, n in scan_path(rel, deny).items():
                     findings.append({"kind": "history-path:" + category, "count": n})
         run = subprocess.run(["git", "-C", str(root), "rev-list", "--objects", "--all"], capture_output=True, text=True)
         if run.returncode:
@@ -111,7 +148,8 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                 if not rel or not allowed_path(Path(rel)):
                     findings.append({"kind": "history:outside-public-allowlist", "count": 1})
                 size = subprocess.run(["git", "-C", str(root), "cat-file", "-s", oid], capture_output=True, text=True)
-                if size.returncode or int(size.stdout.strip()) > 2 * 1024 * 1024:
+                size_limit = 4 if rel in PUBLIC_IMAGES else 2
+                if size.returncode or int(size.stdout.strip()) > size_limit * 1024 * 1024:
                     findings.append({"kind": "history:oversized-or-unreadable", "count": 1})
                     continue
                 blob = subprocess.run(["git", "-C", str(root), "cat-file", "blob", oid], capture_output=True)
@@ -119,6 +157,10 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                     findings.append({"kind": "history:unreadable-blob", "count": 1})
                     continue
                 blobs += 1
+                if rel in PUBLIC_IMAGES:
+                    if not approved_image(rel, blob.stdout):
+                        findings.append({"kind": "history:unreviewed-image", "count": 1})
+                    continue
                 try:
                     text = blob.stdout.decode("utf-8")
                 except UnicodeError:

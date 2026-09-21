@@ -1,0 +1,27 @@
+{
+  "id": "search-console",
+  "title": "Google Search Console clicks and impressions per project",
+  "script": "search_console.py",
+  "metrics": [
+    {
+      "name": "search.clicks_1d",
+      "unit": "clicks",
+      "label": "кликов/сут",
+      "means": "Clicks from Google Search on the property's pages, one complete UTC day lagged by three because GSC revises its last ~48 hours. Property -> project attribution goes through plugins/hostmap.py, the same join every traffic plugin uses."
+    },
+    {
+      "name": "search.impressions_1d",
+      "unit": "impressions",
+      "label": "показов/сут",
+      "means": "Impressions in Google Search results for the same day and property. Beside clicks it answers whether a site is invisible or merely unclicked — two different problems with two different remedies."
+    }
+  ],
+  "every_hours": 24,
+  "requires": [
+    "integration:search_console",
+    "network",
+    "secret:google-gsc-service-account.json"
+  ],
+  "why": "Track daily search clicks and impressions for properties visible to an explicitly configured service account. Attribute hosts through the private registry and report unmapped properties so missing ownership does not become fabricated traffic.",
+  "api_version": 1
+}

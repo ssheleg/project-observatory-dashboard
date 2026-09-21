@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+""                                                                               
+
+                                                          
+
+                                                                              
+                                                                              
+                                                                              
+                                                                               
+                                                                                
+                                                                                 
+                                                                      
+
+                                                                          
+                                                                               
+                                                                       
+                                                                                
+                                                                                
+                                                                             
+                                                                            
+
+                                                                              
+                                                                           
+                                                                                 
+                                                                             
+                                                                           
+
+                                                                              
+                                                                           
+                                                                             
+                                                                  
+
+                                                                   
+                                                                             
+                                                                              
+                                                                            
+                
+   
+from __future__ import annotations
+import argparse
+import hashlib
+import importlib.util
+import json
+import pathlib
+import re
+import sys
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import atomic                                                                   
+import paths                                                                    
+
+                                                                         
+MAX_AGE_HOURS = 24
+                                                                          
+                                                                       
+                               
+MAX_APPS = 400
+
+
+def _load(rel: str, name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / rel)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def hours_since(stamp: str) -> float | None:
+    try:
+        t = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    return (datetime.now(timezone.utc) - t).total_seconds() / 3600
+
+
+def fingerprint(pepper: str, value: str) -> str:
+    ""                                                                          
+                                                                          
+    return hashlib.sha256((pepper + value).encode("utf-8")).hexdigest()[:16]
+
+
+def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
+    ""                                                                       
+
+                                                                  
+                                                                               
+                                                                             
+                                                                               
+       
+    out: list[dict] = []
+    if not store.is_dir():
+        return out
+    for slot in sorted(store.rglob("*.retired-*")):
+        if not slot.is_file():
+            continue
+        rel = slot.relative_to(store).parts
+        if len(rel) != 3:
+            continue                                                               
+        name, _, stamp = rel[2].partition(".retired-")
+        try:
+            value = slot.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if not value:
+            continue
+                                                                           
+                                                                                   
+                                                                               
+                                                                        
+        on = stamp[:10] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp[:10]) else ""
+        out.append({"project": rel[0], "env": rel[1], "name": name,
+                    "retired_on": on, "fingerprint": fingerprint(pepper, value)})
+    return out
+
+
+def scan_heroku_apps(pepper: str) -> tuple[list[dict], list[dict]]:
+    ""                                                                        
+    hk = _load("collectors/scan_heroku.py", "scan_heroku")
+    env = _load("collectors/scan_env.py", "scan_env")
+    tok, why = hk.token()
+    if not tok:
+        return [], [{"source": "heroku", "reason": why or "no token",
+                     "effect": "production configuration is unknown, not empty"}]
+    raw = paths.SCRATCH / "heroku.json"
+    try:
+        apps = json.loads(raw.read_text(encoding="utf-8")).get("apps", [])
+    except (OSError, ValueError) as exc:
+        return [], [{"source": "heroku", "reason": f"{type(exc).__name__} reading {raw.name}",
+                     "effect": "no application list, so nothing to ask about; "
+                               "run `./observatory.py heroku` first"}]
+    if len(apps) > MAX_APPS:
+        return [], [{"source": "heroku", "reason": f"{len(apps)} applications is past "
+                                                   f"the {MAX_APPS} this scan will walk",
+                     "effect": "refused rather than run for an hour"}]
+    rows, degraded = [], []
+    for app in apps:
+        got = hk.get(f"{hk.API}/apps/{app['id']}/config-vars", tok)
+        if not isinstance(got, dict) or "__error__" in got:
+            reason = (got or {}).get("__error__", "unreadable") if isinstance(got, dict) else "unreadable"
+            rows.append({"app": app["name"], "vars": [], "error": str(reason)[:120]})
+            continue
+        variables = []
+        for name, value in sorted(got.items()):
+            value = "" if value is None else str(value)
+            cls = env.classify(name, value)
+            row = {"name": name, "class": cls, "empty": not value}
+            if cls == "secret" and value:
+                row["fingerprint"] = fingerprint(pepper, value)
+            variables.append(row)
+        rows.append({"app": app["name"],
+                     "folders": [str(f) for f in (app.get("local_folders") or [])],
+                     "vars": variables, "error": None})
+                                                                               
+    bad = [r for r in rows if r["error"]]
+    if bad:
+        degraded.append({"source": "heroku config-vars",
+                         "reason": f"{len(bad)} application(s) would not answer",
+                         "effect": "their production configuration is unknown, not empty"})
+    return rows, degraded
+
+
+def main(argv: list[str]) -> int:
+    import configuration
+    if not configuration.enabled("remote_env"):
+        print("remote_env: not configured (integration disabled)")
+        return 0
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("out", help="where to write the scan (gitignored)")
+    ap.add_argument("--force", action="store_true",
+                    help=f"re-fetch even if the last scan is under {MAX_AGE_HOURS}h old")
+    a = ap.parse_args(argv[1:])
+    out = pathlib.Path(a.out)
+    if not a.force and out.is_file():
+        try:
+            age = hours_since(json.loads(out.read_text(encoding="utf-8")).get("scanned_at", ""))
+        except (OSError, ValueError):
+            age = None
+        if age is not None and age < MAX_AGE_HOURS:
+            print(f"remote-env: {age:.1f}h old, not re-fetched — config vars change on "
+                  f"deploys, and every fetch pulls every production secret into one "
+                  f"process. `--force` after a rotation.")
+            return 0
+
+    env = _load("collectors/scan_env.py", "scan_env")
+    try:
+        pepper = env.salt()
+    except SystemExit as exc:
+        print(f"remote-env: the fingerprint salt is unusable — {exc}", file=sys.stderr)
+        return 1
+    rows, degraded = scan_heroku_apps(pepper)
+    vault = _load("tools/vault.py", "vault_mod")
+    retired = retired_values(pepper, vault.STORE)
+    doc = {"scanned_at": now(), "provider": "heroku", "apps": rows,
+           "retired": retired, "degraded": degraded,
+           "note": "names, classes and salted fingerprints; never a value. "
+                   "This file is gitignored; registry/remote-env.json carries "
+                   "only the verdicts derived from it."}
+    atomic.write_json(out, doc)
+    secrets = sum(1 for r in rows for v in r["vars"] if v["class"] == "secret")
+    print(f"remote-env: {len(rows)} application(s), "
+          f"{sum(len(r['vars']) for r in rows)} variable(s), {secrets} read as secret, "
+          f"{len(retired)} retired value(s) from the vault")
+    for d in degraded:
+        print(f"  degraded {d['source']}: {d['reason']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/capability-input.schema.json",
+  "title": "estate.survey \u2014 input",
+  "description": "Selects the scope to survey. An absent scope means the whole estate visible to this machine.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "estate",
+            "owner",
+            "project"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required for kind=owner (an org login) and kind=project (a project: id). Ignored for kind=estate."
+        }
+      }
+    },
+    "includeExternal": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include repositories owned by third parties that are merely cloned here."
+    },
+    "asOfScanId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The requested comparison scan. Historical registry snapshots are not implemented: answers use the current registry and report a different requested scan in degraded. scanId identifies the scan represented by the answer."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "description": "Return at most this many projects. Omit for all projects. No implicit page limit is applied, preserving existing callers; pagination fields describe any omitted results."
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Continue after the project id returned as nextCursor. Projects are ordered by id. Registry changes between requests may affect pagination; historical scan pinning is not implemented."
+    }
+  }
+}

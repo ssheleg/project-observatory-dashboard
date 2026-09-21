@@ -1,0 +1,1082 @@
+#!/usr/bin/env python3
+""                                                    
+
+                                                                   
+                                                                                           
+                                                                             
+                                                             
+                                                    
+                                                                        
+                                                                             
+                                                                                  
+                                                                       
+                                                      
+                                       
+                                
+                                   
+                                                           
+                                                                        
+                                                                              
+                                                                    
+                                                                                       
+                                                                     
+                                                                        
+                                                                                    
+                                                                                  
+                                                               
+                                                                                    
+                                                                        
+                                                                         
+                                    
+                                                                                        
+                                                                                       
+                                                                                      
+                                                  
+                                         
+                                                                
+                                                    
+                                                                                  
+                                                                              
+                                                                  
+                                                 
+                                                                        
+                                                                  
+                                                                         
+                                                                                    
+                                                   
+                                                        
+                                                                
+                                                  
+                                                            
+                                         
+
+                                                                           
+                                                                               
+                                                                                  
+                                                                                
+                                                                           
+   
+from __future__ import annotations
+import hashlib
+import json, os, re, sqlite3, subprocess, sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+
+                                                                              
+                                                                            
+                                  
+sys.path.insert(0, str(ROOT))
+import configuration
+import paths              
+
+                                                                                
+                                                                             
+                                                                                   
+                                                                               
+                                                                               
+                                                                            
+                                                                                
+                           
+PY = str(ROOT / ".venv" / "bin" / "python")
+if not Path(PY).exists():                                                       
+    PY = sys.executable
+STEPS = {
+    "setup":     ["uv", "venv", ".venv"],
+    "deps":      ["uv", "pip", "install", "--python", ".venv/bin/python",
+                  "mcp==2.1.1", "jsonschema", "sqlite-vec",
+                                                                              
+                                                                                 
+                                                           
+                  "google-auth"],
+    "chain":     [PY, "agent/providers.py", "chain"],
+    "wallet":    [PY, "agent/providers.py", "wallet"],
+    "key":       [PY, "agent/providers.py", "key"],
+    "revoke":    [PY, "tools/revoke_key.py", "--list"],
+    "models":    [PY, "agent/providers.py", "refresh"],
+    "scan-events": [PY, "collectors/scan_events.py"],
+    "remotes":   [PY, "collectors/scan_remotes.py", "store/raw/remotes.json"],
+    "scan-bb":   [PY, "collectors/scan_bitbucket.py", "store/raw/bitbucket.json"],
+    "domains":   [PY, "collectors/scan_domains.py", "store/raw/domains_live.json"],
+    "heroku":    [PY, "collectors/scan_heroku.py", "store/raw/heroku.json"],
+    "scan-cloudflare": [PY, "collectors/scan_cloudflare.py", "store/raw/cloudflare_zones.json"],
+    "scan-mcp":  [PY, "collectors/scan_mcp.py", "store/raw/mcp.json"],
+    "openrouter": [PY, "collectors/scan_openrouter.py", "store/raw/openrouter.json"],
+    "env":       [PY, "collectors/scan_env.py", "store/raw/env.json"],
+                                                                       
+                                                                         
+    "remote-env": [PY, "collectors/scan_remote_env.py", "store/raw/remote-env.json"],
+                                                                         
+                                                                            
+    "google":    [PY, "collectors/scan_google.py", "store/raw/google.json"],
+    "leaks":     [PY, "tools/scan_leaks.py"],
+    "use":       [PY, "tools/use_secret.py", "--help"],
+    "probes":    [PY, "tools/run_probes.py"],
+    "probes-check": [PY, "tools/run_probes.py", "--check"],
+    "design":    [PY, "dashboard/audit_pack.py"],
+    "smoke":     ["node", "dashboard/smoke.js", "docs/projects-dashboard.html"],
+    "smoke-pages": [PY, "dashboard/smoke_pages.py"],
+    "findings":  [PY, "tools/build_findings.py"],
+    "notify":    [PY, "tools/notify_findings.py"],
+    "corroborate": [PY, "tools/corroborate.py"],
+    "export-ledger": [PY, "tools/export_ledger.py"],
+    "ledger-current": [PY, "tools/export_ledger.py", "--check"],
+    "review":    [PY, "tools/review.py", "list"],
+    "digest":    [PY, "tools/review.py", "digest"],
+    "links":     [PY, "tools/audit_vault_links.py"],
+    "lost":      [PY, "tools/record_lost_projects.py"],
+    "sweep":     [PY, "tools/sweep_fixtures.py"],
+    "integrity":  [PY, "tools/check_store.py", "--print"],
+    "backup":    [PY, "tools/backup_store.py"],
+    "docs-current": [PY, "tools/check_docs.py"],
+    "paths-current": [PY, "tools/check_paths.py"],
+    "secrets": [PY, "tools/check_secrets.py"],
+    "test-queue": [PY, "tests/test_review_queue.py"],
+    "test-wire-contract": [PY, "tests/test_wire_contract.py"],
+    "test-docs": [PY, "tests/test_docs_current.py"],
+    "test-dead-data": [PY, "tests/test_dead_data.py"],
+    "test-projection": [PY, "tests/test_projection.py"],
+    "test-tick-repo": [PY, "tests/test_tick_repo.py"],
+    "test-identity": [PY, "tests/test_caller_identity.py"],
+    "test-render": [PY, "tests/test_render_surface.py"],
+    "test-sessions": [PY, "tests/test_sessions.py"],
+    "test-indexer-load": [PY, "tests/test_indexer_load.py"],
+    "test-corroboration": [PY, "tests/test_corroboration.py"],
+    "test-tick-failures": [PY, "tests/test_tick_failures.py"],
+    "test-notification": [PY, "tests/test_notification.py"],
+    "test-hook": [PY, "tests/test_companion_hook.py"],
+    "test-interpretation": [PY, "tests/test_interpretation.py"],
+    "test-render-page": [PY, "tests/test_dashboard_render.py"],
+    "test-recall": [PY, "tests/test_recall.py"],
+    "test-validator": [PY, "tests/test_validator_rules.py"],
+    "test-domain-probe": [PY, "tests/test_domain_probe.py"],
+    "test-listings": [PY, "tests/test_api_listings.py"],
+    "test-merge": [PY, "tests/test_merge_membership.py"],
+    "test-erasure": [PY, "tests/test_erasure_bytes.py"],
+    "test-erasure-scope": [PY, "tests/test_export_scope.py"],
+    "test-collector-state": [PY, "tests/test_collector_state.py"],
+    "test-delivery": [PY, "tests/test_delivery.py"],
+    "test-freshness": [PY, "tests/test_freshness.py"],
+    "test-project-surface": [PY, "tests/test_project_surface.py"],
+    "test-metric-series": [PY, "tests/test_metric_series.py"],
+    "test-companion": [PY, "tests/test_companion.py"],
+    "test-footprint": [PY, "tests/test_footprint.py"],
+    "test-budget": [PY, "tests/test_budget_subject.py"],
+    "test-agent-queue": [PY, "tests/test_agent_queue.py"],
+    "test-lost-projects": [PY, "tests/test_lost_projects.py"],
+    "test-estate-history": [PY, "tests/test_estate_history.py"],
+    "test-cause": [PY, "tests/test_cause_and_symptom.py"],
+    "test-clone-sync": [PY, "tests/test_clone_sync.py"],
+    "test-fixture-sweep": [PY, "tests/test_fixture_sweep.py"],
+    "test-unpublished": [PY, "tests/test_unpublished_work.py"],
+    "test-checkout": [PY, "tests/test_checkout_subject.py"],
+    "test-truncation": [PY, "tests/test_no_silent_truncation.py"],
+    "test-key-shape": [PY, "tests/test_key_shape.py"],
+    "test-identity-drift": [PY, "tests/test_project_identity.py"],
+    "test-confidence": [PY, "tests/test_mechanical_confidence.py"],
+    "test-standdown": [PY, "tests/test_tick_standdown.py"],
+    "test-dark-cost": [PY, "tests/test_dark_domain_cost.py"],
+    "test-stale-expected": [PY, "tests/test_stale_is_expected.py"],
+    "test-agent-faults": [PY, "tests/test_agent_faults.py"],
+    "test-integrity": [PY, "tests/test_store_integrity.py"],
+    "test-release": [PY, "tests/test_release_cadence.py"],
+    "test-portfolio": [PY, "tests/test_portfolio_review.py"],
+    "test-omission": [PY, "tests/test_page_omission.py"],
+    "test-ledger-ids": [PY, "tests/test_ledger_pointer.py"],
+    "test-provider-health": [PY, "tests/test_provider_health.py"],
+    "test-heroku": [PY, "tests/test_heroku.py"],
+    "test-openrouter": [PY, "tests/test_openrouter_keys.py"],
+    "test-credentials": [PY, "tests/test_credentials.py"],
+    "test-remote-env": [PY, "tests/test_remote_env.py"],
+    "test-google": [PY, "tests/test_google.py"],
+    "test-project-secrets": [PY, "tests/test_project_secrets.py"],
+    "test-reveals": [PY, "tests/test_reveals.py"],
+    "test-store-modes": [PY, "tests/test_store_modes.py"],
+                                                                         
+                                                                               
+                                                                               
+    "scrub-companion": [PY, "tools/scrub_companion.py"],
+    "test-scrub": [PY, "tests/test_scrub.py"],
+    "test-session-start": [PY, "tests/test_session_start.py"],
+    "test-backup-store": [PY, "tests/test_backup_store.py"],
+    "test-plugin-pair": [PY, "tests/test_plugin_pair.py"],
+    "test-publish-contract": [PY, "tests/test_publish_contract.py"],
+    "test-recovery": [PY, "tests/test_recovery.py"],
+    "test-signature": [PY, "tests/test_signature.py"],
+    "test-env": [PY, "tests/test_env_inventory.py"],
+    "test-use-secret": [PY, "tests/test_use_secret.py"],
+                                                                             
+                                                                             
+                                                   
+    "test-env-tab": ["node", "tests/env_tab_check.js", "docs/projects-dashboard.html"],
+    "test-keyserver": [PY, "tests/test_keyserver.py"],
+    "test-store-faults": [PY, "tests/test_store_faults.py"],
+    "test-gate-skips": [PY, "tests/test_gate_skips.py"],
+    "test-block": [PY, "tests/test_temporary_block.py"],
+    "test-lever": [PY, "tests/test_reclaimable_pressure.py"],
+    "test-queue-order": [PY, "tests/test_queue_order.py"],
+    "test-residue": [PY, "tests/test_policy_residue.py"],
+    "test-stale-collapse": [PY, "tests/test_stale_collapse.py"],
+    "test-labels": [PY, "tests/test_metric_labels.py"],
+    "test-work-tiles": [PY, "tests/test_work_tiles.py"],
+    "test-attribution": [PY, "tests/test_side_effect_attribution.py"],
+    "test-handoff": [PY, "tests/test_handoff.py"],
+    "test-site-kinds": [PY, "tests/test_skip_site_kinds.py"],
+    "test-at-stake": [PY, "tests/test_at_stake.py"],
+    "shape": [PY, "tools/registry_shape.py"],
+    "test-shape": [PY, "tests/test_registry_shape.py"],
+    "test-unobservable": [PY, "tests/test_unobservable.py"],
+    "test-blank-page": [PY, "tests/test_blank_page.py"],
+    "test-witness": [PY, "tests/test_witness.py"],
+    "test-horizon": [PY, "tests/test_horizon.py"],
+    "test-recount": [PY, "tests/test_recount.py"],
+    "test-git-locale": [PY, "tests/test_git_locale.py"],
+    "test-foreign": [PY, "tests/test_foreign_vocabulary.py"],
+    "test-rdap-keys": [PY, "tests/test_rdap_keys.py"],
+    "test-wire-alive": [PY, "tests/test_wire_survives.py"],
+    "test-absent-fields": [PY, "tests/test_absent_fields.py"],
+    "test-wire-inputs": [PY, "tests/test_wire_inputs.py"],
+    "test-atomic": [PY, "tests/test_atomic_writers.py"],
+    "test-two-surfaces": [PY, "tests/test_two_surfaces.py"],
+    "test-companion-faults": [PY, "tests/test_companion_faults.py"],
+    "test-fold": [PY, "tests/test_delta_fold.py"],
+    "test-remedy": [PY, "tests/test_remedy_fits.py"],
+    "skip-sites": [PY, "tools/skip_sites.py"],
+    "test-rollup-sessions": [PY, "tests/test_rollup_sessions.py"],
+    "test-plugin-report": [PY, "tests/test_plugin_reporting.py"],
+    "test-fs-scan": [PY, "tests/test_filesystem_scan.py"],
+    "test-secrets": [PY, "tests/test_secrets.py"],
+    "test-write-surface": [PY, "tests/test_write_surface.py"],
+    "test-receipt": [PY, "tests/test_conformance_receipt.py"],
+    "test-interp-contract": [PY, "tests/test_interpretation_contract.py"],
+    "test-gate-purity": [PY, "tests/test_gate_purity.py"],
+    "test-provider": [PY, "tests/test_provider_boundary.py"],
+    "test-search": [PY, "tests/test_search_path.py"],
+    "test-mirror": [PY, "tests/test_projection_mirror.py"],
+    "plugins-check": [PY, "collectors/run_plugins.py", "--check"],
+    "test":      [PY, "tests/test_traps.py"],
+    "test-scan-ids": [PY, "tests/test_scan_ids.py"],
+    "trap-map":  [PY, "tools/trap_map.py", "--check"],
+    "test-trap-map": [PY, "tests/test_trap_map.py"],
+    "test-trap-efficacy": [PY, "tests/test_trap_efficacy.py"],
+    "test-finding-rules": [PY, "tests/test_finding_rules.py"],
+    "test-tracer": [PY, "tests/test_trace_opens.py"],
+    "test-ledger": [PY, "tests/test_ledger.py"],
+    "test-skill": [PY, "tests/test_skill.py"],
+    "test-agent": [PY, "tests/test_agent.py"],
+    "test-key":  [PY, "tests/test_key.py"],
+    "test-install-key": [PY, "tests/test_install_key.py"],
+    "test-vault": [PY, "tests/test_vault.py"],
+    "test-analytics": [PY, "tests/test_analytics_plugins.py"],
+    "test-doors": [PY, "tests/test_credential_doors.py"],
+    "test-surfaces": [PY, "tests/test_estate_surfaces.py"],
+    "test-mcp-inventory": [PY, "tests/test_mcp_inventory.py"],
+    "test-ack": [PY, "tests/test_ack.py"],
+    "test-pages": [PY, "tests/test_pages.py"],
+    "test-serverd": [PY, "tests/test_serverd.py"],
+    "test-skill-check": [PY, "tests/test_skill_check.py"],
+    "server-status": [PY, "tools/serverd.py", "--status"],
+    "test-index": [PY, "tests/test_index.py"],
+    "test-retention": [PY, "tests/test_retention.py"],
+    "retention":  [PY, "store/retention.py", "plan"],
+    "retention-apply": [PY, "store/retention.py", "apply"],
+    "snapshot":  [PY, "collectors/compute_deltas.py", "snapshot"],
+    "deltas":    [PY, "collectors/compute_deltas.py", "diff"],
+    "pending":   [PY, "collectors/compute_deltas.py", "pending"],
+    "agent":     [PY, "agent/observe.py"],
+    "index":     [PY, "store/indexer.py", "index"],
+    "reindex":   [PY, "store/indexer.py", "rebuild"],
+    "index-status": [PY, "store/indexer.py", "status"],
+    "tick":      ["bash", "tools/tick.sh"],
+    "validate-plugin": ["bash", "-c",
+                        "claude plugin validate skill --strict && "
+                        "claude plugin validate skill/plugins/observatory-log --strict"],
+    "test-wire": [PY, "tests/test_mcp_wire.py"],
+    "scan-fs":   [PY, "collectors/scan_filesystem.py", "store/raw/local.json"],
+    "scan-gh":   [PY, "collectors/scan_github.py", "store/raw/gh"],
+    "scan-vault":[PY, "collectors/scan_vault.py", "store/raw/vault.json"],
+    "scan-sessions": [PY, "collectors/scan_sessions.py",
+                      "store/raw/sessions.json"],
+    "merge":     [PY, "collectors/merge.py", "store/raw"],
+    "emit":      [PY, "collectors/emit_registry.py", "store/raw"],
+    "validate":  [PY, "tools/validate_registry.py"],
+    "dashboard": [PY, "dashboard/build_dashboard.py"],
+    "project":   [PY, "tools/project_into_vault.py"],
+    "commit-projection": [PY, "tools/commit_projection.py"],
+    "commit-registry": [PY, "tools/commit_registry.py"],
+    "lease":     [PY, "tools/tick_lease.py", "status"],
+    "test-tick": [PY, "tests/test_tick.py"],
+    "test-pipeline": [PY, "tests/test_pipeline.py"],
+    "test-time": [PY, "tests/test_time.py"],
+    "test-events": [PY, "tests/test_events.py"],
+    "test-fingerprints": [PY, "tests/test_fingerprints.py"],
+    "test-export": [PY, "tests/test_ledger_export.py"],
+    "test-degradations": [PY, "tests/test_degradations.py"],
+    "test-emit": [PY, "tests/test_emit_purity.py"],
+    "test-ancestry": [PY, "tests/test_shared_ancestry.py"],
+    "test-provenance": [PY, "tests/test_provenance.py"],
+    "test-activity": [PY, "tests/test_activity.py"],
+    "test-rollup": [PY, "tests/test_rollup.py"],
+    "plugins":   [PY, "collectors/run_plugins.py"],
+    "test-plugins": [PY, "tests/test_plugins.py"],
+    "test-dashboard": [PY, "tests/test_dashboard_store.py"],
+    "rollup":    [PY, "store/rollup.py", "refresh"],
+    "stats":     [PY, "store/rollup.py", "status"],
+    "activity":  [PY, "activity.py"],
+    "migrate":   [PY, "store/migrate.py"],
+    "fabric":    [PY, "tools/fabric_hash.py", "--check"],
+    "contract":  [PY, "tools/publish_contract.py", "--check"],
+}
+GROUPS = {
+    "scan":  ["scan-fs", "scan-gh", "scan-vault", "scan-sessions"],
+    "local": ["scan-fs", "merge", "emit", "validate", "scan-events",
+              "findings", "dashboard", "smoke-pages"],
+                                                                                  
+                                                                                  
+                                                                                  
+                                                                             
+                                                                                 
+                                                                                   
+                                                                                 
+                                                                              
+                            
+    "check": ["validate", "fabric", "ledger-current", "dashboard", "design", "smoke", "smoke-pages", "test-pages",
+              "test", "test-ledger", "test-skill", "test-agent", "test-key", "test-install-key", "test-vault", "test-analytics", "test-doors", "test-surfaces", "test-mcp-inventory", "test-ack", "test-serverd", "test-skill-check", "test-index",
+              "test-retention", "test-tick", "test-pipeline", "test-time", "test-events", "test-fingerprints", "test-export", "test-degradations", "test-emit", "test-ancestry", "test-provenance", "test-activity", "test-rollup", "test-plugins", "test-dashboard", "test-queue", "test-wire-contract", "docs-current", "test-docs", "test-dead-data", "test-projection", "test-tick-repo", "test-identity", "test-render", "test-sessions", "test-indexer-load", "test-corroboration", "test-tick-failures", "test-notification", "test-hook", "test-interpretation", "test-render-page", "test-recall", "test-validator", "test-domain-probe", "paths-current", "secrets", "test-secrets", "test-write-surface", "test-receipt", "test-interp-contract", "test-provider", "test-search", "test-mirror", "test-erasure-scope", "test-collector-state", "test-delivery", "test-freshness", "test-project-surface", "test-metric-series", "test-companion", "test-footprint", "test-budget", "test-agent-queue", "test-lost-projects", "test-estate-history", "test-cause", "test-clone-sync", "test-fixture-sweep", "test-unpublished", "test-checkout", "test-truncation", "test-key-shape", "test-identity-drift", "test-confidence", "test-standdown", "test-dark-cost", "test-stale-expected", "test-agent-faults", "test-integrity", "test-release", "test-portfolio", "test-omission", "test-ledger-ids", "test-provider-health", "test-store-faults", "test-heroku", "test-openrouter", "test-credentials", "test-keyserver", "test-env", "test-remote-env", "test-google", "test-project-secrets", "test-reveals", "test-store-modes", "test-backup-store", "test-plugin-pair", "test-publish-contract", "test-scrub", "test-session-start", "test-recovery", "test-signature", "test-env-tab", "test-use-secret", "use", "test-gate-skips", "test-block", "test-lever", "test-queue-order", "test-residue", "test-stale-collapse", "test-labels", "test-work-tiles", "test-attribution", "test-handoff", "test-site-kinds", "test-at-stake", "test-shape", "test-unobservable", "test-blank-page", "test-witness", "test-horizon", "test-recount", "test-git-locale", "test-foreign", "test-rdap-keys", "test-wire-alive", "test-absent-fields", "test-wire-inputs", "test-atomic", "test-two-surfaces", "test-companion-faults", "test-fold", "test-remedy", "test-listings", "test-merge", "test-erasure", "test-rollup-sessions", "test-scan-ids", "trap-map", "test-trap-map", "test-trap-efficacy", "test-finding-rules", "test-tracer", "plugins-check", "test-plugin-report", "test-fs-scan", "validate-plugin", "test-wire",
+              "probes-check", "contract"],
+    "all":   ["scan-fs", "scan-gh", "scan-vault", "scan-sessions", "remotes", "scan-bb", "domains", "heroku", "scan-cloudflare", "scan-mcp", "openrouter", "env", "remote-env", "google", "leaks", "scrub-companion", "merge", "emit", "validate",
+              "scan-events", "plugins", "rollup", "corroborate", "export-ledger", "lost",
+                                                                              
+                                                                              
+                                                                                 
+                                                                            
+                                                                                
+                                                         
+              "index", "findings", "dashboard", "smoke", "notify", "commit-registry", "project", "commit-projection", "fabric", "links",
+              "snapshot", "deltas", "test", "test-ledger", "test-skill", "test-agent", "test-key", "test-index", "test-retention",
+              "validate-plugin", "test-wire", "probes", "test-gate-purity",
+                                                                            
+                                                                         
+                                                                              
+                                                                               
+                                                                    
+                                                                              
+                                                                                
+                                                                                
+                                                                               
+                                                                   
+              "contract"],
+}
+
+
+                                                                              
+                                                                                   
+                                                                                  
+                                                                               
+                                                                
+                                                                                  
+                                        
+NON_MUTATING = {"check"}
+
+                                                                               
+                                                                         
+                                                                
+                                                                                
+                                                                              
+                                                                            
+                                                   
+  
+                                                                              
+                                                                                 
+GROUP_WRITES_NOTHING_UNDER = ("registry/",)
+
+                                                                           
+                                                                                
+                                                                              
+                                                                           
+                                                                           
+                                                                                     
+                                                                          
+NEEDS = {
+    "ledger-current":   ["store"],
+    "validate-plugin":  ["claude-cli"],
+    "smoke":            ["node"],
+    "smoke-pages":      ["node"],
+    "test-env-tab":     ["node"],
+}
+
+
+                                                                              
+                                                                     
+def workspace_argument(value: str) -> str:
+    for prefix, base in (("store/raw", paths.SCRATCH), ("registry", paths.REGISTRY)):
+        if value == prefix or value.startswith(prefix + "/"):
+            return str(base / value[len(prefix):].lstrip("/"))
+    if value == "docs/projects-dashboard.html":
+        return str(paths.DASHBOARD_HTML)
+    return value
+
+STEPS = {name: [workspace_argument(v) for v in cmd] for name, cmd in STEPS.items()}
+STEPS["check-portable"] = [PY, "tests/run_portable.py"]
+
+                                                                               
+                                                                              
+PUBLIC_SOURCE_ONLY = {
+    "setup": "install the distribution with its full extra instead",
+    "deps": "install the distribution with its full extra instead",
+    "docs-current": "requires the original private documentation archive",
+    "paths-current": "requires the original private documentation archive",
+    "trap-map": "requires the original historical trap catalogue",
+    "validate-plugin": "requires the complete companion-plugin development checkout",
+    "all": "historical composite includes private development gates; use local or the opt-in tick",
+}
+WORKSPACE_COMMANDS = {"init", "doctor", "version", "configure", "onboard", "migrate-local",
+                      "workspace-backup", "upgrade", "restore"}
+PUBLIC_HELP = """Project Observatory full engine (public profile).
+
+  init / onboard / configure   prepare your private workspace
+  local                        filesystem → registry → events → findings → dashboard
+  check [runner options]       isolated synthetic regression suites; no live providers
+  check-portable               the same explicit portable regression runner
+  backup                       historical SQLite-only backup
+  workspace-backup             full private snapshot (requires --writers-stopped)
+  upgrade                      preview; --apply requires --writers-stopped
+  restore SNAPSHOT             restore into a new empty workspace
+  tick                         configured cycle; scheduler must be explicitly enabled
+
+Local excludes metric plugins, provider collectors, secret scans and model calls.
+Plugin execution remains an explicit command and can use enabled integrations.
+Source-only historical gates are not part of the public acceptance check.
+See docs/CLI-COMPATIBILITY.md for command and state compatibility.
+"""
+
+
+def public_profile() -> bool:
+    marker = ROOT / "public-profile.json"
+    if not marker.exists() and not marker.is_symlink():
+        return False
+    try:
+        if marker.is_symlink():
+            raise ValueError("linked profile")
+        value = json.loads(marker.read_text(encoding="utf-8"))
+        if value != {"schema_version": 1, "profile": "public"}:
+            raise ValueError("unsupported profile")
+    except (OSError, ValueError):
+        raise configuration.ConfigurationError("Invalid or unsupported source profile") from None
+    return True
+
+
+def unavailable_step(name: str, public: bool) -> str:
+    if public and name in PUBLIC_SOURCE_ONLY:
+        return PUBLIC_SOURCE_ONLY[name]
+    for arg in STEPS.get(name, [])[1:]:
+                                                                             
+        if not arg.startswith("-") and not Path(arg).is_absolute() and Path(arg).suffix in {".py", ".sh", ".js"}:
+            if not (ROOT / arg).is_file():
+                return "the command's source payload is not included in this distribution"
+    return ""
+
+
+
+
+def capabilities() -> dict[str, str]:
+    ""                                                                              
+    import shutil
+    sys.path.insert(0, str(ROOT))
+    import paths
+    return {
+        "estate": "" if paths.DATA.is_dir() else f"{paths.DATA} does not exist here",
+        "claude-cli": "" if shutil.which("claude") else "the claude CLI is not on PATH",
+        "store": "" if paths.DB.exists() else f"{paths.DB.name} does not exist (it is gitignored)",
+        "node": "" if shutil.which("node") else "node is not on PATH",
+    }
+
+
+                                                                             
+                                                                                
+                                                                           
+                                                                     
+  
+                                                                            
+                                                                           
+                                                                        
+SKIP_MARKER = re.compile(r"^\s+(SKIP|NOTE)\s")
+
+
+def run(step: str, *, offline: bool = False) -> tuple[int, list[str]]:
+    ""                                                                      
+
+                                                                              
+                                                                                 
+                                                                           
+                                                                     
+                                                                 
+
+                                                                                
+                                                                         
+                                                                                  
+                                                                            
+       
+    print(f"\n\033[1m── {step}\033[0m", flush=True)
+    skips: list[str] = []
+    child_environment = dict(os.environ)
+    if offline:
+        child_environment["OBSERVATORY_OFFLINE"] = "1"
+    proc = subprocess.Popen(STEPS[step], cwd=ROOT, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, bufsize=1,
+                            env=child_environment)
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        if SKIP_MARKER.match(line):
+            skips.append(line.rstrip())
+    sys.stdout.flush()
+    return proc.wait(), skips
+
+
+                                                                              
+                                                                                
+                                                                                
+                                                                                
+                                                                               
+                                                                           
+                                                                    
+                                                                  
+IGNORED_WRITES_ALLOWED = {
+                                                                                
+                                                                             
+                                                                        
+    **{f"docs/dashboard/{_pg}.html": "a split page built by the dashboard step, "
+       "read by smoke-pages and test-pages; gitignored, regenerated by the gate"
+       for _pg in ("index", "findings", "projects", "domains", "heroku", "creds", "env", "mcp", "traffic", "health")},
+    "docs/dashboard/app.css": "the style every split page links to, written once "
+    "by the dashboard step; gitignored and regenerated with the pages",
+    "docs/dashboard/app.js": "the script every split page loads, written once by the "
+    "dashboard step; gitignored and regenerated with the pages",
+    **{f"docs/dashboard/{_pg}.smoke.json": "the smoke receipt beside a split page, "
+       "written by whoever executed that build, for the same reason as the single page's"
+       for _pg in ("index", "findings", "projects", "domains", "heroku", "creds", "env", "mcp", "traffic", "health")},
+    "docs/projects-dashboard.html":
+        "built by the `dashboard` step, which `design` and `smoke` then read; "
+        "gitignored, so a fresh clone has none and the gate must make it",
+    "docs/projects-dashboard.smoke.json":
+        "written by the `smoke` step beside the page it just executed, and by "
+        "every other runner of that file for the same reason: whoever executed a "
+        "build is who can attest to it. Had only the tick recorded a verdict, "
+        "the board would have called this page unverified after every gate run "
+        "— true of the record and useless to a reader (DEC-0167)",
+}
+
+                                                                              
+                                                                              
+                                                                              
+                                                                              
+                                                                       
+                                                                           
+                                                                               
+                          
+FOREIGN_WRITES_IGNORED = {
+    "store/raw/integrity.json":
+        "written by the scheduled tick's store check, which runs early in the "
+        "cycle. Same class as the lease receipt below: the tick landing mid-gate "
+        "is a fact about the schedule, not about the group under test "
+        "(DEC-0134)",
+    "store/raw/tick-lease.json":
+        "written by the scheduled tick on every path of its lease acquire — and "
+        "the tick landing mid-gate is the SUBJECT of that receipt, not an "
+        "accident: the gate holds `registry` for its whole duration, so a tick "
+        "firing during a `check` stands down and records the skip. Counting that "
+        "write as the group's own would make the gate report itself for the very "
+        "collision it caused (DEC-0130)",
+    "store/raw/store-faults.jsonl":
+        "appended by whatever catches a store error — the tick's `agent` and "
+        "`index` steps among them. Append-only by design, so a tick landing "
+        "mid-gate adds a line the group did not write (DEC-0142)",
+    "store/raw/companion-faults.jsonl":
+        "appended by the companion's Stop hook whenever a turn could not be "
+        "recorded — in every session of every watched project, concurrently "
+        "with the gate, for the same reason its receipt is exempted below. "
+        "Append-only by design (DEC-0184), so a neighbouring session losing a "
+        "turn mid-gate adds a line this tree did not write",
+    "store/raw/record-turn.json":
+        "written by the companion's Stop hook — in EVERY session of EVERY watched "
+        "project on this machine, concurrently with the gate. Forty-nine Claude "
+        "processes were running when that was measured (DEC-0113), so another "
+        "session ending mid-gate changes this file and the purity verdict would "
+        "report a neighbour's turn as this tree's impurity. The suites that drive "
+        "the recorder redirect OBSERVATORY_SCRATCH and are checked for it "
+        "separately in tests/test_gate_purity.py",
+    "store/raw/serverd.json":
+        "the always-on server's heartbeat receipt, rewritten every 20 seconds "
+        "for as long as launchd keeps the daemon alive (DEC-0217) — which is "
+        "concurrently with any gate that outlives that interval, i.e. every "
+        "gate. No step of any group starts or stops the daemon, so exempting "
+        "its receipt removes no coverage; the suites that drive its refresh "
+        "functions redirect OBSERVATORY_SCRATCH",
+}
+
+                                                                            
+                                                                                  
+                                                                              
+                                                                                
+                                                                             
+WATCHED_TABLES = ("ledger", "deltas", "events", "observations", "metrics",
+                  "proposals", "project_week", "outbox", "tombstones", "scans")
+
+                                                                             
+                                                                              
+FOREIGN_ROW_WRITER = "agent:claude-code"
+
+                                                                                
+                                                                             
+                                                                                
+                                                                              
+                                                                                
+                                                                                
+                                                                               
+                                                                               
+FOREIGN_ROWS_EXCLUDED = {
+    "ledger": "SELECT count(*) FROM ledger WHERE owner IS NOT ?",
+                                                                                
+                                                                               
+                                                                               
+    "outbox": "SELECT count(*) FROM outbox WHERE memory_id NOT IN "
+              "(SELECT memory_id FROM ledger WHERE owner IS ?)",
+}
+
+
+def ignored_state() -> tuple[dict[str, str], dict[str, int]]:
+    ""                                                                    
+
+                                                                                
+                                                                                  
+                                                                 
+                                                                           
+                                                                      
+                                                                                
+                                                                           
+                                                                                
+       
+    files: dict[str, str] = {}
+                                                                            
+                                                                                 
+                                                                              
+                                                                            
+                                                                             
+                                                                             
+                                                                        
+    watched = list(paths.SCRATCH.rglob("*")) + list((paths.STATE / "logs").glob("*.jsonl"))
+    for p in sorted(set(watched)):
+        if p.is_file():
+            rel = str(p.relative_to(ROOT)) if ROOT in p.parents or p.is_relative_to(ROOT) \
+                else str(p)
+            files[rel] = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    rows: dict[str, int] = {}
+    if paths.DB.is_file():
+        try:
+            conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
+            try:
+                for t in WATCHED_TABLES:
+                    try:
+                        rows[t] = conn.execute(FOREIGN_ROWS_EXCLUDED.get(
+                            t, f"SELECT count(*) FROM {t}"),
+                            (FOREIGN_ROW_WRITER,) if t in FOREIGN_ROWS_EXCLUDED
+                            else ()).fetchone()[0]
+                    except sqlite3.Error:
+                        pass
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            pass
+    return files, rows
+
+
+def culprit_of(appeared: list[str], vanished: list[str],
+               changed_files: list[str]) -> str:
+    ""                                                                    
+
+                                                                               
+                                                                                
+                                                                               
+                                                                                
+                                                                                
+                                                            
+
+                                                                              
+                                                                             
+                                                                                
+                                         
+       
+    if appeared:
+        return "the gate itself"
+    if vanished:
+        return ("something else — dirt DISAPPEARED, which is what the "
+                "scheduled tick's registry commit looks like from here")
+    if changed_files and all(f.startswith(GROUP_WRITES_NOTHING_UNDER)
+                             for f in changed_files):
+        return ("something else — every changed path is one no step of this "
+                "group writes, which is what the scheduled tick rewriting the "
+                "registry looks like from here")
+    return "the gate itself"
+
+
+def tree_state() -> tuple[str, set[str], dict[str, str]] | None:
+    ""                                                                           
+
+                                                                              
+                                                                             
+                                                                               
+                                                                               
+                                          
+
+                                                                                
+                                                                                
+                                                                               
+                                                                              
+                                                                                
+                                                                                  
+                                                                                 
+                                                                                 
+                        
+       
+    st = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT,
+                        capture_output=True, text=True)
+    if st.returncode != 0:
+        return None
+    df = subprocess.run(["git", "diff", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    digest = hashlib.sha256((st.stdout + "\0" + df.stdout).encode("utf-8")).hexdigest()
+    per_file: dict[str, str] = {}
+    path, chunk = None, []
+    for line in df.stdout.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            if path is not None:
+                per_file[path] = hashlib.sha256("".join(chunk).encode("utf-8")).hexdigest()[:16]
+                                                                                  
+            parts = line.split(" b/", 1)
+            path = parts[1].strip() if len(parts) == 2 else line.strip()
+            chunk = []
+        else:
+            chunk.append(line)
+    if path is not None:
+        per_file[path] = hashlib.sha256("".join(chunk).encode("utf-8")).hexdigest()[:16]
+    return digest, set(st.stdout.splitlines()), per_file
+
+
+def main(argv: list[str]) -> int:
+    try:
+        public = public_profile()
+    except configuration.ConfigurationError as exc:
+        print(f"Observatory: {exc}", file=sys.stderr)
+        return 2
+    if len(argv) > 1 and argv[1] in WORKSPACE_COMMANDS:
+        import workspace
+        return workspace.main(argv[1:])
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print(PUBLIC_HELP if public else __doc__)
+        print("steps:", ", ".join(name for name in STEPS if not unavailable_step(name, public)))
+        print("groups:", ", ".join(name for name in GROUPS if not unavailable_step(name, public)))
+        return 0
+    name = argv[1]
+    if name == "check-portable" or (public and name == "check"):
+        reason = unavailable_step("check-portable", public)
+        if reason:
+            print(f"Observatory: check-portable unavailable: {reason}", file=sys.stderr)
+            return 2
+                                                                             
+                                                                          
+        return subprocess.call([*STEPS["check-portable"], *argv[2:]], cwd=ROOT)
+    steps = GROUPS.get(name, [name] if name in STEPS else None)
+    if steps is None:
+        print(f"unknown step: {name}", file=sys.stderr)
+        return 2
+    missing = [(step, unavailable_step(step, public)) for step in [name, *steps]]
+    missing = [(step, reason) for step, reason in missing if reason]
+    if missing:
+        for step, reason in dict(missing).items():
+            print(f"Observatory: {step} unavailable: {reason}", file=sys.stderr)
+        return 2
+    invalid_args = [arg for arg in argv[2:] if not arg.startswith("--expect-skipped=")]
+    if invalid_args:
+        print("Observatory: step arguments are not accepted here; invoke the underlying tool directly", file=sys.stderr)
+        return 2
+    if name not in {"setup", "deps"} and not name.startswith("test"):
+        try:
+            configuration.validate_workspace(required=True)
+            configuration.load()
+        except configuration.ConfigurationError as exc:
+            print(f"Observatory: {exc}", file=sys.stderr)
+            return 2
+        paths.tighten()
+                                                                                  
+                                                                            
+    expect_skipped = None
+    for a in argv[2:]:
+        if a.startswith("--expect-skipped="):
+            expect_skipped = a.split("=", 1)[1].split(",")
+    for g, body in GROUPS.items():                                               
+        unknown = [x for x in body if x not in STEPS]                              
+        if unknown:                                                                   
+            print(f"observatory: group {g!r} names unknown step(s): {unknown}",
+                  file=sys.stderr)
+            return 2
+    steps = GROUPS.get(name, [name] if name in STEPS else None)
+    if steps is None:
+        print(f"unknown step: {name}", file=sys.stderr)
+        return 2
+                                                                            
+                                                                               
+                                              
+                                                                           
+                                                                           
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+     
+                                                                               
+                                                                              
+                                                                           
+                                             
+    held, why = (None, "")
+    if name in NON_MUTATING:
+        sys.path.insert(0, str(ROOT / "tools"))
+        try:
+            import tick_lease
+            held, why = tick_lease.hold(tick_lease.GATE_IDENTITY)
+        except Exception as exc:                                             
+            held, why = None, f"the lease helper is unusable: {type(exc).__name__}: {exc}"
+                                                                              
+                                                                               
+                                                                                
+                                                               
+        print(f"\033[2m{why}\033[0m" if held else
+              f"\033[33mrunning WITHOUT the registry lease — {why}. A registry write "
+              f"landing mid-run will be reported as a tree change below rather than "
+              f"silently mixed into one verdict.\033[0m", flush=True)
+    try:
+        return _run_group(name, steps, expect_skipped,
+                          attributable=held is not None or name not in NON_MUTATING)
+    finally:
+        if held is not None:
+            import tick_lease
+            msg = tick_lease.drop(held)
+            if msg:
+                print(f"\033[2m{msg}\033[0m", flush=True)
+
+
+def _tick_stamp() -> str:
+    ""                                                                        
+    try:
+        return json.loads((paths.SCRATCH / "tick.json").read_text(
+            encoding="utf-8")).get("finished_at") or ""
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
+               attributable: bool = True) -> int:
+    before = tree_state() if name in NON_MUTATING else None
+    before_ignored = ignored_state() if name in NON_MUTATING else None
+                                                                            
+                                                                                  
+                                                                              
+                                                                             
+                                                                                
+                                                                              
+                                     
+    tick_before = _tick_stamp()
+    caps, skipped = capabilities(), {}
+    block_skips: dict[str, list[str]] = {}
+    failed_at, failed_code = None, 0
+    unreached: list[str] = []
+    for pos, step in enumerate(steps):
+        absent = [caps[t] for t in NEEDS.get(step, []) if caps.get(t)]
+        if absent:
+            skipped[step] = absent[0]
+            print(f"\n\033[1m── {step}\033[0m\n\033[33mSKIP — {absent[0]}\033[0m")
+            continue
+        code, blocks = run(step, offline=name == "local")
+        if blocks:
+            block_skips[step] = blocks
+        if code != 0:
+                                                                              
+                                                                              
+                                                                            
+                                                                           
+                                                                            
+                                                                                
+            print(f"\n\033[31mFAILED at {step} (exit {code})\033[0m", file=sys.stderr)
+            if tick_before and _tick_stamp() != tick_before:
+                print(f"\033[33m  the scheduled tick finished DURING this run "
+                      f"({tick_before} -> {_tick_stamp()}) — it rewrites the store "
+                      f"and the registry under a running suite. Re-run `{step}` "
+                      f"alone before believing this red.\033[0m", file=sys.stderr)
+            failed_at, failed_code = step, code
+            unreached = steps[pos + 1:]
+            break
+                                                                                 
+                                                                               
+                                                                             
+                                                      
+     
+                                                                            
+                                                                                
+                                                                              
+                                                                                
+                                                                                
+                                               
+     
+                                                                                 
+                                                                               
+                                                                              
+    if block_skips:
+        n = sum(len(v) for v in block_skips.values())
+        print(f"\n\033[33m{n} assertion block(s) did not run, in "
+              f"{len(block_skips)} of {len(steps)} step(s) — a suite that skips a "
+              f"block still exits 0, so this is the number that must travel beside "
+              f"any PASS total:\033[0m")
+        for st, lines in block_skips.items():
+            for line in lines:
+                print(f"  {st}: {line.strip()}")
+
+    if skipped:
+        print(f"\n\033[33m{len(skipped)} of {len(steps)} step(s) skipped — this machine "
+              f"cannot run them, and a skipped gate is not a passed gate:\033[0m")
+        for s, why in skipped.items():
+            print(f"  {s}: {why}")
+
+                                                                                
+                                                                                 
+                                                                                 
+                                                                           
+                                                                                
+                                               
+     
+                                                                                 
+                                                                                 
+                                                                           
+                                                                               
+                                                                              
+    if unreached:
+        shown = unreached[:12]
+        print(f"\n\033[33m{len(unreached)} of {len(steps)} step(s) never ran — the "
+              f"group stops at the first failure, so any PASS total above covers "
+              f"{len(steps) - len(unreached)} step(s) and not this group:\033[0m")
+        print("  " + ", ".join(shown)
+              + (f", and {len(unreached) - len(shown)} more" if len(unreached) > len(shown) else ""))
+
+                                                                          
+                                                                                 
+                                                                        
+    if expect_skipped is not None:
+        want, got = set(expect_skipped) - {""}, set(skipped)
+        if want != got:
+            print(f"\n\033[31mThe skipped set is not the one this run was told to expect.\033[0m\n"
+                  f"  unexpectedly skipped: {sorted(got - want) or 'none'}\n"
+                  f"  expected but ran:     {sorted(want - got) or 'none'}", file=sys.stderr)
+            return 1
+    tree_dirty = False
+    if before is not None:
+        after = tree_state()
+        if after and after[0] != before[0]:
+                                                                                 
+                                                                                 
+                                                                             
+                                                                              
+            appeared_now = sorted(after[1] - before[1])
+            vanished_now = sorted(before[1] - after[1])
+                                                                                 
+                                                                                 
+                                                                              
+                                                                                
+                                                                      
+                         
+            changed_files = sorted(
+                k for k in set(before[2]) | set(after[2])
+                if before[2].get(k) != after[2].get(k))
+            culprit = culprit_of(appeared_now, vanished_now, changed_files)
+            print(f"\n\033[31mThe tree changed while the {name} group ran, and the cause "
+                  f"is {culprit}. Either way this run saw two different trees:\033[0m",
+                  file=sys.stderr)
+            appeared, vanished = appeared_now, vanished_now
+            for line in appeared:
+                print(f"  appeared: {line}", file=sys.stderr)
+            for line in vanished:
+                print(f"  gone:     {line}", file=sys.stderr)
+            for f in changed_files:
+                print(f"  rewritten in place: {f}", file=sys.stderr)
+            if not appeared and not vanished and not changed_files:
+                print("  neither the file list nor any tracked file's content moved, "
+                      "so the digest changed for a reason this cannot name — "
+                      "`git status` and `git diff HEAD` are what it compares.",
+                      file=sys.stderr)
+                                                                                
+                                                                               
+                                                                                 
+                                                                        
+            tree_dirty = True
+
+                                                                                 
+                                                                             
+                                                                                 
+                                                                              
+                                                                          
+    if before_ignored is not None:
+        files_after, rows_after = ignored_state()
+        files_before, rows_before = before_ignored
+        touched = sorted(k for k in set(files_before) | set(files_after)
+                         if files_before.get(k) != files_after.get(k)
+                         and k not in IGNORED_WRITES_ALLOWED
+                         and k not in FOREIGN_WRITES_IGNORED)
+        moved = {t: (rows_before.get(t), rows_after.get(t))
+                 for t in set(rows_before) | set(rows_after)
+                 if rows_before.get(t) != rows_after.get(t)}
+        if touched or moved:
+                                                                                  
+                                                                                    
+                                                                                
+                                                                                
+                                                                         
+                                                                           
+                                                                                
+                                                                                  
+                                                                            
+            print(f"\n\033[31m" + (
+                  f"The {name} group wrote artefacts git cannot see. A gate "
+                  f"that answers 'is this tree good?' must not change it, and these are "
+                  f"the files the porcelain check is blind to:"
+                  if attributable else
+                  f"Artefacts git cannot see changed while the {name} group ran, and "
+                  f"this run could NOT hold the registry lease — so they are not "
+                  f"attributable to the group. Reported rather than dropped, because "
+                  f"a gate that writes them would look exactly like this:") +
+                  "\033[0m", file=sys.stderr)
+            for k in touched:
+                print(f"  wrote: {k}", file=sys.stderr)
+            for t, (was, now_) in sorted(moved.items()):
+                print(f"  rows:  {t} {was} -> {now_}", file=sys.stderr)
+            print("  A test that runs a repository script must redirect "
+                  "OBSERVATORY_SCRATCH and OBSERVATORY_DB. The live report is what "
+                  "`tools/build_findings.py` reads, so a fixture's outcome becomes "
+                  "the estate's reported state.", file=sys.stderr)
+            return 1
+                                                                               
+                                                                               
+                                                                                
+                                                          
+    if tree_dirty:
+        print("\n\033[31mthe tracked tree moved during the run, reported above\033[0m",
+              file=sys.stderr)
+        return 1
+    if failed_at is not None:
+        print(f"\n\033[31m{failed_at} failed, and the purity checks above ran anyway "
+              f"— a gate that stops checking itself the moment a step fails is a gate "
+              f"whose guarantee is strongest when nothing is wrong.\033[0m",
+              file=sys.stderr)
+        return failed_code
+    print("\n\033[32mok\033[0m")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

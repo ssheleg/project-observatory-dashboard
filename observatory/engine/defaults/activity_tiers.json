@@ -1,0 +1,25 @@
+{
+  "tiers": [
+    {
+      "id": "active",
+      "max_days": 30,
+      "means": "moved within the last month — the mass of current work"
+    },
+    {
+      "id": "cooling",
+      "max_days": 180,
+      "means": "quiet, but recently enough to still be live"
+    },
+    {
+      "id": "dormant",
+      "max_days": 730,
+      "means": "quiet for months to two years"
+    },
+    {
+      "id": "cold",
+      "max_days": null,
+      "means": "nothing for over two years"
+    }
+  ],
+  "unknown_id": "unknown"
+}

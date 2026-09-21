@@ -1,0 +1,18 @@
+{
+  "profile": "observatory-local-mcp",
+  "version": "1.0.0",
+  "schemaRelease": "v0.2.0",
+  "repository": "https://github.com/ssheleg/project-observatory-open-source",
+  "schemas": [
+    "fabric/schemas/capability-input.schema.json",
+    "fabric/schemas/capability-output.schema.json",
+    "fabric/schemas/project-detail-input.schema.json",
+    "fabric/schemas/project-detail-output.schema.json",
+    "fabric/schemas/project-timeline-input.schema.json",
+    "fabric/schemas/project-timeline-output.schema.json",
+    "fabric/schemas/record-input.schema.json",
+    "fabric/schemas/record-output.schema.json"
+  ],
+  "externalHostAdmission": "unverified",
+  "compatibility": "Existing MCP tool names and JSON schema field shapes are retained. This is a local profile, not external conformance certification."
+}

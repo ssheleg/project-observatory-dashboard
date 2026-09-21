@@ -1,0 +1,670 @@
+#!/usr/bin/env python3
+""                                                                          
+
+                                                                              
+                                                                             
+                                                                             
+                                                                            
+                             
+   
+from __future__ import annotations
+import asyncio, atexit, argparse, hashlib, json, os, shutil, subprocess, sys, pathlib, tempfile
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+import jsonschema                                                                  
+from mcp import ClientSession, StdioServerParameters                               
+from mcp.client.stdio import stdio_client                                          
+import mcp.types as mtypes                                                         
+import atomic
+import paths                                                                       
+
+MANIFEST = json.loads((ROOT / "fabric-agent.json").read_text())
+CAPS = MANIFEST["capabilities"]
+
+
+def source_of(uri: str) -> pathlib.Path:
+    ""                                                                         
+    from publish_contract import PREFIX, staged
+    if not uri.startswith(PREFIX):
+        raise AssertionError("Probe URI does not belong to this bundled release")
+    relative = uri[len(PREFIX):]
+    if relative not in staged():
+        raise AssertionError("Probe URI is outside the bundled allowlist")
+    return ROOT / "fabric" / relative
+
+
+def schema_for(cap: dict) -> dict:
+    ""                                                                 
+    return json.loads(source_of(cap["outputSchema"]).read_text())
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def local_fixture(uri: str) -> dict:
+    return json.loads(source_of(uri).read_text())
+
+
+def payload(result) -> dict:
+    if getattr(result, "structured_content", None):
+        return result.structured_content
+    for block in result.content:
+        if isinstance(block, mtypes.TextContent):
+            return json.loads(block.text)
+    raise AssertionError("no JSON payload")
+
+
+def registry_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for path in sorted(paths.REGISTRY.glob("*.json")):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def ledger_max_revision() -> int:
+    db = paths.DB
+    if not db.exists():
+        return -1
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        row = conn.execute("SELECT COALESCE(MAX(revision), 0) FROM ledger").fetchone()
+        return row[0]
+    finally:
+        conn.close()
+
+
+def side_effect_verdict(before, after, later) -> dict:
+    ""                                                            
+
+                                                                             
+                                                                                 
+                                                                              
+                                                                            
+                                                             
+                                                                               
+                                         
+
+                                                                               
+                                                                             
+                                                                               
+                                                      
+
+                                                                              
+                                                                           
+                                                                         
+                                                                               
+                       
+
+                                                                        
+                                                                               
+                                                                                
+                                       
+       
+    assertion = ("registry git status and ledger max revision are "
+                 "unchanged after the call")
+    if before == after:
+        return {"assertion": assertion, "verdict": "PASS",
+                "note": f"before={before} after={after}"}
+    if after != later:
+        return {"assertion": assertion, "verdict": "INCONCLUSIVE",
+                "note": (f"before={before} after={after} later={later} — the estate "
+                         f"kept moving with no call in between, so this change is not "
+                         f"shown to be the call's: the scheduled tick writes the "
+                         f"ledger and commits the registry every thirty minutes. "
+                         f"Heuristic: a tick write finishing between the second and "
+                         f"third readings would still read as the call's.")}
+    return {"assertion": assertion, "verdict": "FAIL",
+            "note": (f"before={before} after={after} later={later} — the change "
+                     f"settled, so it is attributed to the call")}
+
+
+async def call_record(session, args: dict) -> dict:
+                                     
+    return payload(await session.call_tool("observatory_record", dict(args)))
+
+
+async def assess_record(session, args: dict, out_schema: dict,
+                        scratch_db: pathlib.Path | None = None) -> list[dict]:
+    ""                                                             
+    a: list[dict] = []
+
+    def say(text: str, ok: bool, note: str = "") -> None:
+        a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
+
+                                                                                 
+                                                                               
+                                                                                 
+                                                                                
+                                                             
+    live_before = ledger_rows(paths.DB)
+    accepted = await call_record(session, args)
+    try:
+        jsonschema.validate(accepted, out_schema)
+        shape_ok, shape_note = True, ""
+    except jsonschema.ValidationError as exc:
+        shape_ok, shape_note = False, str(exc).splitlines()[0][:180]
+
+    say("the probe runs against a scratch store; no row reaches the operator's ledger",
+        ledger_rows(paths.DB) == live_before,
+        f"live ledger {live_before} -> {ledger_rows(paths.DB)}")
+    say("a well-formed write is accepted in state 'proposed', never higher",
+        shape_ok and accepted.get("state") == "proposed", shape_note or str(accepted)[:140])
+
+                                                                         
+                                                                                
+                                                                                
+                                                                             
+                                                                           
+                                                                               
+                                                                            
+     
+                                                                               
+                                                                                
+                                                                             
+                                                                              
+                                                                             
+                                                                        
+    before_rows = ledger_rows(scratch_db)
+    res = await session.call_tool("observatory_record", {"statement": "no owner"})
+    text = " ".join(str(getattr(c, "text", c)) for c in (res.content or []))
+    after_rows = ledger_rows(scratch_db)
+    say("a write with no owner is refused before the ledger is touched",
+        bool(res.is_error) and "owner" in text.lower() and after_rows == before_rows,
+        f"is_error={res.is_error} rows {before_rows}->{after_rows} said {text[:120]!r}")
+
+    stale = payload(await session.call_tool("observatory_record", {
+        "owner": args["owner"], "statement": "stale", "memoryId": accepted.get("memoryId"),
+        "expectedRevision": 99}))
+    say("a stale expectedRevision returns RevisionConflict carrying the current revision",
+        stale.get("error") == "RevisionConflict"
+        and stale.get("currentRevision") == accepted.get("revision"), str(stale)[:160])
+
+    other = payload(await session.call_tool("observatory_record", {
+        "owner": "agent:someone-else", "statement": "rewrite",
+        "memoryId": accepted.get("memoryId"),
+        "expectedRevision": accepted.get("revision")}))
+    say("another owner's record cannot be corrected: OwnerRefused",
+        other.get("error") == "OwnerRefused", str(other)[:160])
+
+    reg = paths.REGISTRY / "projects.json"
+    before = reg.read_bytes()
+    prop = payload(await session.call_tool("observatory_propose", {
+        "owner": args["owner"], "targetId": "project:fabric-probe-scratch",
+        "patch": {"description": "proposed, never applied"},
+        "evidence": args.get("evidence") or []}))
+    say("a registry proposal leaves registry/projects.json byte-identical",
+        reg.read_bytes() == before and prop.get("status") == "proposed", str(prop)[:140])
+    return a
+
+
+def ledger_rows(db: pathlib.Path) -> int:
+    if not db.exists():
+        return -1
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        return conn.execute("SELECT count(*) FROM ledger").fetchone()[0]
+    except sqlite3.Error:
+        return -1
+    finally:
+        conn.close()
+
+
+async def call(session, args: dict) -> dict:
+                                                                             
+                                                                            
+    return payload(await session.call_tool("observatory_status", dict(args)))
+
+
+def coverage(probe: dict, results: list[dict]) -> dict:
+    ""                                              
+
+                                                                                
+                                                                              
+                                                                            
+                                                                                 
+                                                                              
+                                           
+       
+    declared = list(probe["assertions"])
+    evaluated = [r["assertion"] for r in results]
+    missing = [a for a in declared if a not in evaluated]
+    extra = [a for a in evaluated if a not in declared]
+    ok = (bool(results) and not missing and not extra
+          and all(r["verdict"] == "PASS" for r in results))
+    out = {"declaredAssertions": len(declared), "evaluatedAssertions": len(evaluated),
+           "verdict": "PASS" if ok else "FAIL"}
+    if missing:
+        out["declaredButNotEvaluated"] = missing
+    if extra:
+        out["evaluatedButNotDeclared"] = extra
+    return out
+
+
+def assess_detail(data: dict, OUT_SCHEMA: dict, requested: dict | None = None) -> list[dict]:
+    ""                                                                    
+
+                                                                          
+                                                                          
+                                                                              
+                                                                               
+                                                      
+       
+    a: list[dict] = []
+
+    def say(text: str, ok: bool, note: str = "") -> None:
+        a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
+
+    clean = {k: v for k, v in data.items() if not k.startswith("_")}
+    try:
+        jsonschema.validate(clean, OUT_SCHEMA)
+        schema_ok, schema_note = True, ""
+    except jsonschema.ValidationError as exc:
+        schema_ok, schema_note = False, str(exc).splitlines()[0][:180]
+    say("result validates against project-detail-output.schema.json",
+        schema_ok, schema_note)
+    want = (requested or local_fixture(next(
+        p["inputFixture"] for cap in CAPS for p in cap["profile"]["probes"]
+        if p["id"] == "detail-carries-every-section")))["projectId"]
+    say("the requested project is the one returned",
+        (clean.get("project") or {}).get("id") == want,
+        str((clean.get("project") or {}).get("id")))
+    sections = ("activity", "measurements", "notes", "findings", "recentEvents",
+                "evidence", "degraded")
+    missing = [k for k in sections if k not in clean]
+    say("every section is present, so an empty one means measured-and-empty",
+        not missing, f"missing: {missing}")
+    notes = clean.get("notes") or []
+    say("a note carries the state that qualifies it, never a bare sentence",
+        all(n.get("state") for n in notes),
+        f"{len(notes)} note(s); stateless: "
+        f"{[n.get('memoryId') for n in notes if not n.get('state')][:3]}")
+    findings = clean.get("findings") or []
+    say("a finding says whether it is about the project or one of its repositories",
+        all("aboutThisProject" in f and f.get("subject") for f in findings),
+        f"{len(findings)} finding(s)")
+    return a
+
+
+def assess_timeline(data: dict, OUT_SCHEMA: dict) -> list[dict]:
+    a: list[dict] = []
+
+    def say(text: str, ok: bool, note: str = "") -> None:
+        a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
+
+    clean = {k: v for k, v in data.items() if not k.startswith("_")}
+    try:
+        jsonschema.validate(clean, OUT_SCHEMA)
+        schema_ok, schema_note = True, ""
+    except jsonschema.ValidationError as exc:
+        schema_ok, schema_note = False, str(exc).splitlines()[0][:180]
+    say("result validates against project-timeline-output.schema.json",
+        schema_ok, schema_note)
+    events = clean.get("events") or []
+    say("every event carries occurredAt, never the store's column name",
+        bool(events) and all("occurredAt" in e and "occurred_at" not in e
+                             for e in events),
+        f"{len(events)} event(s); keys: {sorted(events[0]) if events else []}")
+    say("the payload is an object, not a JSON string the caller must parse",
+        all(isinstance(e.get("payload"), dict) for e in events),
+        str([type(e.get("payload")).__name__ for e in events[:3]]))
+    stamps = [e.get("occurredAt") or "" for e in events]
+    say("the events are newest first", stamps == sorted(stamps, reverse=True),
+        str(stamps[:3]))
+    return a
+
+
+def assess(pid: str, data: dict, OUT_SCHEMA: dict, requested: dict | None = None) -> list[dict]:
+    ""                                                             
+    a: list[dict] = []
+
+    def say(text: str, ok: bool, note: str = "") -> None:
+        a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
+
+                                                                                  
+    clean = {k: v for k, v in data.items() if not k.startswith("_")}
+    try:
+        jsonschema.validate(clean, OUT_SCHEMA)
+        schema_ok, schema_note = True, ""
+    except jsonschema.ValidationError as exc:
+        schema_ok, schema_note = False, str(exc).splitlines()[0][:180]
+
+    requested = requested or local_fixture(next(
+        p["inputFixture"] for cap in CAPS for p in cap["profile"]["probes"] if p["id"] == pid))
+    if pid == "survey-single-project":
+        say("result validates against capability-output.schema.json", schema_ok, schema_note)
+        want = requested["scope"]["value"]
+        say("counts.projects == 1 and projects[0].id equals the requested id",
+            data["counts"]["projects"] == 1 and data["projects"][0]["id"] == want,
+            f"counts={data['counts']}")
+        proj = data["projects"][0]
+        rules = " \n".join(proj["membershipRules"])
+        say("membershipRules has exactly one entry per repository",
+            all(r["nameWithOwner"] in rules for r in proj["repositories"]),
+            f"{len(proj['repositories'])} repos, {len(proj['membershipRules'])} rules")
+        srcs = {s["id"] for s in json.loads((paths.REGISTRY / "sources.json").read_text())["sources"]}
+        say("evidence is non-empty and every entry resolves to a registry source id",
+            bool(data["evidence"]) and set(data["evidence"]) <= srcs,
+            f"unresolved: {sorted(set(data['evidence']) - srcs)}")
+        say("degraded is present, even when empty", "degraded" in data)
+        say("registry git status and ledger max revision are unchanged after the call",
+            data["_no_write"], data.get("_no_write_note", ""))
+
+    elif pid == "survey-rejects-name-inference":
+        say("result validates against capability-output.schema.json", schema_ok, schema_note)
+        proj = data["projects"][0] if data["projects"] else {"repositories": [], "membershipRules": []}
+        got = sorted(r["nameWithOwner"] for r in proj["repositories"])
+        owners = {n.split("/", 1)[0] for n in got}
+        selected_repositories = set(got)
+        wanted = requested["scope"]["value"]
+        owner_of = {}
+        for rel in json.loads((paths.REGISTRY / "relations.json").read_text())["relations"]:
+            if rel["type"] == "implemented_by":
+                owner_of[rel["to"].split(":", 1)[1]] = rel["from"]
+        say("every repository returned is one the project's notes name or a link verified "
+            "by hand",
+            bool(got) and all(owner_of.get(n) == wanted for n in got), f"got {got}")
+        all_owner = {r["name_with_owner"] for r in
+                     json.loads((paths.REGISTRY / "repositories.json").read_text())["repositories"]
+                     if r["name_with_owner"].split("/", 1)[0] in owners}
+        absent = sorted(all_owner - selected_repositories)
+        homed = {n: owner_of.get(n) for n in absent}
+        say("every repository of that owner which is absent is absent because it anchors "
+            "its own project",
+            bool(absent) and all(v and v != wanted for v in homed.values()),
+            f"absent={homed}")
+        rules = " \n".join(proj["membershipRules"])
+        say("every returned repository is named in a membershipRules entry",
+            all(n in rules for n in got), f"{len(got)} repos")
+
+    elif pid == "survey-declares-degradation":
+        sources = {d["source"] for d in data["degraded"]}
+        say("with the event store unreachable the call still returns a typed result", schema_ok,
+            schema_note)
+        say("degraded names the store and its reason", "store" in sources, f"{sorted(sources)}")
+        say("degraded names each bitbucket workspace whose listing was not read, "
+            "carrying the collector's own reason; it is silent when every workspace "
+            "was listed",
+                                                                                
+                                                                                
+                                                                                  
+            any(x == "bitbucket" or x.startswith("bitbucket:") for x in sources)
+            or not [r for pr in data["projects"] for r in pr["repositories"]
+                    if r.get("discoveredBy") == "local-remote-only"],
+            f"{sorted(sources)}")
+        local_only = [r for p in data["projects"] for r in p["repositories"]
+                      if r.get("discoveredBy") == "local-remote-only"]
+        say("repositories known only from a local remote carry discoveredBy=local-remote-only",
+            bool(local_only), f"{len(local_only)} such repositories")
+    return a
+
+
+def params_for(scratch: pathlib.Path | None) -> StdioServerParameters:
+    env = {**os.environ}
+    if scratch is not None:
+        env["OBSERVATORY_DB"] = str(scratch)
+    interpreter = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").is_file() else sys.executable
+    return StdioServerParameters(command=interpreter,
+                                 args=[str(ROOT / "mcp/server.py")], cwd=str(ROOT), env=env)
+
+
+async def run_read_capability(cap: dict) -> list[dict]:
+    ""                                                                         
+
+                                                                               
+                                                                           
+                                 
+       
+    out_schema = schema_for(cap)
+    receipts = []
+    async with stdio_client(params_for(None)) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.discover()
+            for probe in cap["profile"]["probes"]:
+                args = local_fixture(probe["inputFixture"])
+                before = (registry_fingerprint(), ledger_max_revision())
+                data = await call_tool_for(session, cap, args)
+                after = (registry_fingerprint(), ledger_max_revision())
+                                                                                
+                                                                                 
+                                                     
+                later = (registry_fingerprint(), ledger_max_revision())
+                assessor = READ_ASSESSORS[probe["id"]]
+                results = (assessor(data, out_schema, args) if assessor is assess_detail
+                           else assessor(data, out_schema))
+                                                                         
+                                                                             
+                                                                              
+                                                                            
+                                                                             
+                                                                               
+                                                                          
+                results.append(side_effect_verdict(before, after, later))
+                cov = coverage(probe, results)
+                receipts.append({
+                    "probe": probe["id"], "capability": cap["name"],
+                    "inputFixture": probe["inputFixture"],
+                    "sideEffectCeiling": probe["sideEffectCeiling"],
+                    **cov, "assertions": results})
+    return receipts
+
+
+async def call_tool_for(session, cap: dict, args: dict) -> dict:
+    ""                                                                       
+
+                                                                                
+                                                                          
+                                    
+       
+    features = [f for f in cap["profile"]["requiredFeatures"] if f.startswith("tool:")]
+    if len(features) != 1:
+        raise AssertionError(
+            f"{cap['name']} declares {len(features)} tools; a read capability probed "
+            f"this way must declare exactly one, or the receipt cannot say which "
+            f"answer it validated")
+    name = features[0].split(":", 1)[1]
+                                                                              
+                                                                                   
+                                                                             
+                                                                                 
+                                                                             
+                                                                             
+    res = await session.call_tool(name, dict(args))
+    return json.loads(res.content[0].text)
+
+
+async def run_write_capability(cap: dict) -> tuple[list[dict], str]:
+    ""                                                                                      
+                                                                              
+                                                                                   
+                                                                             
+                                                                                 
+    scratch_dir = tempfile.mkdtemp(prefix="observatory-probe-")                                                                                                   
+    atexit.register(shutil.rmtree, scratch_dir, ignore_errors=True)
+    scratch = pathlib.Path(scratch_dir) / "probe.db"
+    out_schema = schema_for(cap)
+    receipts, negotiated = [], ""
+    async with stdio_client(params_for(scratch)) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.discover()
+            negotiated = session.protocol_version
+            for probe in cap["profile"]["probes"]:
+                args = local_fixture(probe["inputFixture"])
+                results = await assess_record(session, args, out_schema,
+                                              scratch_db=scratch)
+                receipts.append({
+                    "probe": probe["id"], "capability": cap["name"],
+                    "inputFixture": probe["inputFixture"],
+                    "sideEffectCeiling": probe["sideEffectCeiling"],
+                    "scratchStore": str(scratch),
+                    **coverage(probe, results),
+                    "assertions": results,
+                })
+    return receipts, negotiated
+
+
+                                                                             
+                                                                              
+                                                                              
+                                                                          
+                                                                    
+READ_ASSESSORS = {
+    "detail-carries-every-section": assess_detail,
+    "timeline-answers-in-camel-case-with-parsed-payloads": assess_timeline,
+}
+
+
+async def run() -> dict:
+    read_caps = [c for c in CAPS if c.get("effect") == "none"]
+    write_caps = [c for c in CAPS if c.get("effect") != "none"]
+    CAP = read_caps[0]
+    OUT_SCHEMA = schema_for(CAP)
+    params = params_for(None)
+    receipts = []
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            disc = await session.discover()
+            negotiated = session.protocol_version
+            for probe in CAP["profile"]["probes"]:
+                args = local_fixture(probe["inputFixture"])
+                before = (registry_fingerprint(), ledger_max_revision())
+                if probe["id"] == "survey-declares-degradation":
+                                                                           
+                                                                         
+                    with tempfile.TemporaryDirectory(prefix="observatory-degraded-probe-") as blocked:
+                        async with stdio_client(params_for(pathlib.Path(blocked))) as (dr, dw):
+                            async with ClientSession(dr, dw) as degraded_session:
+                                await degraded_session.discover()
+                                data = await call(degraded_session, args)
+                else:
+                    data = await call(session, args)
+                after = (registry_fingerprint(), ledger_max_revision())
+                data["_no_write"] = before == after
+                data["_no_write_note"] = f"before={before} after={after}"
+                results = assess(probe["id"], data, OUT_SCHEMA, args)
+                data.pop("_no_write", None), data.pop("_no_write_note", None)
+                receipts.append({
+                    "probe": probe["id"],
+                    "capability": CAP["name"],
+                    "inputFixture": probe["inputFixture"],
+                    "sideEffectCeiling": probe["sideEffectCeiling"],
+                    **coverage(probe, results),
+                    "assertions": results,
+                })
+    for cap in read_caps[1:]:
+        receipts.extend(await run_read_capability(cap))
+    for cap in write_caps:
+        extra, _ = await run_write_capability(cap)
+        receipts.extend(extra)
+                                                                            
+                                                                             
+                                                                                 
+                                                                            
+                                                                        
+                                                                              
+                                                                              
+                                                           
+    lock = json.loads((ROOT / "fabric-contract.lock.json").read_text(encoding="utf-8"))
+    return {"ranAt": now(),
+            "capabilities": [c["name"] for c in CAPS],
+            "protocolNegotiated": negotiated,
+            "protocolDeclared": CAP["profile"]["protocolRevision"],
+            "offeredVersions": list(disc.supported_versions),
+            "manifestContentHash": MANIFEST["provider"]["contentHash"],
+            "contractVersion": MANIFEST.get("contractVersion"),
+            "contractCommit": lock.get("commit"),
+            "localProfile": lock.get("profile"),
+            "schemaRelease": lock.get("schemaRelease"),
+            "externalHostAdmission": "unverified",
+            "providerRevision": MANIFEST["provider"].get("revision"),
+            "probes": receipts}
+
+
+def select_fixture_home(base: pathlib.Path) -> None:
+    ""                                                                       
+    import configuration
+    import importlib
+    import workspace
+    base = base.expanduser().absolute()
+    workspace.reject_symlinks(base)
+    configuration.validate_workspace(base, required=True)
+    settings = configuration.load(base)
+    if settings.get("features", {}).get("probe_fixture") is not True:
+        raise configuration.ConfigurationError("Probe workspace must explicitly enable feature probe_fixture")
+    if any(settings.get("integrations", {}).values()) or settings.get("sources"):
+        raise configuration.ConfigurationError("Probe workspace must not enable integrations or external sources")
+    for name in list(os.environ):
+        if name.startswith("OBSERVATORY_"):
+            os.environ.pop(name)
+    os.environ.update({"OBSERVATORY_HOME": str(base), "OBSERVATORY_DATA": str(base / "projects"),
+                       "OBSERVATORY_VAULT": str(base / "wiki"),
+                       "OBSERVATORY_VAULT_DIR": str(base / "secrets/projects")})
+    importlib.reload(paths)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run bounded MCP probes in an explicitly synthetic workspace")
+    parser.add_argument("--fixture-home", type=pathlib.Path, required=True)
+    parser.add_argument("--check", action="store_true")
+    options = parser.parse_args()
+    try:
+        select_fixture_home(options.fixture_home)
+    except (RuntimeError, OSError):
+        parser.error("An initialized, isolated synthetic fixture home is required")
+                                                                              
+                                                                             
+                                                                               
+                                                                                
+                                                                            
+    CHECK = options.check
+    drift = []
+    RECEIPTS = paths.STATE / "probe-receipts.json"
+    report = asyncio.run(run())
+    if CHECK:
+                                                                         
+                                                                                
+                                                                                 
+                                                                         
+                                                                           
+                                                                                 
+                                                           
+        stored = json.loads(RECEIPTS.read_text(encoding="utf-8")) if RECEIPTS.exists() else {}
+        drift[:] = [(k, stored.get(k), report.get(k))
+                 for k in ("manifestContentHash", "contractVersion",
+                           "contractCommit", "providerRevision")
+                 if stored.get(k) != report.get(k)]
+                                                                               
+                                                                                 
+                                                                              
+                                                                        
+                          
+        if drift:
+            for key, was, now_ in drift:
+                print(f"receipts describe {key}={was!r}, it is now {now_!r}",
+                      file=sys.stderr)
+            print("re-run `./observatory.py probes` to refresh them", file=sys.stderr)
+    else:
+        atomic.write_text(RECEIPTS,
+                          json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+    print(f"capabilities: {', '.join(report['capabilities'])}")
+    print(f"protocol declared {report['protocolDeclared']} | negotiated {report['protocolNegotiated']}")
+    ok = report["protocolDeclared"] == report["protocolNegotiated"]
+    for p in report["probes"]:
+        mark = "\033[32mPASS\033[0m" if p["verdict"] == "PASS" else "\033[31mFAIL\033[0m"
+        print(f"\n{mark}  {p['probe']}  [{p.get('capability','?')}]  "
+              f"({p['evaluatedAssertions']}/{p['declaredAssertions']} assertions evaluated)")
+        for a in p["assertions"]:
+            flag = " " if a["verdict"] == "PASS" else "!"
+            print(f"   {flag} {a['verdict']}  {a['assertion']}")
+            if a["verdict"] != "PASS" and a["note"]:
+                print(f"          {a['note']}")
+        ok = ok and p["verdict"] == "PASS"
+    print("\nreceipts verified, not rewritten (--check)" if CHECK
+          else "\nreceipts written in the selected private fixture workspace")
+    raise SystemExit(0 if ok and not drift else 1)

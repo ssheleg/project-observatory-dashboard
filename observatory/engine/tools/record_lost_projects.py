@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+""                                                
+
+                                                                               
+                                                                               
+                                                                      
+                                                                                
+                                                                         
+                                                                        
+
+                                                                                   
+                                                                           
+                                                                              
+                                                                                
+                                                       
+
+                                                                                
+                                                           
+
+                                                                             
+                                                                              
+                                                                        
+                                                                             
+                                                                                
+       
+                                                                                   
+                                                                                
+                                                                  
+
+                                                                             
+                                                                                  
+                                                                                
+                                                                             
+                                                                            
+        
+
+                                                                                
+                                                                    
+   
+from __future__ import annotations
+import argparse, json, pathlib, sqlite3, sys
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import atomic                                                                   
+import paths                                                                    
+from store import db as store_db                                                
+from store import ledger as L                                                   
+
+OWNER = "agent:estate-history"
+                                                                           
+                                                               
+                                                                                  
+                                                             
+KIND = "estate-history"
+                                                                                
+                                                                                 
+CURSOR_PREFIX = "estate-history.lost:"
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def lost_from_sessions() -> tuple[list[dict], str | None]:
+    ""                                                                       
+
+                                                                                
+                                                                              
+                                            
+       
+    f = paths.SCRATCH / "sessions.json"
+    if not f.is_file():
+        return [], f"{f} does not exist — `./observatory.py scan-sessions` writes it"
+    try:
+        doc = json.loads(f.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        return [], f"{f} is unreadable: {type(exc).__name__}: {exc}"
+    rows = [r for r in doc.get("unattributed") or []
+            if r.get("verdict") == "estate-folder-gone" and (r.get("sessions") or 0) >= 2]
+    return rows, None
+
+
+def statement_for(row: dict, scanned_on: str) -> str:
+    folders = ", ".join(f"~/DATA/{f}" for f in row.get("folders") or [])
+    return (f"{row['name']!r} was a project on this machine and its folder is gone. "
+            f"claude-mem holds {row['sessions']} session summar"
+            f"{'y' if row['sessions'] == 1 else 'ies'} of work under that name, and "
+            f"the paths its observations record name {folders or 'no folder'} — "
+            f"absent from the disk, from the archive folders and from the registry's "
+            f"repositories as of {scanned_on}. What became of it is not recorded "
+            f"anywhere in this estate.")
+
+
+WHY = ("The only other record of this work is claude-mem, which this system opens "
+       "read-only and does not own — it has its own retention and its own reasons "
+       "to prune. The registry cannot hold the fact either: it is derived from what "
+       "exists, so an entry with no anchor is erased by the next emit. Recorded here "
+       "so the estate keeps what it has already noticed, and left `proposed` because "
+       "what a vanished project meant is a judgement only its operator can make.")
+
+
+def cursor_for(conn, name: str) -> str | None:
+    row = conn.execute("SELECT value FROM cursors WHERE name = ?",
+                       (CURSOR_PREFIX + name,)).fetchone()
+    return row[0] if row else None
+
+
+def remember(conn, name: str, memory_id: str) -> None:
+    conn.execute("INSERT INTO cursors (name, value, updated_at) VALUES (?,?,?)"
+                 " ON CONFLICT(name) DO UPDATE SET value = excluded.value,"
+                 " updated_at = excluded.updated_at",
+                 (CURSOR_PREFIX + name, memory_id, now()))
+
+
+def report(**fields) -> None:
+    try:
+        atomic.write_json(paths.SCRATCH / "lost-projects.json",
+                          {"ran_at": now(), **fields})
+    except Exception as exc:                                                      
+        print(f"the receipt could not be written: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print what would be written and write nothing")
+    args = ap.parse_args(argv[1:])
+
+    rows, why_not = lost_from_sessions()
+    if why_not:
+        print(f"nothing read: {why_not}", file=sys.stderr)
+        report(written=0, revised=0, unchanged=0, degraded=[
+            {"source": "sessions", "reason": why_not}])
+        return 1
+    if not rows:
+        print("no lost project to record — every unattributed name still has its folder")
+        report(written=0, revised=0, unchanged=0, degraded=[])
+        return 0
+
+    scanned_on = json.loads(
+        (paths.SCRATCH / "sessions.json").read_text(encoding="utf-8")
+    ).get("scanned_on") or now()[:10]
+    conn = store_db.connect()
+    written = revised = unchanged = 0
+    notes: list[dict] = []
+    try:
+        for row in sorted(rows, key=lambda r: -r["sessions"]):
+            statement = statement_for(row, scanned_on)
+            mid = cursor_for(conn, row["name"])
+            prior = L.current(conn, mid) if mid else None
+            if prior is not None and prior["statement"] == statement:
+                                                                                 
+                                                                               
+                             
+                unchanged += 1
+                notes.append({"name": row["name"], "memoryId": mid,
+                              "outcome": "unchanged"})
+                continue
+            if args.dry_run:
+                notes.append({"name": row["name"], "memoryId": mid,
+                              "outcome": "would-revise" if prior else "would-write",
+                              "statement": statement})
+                continue
+            try:
+                res = L.append(
+                    conn, owner=OWNER, kind=KIND, statement=statement, why=WHY,
+                                                                              
+                                                                            
+                                                   
+                    project_id=None, function="semantic", scope="global",
+                    state="proposed", confidence=0.9,
+                    memory_id=mid if prior else None,
+                    expected_revision=prior["revision"] if prior else None,
+                    provenance=[{"source": "tools/record_lost_projects", "measured": True,
+                                 "reads": "store/raw/sessions.json"}],
+                    evidence=[{"kind": "session-store", "source_ref": "SRC-0012",
+                               "sessions": row["sessions"],
+                               "folders": row.get("folders") or [],
+                               "scanned_on": scanned_on}])
+            except L.LedgerError as exc:
+                                                                                 
+                                                                                 
+                                                                              
+                                   
+                print(f"  {row['name']}: NOT recorded — {type(exc).__name__}: {exc}",
+                      file=sys.stderr)
+                notes.append({"name": row["name"], "outcome": "refused",
+                              "reason": f"{type(exc).__name__}: {exc}"})
+                continue
+            with conn:
+                remember(conn, row["name"], res["memoryId"])
+            if prior:
+                revised += 1
+            else:
+                written += 1
+            notes.append({"name": row["name"], "memoryId": res["memoryId"],
+                          "revision": res["revision"],
+                          "outcome": "revised" if prior else "written"})
+            print(f"  {row['name']}: {res['memoryId']}@{res['revision']} "
+                  f"({'revised' if prior else 'recorded'}, state proposed)")
+    finally:
+        conn.close()
+
+    if args.dry_run:
+        for n in notes:
+            print(f"  [dry-run] {n['name']}: {n['outcome']}")
+            if n.get("statement"):
+                print(f"      {n['statement'][:150]}")
+        return 0
+    print(f"{written} recorded, {revised} revised, {unchanged} unchanged")
+    report(written=written, revised=revised, unchanged=unchanged,
+           projects=notes, degraded=[])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

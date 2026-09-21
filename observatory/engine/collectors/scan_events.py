@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+""                                                               
+
+                                                                             
+                                                                               
+                                   
+   
+from __future__ import annotations
+import json, sqlite3, subprocess, sys, pathlib
+from datetime import datetime, timezone
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import estate
+import paths
+from collectors import registry_read
+from store import db as store_db, migrate
+
+COLLECTOR_VERSION = "scan_events/2"
+                                                                            
+                                                                               
+                                                                                
+                                                           
+DEFAULT_DEPTH = 10000
+
+
+def retention_horizon_days() -> int | None:
+    ""                                                               
+
+                                                                              
+                                                                              
+                                                                            
+                                                                             
+       
+    try:
+        return int(json.loads(
+            (paths.STORE / "retention.json").read_text(encoding="utf-8"))["events_days"])
+    except Exception:
+        return None
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def git(repo: pathlib.Path, *args: str) -> tuple[str, str | None]:
+    ""                                                                              
+
+                                                                                
+                                                                               
+                                                                         
+                                                                                 
+                                                                                
+                                                                             
+                                                                                 
+                                                                               
+                                                                            
+
+                                                                                
+                                                                             
+                                                                               
+                                                             
+       
+    try:
+        proc = subprocess.run(["git", "-C", str(repo), *args],
+                              capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return "", "git is not installed or not on PATH"
+    except subprocess.TimeoutExpired:
+        return "", "git did not answer within 60s"
+    except OSError as exc:
+        return "", f"git could not be run: {type(exc).__name__}: {exc}"
+    if proc.returncode != 0:
+        return "", (f"git exited {proc.returncode}: "
+                    f"{(proc.stderr or '').strip()[:160] or 'no message'}")
+    return proc.stdout, None
+
+
+def finish(conn, scan_id: str, *, degraded: list[dict], **counts) -> None:
+    ""                                                                          
+                    
+
+                                                                             
+                                                                                    
+                                                                               
+                                                                                
+                              
+       
+    try:
+        conn.execute("UPDATE scans SET finished_at = ?, counts_json = ?,"
+                     " degraded_json = ? WHERE id = ?",
+                     (now(), json.dumps(counts),
+                      json.dumps(degraded, ensure_ascii=False), scan_id))
+        conn.commit()
+    except sqlite3.Error as exc:
+        print(f"the scan row could not be closed: {exc}", file=sys.stderr)
+
+
+def targets(projects: list[dict], repos: dict[str, dict],
+            owner_of: dict[str, str]) -> list[dict]:
+    ""                                                                  
+
+                                                                                 
+                                                                            
+                                                                              
+                                                                              
+                                                                   
+
+                                                                                 
+                                                                                 
+                                                                           
+                                                                     
+
+                                                                                
+                                                                                  
+                                      
+       
+    out: list[dict] = []
+    for rid, repo in repos.items():
+        local = repo.get("local")
+        if not local or not local.get("path"):
+                                                                         
+                                                                                
+                                                                    
+            continue
+        out.append({"label": rid, "project_id": owner_of.get(rid), "repo_id": rid,
+                    "path": local["path"], "created_on": repo.get("created_on") or "",
+                    "name": repo.get("name_with_owner") or rid.split(":", 1)[1]})
+    for p in projects:
+        lo = p.get("local_only") or {}
+                                                                                  
+                                                                                 
+                                                                              
+        if not lo.get("unpublished") or not lo.get("path"):
+            continue
+        out.append({"label": p["id"], "project_id": p["id"], "repo_id": None,
+                    "path": lo["path"], "created_on": "",
+                    "name": p.get("name") or lo.get("folder") or p["id"]})
+    return out
+
+
+def by_age(t: dict) -> tuple[str, str]:
+    ""                                                       
+
+                                                                                   
+                                                                         
+                                                                                
+                                             
+
+                                                                           
+                                                                               
+                                                                               
+                                                             
+       
+    return (t.get("created_on") or "9999-12-31", t["label"])
+
+
+def main() -> int:
+    depth = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DEPTH
+    horizon = retention_horizon_days()
+                                                                               
+                                                                                 
+                                              
+    try:
+        projects = registry_read.read("projects.json", "projects")
+        repos = {r["id"]: r for r in
+                 registry_read.read("repositories.json", "repositories")}
+        relations = registry_read.read("relations.json", "relations")
+    except registry_read.RegistryUnreadable as exc:
+        print(f"NOT scanned — {exc}", file=sys.stderr)
+        print("Recording no commits would freeze every activity date and drift the "
+              "whole estate toward `inactive`, which is what the dashboard shows.",
+              file=sys.stderr)
+        return 1
+    owner_of = {}
+    for rel in relations:
+        if rel["type"] == "implemented_by":
+            owner_of[rel["to"]] = rel["from"]
+
+    conn = store_db.connect()
+    scan_id = store_db.scan_id("events", now())
+    conn.execute("INSERT INTO scans (id, started_at, collector_version) VALUES (?,?,?)",
+                 (scan_id, now(), COLLECTOR_VERSION))
+    conn.commit()
+
+    ownership_of = {p["id"]: p.get("ownership") for p in projects}
+    inserted = skipped = checkouts = 0
+    excluded = truncated = unreadable = 0
+                                                                                 
+                                                                          
+    quiet: list[str] = []
+                                                                              
+                                                                                 
+    excluded_why: dict[str, list[str]] = {}
+                                                                         
+                                                                          
+                                                                         
+                                                                         
+    degraded: list[dict] = []
+                                                                             
+                                                                              
+                                                                             
+                                                                   
+                                                                          
+                                 
+    owner_of_sha: dict[str, str] = {}
+    shared: list[tuple[str, str, int]] = []
+                                                                                   
+                                                                              
+                                                                           
+                                                                                 
+                                                                        
+                                                                                
+                                                                            
+                                                                                
+                                                  
+    unpublished = 0
+                                                                                
+                                                                                    
+                                                                             
+                                                                          
+    try:
+      for t in sorted(targets(projects, repos, owner_of), key=by_age):
+          rid = t["label"]
+                                                                             
+                                                                                  
+                                                                             
+                                                                                 
+                                       
+          own = ownership_of.get(t["project_id"])
+          if not estate.records_events(own):
+              excluded += 1
+              excluded_why.setdefault(estate.why_excluded(own), []).append(rid)
+              continue
+          path = pathlib.Path(t["path"])
+          if not (path / ".git").exists():
+              degraded.append({"source": rid, "reason": f"no .git at {path}"})
+              continue
+          checkouts += 1
+          if t["repo_id"] is None:
+                                                                                
+                                                                          
+                                                                               
+                                                 
+              unpublished += 1
+                                                                                 
+                                                                                 
+                                                                                     
+                                                                              
+                                            
+          args = ["log", f"-{depth + 1}", "--no-merges",
+                  "--format=%H%x1f%an%x1f%cI%x1f%s%x1e"]
+          if horizon:
+                                                                                  
+                                           
+              args.insert(1, f"--since={horizon} days ago")
+          log, reason = git(path, *args)
+          if reason is not None:
+                                                                                 
+                                                                                
+                                                                          
+              degraded.append({"source": rid, "reason": reason})
+              unreadable += 1
+              continue
+          if not log.strip():
+                                                                              
+                                                                                
+              quiet.append(rid)
+              continue
+          records = [r for r in log.split("\x1e") if r.strip()]
+          if len(records) > depth:
+              truncated += 1
+              degraded.append({"source": rid, "reason":
+                               f"history truncated at the {depth}-commit safety valve; "
+                               f"older commits inside the retention window were NOT recorded"})
+              records = records[:depth]
+          for record in records:
+              parts = record.strip().split("\x1f")
+              if len(parts) != 4:
+                  continue
+              sha, author, iso, subject = parts
+                                                                                  
+                                                                                  
+                                                                                    
+                                                                                 
+                                                                               
+              iso = migrate.to_utc_z(iso) or iso
+              first = owner_of_sha.setdefault(sha, rid)
+              if first != rid:
+                                                                                 
+                                                                          
+                                                                                
+                                                                             
+                  if not shared or shared[-1][:2] != (first, rid):
+                      shared.append((first, rid, 0))
+                  shared[-1] = (first, rid, shared[-1][2] + 1)
+              cur = conn.execute(
+                  "INSERT OR IGNORE INTO events (id, project_id, repo_id, kind, ref, actor,"
+                  " occurred_at, payload_json) VALUES (?,?,?,?,?,?,?,?)",
+                  (f"commit:{sha}", t["project_id"], t["repo_id"], "commit", sha, author, iso,
+                   json.dumps({"subject": subject[:300], "repo": t["name"]},
+                              ensure_ascii=False)))
+              inserted += cur.rowcount
+              skipped += 1 - cur.rowcount
+    except Exception as exc:
+        finish(conn, scan_id, checkouts=checkouts, events_inserted=inserted,
+               events_already_present=skipped, repos_excluded=excluded,
+               repos_truncated=truncated, repos_unreadable=unreadable,
+               repos_quiet=len(quiet), checkouts_unpublished=unpublished,
+               aborted=True,
+               commits_shared=sum(n for _, _, n in shared),
+               degraded=degraded + [{"source": "the scan itself",
+                                     "reason": f"aborted: {type(exc).__name__}: {exc}"}])
+        conn.close()
+        print(f"SCAN ABORTED after {checkouts} checkout(s): "
+              f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        print(f"  {inserted} event(s) inserted before it stopped are kept — they were "
+              f"measured. The scan row records the abort rather than looking unfinished.",
+              file=sys.stderr)
+        return 1
+    finish(conn, scan_id, checkouts=checkouts, events_inserted=inserted,
+           events_already_present=skipped, repos_excluded=excluded,
+           repos_truncated=truncated, repos_unreadable=unreadable,
+           repos_quiet=len(quiet), checkouts_unpublished=unpublished,
+           commits_shared=sum(n for _, _, n in shared), degraded=degraded)
+    total = conn.execute("SELECT count(*) FROM events").fetchone()[0]
+    conn.close()
+    print(f"scan {scan_id}")
+                                                                            
+                                                                            
+                                                
+    print(f"  of them {unpublished} unpublished checkout(s) with no repository id"
+          if unpublished else "  no unpublished checkout had history to read")
+    print(f"  checkouts {checkouts} | inserted {inserted} | already present {skipped} "
+          f"| total {total}" + (f" | window {horizon}d" if horizon else " | NO window"))
+                                                                               
+                                                                           
+                                             
+    print(f"  excluded {excluded} repo(s) as not this estate's own work:")
+    for why, rids in sorted(excluded_why.items(), key=lambda kv: -len(kv[1])):
+        print(f"    {len(rids):5}  {why}")
+    print(f"  quiet {len(quiet)} repo(s): git answered, nothing in the window — "
+          f"an answer, not a degradation")
+    print(f"  UNREADABLE {unreadable} repo(s): git could not answer at all"
+          if unreadable else "  every checkout git was asked about answered")
+                                                                                 
+                                                                          
+    print(f"  TRUNCATED {truncated} repo(s) at the {depth}-commit safety valve — "
+          f"raise it or narrow the window" if truncated
+          else f"  no repository hit the {depth}-commit safety valve")
+    if shared:
+        total = sum(n for _, _, n in shared)
+        print(f"  SHARED ANCESTRY: {total} commit(s) appear in more than one repository and "
+              f"are recorded once, under the older address:")
+        for first, second, n in shared:
+            print(f"    {n:5}  {first.split(':',1)[1]}  also in  {second.split(':',1)[1]}")
+    print(f"  degraded sources: {len(degraded)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

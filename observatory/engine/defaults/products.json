@@ -1,0 +1,8 @@
+{
+  "roles": [
+    "primary",
+    "supporting",
+    "archive"
+  ],
+  "products": {}
+}

@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+""                                                   
+
+                                                                             
+                                                                           
+                                                                              
+                                                                         
+                                    
+
+                                                                               
+                                                                               
+                                                                            
+                                                                           
+                                              
+
+                                                                           
+                                   
+
+                                                                     
+                                                                              
+                                                       
+                                                                               
+                         
+                                                                               
+                                         
+
+                                                                            
+                                                       
+   
+from __future__ import annotations
+import re
+import argparse, json, pathlib, subprocess, sys
+
+TOOLS = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(TOOLS))
+import tick_lease
+sys.path.insert(0, str(TOOLS.parent))
+import paths
+import configuration
+
+DEFAULT_ROOT = paths.HOME
+REGISTRY = "registry"
+IN_PROGRESS = ("MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD")
+
+
+def git(*args: str, cwd: pathlib.Path) -> tuple[int, str]:
+    p = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", *args], cwd=cwd, capture_output=True, text=True, timeout=60)
+    return p.returncode, (p.stdout + p.stderr).strip()
+
+
+def may_write(root: pathlib.Path) -> tuple[bool, str]:
+    ""                                                                           
+
+                                                                              
+                                                                                 
+                                                             
+    if not (root / ".claude/agent-sync.json").exists():
+        return True, "coordination is not declared in this checkout"
+    script = tick_lease.agent_sync_script()
+    if script is None:
+        return True, "agent-sync is not installed here"
+    p = subprocess.run([sys.executable, str(script), "guard", f"{REGISTRY}/projects.json"],
+                       cwd=root, capture_output=True, text=True, timeout=60)
+    if p.returncode == 0:
+        return True, (p.stdout.strip() or "allowed")
+    return False, (p.stderr.strip() or p.stdout.strip() or "denied by agent-sync")
+
+
+                                                                               
+                                                                                   
+                                                                                  
+            
+  
+                                                                          
+                                                                                 
+                                                                                  
+                                                                                 
+                                                                                   
+                                                        
+                                                                                
+                                                                                
+                                                                              
+                                                                               
+                                                                    
+VOLATILE = {"uncommitted_files", "files", "mtime", "extra_clones",
+            "extra_checkouts"}
+
+
+def describe_change(root: pathlib.Path, changed: list[str]) -> str:
+    ""                                                         
+
+                                                                    
+                                                                               
+                                                                           
+                                                                            
+                                                           
+
+                                                                     
+                                                                             
+                                                                                
+                                                                                 
+                                                               
+       
+    code, diff = git("diff", "--cached", "--unified=0", "--", REGISTRY, cwd=root)
+    if code != 0 or not diff.strip():
+        code, diff = git("diff", "--unified=0", "--", REGISTRY, cwd=root)
+    fields: dict[str, int] = {}
+    ledger_rows = 0
+    for line in diff.splitlines():
+        if line[:1] not in "+-" or line[:3] in ("+++", "---"):
+            continue
+        if '"memory_id"' in line and line.startswith("+"):
+            ledger_rows += 1
+            continue
+        m = re.match(r"[+-]\s*\"([a-z_]+)\":", line)
+        if m:
+            fields[m.group(1)] = fields.get(m.group(1), 0) + 1
+    parts = []
+    if ledger_rows:
+        parts.append(f"{ledger_rows} ledger row(s)")
+    named = [(n, c) for n, c in sorted(fields.items(), key=lambda kv: -kv[1])
+             if n not in VOLATILE]
+    volatile = sum(c for n, c in fields.items() if n in VOLATILE)
+    parts += [f"{n} x{c}" for n, c in named[:4]]
+    if len(named) > 4:
+        parts.append(f"+{len(named) - 4} more field(s)")
+    if volatile:
+        parts.append(f"counters x{volatile}")
+    if not parts:
+        parts.append(f"{len(changed)} file(s)")
+    return ", ".join(parts)
+
+
+def private_workspace(root: pathlib.Path) -> tuple[bool, str]:
+    ""                                                                        
+    root = root.resolve()
+    source = paths.ROOT.resolve()
+    if root == source or root in source.parents or source in root.parents:
+        return False, "registry history must be separate from the program checkout"
+    if (root / "observatory.py").exists() or (root / "store/schema.sql").exists():
+        return False, "this directory contains program sources"
+    if (root / REGISTRY).is_symlink():
+        return False, "registry directory cannot be a symbolic link"
+    if paths.REGISTRY.resolve() != root / REGISTRY:
+        return False, "the Git root does not contain this workspace's configured registry"
+    if (root / ".git").exists():
+        code, top = git("rev-parse", "--show-toplevel", cwd=root)
+        if code or pathlib.Path(top).resolve() != root:
+            return False, "the requested workspace is not its own Git root"
+    return True, "explicit private registry history; this tool never pushes"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--root", default=str(DEFAULT_ROOT))
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args()
+    root = pathlib.Path(a.root).resolve()
+    if not configuration.enabled("registry_history", "features"):
+        print("Registry history disabled: enable features.registry_history for a private workspace Git repository")
+        return 0
+    allowed, why = private_workspace(root)
+    if not allowed:
+        print(f"NOT committing: {why}", file=sys.stderr)
+        return 1
+
+    if not (root / ".git").exists():
+        print("not a git repository — nothing to commit")
+        return 0
+
+    code, out = git("status", "--porcelain", "--", REGISTRY, cwd=root)
+    if code != 0:
+        print(f"git status failed: {out}", file=sys.stderr)
+        return 0
+                                                                                  
+                                                                             
+                                          
+    changed = [l.split()[-1] for l in out.splitlines() if l.strip()]
+    if not changed:
+        print("the registry is clean — nothing to commit")
+        return 0
+
+    inflight = [n for n in IN_PROGRESS if (root / ".git" / n).exists()]
+    if inflight:
+        print(f"NOT committing: {inflight[0]} exists, so a merge or rebase is in progress. "
+              "Committing into one rewrites what it means.", file=sys.stderr)
+        return 0
+
+    code, _ = git("diff", "--cached", "--quiet", cwd=root)
+    if code != 0:
+        _, staged = git("diff", "--cached", "--name-only", cwd=root)
+        names = staged.split()
+        print(f"NOT committing: {len(names)} path(s) are already staged — "
+              f"{', '.join(names[:4])}"
+              + (f" and {len(names) - 4} more" if len(names) > 4 else "")
+              + ". `git commit` writes the whole index, so this would sweep up staged work. "
+                "Commit that by hand first.", file=sys.stderr)
+        return 0
+
+    if a.dry_run:
+        print(f"would commit {len(changed)} registry file(s): {', '.join(changed)}")
+        print(f"  subject: Registry: {describe_change(root, changed)}")
+        return 0
+
+    allowed, why = may_write(root)
+    if not allowed:
+        print(f"NOT committing: {why}", file=sys.stderr)
+        return 0
+
+    summary = describe_change(root, changed)
+    msg = (f"Registry: {summary}\n\n"
+           f"Written by the collectors and committed by the tick that ran them, under the "
+           f"`{tick_lease.REGISTRY_KEY}` lease. Only paths under {REGISTRY}/ are staged, and "
+           f"the index was clean before this ran — a scheduled committer must not sweep up "
+           f"work in progress.\n\n"
+           f"Automated because the alternative, left in place since 2026-09-03, was a tree "
+           f"dirty within half an hour of every commit — which makes a real abandoned edit "
+           f"in the registry invisible among the generated churn (DEC-0045, and OQ-0008 for "
+           f"the same failure in the wiki).")
+    code, out = git("add", "--", REGISTRY, cwd=root)
+    if code != 0:
+        print("Could not stage the private registry", file=sys.stderr)
+        return 1
+    code, out = git("commit", "-q", "-m", msg, cwd=root)
+    print(f"committed the registry: {summary} ({len(changed)} file(s))" if code == 0
+          else f"commit failed: {out}")
+    print("  not pushed — what leaves the machine is the operator's decision")
+    return 0 if code == 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

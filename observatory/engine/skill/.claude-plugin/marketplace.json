@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "observatory-log",
+  "description": "Project Observatory's companion plugin: records what changed in a watched project at the end of every turn, and asks for the why.",
+  "owner": {
+    "name": "Sergey Sheleg",
+    "url": "https://github.com/ssheleg"
+  },
+  "plugins": [
+    {
+      "name": "observatory-log",
+      "source": "./plugins/observatory-log",
+      "displayName": "Observatory Log",
+      "description": "Records what changed in a watched project at the end of every turn, and asks for the one thing a diff cannot contain: why.",
+      "version": "0.10.0",
+      "license": "MIT",
+      "author": {
+        "name": "Sergey Sheleg",
+        "url": "https://github.com/ssheleg"
+      },
+      "keywords": [
+        "observability",
+        "memory",
+        "git",
+        "ledger"
+      ]
+    }
+  ]
+}
