@@ -143,5 +143,44 @@ class CLICompatibilityTests(unittest.TestCase):
         self.assertIn("arguments are not accepted", output)
 
 
+
+class PortableRunnerTests(unittest.TestCase):
+    def test_source_reader_excludes_prose_on_supported_python_versions(self):
+        from source_reader import code_only
+        source = 'def operation():\n    # hidden_comment\n    return f"hidden_literal {value}"\n'
+        result = code_only(source)
+        self.assertIn('def operation():', result)
+        self.assertIn('return', result)
+        self.assertNotIn('hidden_comment', result)
+        self.assertNotIn('hidden_literal', result)
+        self.assertEqual(len(result.splitlines()), len(source.splitlines()))
+
+    def test_clean_environment_preserves_loader_but_excludes_credentials(self):
+        import os
+        import run_portable as runner
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {
+                'LD_LIBRARY_PATH': '/synthetic/runtime/lib', 'PATH': '/synthetic/bin',
+                'OPENAI_API_KEY': 'synthetic-private', 'OBSERVATORY_HOME': '/unwanted'}, clear=True):
+            env = runner.clean_env(Path(directory))
+            self.assertEqual(env['LD_LIBRARY_PATH'], '/synthetic/runtime/lib')
+            self.assertNotIn('OPENAI_API_KEY', env)
+            self.assertNotEqual(env['OBSERVATORY_HOME'], '/unwanted')
+
+    def test_failure_diagnostic_keeps_actual_exit_and_bounded_tail(self):
+        import run_portable as runner
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            template = base / 'template'; (template / 'tests').mkdir(parents=True)
+            (template / 'tests/test_fixture.py').write_text(
+                'print("x" * 7000)\nraise RuntimeError("synthetic child refusal")\n')
+            with contextlib.redirect_stderr(io.StringIO()):
+                result = runner.run_suite('fixture', base, template, 10)
+            self.assertEqual(result['status'], 'FAIL')
+            self.assertEqual(result['exit_code'], 1)
+            self.assertIn('synthetic child refusal', result['failure_tail'])
+            self.assertLessEqual(len(result['failure_tail']), 6000)
+            self.assertEqual(result['log'], 'fixture/run.log')
+            self.assertGreater((base / result['log']).stat().st_size, 7000)
+
 if __name__ == "__main__":
     unittest.main()

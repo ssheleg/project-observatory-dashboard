@@ -46,6 +46,25 @@ class WorkspaceUpgrade(unittest.TestCase):
         result=upgrade.snapshot(self.home,writers_stopped=True)
         return Path(result['snapshot'])
 
+    def test_missing_sqlite_extension_support_refuses_before_writes(self):
+        class NoExtensions:
+            def close(self):
+                pass
+        before = upgrade.inventory(self.home)
+        untouched = self.base / 'refused-new-home'
+        with patch.object(workspace.sqlite3, 'connect', return_value=NoExtensions()):
+            for operation in (
+                lambda: workspace.initialize(untouched),
+                lambda: workspace.migrate_local(self.base / 'absent-source', untouched, True),
+                lambda: workspace.doctor(self.home),
+                lambda: upgrade.upgrade(self.home, apply=True, writers_stopped=True),
+            ):
+                with self.assertRaisesRegex(config.ConfigurationError, 'loadable extensions'):
+                    operation()
+        self.assertFalse(untouched.exists())
+        self.assertEqual(before, upgrade.inventory(self.home))
+        self.assertFalse((self.base / ('.' + self.home.name + '.observatory-operation.lock')).exists())
+
     def test_preview_does_not_write(self):
         before=upgrade.inventory(self.home)
         result=upgrade.upgrade(self.home)

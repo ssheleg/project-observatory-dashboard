@@ -123,7 +123,7 @@ def read_admin(label: str | None) -> tuple[str, str]:
     have = admins()
     if not have:
         raise RuntimeError("no provisioning key stashed — "
-                           "`pbpaste | ./tools/openrouter.py stash --as <label>`")
+                           "run openrouter stash --as <label> with a protected file redirected to stdin")
     if label:
         for name, p in have:
             if name == label:
@@ -591,7 +591,7 @@ def cmd_list() -> int:
               + (f"  [{r['project']}]" if r.get("project") else "")
               + (f"  rotated {r['rotated_on']} x{r['rotations']}" if r.get("rotated_on") else ""))
     if not a:
-        print("\nstart with:  pbpaste | ./tools/openrouter.py stash --as <label>")
+        print("\nstart with openrouter stash --as <label>, reading a protected file on stdin")
     return 0
 
 

@@ -81,8 +81,8 @@ def findings(path: pathlib.Path, known_folders: set[str], data_root: pathlib.Pat
         "title": (f"{len(still)} folder(s) agents worked in over {DAYS} days are not in the registry"),
         "detail": (f"{named}{f' and {more} more' if more > 0 else ''} — {total_sessions} session(s) in all. "
                    f"Each was where an agent was told to work and the board could show nothing "
-                   f"about it: no keys by name, no findings, no history. A folder under ~/DATA "
+                   f"about it: no keys by name, no findings, no history. A folder under the configured project directory "
                    f"joins on the next tick; one elsewhere joins only if it moves."),
-        "action": ("move the folder under ~/DATA (or add its path to OBSERVATORY_DATA's "
-                   "estate), or leave it and read this row as the record that it is outside"),
+        "action": ("move the folder under the configured project directory, or update "
+                   "sources.projects; otherwise this row records a project outside the scan scope"),
     }]

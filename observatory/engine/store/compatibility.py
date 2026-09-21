@@ -64,6 +64,8 @@ def verify_database(conn: sqlite3.Connection) -> None:
             import sqlite_vec
         except ImportError:
             raise RuntimeError("This snapshot contains vector tables; install the locked sqlite-vec dependency") from None
+        if not callable(getattr(conn, "enable_load_extension", None)):
+            raise RuntimeError("Vector snapshots require Python SQLite loadable extension support; use an extension-enabled Python build")
         conn.enable_load_extension(True)
         try:
             sqlite_vec.load(conn)

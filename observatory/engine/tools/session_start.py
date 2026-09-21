@@ -169,9 +169,9 @@ def unknown_line(top: pathlib.Path, remote: str, session_id: str) -> str:
         pass
     if inside:
         return (f"observatory: папка {top.name} не в реестре — попадёт со следующим тиком "
-                f"(≤30 мин) или сейчас: ./observatory.py all")
-    return (f"observatory: {top} вне ~/DATA — обсерватория её не сканирует; записано в "
-            f"sessions-seen.jsonl, наблюдать — перенести под ~/DATA")
+                f"(если расписание включено) или сейчас: project-observatory full local")
+    return (f"observatory: {top} вне настроенной папки проектов — обсерватория её не сканирует; записано в "
+            f"sessions-seen.jsonl, наблюдать — переместить в настроенную папку проектов или изменить sources.projects")
 
 
 def main(argv: list[str]) -> int:

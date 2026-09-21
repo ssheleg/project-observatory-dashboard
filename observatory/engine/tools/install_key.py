@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 ""                                                                                 
 
-                                                   
+                                                                                
                                                     
                                                                                     
 
@@ -128,7 +128,7 @@ def main(argv: list[str]) -> int:
     if sys.stdin.isatty():
         die("the key must arrive on stdin, never in an argument — an argument "
             "lands in the shell history and in the process list.\n"
-            "    pbpaste | tools/install_key.py --for claude-mem")
+            "    run install_key with --for claude-mem and redirect a protected file to stdin")
     key = sys.stdin.read().strip()
     if not key:
         die("stdin was empty")

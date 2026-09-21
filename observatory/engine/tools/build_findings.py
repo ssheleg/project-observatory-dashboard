@@ -1789,17 +1789,14 @@ def collect() -> list[dict]:
                                                                 
             "title": (f"under {free_mib // 1024 + 1} GiB free on the volume holding "
                       f"this repository"),
-            "detail": ("a collector cannot write its output at all below roughly "
-                       "this level — four scans died on `[Errno 28]` in one tick "
-                       "on 2026-09-07 at 06:39, and the store was found corrupt "
-                       "the day before after a write that could not finish "
-                       "(DEC-0043)."
+            "detail": ("a collector may be unable to write its output at this level. "
+                       "A full volume can interrupt database and scan writes."
                        if critical else
                        f"below {DISK_WARNING_MIB} MiB a VACUUM — which rewrites the "
                        f"whole store beside itself — may not fit, and retention "
                        f"runs one on every tick that removes anything."),
-            "action": "free space on the data volume; `du -sh ~/DATA/* | sort -h` "
-                      "names the largest holders",
+            "action": "free space on the configured project volume; the storage "
+                      "metrics identify the largest working trees",
             "evidence": ["shutil.disk_usage(.).free"]})
                                                                                
                                                                                 
@@ -1862,7 +1859,7 @@ def collect() -> list[dict]:
         disk_low=any(f["type"] == "host.disk_low" for f in out))
 
                                                                           
-                                                                                 
+                                                                                                         
                                                                                
                                                                                  
                                                                                  
@@ -1889,7 +1886,7 @@ def collect() -> list[dict]:
                 f"{gib:.2f} GiB — this project's own test fixtures, left in "
                 f"{swept.get('root', 'the temp dir')} by runs that were killed "
                 f"before their cleanup handlers ran. Stated here because "
-                f"`host.disk_low` names the largest holders under `~/DATA` and "
+                f"`host.disk_low` names the largest holders under the configured project directory and "
                 f"would otherwise carry the blame for space this project spent.")
             if refused:
                 detail += ("\n\nCould NOT be removed, and will recur every run: "
@@ -1973,7 +1970,7 @@ def collect() -> list[dict]:
             kept = kept_records.get(name)
             verdict = row.get("verdict") or "no-path-recorded"
             folders = row.get("folders") or []
-            where = listed([f"~/DATA/{f}" for f in folders], 3)
+            where = listed([str(paths.DATA / f) for f in folders], 3)
             if verdict == "estate-folder-gone":
                 detail = (f"claude-mem's own record of this work names "
                           f"{where} — a folder under the estate root that is "

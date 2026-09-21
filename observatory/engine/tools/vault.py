@@ -222,7 +222,7 @@ def _read_meta(slot: pathlib.Path) -> dict:
 def _stdin_value() -> str:
     if sys.stdin.isatty():
         die("the value must arrive on stdin, never in an argument:\n"
-            "    pbpaste | tools/vault.py put <project> <env> <NAME>")
+            "    run vault put <project> <env> <NAME> with a protected file redirected to stdin")
     v = sys.stdin.read().strip()
     if not v:
         die("stdin was empty")

@@ -83,7 +83,7 @@ def lost_from_sessions() -> tuple[list[dict], str | None]:
 
 
 def statement_for(row: dict, scanned_on: str) -> str:
-    folders = ", ".join(f"~/DATA/{f}" for f in row.get("folders") or [])
+    folders = ", ".join(str(paths.DATA / f) for f in row.get("folders") or [])
     return (f"{row['name']!r} was a project on this machine and its folder is gone. "
             f"claude-mem holds {row['sessions']} session summar"
             f"{'y' if row['sessions'] == 1 else 'ies'} of work under that name, and "

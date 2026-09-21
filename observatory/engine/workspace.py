@@ -54,7 +54,30 @@ def lock(base: Path):
         os.close(fd)
 
 
+def require_runtime() -> dict:
+    ""                                                                                  
+    message = ("Full engine requires Python with SQLite 3.37+ and loadable extensions, "
+               "plus the locked sqlite-vec dependency. On macOS use Homebrew Python "
+               "3.14 in a virtual environment; reinstall the full package there.")
+    if sqlite3.sqlite_version_info < (3, 37, 0):
+        raise config.ConfigurationError(message)
+    try:
+        import sqlite_vec
+        with contextlib.closing(sqlite3.connect(":memory:")) as connection:
+            connection.enable_load_extension(True)
+            try:
+                sqlite_vec.load(connection)
+                connection.execute("SELECT vec_version()").fetchone()
+            finally:
+                connection.enable_load_extension(False)
+    except (AttributeError, ImportError, OSError, sqlite3.Error):
+        raise config.ConfigurationError(message) from None
+    return {"sqlite_version": sqlite3.sqlite_version, "loadable_extensions": True,
+            "sqlite_vec": "loadable"}
+
+
 def initialize(base: Path) -> dict:
+    require_runtime()
     reject_symlinks(base)
                                                                
     marker = config.validate_workspace(base)
@@ -165,6 +188,7 @@ def validate_data(base: Path, *, integrity: bool = False) -> dict:
 
 
 def migrate_local(source: Path, target: Path, apply: bool) -> dict:
+    require_runtime()
     source = source.expanduser().absolute()
     target = target.expanduser().absolute()
     reject_symlinks(source)
@@ -287,10 +311,11 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
 
 
 def doctor(base: Path) -> dict:
+    runtime = require_runtime()
     config.validate_workspace(base, required=True)
     doc = config.load(base)
     database = validate_data(base, integrity=True)
-    return {"version": config.VERSION, "database": database, "workspace_format": config.WORKSPACE_VERSION,
+    return {"version": config.VERSION, "runtime": runtime, "database": database, "workspace_format": config.WORKSPACE_VERSION,
             "configuration_schema": doc["schema_version"],
             "sources": {k: {"configured": True, "exists": Path(v).expanduser().exists()} for k, v in doc.get("sources", {}).items()},
             "integrations": doc.get("integrations", {}),

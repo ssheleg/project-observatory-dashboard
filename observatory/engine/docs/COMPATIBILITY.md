@@ -2,6 +2,28 @@
 
 The application release is **0.2.0**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
+## SQLite runtime prerequisite
+
+The full engine requires Python 3.11+ with SQLite 3.37+ **and loadable SQLite
+extensions**, plus the locked sqlite-vec dependency. Some macOS Python builds
+omit `enable_load_extension`; installing sqlite-vec alone cannot add it.
+Initialization, doctor, migration and upgrade check this before workspace writes.
+The isolated regression is
+`tests/test_workspace_upgrade.py::WorkspaceUpgrade::test_missing_sqlite_extension_support_refuses_before_writes`.
+
+On macOS, [Homebrew Python](https://formulae.brew.sh/formula/python@3.14)
+provides a supported installation path:
+
+```sh
+brew install python@3.14
+"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+. .venv/bin/activate
+python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True); c.enable_load_extension(False)"
+```
+
+Install the full package and its pinned dependencies in that environment using
+the release installation instructions, then run the full doctor command.
+
 ## Contracts with separate versions
 
 | Surface | Current supported contract | Change policy |

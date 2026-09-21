@@ -7,6 +7,28 @@ Python 3.11+, SQLite 3.37+, Git and Node.js are required for the complete local
 checks. The Python package's `full` extra installs the MCP, schema, vector-store
 and Google authentication libraries at the versions tested by this release.
 
+## SQLite runtime prerequisite
+
+The full engine requires Python 3.11+ with SQLite 3.37+ **and loadable SQLite
+extensions**, plus the locked sqlite-vec dependency. Some macOS Python builds
+omit `enable_load_extension`; installing sqlite-vec alone cannot add it.
+Initialization, doctor, migration and upgrade check this before workspace writes.
+The isolated regression is
+`tests/test_workspace_upgrade.py::WorkspaceUpgrade::test_missing_sqlite_extension_support_refuses_before_writes`.
+
+On macOS, [Homebrew Python](https://formulae.brew.sh/formula/python@3.14)
+provides a supported installation path:
+
+```sh
+brew install python@3.14
+"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+. .venv/bin/activate
+python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True); c.enable_load_extension(False)"
+```
+
+Install the full package and its pinned dependencies in that environment using
+the release installation instructions, then run the full doctor command.
+
 ## Start without credentials
 
 From a checkout of the public release:

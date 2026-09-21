@@ -51,9 +51,14 @@ def code_only(src: str) -> str:
         raise
     lines = src.splitlines(keepends=True)
     grid = [list(l) for l in lines]
+    prose_tokens = {tokenize.COMMENT, tokenize.STRING}
+                                                                       
+                                                
+    prose_tokens.update(getattr(tokenize, name) for name in
+                        ('FSTRING_START', 'FSTRING_MIDDLE', 'FSTRING_END')
+                        if hasattr(tokenize, name))
     for tok in tokens:
-        if tok.type not in (tokenize.COMMENT, tokenize.STRING, tokenize.FSTRING_START,
-                            tokenize.FSTRING_MIDDLE, tokenize.FSTRING_END):
+        if tok.type not in prose_tokens:
             continue
         (r1, c1), (r2, c2) = tok.start, tok.end
         for row in range(r1 - 1, min(r2, len(grid))):

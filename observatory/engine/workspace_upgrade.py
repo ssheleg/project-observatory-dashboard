@@ -114,6 +114,7 @@ def sync_tree(base: Path) -> None:
 
 
 def preflight(base: Path) -> dict:
+    workspace.require_runtime()
     workspace.reject_symlinks(base)
     marker = config.validate_workspace(base, required=True)
     config.load(base)

@@ -20,8 +20,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
+        if: runner.os != 'macOS'
         with:
           python-version: ${{ matrix.python }}
+      - name: Install macOS Python with SQLite extension support
+        if: runner.os == 'macOS'
+        run: |
+          brew install python@3.14
+          "$(brew --prefix python@3.14)/bin/python3.14" -m venv "$RUNNER_TEMP/observatory-python"
+          echo "$RUNNER_TEMP/observatory-python/bin" >> "$GITHUB_PATH"
+      - name: Require SQLite extension support
+        run: python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True); c.enable_load_extension(False)"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

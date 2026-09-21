@@ -186,7 +186,7 @@ def main() -> int:
     accounts = tokens()
     if not accounts:
         print("no Cloudflare token installed — "
-              "`pbpaste | ./tools/add_cloudflare_token.py`", file=sys.stderr)
+              "run add_cloudflare_token with a protected file redirected to stdin", file=sys.stderr)
         return 0
     rows: list[dict] = []
     unmapped: dict[str, int] = {}

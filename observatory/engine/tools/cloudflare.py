@@ -136,7 +136,7 @@ def read_admin(label: str | None) -> tuple[str, str]:
     have = admins()
     if not have:
         raise RuntimeError("no admin token stashed — "
-                           "`pbpaste | ./tools/cloudflare.py stash`")
+                           "run cloudflare stash with a protected file redirected to stdin")
     if label:
         for name, p in have:
             if name == label:
@@ -399,7 +399,7 @@ def find_account(wanted: str | None) -> tuple[str, str, dict]:
             catalog.append((label, a))
     if not catalog:
         raise RuntimeError("no admin token stashed that can issue — "
-                           "`pbpaste | ./tools/cloudflare.py stash`")
+                           "run cloudflare stash with a protected file redirected to stdin")
     if wanted:
         w = wanted.strip()
         hits = [(l, a) for l, a in catalog
@@ -685,7 +685,7 @@ def cmd_list() -> int:
               f"issued {m.get('issued_on', '?')} "
               f"rotated {m.get('rotated_on') or '—'} x{m.get('rotations', 0)}")
     if not a:
-        print("\nstart with:  pbpaste | ./tools/cloudflare.py stash")
+        print("\nstart with cloudflare stash, reading a protected file on stdin")
     return 0
 
 
@@ -711,7 +711,7 @@ def main() -> int:
     if a.cmd == "stash":
         if sys.stdin.isatty():
             print("paste the admin token on stdin, e.g. "
-                  "`pbpaste | ./tools/cloudflare.py stash`", file=sys.stderr)
+                  "run cloudflare stash with a protected file redirected to stdin", file=sys.stderr)
             return 2
         return cmd_stash(sys.stdin.read().strip())
     if a.cmd == "install":

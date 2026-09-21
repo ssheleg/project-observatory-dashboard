@@ -153,7 +153,7 @@ def resolve(project: str, name: str, env: str | None = None) -> tuple[str, str]:
         f"{name} is not in the vault under projects/{project}/"
         f"{{{','.join(ENVS)}}} and not in any env file the inventory lists for "
         f"{project}. `use_secret.py names {project}` shows what is there; "
-        f"`pbpaste | tools/vault.py put {project} local {name}` adds it.")
+        f"the vault put command for {project}, local, {name} accepts a protected file on stdin.")
 
 
 def _redaction(values: dict[str, str]):

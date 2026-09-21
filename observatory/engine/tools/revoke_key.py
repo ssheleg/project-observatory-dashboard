@@ -56,7 +56,7 @@ def load_or_store() -> str:
         return key
     if not SECRET.is_file():
         die(f"no provisioning key. Create one at openrouter.ai/settings/"
-            f"provisioning-keys, then:  pbpaste | {sys.argv[0]} --tail <tail>")
+            f"provisioning-keys, then run revoke_key --tail <tail> with a protected file redirected to stdin")
     target = private_io.legacy_path(SECRET)
     mode = stat.S_IMODE(target.stat().st_mode)
     if mode & 0o077:
