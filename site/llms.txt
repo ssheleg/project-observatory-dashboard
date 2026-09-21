@@ -1,0 +1,17 @@
+# Project Observatory
+
+A local observation layer for agent-operated projects, part of the ssheleg harness.
+The portable edition supports explicit project enrollment, repository state and
+local metrics, credential metadata, opt-in known-value exposure scans, and a local
+dashboard. Start with the synthetic demo and agent-led onboarding.
+
+- Source: https://github.com/ssheleg/project-observatory-open-source
+- Onboarding: https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/ONBOARDING.md
+- Security: https://github.com/ssheleg/project-observatory-open-source/blob/main/SECURITY.md
+- Migration scope: https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/MIGRATION.md
+- Harness: https://skills.sshlg.me/harness/
+
+Cloud-provider adapters, shared MCP and scheduling are migration work, not included
+in this edition. Examples on the site are synthetic. A known-value match identifies
+local exposure, not remote exfiltration. Scanning is not a guarantee that no secret
+remains. Secrets should be entered locally, never pasted into an agent conversation.
