@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "observatory-log",
+  "displayName": "Observatory Log",
+  "description": "Records what changed in a watched project at the end of every turn, and asks for the one thing a diff cannot contain: why.",
+  "version": "0.10.0",
+  "license": "MIT",
+  "author": {
+    "name": "Sergey Sheleg",
+    "url": "https://github.com/ssheleg"
+  },
+  "homepage": "https://github.com/ssheleg/project-observatory-open-source",
+  "keywords": [
+    "observability",
+    "memory",
+    "git",
+    "ledger"
+  ]
+}

@@ -1,0 +1,417 @@
+#!/usr/bin/env python3
+""                                                                            
+
+                                                                                    
+                                                                         
+                                                                               
+                                                                              
+                                                                            
+                                                                                
+                                                                             
+      
+
+                                                                              
+                                                                                 
+                                                                           
+                                                                               
+                                                                        
+                                                                             
+                                              
+
+                                                                              
+                                                                                
+                                                                          
+
+                                                                              
+                                                                                
+                                                                             
+                                                                                
+                                                                               
+                                                                           
+       
+
+                                                           
+   
+from __future__ import annotations
+import concurrent.futures as cf
+import json
+import re, pathlib, re, shutil, subprocess, sys, urllib.error, urllib.request
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import atomic              
+import paths              
+
+API = "https://api.heroku.com"
+                                                                           
+                                                                              
+                                                                     
+KOLKRABBI = "https://kolkrabbi.heroku.com"
+WORKERS = 10
+TIMEOUT = 60
+                                                                              
+                                                                              
+                                                                              
+RELEASE_WINDOW = 200
+
+                                                                            
+                                                                            
+                                                                              
+                                                                                  
+                                                                     
+DYNO_PRICE = {"Eco": 5, "Basic": 7, "Standard-1X": 25, "Standard-2X": 50,
+              "Performance-M": 250, "Performance-L": 500, "Performance-L-RAM": 500,
+              "Performance-XL": 750, "Performance-2XL": 1500}
+
+                                                                                
+                                                                            
+                                                       
+CODE_RELEASE = ("Deploy ", "Deployed ", "Promote ", "Rollback ")
+
+                                                                             
+                                                                               
+HEROKU_REMOTE = re.compile(r"git\.heroku\.com[:/]+([A-Za-z0-9][A-Za-z0-9-]*)\.git")
+
+
+def token() -> tuple[str | None, str | None]:
+    ""                                                         
+    if not shutil.which("heroku"):
+        return None, ("the heroku CLI is not on PATH; install it or run this "
+                      "step on a machine that has it")
+    try:
+        p = subprocess.run(["heroku", "auth:token"], capture_output=True,
+                           text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return None, "heroku auth:token did not answer within 30s"
+    if p.returncode != 0:
+                                                                        
+        return None, ("heroku auth:token failed: "
+                      + (p.stderr.strip().splitlines() or ["no output"])[-1])
+    tok = (p.stdout.strip().splitlines() or [""])[-1].strip()
+    if not tok:
+        return None, "heroku auth:token printed nothing; the CLI is not logged in"
+    return tok, None
+
+
+def _headers(tok: str, accept: str) -> dict:
+    return {"Accept": accept, "Authorization": f"Bearer {tok}",
+            "User-Agent": "project-observatory"}
+
+
+def get(url: str, tok: str, *, accept: str = "application/vnd.heroku+json; version=3",
+        extra: dict | None = None):
+    ""                                                                     
+
+                                                                          
+                                                                                
+                                            
+       
+    head = _headers(tok, accept)
+    if extra:
+        head.update(extra)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=head),
+                                    timeout=TIMEOUT) as r:
+            return json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()[:400]
+        reason = ""
+        try:
+            reason = json.loads(body).get("id") or ""
+        except Exception:
+            pass
+        return {"__error__": f"{e.code}", "__reason__": reason, "__body__": body}
+    except Exception as e:                                                  
+        return {"__error__": "transport", "__reason__": type(e).__name__,
+                "__body__": str(e)[:200]}
+
+
+CONFIG_SET = re.compile(r"^Set (?P<names>.+?) config vars?$")
+CONFIG_ADDON = re.compile(r"^Update (?P<name>[A-Z0-9_]+) by (?P<addon>[a-z0-9-]+)$")
+
+
+def config_trail(rels: list) -> list[dict]:
+    ""                                                                       
+                                                                         
+                                                  
+    out = []
+    for r in rels or []:
+        desc = (r.get("description") or "").strip()
+        m = CONFIG_SET.match(desc)
+        if m:
+            out.append({"version": r.get("version"), "at": r.get("created_at"),
+                        "vars": [v.strip() for v in m.group("names").split(",") if v.strip()],
+                        "by": "config:set"})
+            continue
+        m = CONFIG_ADDON.match(desc)
+        if m:
+            out.append({"version": r.get("version"), "at": r.get("created_at"),
+                        "vars": [m.group("name")], "by": m.group("addon")})
+    return out[:40]
+
+
+def paged(path: str, tok: str) -> list | dict:
+    ""                                                   
+
+                                                                             
+                                                                           
+                                                    
+       
+    out, rng = [], None
+    while True:
+        head = _headers(tok, "application/vnd.heroku+json; version=3")
+        if rng:
+            head["Range"] = rng
+        try:
+            req = urllib.request.Request(API + path, headers=head)
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                out.extend(json.loads(r.read().decode()))
+                nxt = r.headers.get("Next-Range")
+        except urllib.error.HTTPError as e:
+            return {"__error__": f"{e.code}", "__body__": e.read().decode()[:200]}
+        except Exception as e:                                              
+            return {"__error__": "transport", "__body__": str(e)[:200]}
+        if not nxt:
+            return out
+        rng = nxt
+
+
+def owned_addons(addons: list, app_name: str) -> tuple[list, list]:
+    ""                                                               
+
+                                                                        
+                                                                            
+                                                                               
+                                                                               
+                                
+       
+    own, attached = [], []
+    for a in addons:
+        row = {"name": a.get("name"),
+               "plan": ((a.get("plan") or {}).get("name")),
+               "state": a.get("state"),
+               "cents": ((a.get("billed_price") or {}).get("cents") or 0),
+               "owner": ((a.get("app") or {}).get("name"))}
+        (own if row["owner"] == app_name else attached).append(row)
+    return own, attached
+
+
+def scan_app(app: dict, tok: str) -> dict:
+    aid, name = app["id"], app["name"]
+    row = {
+        "name": name, "id": aid,
+        "team": ((app.get("team") or {}).get("name")
+                 or (app.get("organization") or {}).get("name") or "personal"),
+        "owner": (app.get("owner") or {}).get("email"),
+        "region": (app.get("region") or {}).get("name"),
+        "stack": (app.get("stack") or {}).get("name"),
+        "created_at": app.get("created_at"), "released_at": app.get("released_at"),
+        "maintenance": bool(app.get("maintenance")),
+        "web_url": app.get("web_url"), "git_url": app.get("git_url"),
+    }
+    form = get(f"{API}/apps/{aid}/formation", tok)
+    dynos = get(f"{API}/apps/{aid}/dynos", tok)
+    addons = get(f"{API}/apps/{aid}/addons", tok)
+    rels = get(f"{API}/apps/{aid}/releases", tok,
+               extra={"Range": f"version ..; max={RELEASE_WINDOW}, order=desc"})
+    gh = get(f"{KOLKRABBI}/apps/{aid}/github", tok, accept="application/json")
+                                                                               
+                                                                              
+                                                                                
+    doms = get(f"{API}/apps/{aid}/domains", tok)
+    row["domains"] = (sorted(d["hostname"] for d in doms
+                             if isinstance(d, dict) and d.get("kind") == "custom" and d.get("hostname"))
+                      if isinstance(doms, list) else [])
+    row["domains_error"] = doms.get("__error__") if isinstance(doms, dict) else None
+
+    row["formation"] = ([{"type": f["type"], "qty": f["quantity"], "size": f["size"],
+                          "command": (f.get("command") or "")[:160]}
+                         for f in form] if isinstance(form, list) else [])
+    row["formation_error"] = form.get("__error__") if isinstance(form, dict) else None
+
+                                                                          
+                                                                           
+                                                                       
+    row["suspended"] = (isinstance(dynos, dict)
+                        and dynos.get("__reason__") == "suspended")
+    row["dynos"] = ([{"name": d["name"], "state": d["state"], "size": d["size"]}
+                     for d in dynos] if isinstance(dynos, list) else [])
+    row["dynos_error"] = (None if isinstance(dynos, list) or row["suspended"]
+                          else dynos.get("__error__"))
+
+    if isinstance(addons, list):
+        own, attached = owned_addons(addons, name)
+    else:
+        own, attached = [], []
+    row["addons"] = own
+    row["addons_attached"] = attached
+    row["addons_error"] = addons.get("__error__") if isinstance(addons, dict) else None
+
+    rels = rels if isinstance(rels, list) else []
+    row["releases_seen"] = len(rels)
+    row["release_version"] = rels[0]["version"] if rels else None
+    code = next((r for r in rels
+                 if (r.get("description") or "").startswith(CODE_RELEASE)), None)
+    row["last_release"] = ({"version": rels[0]["version"], "at": rels[0]["created_at"],
+                            "desc": (rels[0].get("description") or "")[:120]}
+                           if rels else None)
+                                                                               
+                                                                             
+                                                                              
+                                                                              
+                                                                               
+                                           
+    row["config_releases"] = config_trail(rels)
+    row["last_deploy"] = ({"version": code["version"], "at": code["created_at"],
+                           "desc": (code.get("description") or "")[:120]}
+                          if code else None)
+                                                                                
+                                                                                
+                            
+    row["deploy_beyond_window"] = (code is None and len(rels) >= RELEASE_WINDOW)
+
+    row["github"] = (gh.get("repo") if isinstance(gh, dict) and "repo" in gh else None)
+    row["github_branch"] = (gh.get("branch") if row["github"] else None)
+    row["auto_deploy"] = (bool(gh.get("auto_deploy")) if row["github"] else None)
+    row["wait_for_ci"] = (bool(gh.get("wait_for_ci")) if row["github"] else None)
+
+    sizes = [f["size"] for f in row["formation"] if f["qty"]]
+    row["unpriced"] = sorted({s for s in sizes if s not in DYNO_PRICE})
+    row["dyno_cost"] = sum(DYNO_PRICE.get(f["size"], 0) * f["qty"]
+                           for f in row["formation"])
+    row["addon_cost"] = sum(a["cents"] for a in own) / 100.0
+    row["monthly_cost"] = round(row["dyno_cost"] + row["addon_cost"], 2)
+    row["scaled"] = sum(f["qty"] for f in row["formation"])
+    row["running"] = sum(1 for d in row["dynos"] if d["state"] == "up")
+    row["crashed"] = sorted(d["name"] for d in row["dynos"] if d["state"] != "up")
+    return row
+
+
+def local_checkouts() -> tuple[dict[str, list[str]], list[str]]:
+    ""                                                                        
+
+                                                                                 
+                                                                              
+                                                                           
+                                                                              
+                                                                    
+
+                                                                                
+                                                                               
+                                                                              
+                                                  
+       
+    found: dict[str, list[str]] = {}
+    seen: list[str] = []
+    root = paths.DATA
+    if not root.is_dir():
+        return found, seen
+                                                                          
+                                                                           
+                                                                              
+                                               
+    for cfg in (sorted(root.glob("*/.git/config")) + sorted(root.glob("*/*/.git/config"))
+                + sorted(root.glob("*/*/*/.git/config"))):
+        try:
+            text = cfg.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        folder = str(cfg.parent.parent)
+        seen.append(folder)
+        for m in HEROKU_REMOTE.finditer(text):
+            found.setdefault(m.group(1), []).append(folder)
+    return found, seen
+
+
+def main(argv: list[str]) -> int:
+    import configuration
+    if not configuration.enabled("heroku"):
+        print("heroku: not configured (integration disabled)")
+        return 0
+    out_path = pathlib.Path(argv[1]) if len(argv) > 1 else paths.STORE / "raw/heroku.json"
+    only = set(argv[argv.index("--only") + 1:]) if "--only" in argv else None
+    started = datetime.now(timezone.utc)
+    degraded: list[dict] = []
+
+    tok, why = token()
+    if not tok:
+                                                                     
+                                                                            
+                                                                        
+        atomic.write_json(out_path, {
+            "schema_version": 1, "scanned_at": started.isoformat(),
+            "account": None, "teams": [], "apps": [],
+            "degraded": [{"source": "heroku", "reason": why}],
+        }, indent=1)
+        print(f"heroku: not scanned — {why}", file=sys.stderr)
+        return 0
+
+    account = get(f"{API}/account", tok)
+    email = account.get("email") if isinstance(account, dict) and "email" in account else None
+    teams = get(f"{API}/teams", tok)
+    team_names = sorted(t["name"] for t in teams) if isinstance(teams, list) else []
+    if isinstance(teams, dict):
+        degraded.append({"source": "heroku:teams", "reason": teams.get("__error__")})
+
+    apps = paged("/apps", tok)
+    if isinstance(apps, dict):
+        atomic.write_json(out_path, {
+            "schema_version": 1, "scanned_at": started.isoformat(),
+            "account": email, "teams": team_names, "apps": [],
+            "degraded": degraded + [{"source": "heroku:apps",
+                                     "reason": f"GET /apps failed: {apps.get('__error__')}"}],
+        }, indent=1)
+        print(f"heroku: GET /apps failed ({apps.get('__error__')})", file=sys.stderr)
+        return 1
+    if only:
+        apps = [a for a in apps if a["name"] in only]
+
+    with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
+        rows = list(ex.map(lambda a: scan_app(a, tok), apps))
+    rows.sort(key=lambda r: r["name"])
+
+    checkouts, folders_read = local_checkouts()
+    for r in rows:
+        r["local_folders"] = sorted(checkouts.get(r["name"], []))
+                                                                               
+                                                                               
+                                                                               
+                                    
+    known = {r["name"] for r in rows}
+    orphan_remotes = sorted(set(checkouts) - known)
+
+    for r in rows:
+        for field in ("formation_error", "dynos_error", "addons_error"):
+            if r.get(field):
+                degraded.append({"source": f"heroku:{r['name']}",
+                                 "reason": f"{field.split('_')[0]} unreadable: {r[field]}"})
+        if r["unpriced"]:
+            degraded.append({"source": f"heroku:{r['name']}",
+                             "reason": ("dyno size(s) absent from the price list, so this "
+                                        f"application's cost is understated: {r['unpriced']}")})
+        if r["deploy_beyond_window"]:
+            degraded.append({"source": f"heroku:{r['name']}",
+                             "reason": (f"no code release within the newest {RELEASE_WINDOW}; "
+                                        "the last deploy is older than the window, not absent")})
+
+    atomic.write_json(out_path, {
+        "schema_version": 1,
+        "scanned_at": started.isoformat(),
+        "account": email,
+        "teams": team_names,
+        "price_list": DYNO_PRICE,
+        "folders_read": len(folders_read),
+        "remotes_to_unknown_apps": orphan_remotes,
+        "apps": rows,
+        "degraded": degraded,
+    }, indent=1)
+    cost = round(sum(r["monthly_cost"] for r in rows), 2)
+    wired = sum(1 for r in rows if r["local_folders"])
+    print(f"heroku.json: {len(rows)} app(s), {sum(r['scaled'] for r in rows)} dyno(s), "
+          f"${cost}/month, {wired} with a local checkout, {len(degraded)} degradation(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

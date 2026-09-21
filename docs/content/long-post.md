@@ -1,0 +1,71 @@
+# What stays behind when an agent finishes
+
+An agent finishes a task. The repository looks fine. Somewhere else, a tool result remains in a transcript, a configuration value has reached a memory database, and a project has stopped receiving attention.
+
+I built Project Observatory to make that surrounding state visible. It observes projects, connects signals to findings and gives the next agent somewhere to start. The public release now contains the complete engine, with each installation keeping its own configuration, credentials and observations.
+
+## The copy that outlived the command
+
+A credential does not have to leave a computer to end up somewhere it was never meant to be. A command can print a value. An agent can receive the result. A memory tool can preserve that result long after the command has finished.
+
+That is an illustrative path, not a reconstruction of every event in our records. What we can report from the earlier local deployment is narrower and more concrete: a remediation pass on 14 September 2026 recorded **66 value-replacement events in claude-mem SQLite and 136 in Chroma SQLite**. Together, that is **202 replacement events**.
+
+Those units matter. They are not 202 different keys, 202 incidents or 202 vulnerabilities in those tools. Multiple references can point to one value, and the same database cell can be affected more than once. The records establish that credential copies were retained locally and that replacements were recorded. They do not establish remote exfiltration or prove that every copy was removed.
+
+The [case study](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md) publishes the aggregate and its limitations. Raw records, credential labels, paths and project identities stay private.
+
+## Make the next action visible
+
+Before inspection, a copied value is one more piece of ordinary output. It can sit beside useful context in a transcript or memory record. Looking only at the repository misses it.
+
+Observatory can compare values already known to the local installation against supported, selected artifacts. A finding identifies the location and the credential reference without needing to repeat the value in a conversation. The operator can then decide whether to revoke or rotate the credential, remove retained copies and inspect the remaining exposure surface.
+
+These are separate actions. Removing a local copy does not revoke a key. Rotating a local slot does not establish that its predecessor has been revoked by the provider. A clean result only describes the inputs and matching method that actually ran.
+
+The full engine also includes an optional remediation tool for supported companion memory stores. It creates private backups before making changes and requires explicit enablement. Those backups remain sensitive. Neither remediation nor known-value scanning is a promise to remove every historical backup, embedding or encoded representation.
+
+## Projects need an observation history too
+
+Credential copies were one reason to build this. The broader problem is keeping track of work spread across repositories and services.
+
+You choose a project directory. Observatory discovers repositories within that scope and builds a local registry. It can collect Git activity, working-tree state and project metrics, then connect observations to findings and history. The dashboard gives a person a view of that state; the CLI and MCP give an agent ways to inspect it.
+
+Optional adapters extend the view to repository hosts, hosting accounts, domains and analytics. They use the account access that the operator supplies. A missing account or unavailable source must remain visible as missing, rather than quietly becoming a zero or a green status.
+
+Metrics plugins, local session sources, scheduled observation and model-assisted interpretation are part of the engine. They are not all switched on at installation. External access and paid actions need an explicit choice. The first local pipeline can run without a provider key.
+
+## Public code, private installation
+
+The first public package was a smaller portable implementation. That was useful for an isolated demo, but it was not the whole system I wanted to share. The current release includes the original engine with its runtime state moved out of the source tree.
+
+The distinction is simple: everyone can install the same code; nobody needs my accounts, repository inventory or credential files. Each user creates a private workspace for configuration, registry data, history, generated dashboards and locally managed secret slots. External credential stores can be referenced separately.
+
+The public source has its own clean Git history. The private operational repository was not made public, and its old commits were not imported. A release gate checks the public files and history, while package checks verify that the distributed engine contains the reviewed source.
+
+Local permissions are part of the boundary, not an encryption claim. The default secret slots are private files. Anyone adopting the tool still needs to protect the machine and its backups. The authenticated local key service has an explicit reveal operation; it should not be exposed as a public, multi-user service.
+
+## Let the agent guide setup
+
+The onboarding guide starts with a Python environment and a new private workspace. The agent checks requirements, initializes state and runs the doctor before helping the operator choose a project directory.
+
+Only then does it offer integrations. A repository inventory task may need read access; token provisioning needs different permissions. Those should not be bundled into one unexplained request for a powerful key.
+
+Credentials are entered through a local hidden prompt, a protected file or an existing credential manager. They do not need to pass through the conversation. The agent should report which integration connected, what could be read and what remains unavailable.
+
+The [installation guide](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/ONBOARDING.md) includes a prompt you can give your coding agent. The [landing page](https://observatory.sshlg.me/#start) has a copyable version. Generated dashboards stay local; the public website contains only explanatory material and synthetic examples.
+
+## Updates should not replace your installation
+
+Moving the full system into open source also means deciding what happens when the code changes. Configuration, workspace, database and plugin contracts have explicit versions. Unsupported future versions are refused before normal writes, and optional configuration fields are preserved.
+
+An upgrade has a preview and a backed-up apply path. Writers must be stopped first, including older executables that cannot know about a new lock. A rollback restores a verified snapshot into a separate home and uses the matching application release. Pointing old code at a newer database is not a rollback strategy.
+
+The earlier portable commands remain available in a separate compatibility mode. Their workspace is not interchangeable with the full engine's database. The [compatibility policy](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/COMPATIBILITY.md) records that boundary and the tested migration cases.
+
+## Where it fits in the harness
+
+The [Skills site](https://skills.sshlg.me/) stays focused on skills. Its separate [Harness section](https://skills.sshlg.me/harness/) explains how they work together with tools around an agent.
+
+Skills guide decisions and implementation. The delivery workflow carries changes through verification and handoff. Project Observatory adds an observation layer over the work and the artifacts it leaves behind. Asset Foundry, still in development, covers asset creation workflows for agents.
+
+You can use Observatory on its own. Start with one directory you understand, inspect the first findings, and add another source when you have a reason to observe it.

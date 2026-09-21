@@ -1,0 +1,31 @@
+{
+  "description": "Optional Claude Code hooks: record changes in watched Git projects and request missing reasoning. SessionStart reports brief actionable context. Missing workspace, interpreter or watched project degrades quietly; hooks do not block a turn. Project names and paths stay in the private workspace.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "timeout": 15,
+            "statusMessage": "What the observatory knows about this project"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/record-turn.sh\"",
+            "timeout": 20,
+            "statusMessage": "Recording what changed"
+          }
+        ]
+      }
+    ]
+  }
+}

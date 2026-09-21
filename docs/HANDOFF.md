@@ -1,24 +1,49 @@
-# Public distribution handoff
+# Full-system release handoff
 
-Objective: publish a useful, generic local observation component of the ssheleg harness without exposing an operational inventory, credentials or private source history.
+Objective: distribute the complete Project Observatory engine as open source while
+each user retains their own private projects, credentials and runtime state; retain
+older CLI contracts, provide future upgrade/restore safeguards, and publish accurate
+onboarding, website and launch material.
 
-The public tree contains a standalone standard-library Python CLI, explicit project scope, local Git/file/env metadata, deterministic findings, private snapshot history, a read-only dashboard, local stdin-based secret slots, bounded known-value file/SQLite checks, aggregate exports and synthetic tests. Installation and agent onboarding are in [ONBOARDING.md](ONBOARDING.md); the exact feature gap and next packets are in [MIGRATION.md](MIGRATION.md).
+## Completed implementation
 
-Decisions: use a new repository root; keep the original deployment private and intact; ship portable functionality with explicit limits; require no accounts for the first useful view; do not imply provider integrations or automatic remediation are included. The threat model is [SECURITY.md](../SECURITY.md). The public website in `site/` and private generated dashboard are different artifacts.
+- Complete source export under `observatory/engine/`; generic defaults, individual
+  integration/feature opt-ins, explicit per-user source paths and private workspace.
+- Original portable CLI preserved. Full engine enters through `full`; homes and
+  formats remain distinct. Versioned config/workspace/registry/database/plugin/tool
+  contracts, supported migration checks, backup/apply/restore and unknown-version
+  refusal are documented in [COMPATIBILITY.md](COMPATIBILITY.md).
+- Full engine source and installed-wheel synthetic checks completed; receipt in
+  [RELEASE.md](RELEASE.md). CI repeats on Linux 3.11/3.14 and macOS 3.14.
+- Credential/keyserver/provider failure fixes and portable dashboard commands.
+- Public site describes the full release; canonical [article](../site/field-notes/index.html),
+  generated cover and [social drafts](content/README.md). Social accounts were not posted to.
+- Skills remains the family site's primary entry. Harness is its separate section;
+  Observatory observes projects, Asset Foundry is explicitly in development.
 
-Checks to run from a fresh checkout:
+## Module and task packets
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install .
-python -m unittest discover -s tests -v
-project-observatory --home "$HOME/.local/share/observatory-fresh-demo" demo
-project-observatory --home "$HOME/.local/share/observatory-fresh-demo" doctor
-```
+[Migration/capability map](MIGRATION.md), [agent onboarding](AGENT-ONBOARDING.md),
+[product scenarios](ux/scenarios.md), [next UX packets](ux/UI-PLAN.md),
+[site scenarios](site/BRIEF.md), [deployment procedure](site/DEPLOY.md),
+[case-study boundaries](site/CASE-STUDY.md), [security policy](../SECURITY.md).
 
-Runtime tests cover synthetic first run, local Git ahead/dirty state, malicious Git clean filters, symlink scope changes, metadata redaction, private-file modes, read-only SQLite and generated-column bounds, invalid export state and HTTP Host/Origin controls. No live provider or real credential verification is implied by those tests. Actual checks, independent review hashes, package inspection and the synthetic browser walkthrough are in [RELEASE.md](RELEASE.md).
+## Local-only rule
 
-Prerequisites: Python 3.11+, optional Git, local macOS/Linux shell. The public v0.1.0 release and static deployment are verified in [RELEASE.md](RELEASE.md#observed-publication); the website is https://observatory.sshlg.me/. No existing repository should be made public to complete that release.
+Never add a real workspace, database, private denylist, registry, credentials,
+operational receipt, provider response or local machine configuration to this
+repository. Never deploy generated private dashboard pages. The public source has
+no private operational ancestry. Original installed services were not switched.
 
-Exact next development task after the portable release: M01, transactional project enrollment and removal with stable identity, followed by M02 history query/project detail. Read the acceptance criteria and related scenarios before implementation. Provider, MCP and scheduler work remains explicitly pending; do not reconstruct the feature boundary from chat.
+## Release completion
+
+At this source checkpoint, commit/push, remote CI, integration, release assets and
+production deployments remain a release-owner task. Record their exact commits,
+run/deployment IDs and verified URLs in a follow-up receipt. A pushed branch alone
+is not a release. Use the reviewed static `site/` artifact for Cloudflare Pages;
+Skills is served by GitHub Pages and the personal site has its own Cloudflare job.
+
+Exact next task: run final public tree/history+302identifier gate and package
+negative tests, commit/push this branch, wait for all supported CI jobs, then
+integrate and publish 0.2.0. Verify a fresh checkout and live article before calling
+the release delivered. Keep social drafts unpublished unless explicitly asked.

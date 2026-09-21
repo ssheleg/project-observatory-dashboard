@@ -1,0 +1,593 @@
+#!/usr/bin/env python3
+""                                          
+
+                                                                          
+                                                                                 
+                                                                              
+
+                                                                              
+                                                                               
+                                                                                
+               
+
+                                                                                
+                                                          
+                                                               
+                                                                              
+                                                                               
+                                                                
+
+                                                                              
+                                                                   
+                                                                           
+                         
+   
+from __future__ import annotations
+import asyncio, json, re, sqlite3, sys, pathlib
+from typing import Annotated, Any, Literal
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from pydantic import AliasChoices, Field                                                        
+from mcp.server import MCPServer                                                  
+
+import paths                                                                      
+import proposals                                                                  
+import survey as survey_mod                                                       
+from store import db as store_db                                                  
+from store import ledger as L                                                     
+
+PROTOCOL_REVISION = "2026-07-28"
+import configuration
+VERSION = configuration.VERSION
+
+server = MCPServer(
+    name="observatory",
+    title="Project Observatory",
+    version=VERSION,
+    description="What is true of every project on this machine.",
+                                                                                  
+                                                                              
+                                                                                 
+                            
+    instructions=(
+        "Seven tools read and two write.\n"
+        "READ: `observatory_status` surveys the current scope; a requested scan pin "
+        "is reported as unsupported in degraded. `observatory_project` answers about "
+        "one project; `observatory_timeline` returns its commit history; "
+        "`observatory_findings` lists what needs a person; `observatory_recall` and "
+        "`observatory_search` look over recorded narrative — SEARCH SPENDS: it "
+        "embeds the query, charges the wallet, and falls back to the lexical half "
+        "alone when a spend guardrail is reached, saying so in `degraded`; "
+        "`observatory_credentials` names what a project can authenticate with and "
+        "CANNOT return a value — use the `use` command it hands back instead of "
+        "opening the file, because a transcript outlives the key it quotes.\n"
+        "WRITE: `observatory_record` and `observatory_propose` append to the ledger. "
+        "Everything they write lands `proposed` with confidence below 1 and NOTHING "
+        "here can promote it — that is the operator's act or a second independent "
+        "corroboration.\n"
+        "Every result carries a `degraded` list: an empty list asserts full coverage, "
+        "and a non-empty one names the sources that could not be read. Treat a "
+        "missing `degraded` field as a bug rather than as full coverage."
+    ),
+)
+
+
+def _scope(kind: str, value: str | None) -> dict[str, Any]:
+    scope: dict[str, Any] = {"kind": kind}
+    if kind in ("owner", "project"):
+        scope["value"] = value
+    return scope
+
+
+def _scope_error(kind: str, value: str | None) -> dict[str, Any] | None:
+    ""                                                 
+
+                                                                            
+                                                                     
+    if kind in ("owner", "project") and not value:
+        return {"error": "missing value",
+                "detail": f"scope kind '{kind}' requires a value",
+                "hint": "owner takes an organisation login; project takes a 'project:<slug>' id",
+                "degraded": []}
+    return None
+
+
+                                                                            
+                                                                                 
+                                                                               
+                                   
+                                                                             
+                                                                        
+                                                                       
+                   
+CALLER_ID = re.compile(r"^(agent|service):[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
+
+
+def _owner_error(owner: str) -> dict[str, Any] | None:
+    ""                                                                       
+
+                                                                             
+                                                                                  
+                                                                           
+                                                                             
+                                                                         
+                                                                          
+                                                                                
+                                                                  
+
+                                                                           
+                                                                          
+                                                                           
+                                                                             
+                                                                              
+                                                                             
+                                                                            
+                     
+       
+    if CALLER_ID.match(owner or ""):
+        return None
+    return {"error": "owner refused",
+            "detail": f"{owner!r} is not an identity this wire accepts",
+            "hint": "owner must be `agent:<name>` or `service:<name>`. The operator's "
+                    "authority cannot be claimed over stdio, which has no caller "
+                    "identity to check it against — promote or reject a record with "
+                    "`review.py`, from a terminal.",
+            "degraded": []}
+
+
+@server.tool()
+def observatory_status(
+    scope: Annotated[dict[str, Any] | None,
+                     Field(description="The shape the published input schema declares: "
+                                       "`{\"kind\": \"estate\"|\"owner\"|\"project\", "
+                                       "\"value\": …}`. A host that compiled that schema "
+                                       "sends this; `kind` and `value` below are the older "
+                                       "flat spelling and still work.")] = None,
+    kind: Annotated[Literal["estate", "owner", "project"],
+                    Field(description="estate = the whole machine; owner = one GitHub org; "
+                                      "project = one project: id")] = "estate",
+    value: Annotated[str | None,
+                     Field(description="Required for owner and project. An org login, or a "
+                                       "'project:<slug>' id.")] = None,
+    includeExternal: Annotated[bool,
+                                Field(validation_alias=AliasChoices("includeExternal", "include_external"), description="Include third-party repositories merely "
+                                                  "cloned here.")] = False,
+    asOfScanId: Annotated[str | None,
+                             Field(validation_alias=AliasChoices("asOfScanId", "as_of_scan_id"), description="The scan you want the answer compared "
+                                               "against. It is RECORDED, not honoured — the "
+                                               "registry is not versioned per scan, so the "
+                                               "answer carries the current estate and says so "
+                                               "in `degraded`. Omit it.")] = None,
+    limit: Annotated[int | None, Field(ge=1, le=200,
+                     description="Return at most this many projects. Omit for all of them — "
+                                 "an estate survey is about 30,000 tokens, so pass a limit "
+                                 "unless you want the whole thing.")] = None,
+    cursor: Annotated[str | None,
+                      Field(description="Continue after this project id, from a previous "
+                                        "answer's `nextCursor`. The walk loses and repeats "
+                                        "nothing, but a project appearing mid-walk still "
+                                        "shifts it — no parameter freezes the estate.")] = None,
+) -> dict[str, Any]:
+    "Survey a scope: every project in it, with repositories, sites, stack and last activity." 
+
+                                                                               
+                                                                                   
+                                                                          
+                                               
+
+                                                                              
+                                                                            
+                                                                        
+                                                                                 
+                                                                          
+                                                        
+                                                                              
+                                                                           
+                                                                                 
+                                                                           
+                                                                               
+                                                                              
+                                                                       
+       
+    bad = _scope_error(kind, value)
+    if bad:
+        return bad
+                                                                            
+                                                                                
+                                                                                
+                                                                                   
+                                              
+    if isinstance(scope, dict) and scope.get("kind"):
+        kind, value = scope["kind"], scope.get("value")
+    return survey_mod.survey(_scope(kind, value), include_external=includeExternal,
+                             as_of_scan_id=asOfScanId, limit=limit, cursor=cursor)
+
+
+@server.tool()
+def observatory_project(
+    projectId: Annotated[str, Field(validation_alias=AliasChoices("projectId", "project_id"), description="A project identifier, for example project:example-project")],
+    timelineLimit: Annotated[int, Field(validation_alias=AliasChoices("timelineLimit", "timeline_limit"), ge=0, le=200,
+                              description="How many recent commits to include. 0 omits them.")] = 10,
+) -> dict[str, Any]:
+    "One project: identity, activity, measurements, conclusions, findings." 
+
+                                                                                  
+                                                                                   
+                                                                              
+                                                                                
+                                                                           
+                                                                            
+
+                                                                      
+                                                                             
+                                                                            
+                                                                              
+                                                        
+       
+    return survey_mod.project_detail(projectId, timeline_limit=timelineLimit)
+
+
+@server.tool()
+def observatory_credentials(
+    projectId: Annotated[str, Field(validation_alias=AliasChoices("projectId", "project_id", "project"),
+                                    description="A 'project:<slug>' id, or the bare slug")],
+) -> dict[str, Any]:
+    "Which credentials a project holds, BY NAME — and how to USE one without seeing it." 
+
+                                                                        
+                                                                                
+                                                                             
+                                                                               
+                                                                                
+                                                                          
+                   
+
+                                                                                
+                                                                         
+
+                                                                              
+                                                                               
+                                                                                
+                    
+       
+    return survey_mod.credentials(projectId)
+
+
+@server.tool()
+def observatory_timeline(
+    projectId: Annotated[str, Field(validation_alias=AliasChoices("projectId", "project_id"), description="A 'project:<slug>' id")],
+    since: Annotated[str | None, Field(description="ISO-8601 date or timestamp; "
+                                                   "only events at or after it")] = None,
+    limit: Annotated[int, Field(ge=1, le=500)] = 100,
+) -> dict[str, Any]:
+    "Commits and recorded events for one project, newest first."    
+    return survey_mod.timeline(projectId, since=since, limit=limit)
+
+
+@server.tool()
+def observatory_search(
+    query: Annotated[str, Field(min_length=1,
+                     description="What to look for. Similarity where the vector index is "
+                                 "available, and a lexical match always.")],
+    project_id: Annotated[str | None, Field(description="Limit to one 'project:<slug>'")] = None,
+    limit: Annotated[int, Field(ge=1, le=50)] = 10,
+) -> dict[str, Any]:
+    "Recall over recorded narrative — the one read where similarity is the right question." 
+
+                                                                                
+                                                                                 
+                                       
+       
+    return survey_mod.search(query, project_id=project_id, limit=limit)
+
+
+@server.tool()
+def observatory_recall(
+    projectId: Annotated[str | None, Field(validation_alias=AliasChoices("projectId", "project_id"), description="Limit to one project, or omit for all")] = None,
+    limit: Annotated[int, Field(ge=1, le=200)] = 50,
+    cursor: Annotated[str | None,
+                      Field(description="Continue after this point, from a previous "
+                                        "answer's `nextCursor`.")] = None,
+) -> dict[str, Any]:
+    "Current ledger records — what has been recorded about projects, and why." 
+
+                                                                               
+                                                                              
+                                                                       
+       
+                                                                               
+                                                                                  
+                                                                            
+                                                                            
+                                                                               
+                                                                          
+                                                                                
+                                                         
+    degraded: list[dict[str, str]] = []
+    try:
+        conn = store_db.connect()
+    except Exception as exc:
+        return {"projectId": projectId, "count": 0, "total": 0, "records": [],
+                "contested": [], "note": "the store could not be opened",
+                "degraded": [{"source": "store", "reason": f"unavailable: {exc}"}]}
+    try:
+                                                                                
+                                                                            
+                                                                               
+                                                                                
+                                                                             
+                                                   
+        fetched = L.live(conn, project_id=projectId, limit=limit + 1, cursor=cursor)
+        rows, more = fetched[:limit], len(fetched) > limit
+        total = L.live_count(conn, project_id=projectId)
+    finally:
+        conn.close()
+    contested = [r["memory_id"] for r in rows if r["state"] == "contested"]
+                                                                        
+                                                                                 
+                                                                                
+                                                                            
+                                                                    
+    out = {"projectId": projectId, "count": len(rows), "total": total,
+           "records": rows, "contested": contested,
+           "note": "conflicting records are returned together and are not ranked; "
+                   "absence here is not proof of absence",
+           "degraded": degraded}
+                                                                               
+                                                                
+    if more and rows:
+        out["nextCursor"] = L.live_cursor(rows[-1])
+    return out
+
+
+def _write_error(exc: Exception) -> dict[str, Any]:
+    ""                                                               
+    remedy = {
+        "OwnerRequired": "pass `owner` — an identity of the form `agent:<name>` or "
+                         "`service:<name>`, e.g. 'agent:claude-code'. There is no default: a "
+                         "write that could claim the operator's authority by omission is the "
+                         "defect this refuses. `operator` is not claimable over this wire.",
+        "OwnerRefused": "this record belongs to someone else. Only the operator overrides, and "
+                        "an agent may correct only its own records.",
+        "RevisionConflict": "re-read the record, merge onto the current revision, and retry with "
+                            "that number as `expected_revision`. There is no last-write-wins.",
+        "IllegalTransition": "the lifecycle has no edge from the current state to that one; the "
+                             "message names the legal moves.",
+        "LedgerError": "the write violates a ledger invariant; the message says which.",
+    }.get(type(exc).__name__, "see the message")
+    out: dict[str, Any] = {"error": type(exc).__name__, "detail": str(exc), "remedy": remedy}
+    if isinstance(exc, L.RevisionConflict):
+        out["currentRevision"] = exc.current
+        out["expectedRevision"] = exc.expected
+    return out
+
+
+@server.tool()
+def observatory_findings(
+    severity: Annotated[Literal["all", "critical", "warning", "info"],
+                        Field(description="Lowest severity to return; 'all' includes "
+                                          "info.")] = "warning",
+    include_acknowledged: Annotated[bool,
+                                    Field(description="Include findings the operator has "
+                                                      "silenced in finding_acks.json.")] = False,
+) -> dict[str, Any]:
+    "What in this estate needs a person: expiring domains, dark sites, clones that exist nowhere else." 
+
+                                                                                
+                                                                                  
+                                                  
+
+                                                                            
+                                                                               
+                                                                         
+       
+    f = paths.REGISTRY / "findings.json"
+    if not f.is_file():
+        return {"findings": [], "counts": {},
+                "degraded": [{"source": "findings",
+                              "reason": "no findings have been built; run "
+                                        "`./observatory.py findings`"}]}
+    doc = json.loads(f.read_text(encoding="utf-8"))
+    order = {"critical": 0, "warning": 1, "info": 2}
+    floor = 3 if severity == "all" else order[severity]
+    rows = [x for x in doc["findings"]
+            if order.get(x["severity"], 3) <= (floor if severity != "all" else 2)
+            and (include_acknowledged or not x.get("acked"))]
+                                                                                
+                                                                                   
+                                                                             
+                                                                            
+                                                                                 
+                                                                           
+                       
+    degraded, checked_at = [], None
+    try:
+        c = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
+        row = c.execute("SELECT finished_at FROM scans WHERE finished_at IS NOT NULL"
+                        " ORDER BY finished_at DESC LIMIT 1").fetchone()
+        c.close()
+        checked_at = row[0] if row else None
+    except sqlite3.Error as exc:
+        degraded.append({"source": "store",
+                         "reason": f"the last scan time is unreadable: {exc}; "
+                                   f"builtAt alone cannot tell staleness from quiet"})
+    return {"builtAt": doc.get("built_at"), "checkedAt": checked_at,
+            "counts": doc.get("counts", {}),
+            "resolvedSinceLastRun": doc.get("resolved_since_last_run", []),
+            "findings": rows, "degraded": degraded}
+
+
+@server.tool()
+def observatory_record(
+    owner: Annotated[str, Field(min_length=1,
+                     description="Who is writing. Required, no default. `agent:<name>` or "
+                                 "`service:<name>`, e.g. 'agent:claude-code'. `operator` is "
+                                 "NOT accepted here: this wire cannot check a caller's "
+                                 "identity, and the operator decides at a terminal.")],
+    statement: Annotated[str, Field(min_length=1,
+                         description="The minimal claim or episode. Not a transcript: a full log "
+                                     "is evidence, and evidence is linked rather than stored.")],
+    why: Annotated[str | None, Field(description="What it MEANT. This is the field no diff "
+                                                 "contains and the only reason this tool exists.")] = None,
+    projectId: Annotated[str | None, Field(validation_alias=AliasChoices("projectId", "project_id"), description="A 'project:<slug>' id")] = None,
+    sessionId: Annotated[str | None, Field(validation_alias=AliasChoices("sessionId", "session_id"), description="The session this came out of")] = None,
+    memoryId: Annotated[str | None, Field(validation_alias=AliasChoices("memoryId", "memory_id"), description="Correct an existing record. Requires "
+                                                       "expected_revision.")] = None,
+    expectedRevision: Annotated[int | None, Field(validation_alias=AliasChoices("expectedRevision", "expected_revision"), description="The revision you read. A mismatch "
+                                                               "returns a conflict, never a "
+                                                               "silent overwrite.")] = None,
+    evidence: Annotated[list[dict[str, Any]] | None,
+                        Field(description="Resolvable references: commit shas, file paths, URIs")] = None,
+) -> dict[str, Any]:
+    "Append a note to the ledger, in state `proposed`." 
+
+                                                                            
+                                                                                
+                    
+       
+    bad = _owner_error(owner)
+    if bad:
+        return bad
+    conn = store_db.connect()
+    try:
+        return L.append(conn, owner=owner, statement=statement, why=why,
+                        project_id=projectId, session_id=sessionId,
+                        memory_id=memoryId, expected_revision=expectedRevision,
+                        evidence=evidence or [], function="episodic", scope="project",
+                        state="proposed",
+                                                                          
+                                                                                 
+                                                                            
+                                                                              
+                                                                              
+                        confidence=0.5)
+    except Exception as exc:
+        return _write_error(exc)
+    finally:
+        conn.close()
+
+
+@server.tool()
+def observatory_propose(
+    owner: Annotated[str, Field(min_length=1,
+                     description="Who is proposing. Required, no default. `agent:<name>` or "
+                                 "`service:<name>`; `operator` is not accepted over this wire.")],
+    targetId: Annotated[str, Field(validation_alias=AliasChoices("targetId", "target_id"), min_length=1,
+                         description="What to change: 'project:<slug>', 'repository:<owner>/<name>' "
+                                     "or 'domain:<fqdn>'")],
+    patch: Annotated[dict[str, Any], Field(description="The fields to change, as an object")],
+    evidence: Annotated[list[dict[str, Any]] | None,
+                        Field(description="What justifies it. A patch with no evidence is a guess.")] = None,
+) -> dict[str, Any]:
+    "Propose a change to the typed registry. It does NOT change the registry." 
+
+                                                                                
+                                                                                
+                                                     
+       
+    bad = _owner_error(owner)
+    if bad:
+        return bad
+                                                                           
+                                                                       
+                                                                                 
+                                                                             
+                                                                             
+                                                                                 
+                                                    
+    why = proposals.refusal(targetId, patch, evidence or [])
+    if why:
+        return {"error": "unappliable-proposal", "detail": why,
+                "appliable": {k: sorted(v) for k, v in proposals.appliable().items()}}
+    try:
+        registry_ids = {p["id"] for p in json.loads(
+            (paths.REGISTRY / "projects.json").read_text(encoding="utf-8"))["projects"]}
+        registry_ids |= {r["id"] for r in json.loads(
+            (paths.REGISTRY / "repositories.json").read_text(encoding="utf-8"))["repositories"]}
+    except (OSError, ValueError, KeyError) as exc:
+                                                                           
+                                                                               
+                                                                               
+                                           
+        registry_ids = set()
+        unknown_subject = f"the registry could not be read to check the subject: {exc}"
+    else:
+        unknown_subject = ("" if targetId in registry_ids else
+                           f"`{targetId}` is not in the registry. It may arrive on "
+                           f"the next tick, so this is queued rather than refused — "
+                           f"but if the id is a typo nothing will ever apply it")
+    conn = store_db.connect()
+    try:
+        out = L.proposals_add(conn, target_id=targetId, patch=patch,
+                              evidence=evidence or [], owner=owner)
+        if unknown_subject:
+            out["warning"] = unknown_subject
+        return out
+    except Exception as exc:
+        return _write_error(exc)
+    finally:
+        conn.close()
+
+
+                                                                                                                                                                                                                
+                                                                               
+                                                                              
+                                                                               
+                                                                               
+                                                                             
+                                                                          
+                                                                             
+                                                                         
+                                                             
+
+@server.resource("observatory://estate", mime_type="application/json",
+                 title="The whole estate",
+                 description="Every project with its repositories, sites, stack and last "
+                             "activity. About 120 KB — a deliberate read, not a cheap one; "
+                             "call the observatory_status tool with a `limit` to page it.")
+def resource_estate() -> dict[str, Any]:
+    return survey_mod.survey({"kind": "estate"})
+
+
+@server.resource("observatory://project/{project_id}", mime_type="application/json",
+                 title="One project",
+                 description="Everything known about a single project — about 3 KB. This is "
+                             "the address a renderer holds: one URI per project, stable "
+                             "across scans.")
+def resource_project(project_id: str) -> dict[str, Any]:
+    result = survey_mod.survey(_scope("project", project_id), include_external=True)
+    if not result["projects"]:
+        return {"error": "unknown project", "projectId": project_id,
+                "hint": "read observatory://estate, or call observatory_status, to list what "
+                        "exists",
+                "degraded": result["degraded"]}
+    return {"surveyedAt": result["surveyedAt"], "scanId": result["scanId"],
+            "project": result["projects"][0], "evidence": result["evidence"],
+            "degraded": result["degraded"]}
+
+
+@server.resource("observatory://dashboard", mime_type="text/html",
+                 title="The dashboard, as built",
+                 description="The generated HTML page, self-contained, roughly 450 KB. Meant "
+                             "for a host that RENDERS it; reading it into a model's context "
+                             "spends far more than the JSON resources beside it.")
+def resource_dashboard() -> str:
+    f = paths.DASHBOARD_HTML
+    if not f.is_file():
+                                                                              
+                                                            
+        return ("<!doctype html><meta charset=\"utf-8\"><title>not built</title>"
+                "<p>The dashboard has not been built on this machine. Run "
+                "<code>./observatory.py dashboard</code>.</p>")
+    return f.read_text(encoding="utf-8")
+
+
+def main() -> int:
+    configuration.validate_workspace(required=True)
+    asyncio.run(server.run_stdio_async())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

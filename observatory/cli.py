@@ -119,12 +119,23 @@ def parser() -> argparse.ArgumentParser:
     ls = leak.add_parser("scan")
     ls.add_argument("--file", action="append", required=True, dest="targets")
     ls.add_argument("--sqlite", action="store_true", help="Treat each explicit file as read-only SQLite")
+    full = cmds.add_parser("full", add_help=False, help="Complete engine; separate private workspace")
+    full.add_argument("-h", "--help", dest="engine_help", action="store_true")
+    full.add_argument("arguments", nargs=argparse.REMAINDER)
+    cmds.add_parser("full-path", help="Print the installed complete engine's source directory")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     global _OUTPUT_STATE
     args = parser().parse_args(argv)
+    if args.cmd == "full-path":
+        from .full_cli import engine_path
+        print(engine_path())
+        return 0
+    if args.cmd == "full":
+        from .full_cli import run
+        return run(["--help"] if args.engine_help else args.arguments, args.home)
     state = state_path(args.home)
     _OUTPUT_STATE = state
     try:

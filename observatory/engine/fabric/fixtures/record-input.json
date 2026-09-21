@@ -1,0 +1,11 @@
+{
+  "owner": "agent:fabric-probe",
+  "statement": "A bounded probe wrote this into a scratch store.",
+  "why": "To prove the write path accepts a proposal and refuses everything else.",
+  "projectId": "project:fabric-probe-scratch",
+  "evidence": [
+    {
+      "uri": "fabric:probe/project.record"
+    }
+  ]
+}

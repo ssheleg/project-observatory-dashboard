@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+""                                                                               
+
+                                                                           
+                                                                             
+                                                                               
+
+                                                                        
+                                                            
+
+                                                                     
+                                                                            
+                                                                       
+                                                                               
+                                                                             
+                                                                               
+                                                                   
+
+                                                                             
+                                                                               
+                                                                              
+                                                                             
+                                                                               
+                                                                              
+                                                                                
+                                                                                   
+                
+   
+from __future__ import annotations
+import argparse, importlib.util, json, os, pathlib, sys, subprocess, fcntl, signal
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import paths
+import configuration
+
+                                                                             
+                                                                              
+REGISTRY_KEY = "registry"
+
+                                                                                
+                                                                                 
+                                                                                 
+TICK_IDENTITY = "observatory-tick"
+
+_PLUGIN = pathlib.Path.home() / ".claude/plugins/cache/agent-sync/agent-sync"
+
+
+def _version_key(name: str) -> tuple:
+    ""                                                                          
+                                                                            
+    parts = []
+    for chunk in name.split("."):
+        parts.append((0, int(chunk)) if chunk.isdigit() else (1, 0, chunk))
+    return tuple(parts)
+
+
+def agent_sync_script() -> pathlib.Path | None:
+    if not _PLUGIN.is_dir():
+        return None
+    for v in sorted(_PLUGIN.iterdir(), key=lambda p: _version_key(p.name), reverse=True):
+        s = v / "skills/agent-sync/scripts/agent_sync.py"
+        if s.exists():
+            return s
+    return None
+
+
+def agent_sync_module():
+    ""                                                                         
+                                                                                  
+                                                                            
+                       
+    if not (paths.HOME / ".claude/agent-sync.json").is_file():
+        return None
+    script = agent_sync_script()
+    if script is None:
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("agent_sync_mod", script)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    except Exception:                                                           
+        return None
+
+
+def _sync(mod):
+    ""                                                                           
+    try:
+        cwd = os.getcwd()
+        os.chdir(paths.HOME)
+        try:
+            return mod.Sync()
+        finally:
+            os.chdir(cwd)
+    except Exception:
+        return None
+
+
+def other_holders(mod) -> tuple[list[tuple[str, str]] | None, str]:
+    ""                                                                    
+
+                                                                                
+                                                                             
+    s = _sync(mod)
+    if s is None:
+        return None, "this agent-sync version does not expose its holdings"
+    try:
+        return ([(str(h.get("run")), k) for k, h in sorted(s.all_holdings().items())
+                 if h.get("run") and h["run"] != s.rid], "")
+    except Exception as exc:
+        return None, f"holdings could not be read: {type(exc).__name__}"
+
+
+                                                                               
+                                                                             
+                                                                               
+                       
+GATE_IDENTITY = "observatory-gate"
+
+
+def run_identity(role: str) -> str:
+    ""                                                                       
+
+                                                                              
+                                                                         
+                                                                         
+                                                                             
+                                                                        
+                                                                          
+                                                              
+                                                                             
+                            
+
+                                                                      
+                                                                                
+                                                                                 
+                                                                                
+                                                                              
+                                                                           
+                 
+
+                                                                      
+                                                                                 
+                                           
+       
+                                                                                 
+                                                                           
+                                                                                
+                                                                            
+                                                      
+    tag = role.rsplit("-", 1)[-1][:2]
+    return f"{tag}{os.getpid()}-{role}"
+
+
+def hold(identity: str) -> tuple[object | None, str]:
+    ""                                                                  
+                                                                              
+                                                                                   
+
+                                                                                  
+                                                                          
+                                                                                
+                                                                              
+                                                                                    
+                                                                                 
+                                                                       
+                                                                         
+
+                                                                             
+                                                                                 
+                                                                          
+                                                                             
+                                                              
+                                                                        
+                                                                              
+                                                                                
+                                                                             
+                                                                                
+                                                                              
+                                           
+     
+                                                                              
+                                                                                 
+                                                                                  
+                                   
+    want = run_identity(identity)
+    current = os.environ.get("AGENT_SYNC_RUN_ID") or ""
+    if f"{os.getpid()}-" not in current:
+        os.environ["AGENT_SYNC_RUN_ID"] = want
+    mod = agent_sync_module()
+    if mod is None:
+        return None, "agent-sync is not installed here"
+    s = _sync(mod)
+    if s is None:
+        return None, "agent-sync is installed but its shape has moved"
+    try:
+        won, holder = s.acquire(REGISTRY_KEY)
+    except Exception as exc:                                                      
+        return None, f"the lease could not be taken: {type(exc).__name__}: {exc}"
+    if not won:
+        return None, f"`{REGISTRY_KEY}` is held by {holder or 'another run'}"
+    return s, f"holding `{REGISTRY_KEY}` as {os.environ.get('AGENT_SYNC_RUN_ID')}"
+
+
+def drop(handle) -> str:
+    ""                                                                       
+                                                                                    
+    if handle is None:
+        return ""
+    try:
+        return (f"released `{REGISTRY_KEY}`" if handle.release(REGISTRY_KEY)
+                else f"`{REGISTRY_KEY}` was not ours to release")
+    except Exception as exc:
+        return f"the lease could not be released cleanly: {type(exc).__name__}: {exc}"
+
+
+                                                                                
+                                                                                 
+                                               
+SKIPPED = ("stood-down", "refused")
+
+
+def record_outcome(outcome: str, *, holder: str = "", reason: str = "") -> dict:
+    ""                                                                      
+
+                                                                                  
+                                                                             
+                                                                                
+                                                                        
+
+                                                                         
+                                                                           
+                                                                              
+                                                                               
+                                                                     
+       
+                                                                             
+                                                                        
+                                                                               
+                                                                                 
+                                                                             
+                                                          
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+    import paths
+    f = paths.SCRATCH / "tick-lease.json"
+    prior: dict = {}
+    if f.is_file():
+        try:
+            prior = json.loads(f.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+                                                                               
+                                                                           
+                                                 
+            prior = {}
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    skipped = outcome in SKIPPED
+    doc = {
+        "at": now, "outcome": outcome, "holder": holder, "reason": reason,
+        "consecutive_skips": (int(prior.get("consecutive_skips") or 0) + 1
+                              if skipped else 0),
+        "last_acquired_at": (prior.get("last_acquired_at") if skipped
+                             else now) or prior.get("last_acquired_at"),
+    }
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        import atomic
+        atomic.write_json(f, doc)
+    except Exception as exc:                                                      
+                                                                            
+                                                                              
+                                                                
+        print(f"the tick-lease receipt could not be written: "
+              f"{type(exc).__name__}: {exc}", file=sys.stderr)
+    return doc
+
+
+def acquire() -> int:
+    if not os.environ.get("AGENT_SYNC_RUN_ID"):
+        print("REFUSING to take a lease: no AGENT_SYNC_RUN_ID, so this process would share "
+              "one identity with every shell command in this checkout. Export "
+              f"AGENT_SYNC_RUN_ID={TICK_IDENTITY} before calling.", file=sys.stderr)
+        record_outcome("refused", reason="no AGENT_SYNC_RUN_ID")
+        return 1
+    mod = agent_sync_module()
+    if mod is None:
+        print("optional agent-sync is not configured; scheduled ticks use the workspace supervisor lock")
+        record_outcome("unguarded", reason="no optional agent-sync; scheduled tick has independent workspace lock")
+        return 0
+    s = _sync(mod)
+    if s is None:
+        print("agent-sync is installed but its shape has moved; the tick stands down rather "
+              "than writing the registry on an assumption.", file=sys.stderr)
+        record_outcome("stood-down", reason="agent-sync's shape has moved")
+        return 1
+    won, holder = s.acquire(REGISTRY_KEY)
+    if not won:
+        print(f"lost `{REGISTRY_KEY}` — held by {holder or 'another run'}. Standing down: "
+              "another writer has the registry.", file=sys.stderr)
+        record_outcome("stood-down", holder=holder or "another run",
+                       reason="another writer has the registry")
+        return 1
+
+    others, why = other_holders(mod)
+    if others is None:
+        print(f"holding `{REGISTRY_KEY}`, but could not check for other runs — {why}. "
+              "Proceeding: the key itself is exclusive against anyone following the "
+              "convention.")
+        record_outcome("acquired", reason=f"could not check for other runs — {why}")
+        return 0
+    if others:
+        run, key = others[0]
+        s.release(REGISTRY_KEY)
+        print(f"standing down: run {run} holds `{key}`. agent-sync's guard is satisfied by "
+              "ANY lease, so that run may write the registry too — and a skipped tick is "
+              "cheaper than two writers.", file=sys.stderr)
+        record_outcome("stood-down", holder=run,
+                       reason=f"run {run} holds `{key}`")
+        return 1
+    print(f"holding `{REGISTRY_KEY}` as {TICK_IDENTITY}; no other run holds anything")
+    record_outcome("acquired")
+    return 0
+
+
+def release() -> int:
+    ""                                                                           
+                                                                            
+    mod = agent_sync_module()
+    s = _sync(mod) if mod else None
+    if s is None:
+        return 0
+    print(f"released `{REGISTRY_KEY}`" if s.release(REGISTRY_KEY)
+          else f"`{REGISTRY_KEY}` was not ours to release")
+    return 0
+
+
+def status() -> int:
+    mod = agent_sync_module()
+    if mod is None:
+        print("agent-sync is not installed here")
+        return 0
+    others, why = other_holders(mod)
+    if others is None:
+        print(f"holdings unreadable — {why}")
+        return 0
+    print("\n".join(f"  {run}  holds  {key}" for run, key in others) if others
+          else "  no other run holds anything")
+    return 0
+
+
+FEATURE_STEPS = {
+    "agent": "agent", "index": "embeddings", "notify": "notifications",
+    "sweep": "fixture_cleanup", "retention": "retention",
+    "project-into-vault": "wiki_projection", "projection": "wiki_projection",
+    "scrub-companion": "companion_remediation", "registry": "registry_history",
+}
+
+
+INTEGRATION_STEPS = {
+    "scan-gh": "github", "scan-vault": "wiki", "scan-sessions": "sessions",
+    "remotes": "git_remotes", "bitbucket": "bitbucket", "domains": "domains",
+    "heroku": "heroku", "openrouter": "openrouter", "scan-cloudflare": "cloudflare",
+    "scan-mcp": "mcp", "remote-env": "remote_env", "google": "google",
+}
+
+
+def step_allowed(name: str) -> bool:
+    feature = FEATURE_STEPS.get(name)
+    integration = INTEGRATION_STEPS.get(name)
+    return ((feature is None or configuration.enabled(feature, "features"))
+            and (integration is None or configuration.enabled(integration)))
+
+
+def supervised(command: list[str]) -> int:
+    ""                                                                              
+    configuration.validate_workspace(required=True)
+    if not configuration.enabled("scheduler", "features"):
+        print("tick disabled: enable features.scheduler in this workspace first")
+        return 0
+    if not command:
+        raise ValueError("A supervised command is required")
+    paths.STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if paths.STATE.is_symlink():
+        raise configuration.ConfigurationError("State directory cannot be a symbolic link")
+    paths.STATE.chmod(0o700)
+    fd = os.open(paths.STATE / "tick.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("tick skipped: another run holds this workspace's lock")
+            return 0
+        env = {**os.environ, "OBSERVATORY_HOME": str(paths.HOME),
+               "OBSERVATORY_TICK_SUPERVISOR_PID": str(os.getpid())}
+        child = subprocess.Popen(command, cwd=ROOT, env=env, start_new_session=True)
+        interrupted = []
+        def stop(signum, frame):
+            interrupted.append(signum)
+            raise InterruptedError("Tick supervisor received a stop signal")
+        previous = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGINT)}
+        try:
+            return child.wait()
+        except InterruptedError:
+            return 128 + interrupted[-1]
+        finally:
+                                                                               
+            for sig, handler in previous.items():
+                signal.signal(sig, handler)
+            if child.poll() is None:
+                try:
+                    os.killpg(child.pid, signal.SIGTERM)
+                    child.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(child.pid, signal.SIGKILL)
+                    child.wait()
+                except ProcessLookupError:
+                    child.wait()
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("action", choices=["acquire", "release", "status", "run", "allowed"])
+    ap.add_argument("arguments", nargs=argparse.REMAINDER)
+    args = ap.parse_args()
+    if args.action == "run":
+        command = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
+        return supervised(command)
+    if args.action == "allowed":
+        return 0 if len(args.arguments) == 1 and step_allowed(args.arguments[0]) else 1
+    return {"acquire": acquire, "release": release, "status": status}[args.action]()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

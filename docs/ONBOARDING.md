@@ -1,116 +1,173 @@
-# Agent-led onboarding
+# Install the complete Project Observatory
 
-The first useful result should require no credentials: an isolated demo, a visible dashboard and an explanation of what will be read when a real folder is enrolled. Every command below is implemented by [`observatory/cli.py`](../observatory/cli.py); the end-to-end flow is covered by [`tests/test_observatory.py`](../tests/test_observatory.py).
+The public package contains the original engine with per-user paths and generic
+configuration. Its database, registries, keys and generated pages live in a
+private workspace outside the installed source. macOS and Linux are supported;
+Python 3.11+, SQLite 3.37+, Git and Node.js are required for the complete local
+checks. The Python package's `full` extra installs the MCP, schema, vector-store
+and Google authentication libraries at the versions tested by this release.
+
+## SQLite runtime prerequisite
+
+The full engine requires Python 3.11+ with SQLite 3.37+ **and loadable SQLite
+extensions**, plus the locked sqlite-vec dependency. Some macOS Python builds
+omit `enable_load_extension`; installing sqlite-vec alone cannot add it.
+Initialization, doctor, migration and upgrade check this before workspace writes.
+The isolated regression is
+`observatory/engine/tests/test_workspace_upgrade.py::WorkspaceUpgrade::test_missing_sqlite_extension_support_refuses_before_writes`.
+
+On macOS, [Homebrew Python](https://formulae.brew.sh/formula/python@3.14)
+provides a supported installation path:
+
+```sh
+brew install python@3.14
+"$(brew --prefix python@3.14)/bin/python3.14" -m venv .venv
+. .venv/bin/activate
+python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True); c.enable_load_extension(False)"
+```
+
+Install the full package and its pinned dependencies in that environment using
+the release installation instructions, then run the full doctor command.
+
+## Start without credentials
+
+From a checkout of the public release:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -c requirements-full.lock '.[full]'
+export OBSERVATORY_HOME="$HOME/.local/share/project-observatory-full"
+project-observatory full version
+project-observatory full init
+project-observatory full doctor
+project-observatory full configure sources projects "$HOME/projects"
+project-observatory full local
+```
+
+Choose an existing project directory you own instead of the example
+`$HOME/projects`. The directory is an explicit observation boundary; the scanner
+reads its project metadata and Git history. Do not point it at a directory that
+you are not authorized to inspect. `local` invokes no external provider or
+arbitrary plugin. Inspect the generated `docs/dashboard/index.html` beneath
+`OBSERVATORY_HOME`. These pages contain private project information. They do not
+belong on the public marketing website.
+
+`init` is idempotent. It seeds missing initial state only for an empty new home;
+it does not replace an existing installation. Configuration belongs in
+`config/settings.json`; curated overrides and policy files are adjacent.
+`project-observatory full-path` prints the immutable engine directory, useful
+for connecting scripts, hooks and MCP.
+
+The old 0.1 commands remain available without `full`. They use their previous
+workspace format and previous default home. Do not combine the two formats.
+`OBSERVATORY_FULL_HOME`, when set, selects the full launcher home ahead of
+`OBSERVATORY_HOME`; an explicit global `--home` takes precedence over both.
+Always pass the same home to the CLI, server and scheduler.
 
 ## Give this prompt to your agent
 
-```text
-Set up Project Observatory portable edition from
-https://github.com/ssheleg/project-observatory-open-source
+Copy [AGENT-ONBOARDING.md](AGENT-ONBOARDING.md), or run
+`project-observatory full onboard`. The agent starts locally, explains available
+integrations, and guides credential entry on your own machine. It does not need
+the author's accounts or data.
 
-Read README.md, SECURITY.md and docs/ONBOARDING.md first.
-Use an isolated Python environment and run the synthetic tests/demo.
-Explain the local state directory, the read-only dashboard and the exact
-scope of this edition. Do not scan my home folder or enroll projects
-implicitly. Preview discovery only inside the project root I select.
-Register only the directories I authorize, then scan and explain findings,
-last scan time, partial results and local-only Git tracking freshness.
+## Choose integrations individually
 
-Do not ask me to paste keys into chat. If optional known-value checks are
-useful, explain the local hidden prompt or stdin-based secret put command.
-Never read a value back into tool output, an argument, a message or a file
-in the repository. Do not install a scheduler, contact providers, fetch
-remotes, scrub other tools' stores or rotate credentials in this setup.
-Show me how to repeat a scan, read status, open the localhost dashboard,
-run an explicit-target leak check and export aggregates. Keep real state
-and the generated dashboard private. Finish with the commands I used and
-the remaining optional integration work from docs/MIGRATION.md.
-```
+List current settings with `doctor`. Enable a selected integration with
+`project-observatory full configure integrations NAME true`. The collector's
+installed help and source describe its exact input format. Start with the
+smallest account access that can read the requested resources; inventory access
+and token provisioning are different permissions.
 
-## 1. Install and verify
+| Integration name | Purpose | User-owned setup |
+|---|---|---|
+| `github` | Repository inventory | Authenticate GitHub CLI locally; it enumerates resources visible to that account |
+| `bitbucket` | Repository inventory | A local Bitbucket credential in the configured secret store |
+| `cloudflare` | Zones and DNS inventory | User-owned account credentials; token administration is separately scoped |
+| `heroku` | Hosting inventory | Local authentication for the intended Heroku account |
+| `google` | Analytics property and search inventory | The user's service account files and resource grants |
+| `domains` | Domain observations | Explicit domain export and network access |
+| `mcp` | Configured server inventory | Explicit `sources.mcp_config_root` |
+| `sessions` | Local agent activity | Explicit `sources.sessions` |
+| `wiki` | Knowledge-base inventory | Explicit `sources.wiki` |
+| `openrouter` | Key and usage inventory | A locally supplied provider credential |
+| `remote_env` | Compare deployed environment metadata | Explicit opt-in to provider environment reads |
 
-```sh
-git clone https://github.com/ssheleg/project-observatory-open-source.git
-cd project-observatory-open-source
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install .
-python -m unittest discover -s tests -v
-```
+Metric plugins have their own manifest requirements and opt-ins. Run
+`project-observatory full plugins-check` to validate them and read
+[plugins/README.md](../observatory/engine/plugins/README.md) before adding trusted executable plugins.
+An unavailable input must remain visible as unavailable; it does not prove that
+there are no findings.
 
-Python 3.11+ is required. Git enables repository metrics. No cloud credential, local agent CLI, agent gateway, node runtime or paid model is required. The runtime itself uses only Python's standard library; pip may obtain setuptools to build the package. An offline alternative, from the cloned checkout, is `python3 -m observatory` with the same arguments.
+## Enter credentials locally
 
-## 2. Start with fictional data
+For project slots, the full engine's `tools/vault.py put PROJECT ENV NAME`
+accepts the value only on stdin. Prefer a human-controlled hidden prompt or a
+pipe from an already authenticated provider tool. Do not put a secret in a chat,
+command argument, test fixture or tracked file. Read the installed
+`handling-secrets` skill before an agent works with these commands.
 
-```sh
-project-observatory --home "$HOME/.local/share/observatory-demo" demo
-project-observatory --home "$HOME/.local/share/observatory-demo" serve
-```
+Slots are private files under the workspace by default. A separate
+`sources.secret_store` is optional and belongs to the user. File permissions
+limit local access; this is not a claim that the default files are encrypted at
+rest. Protect private backups just as carefully. A configured external store
+is not included in workspace backup snapshots.
 
-The demo's state and sibling `observatory-demo-demo-projects` directory contain only freshly created synthetic data. It refuses to overwrite a populated setup. Stop the server with Ctrl-C. Inspect the project's state, findings and the two synthetic exposure occurrences. They demonstrate exact matching and are not measured customer incidents.
+Known-value scanning finds occurrences of values already known locally. It
+cannot prove the absence of unknown, encoded or previously deleted values.
+Rotation changes the local slot; provider revocation is a separate action.
 
-## 3. Select real scope
+## Connect an agent
 
-```sh
-project-observatory init
-project-observatory doctor
-project-observatory project discover "$HOME/projects" --depth 2
-project-observatory project add example-app "$HOME/projects/example-app"
-project-observatory scan
-project-observatory status
-project-observatory serve
-```
+The complete MCP server uses stdio. Configure a Python executable from the
+installed virtual environment, the engine's `mcp/server.py` as its argument,
+and `OBSERVATORY_HOME` for the selected private workspace. Detect MCP support
+in the chosen agent rather than assuming it from the product name. The optional
+`observatory-log` plugin adds Claude Code hooks; other hosts can use the CLI
+and MCP without those hooks.
 
-Replace the example path with a directory you control. Discovery only reports candidates based on familiar repository/project markers. It does not run code, infer ownership or add anything. Project roots cannot contain the state directory or be contained by it. No default command traverses your entire home directory.
+For a directory-sourced Claude Code installation, resolve the engine root with
+`full-path`, add its `skill` directory as a marketplace, then install
+`observatory-log@observatory-log`. Set `OBSERVATORY_ROOT` and the matching
+`OBSERVATORY_HOME` in the host environment. Restart sessions after updating a
+skill: a running session may still hold older instructions. No MCP server is
+silently inserted into agent configuration by package installation.
 
-Scanning reads Git metadata, a bounded file inventory, root `package.json` dependency counts and `.env`-style files. Environment values are read transiently to compute per-installation salted equality fingerprints; snapshots retain names/presence/fingerprints, not values. This still creates sensitive metadata, so the state directory stays private. Dotenv parsing is deliberately literal: no shell expansion, substitution, evaluation or multiline interpolation.
+## Enable background or paid actions deliberately
 
-Git ahead/behind uses existing local tracking references. Run your own authorized fetch workflow separately when current remote state is required. An unavailable source yields partial-observation evidence rather than an all-clear.
+Settings under `features` control scheduler, agent interpretation, embeddings,
+notifications, retention, fixture cleanup, wiki projection, memory remediation
+and private registry history. Their default is disabled. Configure model
+selection and a budget before enabling reasoning or embeddings. On macOS,
+`tools/install_launchd.py` and `tools/serverd.py` install workspace-specific
+jobs only after explicit scheduler opt-in; Linux can run the CLI under a
+supervisor chosen by the user. Do not create duplicate writers for one home.
 
-## Optional secret input
+## Upgrade, back up, restore
 
-Use a **local terminal**, outside an agent tool transcript:
-
-```sh
-project-observatory secret put EXAMPLE_TOKEN
-```
-
-Type the value into the hidden prompt. Alternatively, when a value is already in a private local file, redirect it without displaying it:
-
-```sh
-project-observatory secret put EXAMPLE_TOKEN < /absolute/path/to/private-input
-project-observatory secret list
-```
-
-Never use `echo ACTUAL_VALUE ...`, shell command substitution containing a literal value, a command-line `--key`, an agent message or a screenshot. Do not create a temporary value file in this repository. Observatory stores plaintext local slots with restrictive file permissions; it is not an encrypted OS keychain. Read the threat boundary in [SECURITY.md](../SECURITY.md).
-
-To use the slot in a process you intentionally trust:
-
-```sh
-project-observatory secret run --env API_TOKEN EXAMPLE_TOKEN -- your-command
-```
-
-The process receives the value in its environment. Observatory suppresses its stdout and stderr because either could echo the value. Its exit code is returned. The child remains capable of its own file or network writes; this command does not sandbox arbitrary software. Do not inject secrets into an untrusted command.
-
-No provider key is required for this release. Cloud-provider setup is future, optional migration work; do not add a broad API key just to make onboarding appear complete.
-
-## Explicit-target exposure checks
+Stop every writer, including old executables and background jobs. A lock in a
+new version cannot constrain an old process that does not know that lock.
 
 ```sh
-project-observatory leaks scan --file /absolute/path/to/a/local-transcript.jsonl
-project-observatory leaks scan --sqlite --file /absolute/path/to/a/local-memory.sqlite3
+project-observatory full upgrade
+project-observatory full workspace-backup --writers-stopped
+project-observatory full upgrade --apply --writers-stopped
+project-observatory full doctor
 ```
 
-Choose each file deliberately. Repeated `--file` arguments scan multiple targets. Each gets an opaque `target-N` identifier so receipts omit private paths and snippets. Keep the invocation locally if you need to resolve a label later. SQLite opens in read-only mode; it is not scrubbed or vacuumed. Snapshot a busy database using its owner's approved method when needed.
+The first command previews changes. Apply creates a private snapshot and
+validates the staged upgrade. The original `full backup` command retains its
+older database-only meaning; `workspace-backup` snapshots the whole managed
+workspace. Keep the snapshot and matching previous application release.
 
-Only previously stored slot values of at least eight bytes are compared. At most 32 explicit targets may be selected. Files over 16 MB and SQLite inputs exceeding 100,000 inspected cells or 16 MB of inspected content return partial/degraded results. SQLite 3.37+ is required; virtual/shadow tables and generated columns are skipped with degraded evidence. A five-second SQLite statement deadline and length limit bound query work. No values known means the scan cannot establish absence. Duplicate slot aliases can produce separate named findings; do not call the sum a count of unique credentials or independent incidents.
+To restore, select a new empty home with global `--home` and pass the private
+snapshot directory to `full restore`. Never point old code at newer data to
+simulate a downgrade. [COMPATIBILITY.md](COMPATIBILITY.md) specifies supported
+formats, failure handling, backup exclusions and the tested migration matrix.
 
-Project metadata scanning is bounded to 20,000 files and directories per project, 2 MB of dotenv input and 2,000 variables across a scan. The local secret inventory is bounded to 1,000 slots and 2 MB in total. A reached limit is explicit rather than an implied complete inventory.
-
-Exit `1` means a match; exit `2` means partial/degraded or invalid operation. Review the artifact and issuer-specific rotation procedure. Deleting an artifact does not invalidate a credential. This edition does not rotate provider keys or rewrite other tools' memories.
-
-## Sharing, updating and removing
-
-`export` emits aggregates only; counts themselves can still be sensitive. The regular `status`, project listing, local database and generated dashboard are private. Never upload the dashboard to a static host. The repository's `site/` is a separate, public marketing artifact.
-
-To update source, review changes and rerun tests before reinstalling with `python -m pip install .`. This edition installs no scheduled service or background hook, so there is nothing to disable at login. Stop `serve` with Ctrl-C. Remove the chosen state and demo folders only after reviewing whether their private slots or history need backup; deleting source code alone does not delete state.
+For an original installation whose state lived beside source, set a new home
+and run `full migrate-local ORIGINAL_DIRECTORY` to preview. Apply requires
+`--apply --writers-stopped`. It leaves the original in place and does not start
+services. Verify external source paths, enabled features, credentials, registry
+counts and database health before choosing which installation becomes active.

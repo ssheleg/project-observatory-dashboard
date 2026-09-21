@@ -1,0 +1,7 @@
+{
+  "scope": {
+    "kind": "project",
+    "value": "project:example-sibling"
+  },
+  "includeExternal": true
+}

@@ -1,6 +1,6 @@
-# Portable runtime scenarios
+# Product scenarios by runtime
 
-This is the local product's scenario source of truth. The public site's scenarios live separately in [docs/site/](../site/). The implementation and tests are linked from [MIGRATION.md](../MIGRATION.md).
+This file indexes the two distinct runtime paths. The table below describes the retained portable compatibility CLI only. Full-engine scenarios are in [portable-scenarios.md](../../observatory/engine/docs/ux/portable-scenarios.md); despite that historical filename, its OSS scenarios cover the full engine. The public site's scenarios live separately in [docs/site/](../site/). The implementation and tests are linked from [MIGRATION.md](../MIGRATION.md).
 
 | ID | User and trigger | Path and successful outcome | Current state / evidence |
 |---|---|---|---|

@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-detail-output.schema.json",
+  "title": "project.detail — output",
+  "description": "One project, with every section degrading on its own. A section present and empty means measured-and-empty; a section whose source failed names itself in `degraded`, never as an empty result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "surveyedAt",
+    "scanId",
+    "project",
+    "activity",
+    "measurements",
+    "notes",
+    "findings",
+    "recentEvents",
+    "evidence",
+    "degraded"
+  ],
+  "properties": {
+    "surveyedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scanId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "ownership",
+        "lifecycle",
+        "repositories",
+        "membershipRules"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^project:"
+        }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "weeks",
+        "totals"
+      ],
+      "properties": {
+        "weeks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "weekStart",
+              "commits"
+            ],
+            "properties": {
+              "weekStart": {
+                "type": "string"
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessions": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "workedDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "activeDays": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "authors": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "frozenAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "totals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "weeks",
+            "commits",
+            "sessions",
+            "workedDays",
+            "sessionsUnmeasured"
+          ],
+          "properties": {
+            "weeks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "commits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "workedDays": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sessionsUnmeasured": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metric",
+          "unit",
+          "value",
+          "at",
+          "source"
+        ],
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "at": {
+            "type": "string"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "previousAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "change": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memoryId",
+          "revision",
+          "createdAt",
+          "statement",
+          "state",
+          "owner"
+        ],
+        "properties": {
+          "memoryId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "why": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "enum": [
+              "proposed",
+              "observed",
+              "supported",
+              "contested",
+              "stale",
+              "rejected",
+              "superseded",
+              "archived"
+            ]
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "owner": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "severity",
+          "title",
+          "subject",
+          "aboutThisProject"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "warning",
+              "info"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "aboutThisProject": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "recentEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "ref",
+          "occurredAt"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "degraded": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "reason"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

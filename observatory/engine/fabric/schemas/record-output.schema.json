@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/record-output.schema.json",
+  "title": "project.record — output",
+  "description": "Either an accepted proposal, or a typed refusal carrying its remedy. A refusal is an answer, not a fault.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memoryId",
+        "revision",
+        "state",
+        "owner",
+        "consistencyCursor",
+        "createdAt"
+      ],
+      "properties": {
+        "memoryId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "const": "proposed",
+          "description": "An automated writer cannot append anything else. It proposes; something else promotes."
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supersedes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "consistencyCursor": {
+          "type": "integer",
+          "description": "Monotonic outbox sequence, for read-your-writes."
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalId",
+        "targetId",
+        "status",
+        "owner"
+      ],
+      "properties": {
+        "proposalId": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "status": {
+          "const": "proposed"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error",
+        "detail",
+        "remedy"
+      ],
+      "properties": {
+        "error": {
+          "enum": [
+            "OwnerRequired",
+            "OwnerRefused",
+            "RevisionConflict",
+            "IllegalTransition",
+            "LedgerError"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "remedy": {
+          "type": "string",
+          "description": "What the caller should do instead."
+        },
+        "currentRevision": {
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "type": "integer"
+        }
+      }
+    }
+  ]
+}

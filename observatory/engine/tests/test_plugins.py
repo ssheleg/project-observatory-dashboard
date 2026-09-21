@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+""                                      
+
+                                                                                  
+                                                                              
+                                                                            
+                                                                                
+                                                                               
+                                                                        
+
+                                                                              
+                                                                             
+                                                                              
+                                         
+   
+from __future__ import annotations
+import json, os, pathlib, sqlite3, subprocess, sys, tempfile
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tests"))
+from test_portable_mcp import setup as portable_setup, PROJECT_ID as SYNTHETIC_PROJECT
+portable_setup()
+
+sys.path.insert(0, str(ROOT / "tests"))
+import live_estate                                                              
+import tmp as tmpdir              
+import paths                                                                    
+
+PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
+FAILURES: list[str] = []
+
+
+def check(name: str, ok: bool, detail: str = "") -> None:
+    print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f" — {detail}" if detail and not ok else ""))
+    if not ok:
+        FAILURES.append(f"{name}: {detail}")
+
+
+def sandbox(manifest: dict, script: str) -> tuple[pathlib.Path, pathlib.Path]:
+    d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-plugin-"))
+    plugins = d / "plugins"
+    plugins.mkdir()
+    (plugins / f"{manifest['id']}.json").write_text(json.dumps(manifest), encoding="utf-8")
+    if manifest.get("script"):
+        (plugins / manifest["script"]).write_text(script, encoding="utf-8")
+    return plugins, d / "store.db"
+
+
+def run(plugins: pathlib.Path, db: pathlib.Path, *args: str) -> str:
+    p = subprocess.run([PY, "collectors/run_plugins.py", "--force", *args], cwd=ROOT,
+                       capture_output=True, text=True, timeout=300,
+                                                                             
+                                                                       
+                                                                     
+                       env={**os.environ, "OBSERVATORY_PLUGINS": str(plugins),
+                            "OBSERVATORY_DB": str(db),
+                            "OBSERVATORY_SCRATCH": str(db.parent)})
+    return p.stdout + p.stderr
+
+
+def real_project() -> str:
+    return json.loads((paths.REGISTRY / "projects.json")
+                      .read_text(encoding="utf-8"))["projects"][0]["id"]
+
+
+def emitter(rows: list[dict]) -> str:
+    return "import json\n" + "\n".join(f"print(json.dumps({r!r}))" for r in rows)
+
+
+BASE = {"id": "probe", "title": "t", "script": "probe.py", "every_hours": 0,
+        "requires": [], "why": "planted by the test",
+        "metrics": [{"name": "test.value", "unit": "n", "means": "a number"}]}
+
+
+def test_a_well_behaved_plugin_is_recorded() -> None:
+    pid = real_project()
+    plugins, db = sandbox(BASE, emitter([
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07T00:00:00Z", "value": 42}]))
+    out = run(plugins, db)
+    check("it reports what it wrote", "probe: 1 measurement" in out, out[-200:])
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    row = conn.execute("SELECT value, unit, source FROM metrics").fetchone()
+    check("the value lands", row and row[0] == 42.0, str(row))
+    check("the unit comes from the manifest, not the plugin", row[1] == "n", str(row))
+    check("the source is the plugin id, so a row can be traced back", row[2] == "probe", str(row))
+
+
+def test_re_measuring_replaces_rather_than_duplicates() -> None:
+    pid = real_project()
+    plugins, db = sandbox(BASE, emitter([
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07T00:00:00Z", "value": 1}]))
+    run(plugins, db)
+    (plugins / "probe.py").write_text(emitter([
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07T00:00:00Z", "value": 2}]),
+        encoding="utf-8")
+    run(plugins, db)
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    rows = conn.execute("SELECT value FROM metrics").fetchall()
+    check("one row, not two", len(rows) == 1, str(rows))
+    check("and it holds the newer value", rows and rows[0][0] == 2.0, str(rows))
+
+
+def test_an_undeclared_metric_is_refused() -> None:
+    ""                                                                          
+    pid = real_project()
+    plugins, db = sandbox(BASE, emitter([
+        {"project_id": pid, "metric": "something.i.invented", "at": "2026-09-07T00:00:00Z",
+         "value": 1}]))
+    out = run(plugins, db)
+    check("the row is refused", "REFUSED" in out and "undeclared metric" in out, out[-200:])
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    check("and nothing is written", conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0] == 0)
+
+
+def test_an_unknown_project_and_a_bad_timestamp_are_refused() -> None:
+    pid = real_project()
+    plugins, db = sandbox(BASE, emitter([
+        {"project_id": "project:does-not-exist", "metric": "test.value",
+         "at": "2026-09-07T00:00:00Z", "value": 1},
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07 00:00:00+02:00", "value": 1},
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07T00:00:00Z", "value": "abc"},
+    ]))
+    out = run(plugins, db)
+    check("an unknown project is refused", "unknown project" in out, out[-300:])
+    check("a timestamp that is not UTC Z is refused", "not UTC Z" in out, out[-300:])
+    check("a non-numeric value is refused", "not a number" in out, out[-300:])
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    check("nothing survives", conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0] == 0)
+
+
+def test_a_missing_requirement_skips_with_a_reason() -> None:
+    ""                                                                              
+    m = dict(BASE, requires=["env:OBSERVATORY_NO_SUCH_VARIABLE"])
+    plugins, db = sandbox(m, emitter([]))
+    out = run(plugins, db)
+    check("it skips", "SKIP" in out, out[-200:])
+    check("and names what is missing",
+          "OBSERVATORY_NO_SUCH_VARIABLE is not set" in out, out[-200:])
+
+
+def test_a_crashing_plugin_does_not_stop_the_others() -> None:
+    pid = real_project()
+    plugins, db = sandbox(BASE, "raise SystemExit('deliberate')")
+    good = dict(BASE, id="good", script="good.py")
+    (plugins / "good.json").write_text(json.dumps(good), encoding="utf-8")
+    (plugins / "good.py").write_text(emitter([
+        {"project_id": pid, "metric": "test.value", "at": "2026-09-07T00:00:00Z", "value": 7}]),
+        encoding="utf-8")
+    out = run(plugins, db)
+    check("the crash is reported", "SKIP  probe" in out and "exited" in out, out[-300:])
+    check("and the other plugin still ran", "good: 1 measurement" in out, out[-300:])
+
+
+def test_a_manifest_declaring_no_metrics_is_refused_outright() -> None:
+    m = dict(BASE, metrics=[])
+    plugins, db = sandbox(m, emitter([]))
+    out = run(plugins, db)
+    check("it skips with the reason", "metrics must be a non-empty list" in out, out[-200:])
+
+
+def test_the_seam_needs_no_core_file() -> None:
+    ""                                                              
+                                                                      
+                                                                               
+                                                                                 
+                                                                              
+                                                                         
+                                     
+    import source_reader
+    code_only = source_reader.code_keeping_strings
+
+    for core in ("collectors/merge.py", "collectors/emit_registry.py",
+                 "tools/validate_registry.py", "tools/build_findings.py",
+                 "dashboard/build_dashboard.py"):
+        src = code_only((ROOT / core).read_text(encoding="utf-8"))
+        check(f"{core} does not name a plugin in code",
+              "disk-usage" not in src and "disk.bytes" not in src,
+              "a core file naming a plugin is the six-file problem returning")
+    manifest = json.loads((ROOT / "plugins/disk-usage.json").read_text(encoding="utf-8"))
+                                                                              
+                                                                       
+                                                                        
+                                                                           
+                                                                            
+                                            
+    names = [x["name"] for x in manifest["metrics"]]
+    check("the shipped plugin declares what it produces",
+          names and all(n.startswith("disk.") for n in names), str(names))
+    check("and each declaration says what the number means",
+          all(len(x.get("means", "")) > 60 for x in manifest["metrics"]),
+          str([x["name"] for x in manifest["metrics"] if len(x.get("means", "")) <= 60]))
+    check("with no two declaring the same name", len(set(names)) == len(names), str(names))
+    check("and says what question it answers", len(manifest.get("why", "")) > 40)
+
+
+def test_the_reference_plugin_measured_the_live_estate() -> None:
+    if not paths.DB.exists():
+        print("  SKIP  no store on this machine")
+        return
+    conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
+    n, total = conn.execute(
+        "SELECT COUNT(*), SUM(value) FROM metrics WHERE metric='disk.bytes'").fetchone()
+                                                                                 
+                                                                                    
+                                                                              
+                                                                      
+    if not live_estate.needs("plugin measurements in the store", (n or 0) > 0,
+                             "the plugin contract and its degradations are driven "
+                             "against fixtures earlier in this suite"):
+        return
+    check("it produced a measurement per project with folders", (n or 0) == 16, str(n))
+    check("and the total is a plausible estate size", (total or 0) > 1e9, str(total))
+
+
+
+def test_a_plugin_written_from_the_readme_alone_runs() -> None:
+    ""                                        
+
+                                                                        
+                                                                                
+                                                                            
+                                                                            
+                                                                        
+                                                                               
+                                                               
+                                                                             
+                                                                        
+               
+
+                                                                               
+                                                         
+       
+    pid = real_project()
+    script = (
+        "import json, pathlib, sys\n"
+        "sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))\n"
+                                                                              
+                                                                               
+                                                                               
+                                                                                
+        "sys.path.insert(0, %r)\n"
+        "import paths\n"
+        "projects = json.loads((paths.REGISTRY / 'projects.json')"
+        ".read_text(encoding='utf-8'))['projects']\n"
+        "print(json.dumps({'project_id': %r, 'metric': 'readme.rows',\n"
+        "                  'at': '2026-09-08T00:00:00Z',\n"
+        "                  'value': float(len(projects))}))\n"
+    ) % (str(ROOT), pid)
+    plugins, db = sandbox({"id": "readme-example", "title": "From the document",
+                           "script": "readme_example.py",
+                           "metrics": [{"name": "readme.rows", "unit": "rows",
+                                        "means": "how many projects the registry "
+                                                 "held when this ran"}],
+                           "every_hours": 24, "requires": [],
+                           "why": "the README's own shape, driven"}, script)
+    out = run(plugins, db)
+    check("the runner accepts a plugin written to the document",
+          "readme-example" in out and "broken" not in out, out[-300:])
+    rows = json.loads((db.parent / "plugins.json").read_text(encoding="utf-8"))
+    mine = [e for e in rows.get("plugins", []) if e.get("id") == "readme-example"]
+    check("it wrote its row", mine and mine[0].get("written") == 1, str(mine)[:200])
+    check("and refused nothing", mine and not mine[0].get("refused"), str(mine)[:200])
+
+
+def test_the_readme_tells_an_author_what_the_script_is_given() -> None:
+    ""                                                                          
+                                                          
+    text = (ROOT / "plugins/README.md").read_text(encoding="utf-8")
+    check("it says nothing is handed to the script",
+          "No arguments, no stdin" in text,
+          "an author who expects the project list on stdin writes a script that "
+          "reads stdin, gets nothing, and has nothing to debug with")
+    check("it names the resolvers rather than leaving them to be guessed",
+          "paths.DATA" in text and "paths.REGISTRY" in text, "")
+    check("and says what happens to a plugin that inlines them instead",
+          "paths-current" in text, "")
+
+
+if __name__ == "__main__":
+    print("plugins — one contract, and what it refuses\n")
+    for fn in (test_a_well_behaved_plugin_is_recorded,
+               test_re_measuring_replaces_rather_than_duplicates,
+               test_an_undeclared_metric_is_refused,
+               test_an_unknown_project_and_a_bad_timestamp_are_refused,
+               test_a_missing_requirement_skips_with_a_reason,
+               test_a_crashing_plugin_does_not_stop_the_others,
+               test_a_manifest_declaring_no_metrics_is_refused_outright,
+               test_the_seam_needs_no_core_file,
+               test_the_reference_plugin_measured_the_live_estate,
+               test_a_plugin_written_from_the_readme_alone_runs,
+               test_the_readme_tells_an_author_what_the_script_is_given):
+        fn()
+    print()
+    if FAILURES:
+        print(f"\033[31m{len(FAILURES)} failed\033[0m")
+        for f in FAILURES:
+            print("  -", f)
+        raise SystemExit(1)
+    print("\033[32ma new analytics source is two files in plugins/\033[0m")

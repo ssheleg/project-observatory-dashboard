@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ssheleg/project-observatory-open-source/v0.2.0/observatory/engine/fabric/schemas/project-detail-input.schema.json",
+  "title": "project.detail — input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "projectId"
+  ],
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^project:",
+      "minLength": 9
+    },
+    "timelineLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 200,
+      "default": 10
+    }
+  }
+}

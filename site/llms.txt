@@ -1,17 +1,20 @@
 # Project Observatory
 
-A local observation layer for agent-operated projects, part of the ssheleg harness.
-The portable edition supports explicit project enrollment, repository state and
-local metrics, credential metadata, opt-in known-value exposure scans, and a local
-dashboard. Start with the synthetic demo and agent-led onboarding.
+The complete local observation engine for agent-operated projects, part of the
+ssheleg harness. Public code; per-user private configuration, project registry,
+SQLite history and credentials. Includes CLI, local dashboards, MCP, metrics,
+provider adapters and optional scheduler. Integrations are individually enabled.
+The original portable 0.1 CLI remains available as a separate compatibility mode.
 
 - Source: https://github.com/ssheleg/project-observatory-open-source
 - Onboarding: https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/ONBOARDING.md
+- Compatibility: https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/COMPATIBILITY.md
 - Security: https://github.com/ssheleg/project-observatory-open-source/blob/main/SECURITY.md
-- Migration scope: https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/MIGRATION.md
+- Field notes: https://observatory.sshlg.me/field-notes/
+- Skills: https://skills.sshlg.me/
 - Harness: https://skills.sshlg.me/harness/
 
-Cloud-provider adapters, shared MCP and scheduling are migration work, not included
-in this edition. Examples on the site are synthetic. A known-value match identifies
-local exposure, not remote exfiltration. Scanning is not a guarantee that no secret
-remains. Secrets should be entered locally, never pasted into an agent conversation.
+Historical case: 202 value-replacement events, 66 in claude-mem SQLite and 136 in
+Chroma SQLite. These are not unique credentials, incidents or vendor vulnerabilities.
+Known-value matching does not prove absence of other secrets or remote exfiltration.
+Enter secrets locally, never in agent chat. Never publish the private dashboard.

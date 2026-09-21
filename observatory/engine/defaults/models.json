@@ -1,0 +1,27 @@
+{
+  "provider": "openrouter",
+  "base_url": "https://openrouter.ai/api/v1",
+  "catalogue_ttl_hours": 24,
+  "chain": [],
+  "attempts": {
+    "total": 4
+  },
+  "wallet": {
+    "denomination": "credits",
+    "daily_ceiling": 0.0,
+    "monthly_ceiling": 0.0,
+    "velocity_window_minutes": 30,
+    "velocity_ceiling": 0.0
+  },
+  "health": {
+    "probe_after_minutes": 60
+  },
+  "embedding": {
+    "provider": "openai",
+    "base_url": "https://api.openai.com/v1",
+    "model": "text-embedding-3-small",
+    "dims": 1536,
+    "price_per_1m_tokens": 0.02,
+    "batch_size": 64
+  }
+}

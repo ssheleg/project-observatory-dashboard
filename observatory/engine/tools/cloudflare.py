@@ -1,0 +1,740 @@
+#!/usr/bin/env python3
+""                                                                            
+
+                                                                                   
+                                                                        
+                              
+                              
+                                                                             
+                                        
+
+                                                                           
+                                                                                
+                                                                                 
+                                                                            
+                                                                              
+                                                                               
+                
+
+                                                                            
+                                                                                
+                                                                             
+                                                                                
+                                                                              
+                         
+
+                                                                                  
+                                                                               
+                                                                            
+                                                                              
+                                              
+
+                                                                             
+                                                                            
+                                                                              
+                                           
+   
+from __future__ import annotations
+import argparse
+import datetime
+import json
+import os
+import pathlib
+import re
+import sys
+import urllib.error
+import urllib.request
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "plugins"))
+import private_io
+import paths                                                                    
+
+API = "https://api.cloudflare.com/client/v4"
+ADMIN_STORE = paths.source_path("secret_store", paths.SECRETS) / 'cloudflare-admin'
+                                                                           
+                                                                               
+                                                            
+PRESETS: dict[str, dict] = {
+    "analytics": {
+        "name": "observatory-analytics-read (managed)",
+                                                                                
+                                                                                    
+                                                                                 
+        "groups": ("Zone Read", "Analytics Read", "DNS Read"),
+        "why": "reads zone request counters and DNS targets for the observatory's dashboard",
+    },
+}
+
+
+def token_dir() -> pathlib.Path:
+    ""                                                                             
+    import cloudflare_analytics
+    return cloudflare_analytics.TOKEN_DIR
+
+
+def _journal(event: str, secret: str, **detail) -> None:
+    ""                                                                    
+                                                                          
+                                                                                 
+    try:
+        sys.path.insert(0, str(ROOT / "tools"))
+        import vault
+        vault.journal(event, secret, tool="cloudflare.py", **detail)
+    except Exception as exc:                                                      
+        print(f"  (movement not journaled: {type(exc).__name__})", file=sys.stderr)
+
+
+def today() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+
+                                                                                                                                                                                                                  
+
+def _request(path: str, token: str, payload: dict | None = None,
+             method: str | None = None) -> dict:
+    ""                                                          
+
+                                                                        
+                                                                   
+       
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = urllib.request.Request(
+        f"{API}{path}", data=data, method=method or ("POST" if data else "GET"),
+        headers={"Authorization": f"Bearer {token}",
+                 "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        e.close()
+        raise RuntimeError(f"cloudflare answered HTTP {e.code}; provider response withheld") from None
+    except OSError as e:
+        raise RuntimeError(f"cloudflare unreachable: {type(e).__name__}") from None
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-") or "unnamed"
+
+
+                                                                                                                                                                                                    
+
+def admins() -> list[tuple[str, pathlib.Path]]:
+    if any(p.is_symlink() for p in (ADMIN_STORE, *ADMIN_STORE.parents)):
+        raise RuntimeError("Admin store must not contain symbolic links")
+    if not ADMIN_STORE.is_dir():
+        return []
+    return [(p.name, p) for p in sorted(ADMIN_STORE.iterdir())
+            if p.is_file() and not p.name.startswith(".")
+            and not p.name.endswith(".meta.json")]
+
+
+def read_admin(label: str | None) -> tuple[str, str]:
+    ""                                                                      
+                                        
+    have = admins()
+    if not have:
+        raise RuntimeError("no admin token stashed — "
+                           "run cloudflare stash with a protected file redirected to stdin")
+    if label:
+        for name, p in have:
+            if name == label:
+                return name, private_io.read(p).strip()
+        raise RuntimeError(f"no stashed admin token called {label!r} "
+                           f"(have: {', '.join(n for n, _ in have)})")
+    if len(have) > 1:
+        raise RuntimeError(f"{len(have)} admin tokens stashed — name one with "
+                           f"--account: {', '.join(n for n, _ in have)}")
+    name, p = have[0]
+    return name, private_io.read(p).strip()
+
+
+def write_secret(path: pathlib.Path, value: str) -> None:
+    private_io.check(meta(path))
+    private_io.write(path, value + "\n")
+
+
+def discover_accounts(token: str) -> list[dict]:
+    ""                                                
+
+                                                                      
+                                                                                 
+                                                                       
+                                                                             
+                                                                            
+                                                                      
+       
+    out: dict[str, dict] = {}
+    try:
+        for a in _request("/accounts?per_page=50", token).get("result", []):
+            out[a["id"]] = {"id": a["id"], "name": a.get("name") or a["id"]}
+    except RuntimeError:
+        pass                                                                                  
+    try:
+        for m in _request("/memberships?per_page=50", token).get("result", []):
+            acc = m.get("account") or {}
+            if acc.get("id") and m.get("status", "accepted") == "accepted":
+                out.setdefault(acc["id"], {"id": acc["id"],
+                                           "name": acc.get("name") or acc["id"]})
+    except RuntimeError:
+        pass
+    return list(out.values())
+
+
+def cmd_stash(value: str) -> int:
+    if not value:
+        print("nothing on stdin — the clipboard was empty, or the pipe was",
+              file=sys.stderr)
+        return 2
+    if len(value.split()) > 1:
+        print(f"refused: {len(value.split())} whitespace-separated pieces arrived, "
+              f"not one token — copy just the value", file=sys.stderr)
+        return 1
+    try:
+        _request("/user/tokens/verify", value)
+    except RuntimeError as exc:
+                                                                        
+                                                                                  
+        if "unreachable" in str(exc):
+            print(f"refused: {exc}", file=sys.stderr)
+            return 1
+    accts = discover_accounts(value)
+    if not accts:
+        print(f"refused: this token sees no account by either road — `/accounts` "
+              f"(needs Account Settings: Read) and `/memberships` (needs "
+              f"Memberships: Read) both came back empty.\n  (what arrived was "
+              f"{len(value)} characters; a Cloudflare API token is 40)",
+              file=sys.stderr)
+        return 1
+                                                                          
+                                                                                
+                                                                               
+                                                                       
+                                                                               
+                                                                               
+                                         
+    for a in accts:
+        try:
+            _request(f"/accounts/{a['id']}/tokens?per_page=1", value)
+            a["can_issue"] = True
+        except RuntimeError:
+            a["can_issue"] = False
+    if not any(a["can_issue"] for a in accts):
+        print(f"refused: this token sees {len(accts)} account(s) but can manage "
+              f"API tokens in none of them.\n  It needs `API Tokens: Edit` on the "
+              f"account(s) to issue the narrow tokens this program hands to "
+              f"plugins.", file=sys.stderr)
+        return 1
+    if len(accts) == 1:
+        label = slug(accts[0]["name"])
+    else:
+                                                                             
+                                                                             
+                                                                            
+        email = ""
+        try:
+            email = (_request("/user", value).get("result") or {}).get("email", "")
+        except RuntimeError:
+            email = ""
+        label = slug(email) if email else f"{slug(accts[0]['name'])}-plus-{len(accts) - 1}"
+    dest = ADMIN_STORE / label
+    existed = dest.is_file()
+    write_secret(dest, value)
+    write_meta(dest, json.dumps(
+        {"kind": "admin", "accounts": accts,
+                                                                               
+         "account_id": accts[0]["id"], "account_name": accts[0]["name"],
+         "stashed_on": today(), "why": "issues narrow tokens; never handed to a plugin"},
+        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    can = [a for a in accts if a["can_issue"]]
+    cannot = [a for a in accts if not a["can_issue"]]
+    print(f"{'replaced' if existed else 'stashed'}: admin token as {label!r} — "
+          f"can issue in {len(can)} account(s): "
+          + ", ".join(f"{a['name']} [{slug(a['name'])}]" for a in can))
+    if cannot:
+        print(f"  sees but cannot issue in: "
+              + ", ".join(a["name"] for a in cannot) + " — no API Tokens: Edit there")
+    print("nothing reads it but this program. Issue a working token with:\n"
+          + "\n".join(f"  ./tools/cloudflare.py issue --preset analytics "
+                       f"--account {slug(a['name'])}" for a in can[:3]))
+    return 0
+
+
+def meta(path: pathlib.Path) -> pathlib.Path:
+    return path.with_name(path.name + ".meta.json")
+
+
+def write_meta(path: pathlib.Path, text: str, encoding: str = "utf-8") -> None:
+    private_io.write(meta(path), text)
+
+
+def read_meta(path: pathlib.Path) -> dict:
+    file = meta(path)
+    private_io.check(file)
+    if not file.exists():
+        return {}
+    try:
+        doc = json.loads(private_io.read(file))
+    except (OSError, ValueError):
+        raise RuntimeError("Credential metadata is unreadable; refusing to replace it") from None
+    if not isinstance(doc, dict):
+        raise RuntimeError("Credential metadata must be an object")
+    return doc
+
+
+def group_ids(admin: str, account_id: str, wanted: tuple[str, ...]) -> list[str]:
+    ""                                                     
+
+                                                                          
+                                                              
+       
+    groups = _request(f"/accounts/{account_id}/tokens/permission_groups?per_page=500",
+                      admin).get("result", [])
+    found: dict[str, str] = {}
+    for g in groups:
+        if g.get("name") in wanted and "zone" in json.dumps(g.get("scopes", "")):
+            found.setdefault(g["name"], g["id"])
+    missing = [n for n in wanted if n not in found]
+    if missing:
+        raise RuntimeError(f"this account offers no permission group(s) {missing}")
+    return [found[n] for n in wanted]
+
+
+def existing_token(admin: str, account_id: str, name: str) -> str | None:
+    for row in _request(f"/accounts/{account_id}/tokens?per_page=50",
+                        admin).get("result", []):
+        if row.get("name") == name:
+            return row["id"]
+    return None
+
+
+def mint(admin: str, account_id: str, preset: dict) -> tuple[str, str]:
+    ""                                                                            
+    ids = group_ids(admin, account_id, preset["groups"])
+    tid = existing_token(admin, account_id, preset["name"])
+    if tid:
+                                                                            
+                                                                                 
+                                                                                
+                                                                    
+        _request(f"/accounts/{account_id}/tokens/{tid}", admin,
+                 {"name": preset["name"], "status": "active",
+                  "policies": [{"effect": "allow",
+                                "resources": {f"com.cloudflare.api.account.{account_id}": "*"},
+                                "permission_groups": [{"id": i} for i in ids]}]},
+                 method="PUT")
+                                                                          
+                                                                             
+                                                                           
+        d = _request(f"/accounts/{account_id}/tokens/{tid}/value", admin, {}, method="PUT")
+        value = d.get("result")
+        if not isinstance(value, str) or not value:
+            raise RuntimeError("cloudflare rolled the token but returned no value")
+        return tid, value
+    d = _request(f"/accounts/{account_id}/tokens", admin,
+                 {"name": preset["name"],
+                  "policies": [{"effect": "allow",
+                                "resources": {f"com.cloudflare.api.account.{account_id}": "*"},
+                                "permission_groups": [{"id": i} for i in ids]}]})
+    res = d.get("result") or {}
+    if not res.get("value"):
+        raise RuntimeError("cloudflare created the token but returned no value")
+    return res.get("id", ""), res["value"]
+
+
+def can_read_analytics(token: str, zone_ids: list[str]) -> str:
+    ""                                                              
+
+                                                                             
+                                                                               
+                                                                          
+                                                                               
+                                                        
+       
+    import cloudflare_analytics as cf
+    day, _ = cf.day_bounds()
+    try:
+        cf.fetch_day(token, zone_ids[:10], day)
+    except RuntimeError as exc:
+        return str(exc)
+    return ""
+
+
+def zones_of(token: str) -> list[dict]:
+    out, page = [], 1
+    while True:
+        d = _request(f"/zones?per_page=50&page={page}", token)
+        out += [{"id": z["id"], "name": z["name"],
+                 "account": (z.get("account") or {}).get("name", "")}
+                for z in d.get("result", [])]
+        info = d.get("result_info") or {}
+        if page >= (info.get("total_pages") or 1):
+            return out
+        page += 1
+
+
+def stash_accounts(stash_label: str) -> list[dict]:
+    ""                                                                             
+    m = read_meta(ADMIN_STORE / stash_label)
+    if m.get("accounts"):
+        return [a for a in m["accounts"] if a.get("can_issue", True)]
+    if m.get("account_id"):
+        return [{"id": m["account_id"], "name": m.get("account_name") or stash_label,
+                 "can_issue": True}]
+    return []
+
+
+def find_account(wanted: str | None) -> tuple[str, str, dict]:
+    ""                                                                   
+
+                                                                                
+                                                                               
+                                                                              
+                                                                          
+       
+    catalog: list[tuple[str, dict]] = []
+    for label, _p in admins():
+        for a in stash_accounts(label):
+            catalog.append((label, a))
+    if not catalog:
+        raise RuntimeError("no admin token stashed that can issue — "
+                           "run cloudflare stash with a protected file redirected to stdin")
+    if wanted:
+        w = wanted.strip()
+        hits = [(l, a) for l, a in catalog
+                if slug(a["name"]) == slug(w) or a["id"] == w
+                or (l == w and len(stash_accounts(l)) == 1)]
+        if not hits:
+            raise RuntimeError(f"no reachable account matches {wanted!r} — have: "
+                               + ", ".join(f"{slug(a['name'])}" for _, a in catalog))
+        label, account = hits[0]
+    elif len(catalog) == 1:
+        label, account = catalog[0]
+    else:
+        raise RuntimeError(f"{len(catalog)} accounts reachable — name one with "
+                           f"--account: " + ", ".join(slug(a["name"]) for _, a in catalog))
+    _l, admin = read_admin(label)
+    return label, admin, account
+
+
+def install_issued(value: str, label: str, account: dict, preset_key: str,
+                   project: str | None, rolled: bool, stash: str | None = None) -> int:
+    ""                                                                         
+    zs = zones_of(value)
+    if not zs:
+        print(f"  {label}: issued, but it sees no zone — not installed",
+              file=sys.stderr)
+        return 1
+    why = can_read_analytics(value, [z["id"] for z in zs])
+    if why:
+        print(f"  {label}: issued, but it cannot read analytics — {why}\n"
+              f"    the preset's permission groups did not grant what the plugin "
+              f"queries; nothing was installed", file=sys.stderr)
+        return 1
+    dest = token_dir() / label
+    prior = read_meta(dest)
+    write_secret(dest, value)
+    write_meta(dest, json.dumps({
+        "kind": "issued", "preset": preset_key,
+        "account_id": account["id"], "account_name": account["name"],
+                                                                               
+                                                                  
+        "stash": stash or prior.get("stash"),
+        "project": project or prior.get("project"),
+        "permission_groups": list(PRESETS[preset_key]["groups"]),
+        "why": PRESETS[preset_key]["why"],
+        "zones": [z["name"] for z in zs],
+        "issued_on": prior.get("issued_on") or today(),
+        "rotated_on": today() if rolled else prior.get("rotated_on"),
+        "rotations": (prior.get("rotations") or 0) + (1 if rolled else 0),
+        "issued_by": "tools/cloudflare.py",
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _journal("rotate" if rolled else "issue", f"cloudflare/{account['name']}/{label}",
+             preset=preset_key, zones=len(zs))
+    print(f"  {label}: {'rolled' if rolled else 'issued'} and installed "
+          f"({len(zs)} zone(s): {', '.join(sorted(z['name'] for z in zs)[:5])}"
+          f"{' …' if len(zs) > 5 else ''})"
+          + (f", for {project}" if project else ""))
+    return 0
+
+
+def cmd_issue(preset_key: str, account_label: str | None, project: str | None) -> int:
+    preset = PRESETS.get(preset_key)
+    if not preset:
+        print(f"unknown preset {preset_key!r} — have: {', '.join(PRESETS)}",
+              file=sys.stderr)
+        return 2
+    if project and not project.startswith("project:"):
+        project = f"project:{project}"
+    try:
+        stash_label, admin, account = find_account(account_label)
+        destination = token_dir() / slug(account["name"])
+        private_io.check(destination)
+        read_meta(destination)
+        rolled = existing_token(admin, account["id"], preset["name"]) is not None
+        _tid, value = mint(admin, account["id"], preset)
+    except RuntimeError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 1
+                                                                               
+                                                                          
+    return install_issued(value, slug(account["name"]), account, preset_key,
+                          project, rolled, stash=stash_label)
+
+
+def cmd_install(value: str) -> int:
+    ""                                                                     
+                                                                                
+                                                             
+    if not value:
+        print("nothing on stdin", file=sys.stderr)
+        return 2
+    if len(value.split()) > 1:
+        print(f"refused: {len(value.split())} whitespace-separated pieces arrived, "
+              f"not one token", file=sys.stderr)
+        return 1
+    try:
+        zs = zones_of(value)
+    except RuntimeError as exc:
+        print(f"refused: {exc}\n  (what arrived was {len(value)} characters; a "
+              f"Cloudflare API token is 40)", file=sys.stderr)
+        return 1
+    if not zs:
+        print("refused: this token sees no zone", file=sys.stderr)
+        return 1
+    why = can_read_analytics(value, [z["id"] for z in zs])
+    if why:
+        print(f"refused: the token lists {len(zs)} zone(s) but cannot read their "
+              f"analytics — {why}\n  add `Zone -> Analytics -> Read` to it, or "
+              f"stash an admin token and let `issue` build the right one",
+              file=sys.stderr)
+        return 1
+    label = slug(next((z["account"] for z in zs if z["account"]), zs[0]["name"]))
+    dest = token_dir() / label
+    prior = read_meta(dest)
+    write_secret(dest, value)
+    write_meta(dest, json.dumps({
+        "kind": "external", "preset": "analytics",
+        "account_name": next((z["account"] for z in zs if z["account"]), ""),
+        "project": prior.get("project"),
+        "zones": [z["name"] for z in zs],
+        "installed_on": prior.get("installed_on") or today(),
+        "note": "minted outside this program — rotation happens where it was minted",
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"installed: {label} ({len(zs)} zone(s), analytics readable)")
+    return 0
+
+
+                                                                                                                                                                                          
+
+def issued() -> list[pathlib.Path]:
+    d = token_dir()
+    if not d.is_dir():
+        return []
+    return [p for p in sorted(d.iterdir())
+            if p.is_file() and not p.name.startswith(".")
+            and not p.name.endswith(".meta.json")]
+
+
+def cmd_rotate(label: str | None, leaked: bool) -> int:
+    targets = issued()
+    if leaked:
+        names = leaked_labels()
+        if not names:
+            print("no open leak names a Cloudflare token — nothing to rotate")
+            return 0
+        targets = [p for p in targets if p.name in names]
+        if not targets:
+            print(f"open leaks name {sorted(names)}, none of which is an issued "
+                  f"token here — rotate them where they live", file=sys.stderr)
+            return 1
+    elif label:
+        targets = [p for p in targets if p.name == label]
+        if not targets:
+            print(f"no issued token called {label!r}", file=sys.stderr)
+            return 1
+    if not targets:
+        print("nothing issued yet — `./tools/cloudflare.py issue --preset analytics`")
+        return 0
+    bad = 0
+    for p in targets:
+        m = read_meta(p)
+        if m.get("kind") == "external":
+            print(f"  {p.name}: minted outside this program — rotate it where it "
+                  f"was minted, or stash this account's admin token and `issue` a "
+                  f"managed one over it", file=sys.stderr)
+            bad += 1
+            continue
+        try:
+            _label, admin = read_admin(m.get("stash") or p.name)
+            _tid, value = mint(admin, m["account_id"], PRESETS[m["preset"]])
+        except (RuntimeError, KeyError) as exc:
+            print(f"  {p.name}: could not rotate — {exc}", file=sys.stderr)
+            bad += 1
+            continue
+        bad += install_issued(value, p.name,
+                              {"id": m["account_id"], "name": m.get("account_name", "")},
+                              m["preset"], m.get("project"), True,
+                              stash=m.get("stash") or p.name)
+    if leaked and not bad:
+        print("the leaked values are dead; settle the register with "
+              "`./tools/vault.py rotate` for each row it names")
+    return 1 if bad else 0
+
+
+def leaked_labels() -> set[str]:
+    ""                                                    
+
+                                                                              
+                                                                           
+                                    
+       
+    import vault
+    out: set[str] = set()
+    try:
+        for row in vault.open_leaks():
+            blob = json.dumps(row, ensure_ascii=False).lower()
+            for p in issued():
+                if p.name.lower() in blob:
+                    out.add(p.name)
+    except Exception as exc:                                                      
+        print(f"  (the leak register could not be read: {exc})", file=sys.stderr)
+    return out
+
+
+def cmd_revoke(label: str) -> int:
+    p = token_dir() / label
+    if not p.is_file():
+        print(f"no issued token called {label!r}", file=sys.stderr)
+        return 1
+    m = read_meta(p)
+    try:
+        _l, admin = read_admin(m.get("stash") or label)
+        tid = existing_token(admin, m["account_id"], PRESETS[m["preset"]]["name"])
+        if tid:
+            _request(f"/accounts/{m['account_id']}/tokens/{tid}", admin, method="DELETE")
+    except (RuntimeError, KeyError) as exc:
+        print(f"refused: {exc}\n  the file was NOT removed — a local delete that "
+              f"leaves the token live at Cloudflare is the worst of both",
+              file=sys.stderr)
+        return 1
+    p.unlink()
+    meta(p).unlink(missing_ok=True)
+    _journal("revoke", f"cloudflare/{m.get('account_name', '?')}/{label}")
+    print(f"revoked at Cloudflare and removed locally: {label}")
+    return 0
+
+
+def cmd_ping() -> int:
+    ""                                                                            
+    bad = 0
+    for label, path in admins():
+        m = read_meta(path)
+        try:
+            accts = discover_accounts(private_io.read(path).strip())
+            if not accts:
+                raise RuntimeError("sees no account by either road")
+            print(f"  admin/{label}: alive, sees {len(accts)} account(s)"
+                  f" — stashed {m.get('stashed_on', '?')}")
+        except RuntimeError as exc:
+            print(f"  admin/{label}: DEAD — {exc}", file=sys.stderr)
+            bad += 1
+    for p in issued():
+        m = read_meta(p)
+        value = private_io.read(p).strip()
+        try:
+            zs = zones_of(value)
+        except RuntimeError as exc:
+            print(f"  {p.name}: DEAD — {exc}", file=sys.stderr)
+            bad += 1
+            continue
+        why = can_read_analytics(value, [z["id"] for z in zs]) if zs else "sees no zone"
+        stamp = m.get("rotated_on") or m.get("issued_on") or "?"
+        if why:
+            print(f"  {p.name}: {len(zs)} zone(s) but CANNOT read analytics — {why}",
+                  file=sys.stderr)
+            bad += 1
+        else:
+            print(f"  {p.name}: alive, {len(zs)} zone(s), analytics readable "
+                  f"(last change {stamp}"
+                  + (f", for {m['project']}" if m.get("project") else "") + ")")
+    if not admins() and not issued():
+        print("nothing stashed and nothing issued")
+    return 1 if bad else 0
+
+
+def cmd_list() -> int:
+    ""                                                                     
+                        
+    a, i = admins(), issued()
+    print(f"admin tokens ({len(a)}) — read by this program only:")
+    for label, p in a:
+        m = read_meta(p)
+        accts = m.get("accounts") or [{"name": m.get("account_name", "?"), "can_issue": True}]
+        print(f"  {label:28s} stashed {m.get('stashed_on', '?')}  "
+              f"mode {oct(p.stat().st_mode)[-3:]}")
+        for acc in accts:
+            print(f"      {'can issue' if acc.get('can_issue', True) else 'read-only':10s} "
+                  f"{acc['name']}  [{slug(acc['name'])}]")
+    print(f"issued tokens ({len(i)}) — what the plugins read:")
+    for p in i:
+        m = read_meta(p)
+        print(f"  {p.name:28s} {m.get('preset', '?'):12s} "
+              f"{m.get('project') or '(no project)':32s} "
+              f"issued {m.get('issued_on', '?')} "
+              f"rotated {m.get('rotated_on') or '—'} x{m.get('rotations', 0)}")
+    if not a:
+        print("\nstart with cloudflare stash, reading a protected file on stdin")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("stash", help="admin token on stdin; stored, never handed out")
+    sub.add_parser("install", help="a narrow token minted elsewhere, on stdin")
+    p_issue = sub.add_parser("issue", help="mint a narrow token and install it")
+    p_issue.add_argument("--preset", default="analytics", choices=sorted(PRESETS))
+    p_issue.add_argument("--account", help="which stashed admin token to issue from")
+    p_issue.add_argument("--project", help="the project this token serves")
+    sub.add_parser("list", help="what exists, with dates — never values")
+    sub.add_parser("ping", help="can every token still do its job")
+    p_rot = sub.add_parser("rotate", help="roll a token's value in place")
+    p_rot.add_argument("label", nargs="?")
+    p_rot.add_argument("--leaked", action="store_true",
+                       help="rotate every issued token named in an open leak")
+    p_rev = sub.add_parser("revoke", help="delete at Cloudflare, then locally")
+    p_rev.add_argument("label")
+    a = ap.parse_args()
+    if a.cmd == "stash":
+        if sys.stdin.isatty():
+            print("paste the admin token on stdin, e.g. "
+                  "run cloudflare stash with a protected file redirected to stdin", file=sys.stderr)
+            return 2
+        return cmd_stash(sys.stdin.read().strip())
+    if a.cmd == "install":
+        if sys.stdin.isatty():
+            print("paste the narrow token on stdin", file=sys.stderr)
+            return 2
+        return cmd_install(sys.stdin.read().strip())
+    if a.cmd == "issue":
+        return cmd_issue(a.preset, a.account, a.project)
+    if a.cmd == "list":
+        return cmd_list()
+    if a.cmd == "ping":
+        return cmd_ping()
+    if a.cmd == "rotate":
+        return cmd_rotate(a.label, a.leaked)
+    if a.cmd == "revoke":
+        return cmd_revoke(a.label)
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError):
+        print("Private credential operation refused; values hidden", file=sys.stderr)
+        raise SystemExit(2)

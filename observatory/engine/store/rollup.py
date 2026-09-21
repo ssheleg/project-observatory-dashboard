@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+""                                                                 
+
+                                                                                
+                                                                       
+                                                                                
+                                                                              
+                                                                                                  
+                                                                                
+                                     
+
+                                                                            
+                                                                            
+                                                                              
+                                                                               
+                                                                                
+                                                                            
+                                                                   
+
+                                                                               
+                                                                     
+
+                                                                            
+                                                                               
+   
+from __future__ import annotations
+import argparse, collections, json, pathlib, sqlite3, sys
+from datetime import date, datetime, timedelta, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import identity                                                                 
+import paths                                                                    
+from store import db as store_db                                                
+
+RETENTION = paths.config_file("retention.json")
+
+
+def _registry_projects() -> list[dict]:
+    ""                                                          
+
+                                                                            
+                                                                                 
+                                                                        
+                                       
+       
+    f = paths.REGISTRY / "projects.json"
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))["projects"]
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"  rollup: {f} unreadable ({type(exc).__name__}); former project "
+              f"ids are NOT folded this run", file=sys.stderr)
+        return []
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def window_days() -> int:
+    ""                                                                       
+                                                                              
+    try:
+        return int(json.loads(RETENTION.read_text(encoding="utf-8"))["events_days"])
+    except Exception:
+        return 365
+
+
+def week_of(stamp: str) -> tuple[str, str]:
+    ""                                            
+
+                                                                              
+                                                                                
+                                                                               
+                                                                                
+                                             
+    d = date.fromisoformat(stamp[:10])
+    iso = d.isocalendar()
+    monday = d - timedelta(days=iso.weekday - 1)
+    return f"{iso.year}-W{iso.week:02d}", monday.isoformat()
+
+
+def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
+    today = today or datetime.now(timezone.utc).date()
+    cutoff = today - timedelta(days=window_days())
+                                                                              
+                                                                               
+                                                                    
+                                                                               
+                                                                                
+                                                                            
+                                                                
+     
+                                                                                  
+                                                                              
+                                                                
+    rows = conn.execute(
+        "SELECT project_id, occurred_at, actor, kind FROM events"
+        " WHERE kind IN ('commit','session') AND project_id IS NOT NULL").fetchall()
+
+                                                                         
+                                                                          
+                                                                              
+                                                      
+                                                                             
+                                                                                
+                                                                                
+                                                                                  
+    former = identity.former_index(_registry_projects())
+
+    buckets: dict[tuple[str, str], dict] = {}
+    for r in rows:
+        pid, stamp, actor, kind = (r["project_id"], r["occurred_at"], r["actor"],
+                                   r["kind"]) if hasattr(r, "keys") else r
+        pid = former.get(pid, pid)
+        week, monday = week_of(stamp)
+        b = buckets.setdefault((pid, week), {
+            "week_start": monday, "commits": 0, "days": set(), "authors": set(),
+            "sessions": 0, "session_days": set(), "first": stamp, "last": stamp})
+        if kind == "commit":
+            b["commits"] += 1
+            b["days"].add(stamp[:10])
+            b["authors"].add(actor or "")
+        else:
+            b["sessions"] += 1
+            b["session_days"].add(stamp[:10])
+                                                                                
+                                                              
+        b["first"] = min(b["first"], stamp)
+        b["last"] = max(b["last"], stamp)
+
+    frozen = {(r[0], r[1]) for r in conn.execute(
+        "SELECT project_id, week FROM project_week WHERE frozen_at IS NOT NULL")}
+    written = skipped_partial = skipped_frozen = 0
+    with conn:
+        for (pid, week), b in sorted(buckets.items()):
+            monday = date.fromisoformat(b["week_start"])
+            if monday < cutoff:
+                                                                             
+                                                               
+                skipped_partial += 1
+                continue
+            if (pid, week) in frozen:
+                skipped_frozen += 1
+                continue
+            conn.execute(
+                "INSERT INTO project_week (project_id, week, week_start, commits,"
+                " active_days, authors, sessions, session_days, worked_days,"
+                " first_at, last_at, computed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+                " ON CONFLICT(project_id, week) DO UPDATE SET"
+                "   commits=excluded.commits, active_days=excluded.active_days,"
+                "   authors=excluded.authors, sessions=excluded.sessions,"
+                "   session_days=excluded.session_days,"
+                "   worked_days=excluded.worked_days, first_at=excluded.first_at,"
+                "   last_at=excluded.last_at, computed_at=excluded.computed_at"
+                " WHERE project_week.frozen_at IS NULL",
+                (pid, week, b["week_start"], b["commits"], len(b["days"]),
+                 len(b["authors"]), b["sessions"], len(b["session_days"]),
+                                                                             
+                                                                     
+                                                                            
+                                                                             
+                 len(b["days"] | b["session_days"]),
+                 b["first"], b["last"], now_iso()))
+            written += 1
+
+                                                                          
+                                                                                
+                                                    
+         
+                                                                               
+                                                                             
+                                                                           
+                                                                              
+                                        
+        superseded = kept_unfolded = 0
+        for old, new in sorted(former.items()):
+            for (week,) in conn.execute(
+                    "SELECT week FROM project_week WHERE project_id = ?", (old,)).fetchall():
+                if conn.execute("SELECT 1 FROM project_week WHERE project_id = ?"
+                                " AND week = ?", (new, week)).fetchone():
+                    conn.execute("DELETE FROM project_week WHERE project_id = ?"
+                                 " AND week = ?", (old, week))
+                    superseded += 1
+                else:
+                    kept_unfolded += 1
+
+                                                                              
+                                                                           
+        froze = conn.execute(
+            "UPDATE project_week SET frozen_at = ?"
+            " WHERE frozen_at IS NULL AND week_start < ?",
+            (now_iso(), cutoff.isoformat())).rowcount
+                                                                                 
+                                                                                
+                                                                              
+                                                                               
+    unfillable = conn.execute(
+        "SELECT count(*) FROM project_week"
+        " WHERE frozen_at IS NOT NULL AND sessions IS NULL").fetchone()[0]
+    return {"weeks_written": written, "weeks_frozen_now": froze,
+            "already_frozen": skipped_frozen, "partial_weeks_skipped": skipped_partial,
+            "frozen_without_sessions": unfillable,
+                                                                                 
+                                                                                
+                                                                                
+            "weeks_superseded_by_rename": superseded,
+            "weeks_kept_unfolded": kept_unfolded,
+            "window_days": window_days(), "cutoff": cutoff.isoformat()}
+
+
+def status(conn: sqlite3.Connection) -> str:
+    total, frozen = conn.execute(
+        "SELECT COUNT(*), COUNT(frozen_at) FROM project_week").fetchone()
+                                                                        
+                                                                               
+                                                                                
+                                                                     
+    measured = conn.execute("SELECT COUNT(sessions) FROM project_week").fetchone()[0]
+    worked_only = conn.execute(
+        "SELECT COUNT(*) FROM project_week WHERE commits = 0 AND sessions > 0").fetchone()[0]
+    span = conn.execute(
+        "SELECT MIN(week_start), MAX(week_start) FROM project_week").fetchone()
+    projects = conn.execute("SELECT COUNT(DISTINCT project_id) FROM project_week").fetchone()[0]
+    top = conn.execute(
+        "SELECT project_id, SUM(commits) c FROM project_week GROUP BY project_id"
+        " ORDER BY c DESC LIMIT 5").fetchall()
+    out = [f"{total} weekly row(s) across {projects} project(s); {frozen} frozen",
+           f"span {span[0]} .. {span[1]}",
+           f"{measured} row(s) carry a session figure"
+           + (f", {total - measured} predate it" if total - measured else "")
+           + f"; {worked_only} week(s) held work with no commit"]
+    out += [f"  {r[1]:6}  {r[0]}" for r in top]
+    return "\n".join(out)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("action", nargs="?", default="refresh", choices=["refresh", "status"])
+    a = ap.parse_args()
+    conn = store_db.connect()
+    if a.action == "status":
+        print(status(conn))
+        return 0
+    r = refresh(conn)
+                                                                             
+                                                                               
+                                                                               
+                                                              
+    try:
+        paths.SCRATCH.mkdir(parents=True, exist_ok=True)
+        (paths.SCRATCH / "rollup.json").write_text(
+            json.dumps({"ran_at": now_iso(), **r}, indent=1), encoding="utf-8")
+    except OSError as exc:
+        print(f"could not write the rollup receipt: {exc}", file=sys.stderr)
+    print(f"rollup: {r['weeks_written']} week(s) written, {r['weeks_frozen_now']} newly frozen, "
+          f"{r['already_frozen']} already frozen, {r['partial_weeks_skipped']} partial week(s) "
+          f"skipped (window {r['window_days']}d, cutoff {r['cutoff']})")
+    if r.get("weeks_superseded_by_rename") or r.get("weeks_kept_unfolded"):
+        print(f"  {r['weeks_superseded_by_rename']} week(s) moved to a project's "
+              f"current id after a rename; {r['weeks_kept_unfolded']} kept under "
+              f"the former id because that week could not be recomputed")
+    if r["frozen_without_sessions"]:
+        print(f"  {r['frozen_without_sessions']} frozen week(s) carry no session "
+              f"figure and never can — their events are gone", file=sys.stderr)
+    print(status(conn))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

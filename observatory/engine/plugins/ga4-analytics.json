@@ -1,0 +1,28 @@
+{
+  "id": "ga4-analytics",
+  "title": "GA4 sessions and users per project",
+  "script": "ga4_analytics.py",
+  "metrics": [
+    {
+      "name": "ga.sessions_1d",
+      "unit": "sessions",
+      "label": "сессий/сут",
+      "means": "GA4 sessions for the last complete UTC day, per property, attributed to a project either by the mapping file's explicit project id or by the property's declared host through plugins/hostmap.py."
+    },
+    {
+      "name": "ga.users_1d",
+      "unit": "users",
+      "label": "польз./сут",
+      "means": "GA4 active users for the same day and property. Kept beside Cloudflare's uniques deliberately: the two disagree by design (JS consent vs edge counting), and the gap between them is itself a signal about consent rates and blockers."
+    }
+  ],
+  "every_hours": 24,
+  "requires": [
+    "integration:ga4",
+    "network",
+    "secret:google-service-account.json",
+    "config:ga4_properties.json"
+  ],
+  "why": "Measure sessions and active users for explicitly mapped Google Analytics properties. Private ga4_properties.json configuration connects each property to a host or project; missing mappings produce no invented measurements.",
+  "api_version": 1
+}

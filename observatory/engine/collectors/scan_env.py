@@ -1,0 +1,431 @@
+#!/usr/bin/env python3
+""                                                                   
+
+                                                                               
+                                                                
+                                                                                
+                                                                             
+                                                                               
+                                                                                
+         
+
+                                        
+
+                                                                          
+                                                                    
+                                
+
+                                                                             
+                                                                             
+                                                                           
+                             
+
+                                                                          
+                                                                              
+                                                                               
+                                                                              
+                                                                           
+                                                                                  
+                                                                               
+                                                      
+
+                                  
+   
+from __future__ import annotations
+import hashlib, math, os, pathlib, re, secrets, stat, subprocess, sys
+from collections import Counter
+from datetime import datetime, timezone
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import atomic              
+import paths              
+
+                                                                     
+                                                                                   
+                                                                        
+                                                                               
+                                                                           
+                                                                             
+                                                                    
+MAX_DEPTH = None
+
+                                                                               
+                                                                                
+                           
+SKIP_DIRS = {
+    "node_modules", ".git", "vendor", "venv", ".venv", "env", ".env.d",
+    "site-packages", "dist", "build", ".next", ".nuxt", "__pycache__",
+    ".terraform", "Pods", ".gradle", "target", ".tox", ".mypy_cache",
+    ".pytest_cache", "coverage", ".cache", "tmp", ".idea", ".vscode",
+}
+
+                                                                                
+                                                                              
+                                                                
+TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".defaults")
+
+ENV_NAME = re.compile(r"^\.env(\..+)?$|^\.envrc$")
+
+                                                                             
+                                   
+ASSIGN = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$")
+
+                                                                               
+                                                                             
+COMMENT = re.compile(r"(^|\s)#.*$")
+
+                                                                            
+                                                                                 
+                                                        
+SECRET_SHAPED = re.compile(r"(sk|pk|rk|ghp|gho|ghs|xoxb|xoxp|AKIA|AIza)[-_A-Za-z0-9]{16,}")
+
+SECRET_NAME = re.compile(
+    r"(SECRET|TOKEN|PASSW|API_?KEY|ACCESS_?KEY|PRIVATE|CREDENTIAL|"
+    r"_DSN$|DATABASE_URL|CONN(ECTION)?_?STR|CLIENT_?SECRET|SIGNING|"
+    r"_SALT$|SESSION|COOKIE|WEBHOOK|_PAT$|_KEY$|^KEY$|BEARER|AUTH)", re.I)
+
+                                                                           
+                                                                                
+                   
+  
+                                                                                
+                                                                                
+                                                                                
+                                                                            
+                                                                               
+         
+PLACEHOLDER_LEAD = re.compile(
+    r"^(your|my|the|some|todo|tbd|changeme|change[-_]me|replace|example|dummy|"
+    r"sample|placeholder|insert|fill|enter|add|put|paste|abc123|foo|bar|any)"
+    r"([-_. ]|$)", re.I)
+PLACEHOLDER_EXACT = re.compile(
+    r"^(none|null|nil|n/?a|undefined|x{3,}|\*{3,}|\.{3,}|-+|<.*>|\{\{.*\}\}|"
+    r"\$\{.*\}|__.*__|%.*%)$", re.I)
+                                                                           
+PLACEHOLDER_MARK = re.compile(
+    r"(_?here$|[-_]here$|goes[-_]here|your[-_]|xxxxx|<[^>]+>|\.\.\.)", re.I)
+
+                                                         
+KNOWN_PREFIX = ("sk-", "sk_", "pk_live", "pk_test", "rk_", "ghp_", "gho_", "ghs_",
+                "github_pat_", "xoxb-", "xoxp-", "xapp-", "AIza", "AKIA", "ASIA",
+                "eyJ", "-----BEGIN", "glpat-", "dop_v1_", "shpss_", "shpat_",
+                "SG.", "hf_", "npm_", "dckr_pat_", "figd_", "sntrys_")
+
+                                                                                   
+                                  
+URL_WITH_AUTH = re.compile(r"^[a-z][a-z0-9+.-]*://[^/\s:@]+:([^/\s@]+)@", re.I)
+
+                                                                               
+                                                             
+EXAMPLE_PASSWORDS = {"password", "passwd", "pass", "secret", "postgres", "mysql",
+                     "root", "admin", "test", "dev", "user", "username", "db",
+                     "localhost", "example", "changeme", "hunter2", "12345",
+                     "123456", "pwd", "mypassword", "yourpassword"}
+
+                                                                      
+                                                                                 
+                                                                                
+                                        
+  
+                                                                                
+                                                                                
+                                                                                
+                                         
+HEX_ONLY = re.compile(r"^[0-9a-fA-F]+$")
+
+                                                                            
+URL_NO_AUTH = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
+
+PLAIN = re.compile(r"^(true|false|yes|no|on|off|none|null|\d+(\.\d+)?|"
+                   r"localhost(:\d+)?|127\.0\.0\.1(:\d+)?|0\.0\.0\.0(:\d+)?|"
+                   r"development|production|staging|test|debug|info|warn|error)$", re.I)
+
+SALT_FILE = paths.STORE / ".env-fingerprint-salt"
+
+
+def salt() -> str:
+    ""                                                
+
+                                                                                 
+                                                                               
+                                                                                   
+                    
+       
+    if SALT_FILE.is_file():
+        mode = stat.S_IMODE(SALT_FILE.stat().st_mode)
+        if mode & 0o077:
+            raise SystemExit(f"{SALT_FILE} is mode {oct(mode)} — group or world "
+                             f"readable. chmod 600 it; a salt anyone can read "
+                             f"makes the fingerprints it protects guessable.")
+        return SALT_FILE.read_text(encoding="utf-8").strip()
+    SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    value = secrets.token_hex(32)
+    fd = os.open(SALT_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(value + "\n")
+    return value
+
+
+def wordish(value: str) -> bool:
+    ""                                                                       
+    toks = re.split(r"[-_.]", value)
+    if len(toks) < 2:
+        return False
+    return any(len(t) >= 3 and t.isalpha() and not HEX_ONLY.match(t) for t in toks)
+
+
+def entropy(s: str) -> float:
+    if not s:
+        return 0.0
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in Counter(s).values())
+
+
+def is_placeholder(value: str) -> bool:
+    v = value.strip()
+    return bool(PLACEHOLDER_LEAD.match(v) or PLACEHOLDER_EXACT.match(v)
+                or PLACEHOLDER_MARK.search(v))
+
+
+                                                                           
+MIN_SECRET_LEN = 24
+MIN_SECRET_ENTROPY = 3.4
+
+
+def looks_secret(value: str) -> bool:
+    ""                                                         
+
+                                                                                 
+                                                                                 
+                                                                                 
+                           
+       
+    v = value.strip()
+    if v.startswith(KNOWN_PREFIX):
+        return True
+    pw = URL_WITH_AUTH.match(v)
+    if pw:
+                                                                                
+                                                                                  
+                                                                            
+        return not is_placeholder(pw.group(1)) and pw.group(1).lower() not in EXAMPLE_PASSWORDS
+    if URL_NO_AUTH.match(v):
+        return False
+    if len(v) < MIN_SECRET_LEN:
+        return False
+    if wordish(v):
+        return False
+    if not re.fullmatch(r"[A-Za-z0-9_\-+/=.]+", v):
+        return False
+    return entropy(v) >= MIN_SECRET_ENTROPY
+
+
+def classify(name: str, value: str) -> str:
+    ""                                                                
+    v = value.strip()
+    if not v:
+        return "empty"
+    if is_placeholder(v):
+        return "placeholder"
+    if looks_secret(v):
+        return "secret"
+    if PLAIN.match(v) or URL_NO_AUTH.match(v):
+                                                                
+                                                                                
+                                                                            
+        return "config"
+                                                                                 
+                                                                                  
+                                                                       
+    if SECRET_NAME.search(name) and len(v) >= 8 and not wordish(v):
+        return "secret"
+    return "config"
+
+
+def parse(text: str) -> tuple[list[tuple[str, str]], int]:
+    ""                                                                          
+
+                                                                                   
+                                                                            
+                          
+       
+    out: list[tuple[str, str]] = []
+    unparsed = 0
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = ASSIGN.match(line)
+        if not m:
+            unparsed += 1
+            continue
+        name, rest = m.group(1), m.group(2)
+        rest = rest.lstrip()
+        if rest[:1] in ('"', "'"):
+            quote = rest[0]
+            body = rest[1:]
+            while quote not in body and i < len(lines):
+                body += "\n" + lines[i]
+                i += 1
+            value = body.split(quote, 1)[0]
+        else:
+                                                                                 
+                                                                               
+                                                                               
+                                                               
+            value = COMMENT.sub("", rest).strip()
+        out.append((name, value))
+    return out, unparsed
+
+
+def env_files(root: pathlib.Path) -> list[pathlib.Path]:
+    ""                                                                           
+    found: list[pathlib.Path] = []
+    stack = [(root, 0)]
+    while stack:
+        d, depth = stack.pop()
+        try:
+            entries = list(os.scandir(d))
+        except (PermissionError, OSError):
+            continue
+        for e in entries:
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    if (MAX_DEPTH is None or depth < MAX_DEPTH) \
+                            and e.name not in SKIP_DIRS:
+                        stack.append((pathlib.Path(e.path), depth + 1))
+                elif e.is_file(follow_symlinks=False) and ENV_NAME.match(e.name):
+                    found.append(pathlib.Path(e.path))
+            except OSError:
+                continue
+    return sorted(found)
+
+
+def repo_of(path: pathlib.Path, root: pathlib.Path) -> pathlib.Path | None:
+    ""                                                                             
+    d = path.parent
+    while True:
+        if (d / ".git").exists():
+            return d
+        if d == root or d.parent == d:
+            return None
+        d = d.parent
+
+
+def git_states(files: list[pathlib.Path], root: pathlib.Path) -> tuple[dict, list]:
+    ""                                                                              
+
+                                                                                
+                                                                              
+                              
+       
+    by_repo: dict[pathlib.Path, list[pathlib.Path]] = {}
+    state: dict[str, str] = {}
+    degraded: list[dict] = []
+    for f in files:
+        repo = repo_of(f, root)
+        if repo is None:
+            state[str(f)] = "no-repo"
+        else:
+            by_repo.setdefault(repo, []).append(f)
+
+    for repo, group in by_repo.items():
+        rel = [str(f.relative_to(repo)) for f in group]
+        tracked: set[str] = set()
+        ignored: set[str] = set()
+        try:
+            p = subprocess.run(["git", "-C", str(repo), "ls-files", "--", *rel],
+                               capture_output=True, text=True, timeout=60)
+            tracked = {ln for ln in p.stdout.splitlines() if ln}
+            q = subprocess.run(["git", "-C", str(repo), "check-ignore", "--", *rel],
+                               capture_output=True, text=True, timeout=60)
+            ignored = {ln for ln in q.stdout.splitlines() if ln}
+        except (OSError, subprocess.SubprocessError) as exc:
+            degraded.append({"repo": str(repo), "reason": f"{type(exc).__name__}: {exc}",
+                             "effect": f"{len(group)} file(s) carry no git state"})
+        for f, r in zip(group, rel):
+            state[str(f)] = ("tracked" if r in tracked else
+                             "ignored" if r in ignored else "loose")
+    return state, degraded
+
+
+def scan(root: pathlib.Path) -> dict:
+    pepper = salt()
+    files = env_files(root)
+    states, degraded = git_states(files, root)
+    records = []
+    for f in files:
+        try:
+            st = f.stat()
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            degraded.append({"file": str(f), "reason": f"{type(exc).__name__}: {exc}",
+                             "effect": "not read, so its variables are unknown"})
+            continue
+        pairs, unparsed = parse(text)
+        rel = f.relative_to(root)
+        variables = []
+        for name, value in pairs:
+            cls = classify(name, value)
+            shown = name if not SECRET_SHAPED.search(name) else "<redacted: the NAME is secret-shaped>"
+            row = {"name": shown, "class": cls}
+            if cls == "secret":
+                                                                                 
+                                                                                 
+                                                                                
+                                                                                
+                                                                                 
+                row["fingerprint"] = hashlib.sha256(
+                    (pepper + value).encode("utf-8")).hexdigest()[:16]
+            variables.append(row)
+        records.append({
+            "path": str(rel),
+            "project": rel.parts[0] if rel.parts else "",
+            "kind": "template" if f.name.endswith(TEMPLATE_SUFFIXES) else "env",
+            "git": states.get(str(f), "no-repo"),
+            "mode": oct(stat.S_IMODE(st.st_mode))[2:].rjust(4, "0"),
+            "modified_on": datetime.fromtimestamp(st.st_mtime, timezone.utc)
+                                   .strftime("%Y-%m-%d"),
+            "unparsed_lines": unparsed,
+            "variables": variables,
+        })
+    return {
+        "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "root": str(root),
+        "max_depth": MAX_DEPTH,
+        "files": records,
+        "degraded": degraded,
+    }
+
+
+def main(argv: list[str]) -> int:
+    out = pathlib.Path(argv[1]) if len(argv) > 1 else paths.SCRATCH / "env.json"
+    if not paths.DATA.is_dir():
+        atomic.write_json(out, {
+            "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "root": str(paths.DATA), "files": [],
+            "degraded": [{"reason": f"{paths.DATA} does not exist here",
+                          "effect": "no env file is known, which is not the same "
+                                    "as none existing"}]})
+        print(f"env: {paths.DATA} does not exist — nothing scanned")
+        return 0
+    doc = scan(paths.DATA)
+    atomic.write_json(out, doc)
+    n_vars = sum(len(f["variables"]) for f in doc["files"])
+    n_secret = sum(1 for f in doc["files"] for v in f["variables"]
+                   if v["class"] == "secret")
+    loose = sum(1 for f in doc["files"] if f["git"] == "loose")
+    tracked = sum(1 for f in doc["files"] if f["git"] == "tracked")
+    print(f"env: {len(doc['files'])} file(s), {n_vars} variable(s), "
+          f"{n_secret} secret-class, {loose} unignored, {tracked} TRACKED IN GIT")
+    for d in doc["degraded"][:5]:
+        print(f"  degraded: {d.get('reason')}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
