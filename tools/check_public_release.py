@@ -96,7 +96,17 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                     continue
                 seen.add(oid)
                 kind = subprocess.run(["git", "-C", str(root), "cat-file", "-t", oid], capture_output=True, text=True)
-                if kind.stdout.strip() != "blob":
+                object_kind = kind.stdout.strip()
+                if kind.returncode:
+                    findings.append({"kind": "history:unreadable-object", "count": 1})
+                    continue
+                if object_kind in {"commit", "tag"}:
+                    metadata = subprocess.run(["git", "-C", str(root), "cat-file", object_kind, oid], capture_output=True, text=True)
+                    if metadata.returncode:
+                        findings.append({"kind": "history:unreadable-metadata", "count": 1})
+                    for category, n in scan_text(metadata.stdout, deny).items():
+                        findings.append({"kind": "git-metadata:" + category, "count": n})
+                if object_kind != "blob":
                     continue
                 if not rel or not allowed_path(Path(rel)):
                     findings.append({"kind": "history:outside-public-allowlist", "count": 1})
