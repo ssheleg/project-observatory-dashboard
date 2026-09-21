@@ -67,3 +67,17 @@ PageSpeed Insights returned HTTP 429: no new lab performance or field Core Web V
 result is claimed. Search Console inspection is a dated observation, not a crawl
 request or forecast. Raw account responses, traffic analytics, credential material
 and local configuration stay outside Git.
+
+## Production closure
+
+[Production receipt](evidence/production-2026-09-21.json) confirms source commit
+[0dca204](https://github.com/ssheleg/project-observatory-open-source/commit/0dca20438372c0359786327f2ddf98747dc44845),
+12 matching served files, response security headers and an unknown route returning
+404 with the reviewed recovery document. Cloudflare deployment:
+`69a58836-27a3-4ab5-b841-e18130b5b9a9`. The rendered article has four figures and two
+pull quotes. Its browser console has no warnings/errors in the reviewed flow.
+
+After publication, the existing public sitemap was registered through the owner's
+existing Search Console access (HTTP 204), then read back successfully. Processing
+is pending, with zero reported errors/warnings at submission. This does not establish
+indexing. No OAuth scopes or account permissions were changed.

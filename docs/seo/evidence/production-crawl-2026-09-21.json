@@ -1,0 +1,135 @@
+{
+  "observed_date": "2026-09-21",
+  "passed": true,
+  "pages": [
+    {
+      "url": "https://skills.sshlg.me/",
+      "sha256": "2df4558f128dabbc497e9f6dfc4de1577e6e7db288cfc41e3ef2f57c8899c47d",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/harness/",
+      "sha256": "bd5382ba87f6133a5fe94ea8e96b644f92c56cb72f4e7affbaba9b9edbe686c7",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/agents/",
+      "sha256": "15650c447a47f9aa442d7a1b2649d868402cb9ef6cbc6cc91d937521ac0c690a",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/routing/",
+      "sha256": "39f899cd58a9219a6c529db8f176ec3279d4a8e7e128317a3dc14527f5c7d259",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/super-ux/",
+      "sha256": "5eb1093277013be04f68f7ce585409af5d047a551c82d8f43c9a181635a4b149",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/task-pipeline/",
+      "sha256": "79be572edacdead17da9bb202735fd2dd63c41983ff63dfd60d2e2958bcdc9f6",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/agent-sync/",
+      "sha256": "4f1230edfbd8bcfcbed4c859a7271c59b2822b7541b3f0ac4734660297a55374",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/make-skill/",
+      "sha256": "7903c3f80dca63750af1bfbcb4a21cbc606426c88fc7aa2c19189aa6654c8816",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/sheleg-design/",
+      "sha256": "5aa0f8a030a12abeea6cef9b69bf160a60a158a5bdac42f3f861932a449a7f4e",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/seo-aeo-audit/",
+      "sha256": "dc6aa3dd20bed07ce16f69c7a510df32745b22d164dc6ad97ecf0b06d3895a26",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/sheleg-dev/",
+      "sha256": "a80aebc483979f1563f7cdd04371eba7e8dccc627dd983778027673dd37dc115",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/agent-stack/",
+      "sha256": "0df041855ff75750d5172643c8154dc2fe1905b1bfd580b653f040c9a145ab50",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/telegram-dev/",
+      "sha256": "7bfebbbc5a4858ce43c747050668c15c6217391b109a11dc311c058670155caf",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://skills.sshlg.me/skills/xr-dev/",
+      "sha256": "55957e3ae00186fb794052f9109dff75fb80da9ef23aff76fce7b9a4ed4d8c39",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://observatory.sshlg.me/",
+      "sha256": "f8207f4294441a3f5e0586e77e2485f72eebee6e027eecd687bcff4be8efbb0a",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    },
+    {
+      "url": "https://observatory.sshlg.me/field-notes/",
+      "sha256": "162e8ba134fd3ac13bf1c07e494a7db6a8e6ddfdfe1397b2e778ef46b6561da8",
+      "one_h1": true,
+      "self_canonical": true,
+      "parseable_jsonld": true,
+      "preview_metadata_complete": true
+    }
+  ],
+  "both_unknown_routes_return_404": true
+}
