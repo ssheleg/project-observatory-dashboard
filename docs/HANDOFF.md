@@ -35,15 +35,23 @@ operational receipt, provider response or local machine configuration to this
 repository. Never deploy generated private dashboard pages. The public source has
 no private operational ancestry. Original installed services were not switched.
 
-## Release completion
+## Published release and deployment
 
-At this source checkpoint, commit/push, remote CI, integration, release assets and
-production deployments remain a release-owner task. Record their exact commits,
-run/deployment IDs and verified URLs in a follow-up receipt. A pushed branch alone
-is not a release. Use the reviewed static `site/` artifact for Cloudflare Pages;
-Skills is served by GitHub Pages and the personal site has its own Cloudflare job.
+- [0.2.0 release](https://github.com/ssheleg/project-observatory-open-source/releases/tag/v0.2.0): source `fb8d692416da63323d29ae4f89ab71f5c5ba3faa`, inspected wheel and SHA256SUMS. Downloaded release assets match the reviewed archive.
+- [Engine CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35599940689): Linux Python 3.11/3.14 and macOS Python 3.14 all pass.
+- [Website compatibility correction](https://github.com/ssheleg/project-observatory-open-source/commit/c773b5d483a75e7c79fce520a97d4a85c1d6a300): content-versioned CSS/JS prevents previous browser caches breaking new pages; eight static negative probes pass. [CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35600519090) passes all platforms.
+- [Production](https://observatory.sshlg.me/) and [article](https://observatory.sshlg.me/field-notes/): deployed website commit above, Cloudflare deployment `6a319bfa-aa59-48a3-ad31-4843a1809c64`. Ten served files match source bytes; the eleventh file supplies verified response headers.
+- Both pages checked at 320px and 1440px with no overflow, including the previously cached browser. Copy and before/after actions work; no console warnings/errors.
 
-Exact next task: run final public tree/history+302identifier gate and package
-negative tests, commit/push this branch, wait for all supported CI jobs, then
-integrate and publish 0.2.0. Verify a fresh checkout and live article before calling
-the release delivered. Keep social drafts unpublished unless explicitly asked.
+[Machine receipt](releases/0.2.0.json) separates package source, website source,
+CI, asset digests and deployment. The website-only fix did not change the wheel.
+This follow-up changes documentation only and does not imply another deployment.
+
+## Next task and prerequisites
+
+Release work is complete. A new operator starts with [agent onboarding](AGENT-ONBOARDING.md)
+in a private workspace; real provider permissions are checked against their own
+accounts only after explicit enablement. Future interface improvements are bounded
+in [UI-PLAN.md](ux/UI-PLAN.md). Existing live installations need a deliberate
+backup/root/home migration and host restart; no implicit switch was made here.
+Social drafts remain unpublished. Preserve the local-only rule above.

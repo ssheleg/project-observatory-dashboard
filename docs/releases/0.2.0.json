@@ -1,0 +1,141 @@
+{
+  "source_commit": "c773b5d483a75e7c79fce520a97d4a85c1d6a300",
+  "deployment_id": "6a319bfa-aa59-48a3-ad31-4843a1809c64",
+  "url": "https://6a319bfa.project-observatory.pages.dev",
+  "stage": {
+    "name": "deploy",
+    "started_on": null,
+    "ended_on": "2026-09-21T12:40:15.01032Z",
+    "status": "success"
+  },
+  "files": {
+    "site/_headers": "56e50933f25b6fbc3606232bb7ed691a79e6dd55c4e7e39acba28b5275a65d5a",
+    "site/app.js": "60e3c54e47962d856b47aff395840532b6eb7008654c57a2e02aac592ac25f8a",
+    "site/assets/observatory-cover.png": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+    "site/field-notes/index.html": "ac0b6fc3ff1f0353a1c1e1d43d23d66d21173a23dea3daabf9635d3167f2ff43",
+    "site/index.html": "d9d9c7ba82ef2e0a51987ca50372782da61c5ac776ee3240a5c7f534d25cc9f5",
+    "site/llms.txt": "67eb6a825dbe4178ea86f3dbd0ef28934e64bbe99abe88ffde187207ca0560fc",
+    "site/mark.svg": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+    "site/robots.txt": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+    "site/sitemap.xml": "06ac572993168ad88b1cbf43e14c028ec14fecfbb86be8363984d9ab240796af",
+    "site/style.css": "71eda051bd49a91f74cdbef23828a1afe6486b1ffd2ee129e592fd7c8f3265c7",
+    "site/tokens.css": "76ef62b2b7d4cc5c90bb31f57b6495c5e5f29c2e08573cde7ed0fddc8fd74e18"
+  },
+  "production_verification": [
+    {
+      "route": "/app.js",
+      "status": 200,
+      "sha256": "60e3c54e47962d856b47aff395840532b6eb7008654c57a2e02aac592ac25f8a",
+      "matches_source": true
+    },
+    {
+      "route": "/assets/observatory-cover.png",
+      "status": 200,
+      "sha256": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+      "matches_source": true
+    },
+    {
+      "route": "/field-notes/",
+      "status": 200,
+      "sha256": "ac0b6fc3ff1f0353a1c1e1d43d23d66d21173a23dea3daabf9635d3167f2ff43",
+      "matches_source": true,
+      "headers": {
+        "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "route": "/",
+      "status": 200,
+      "sha256": "d9d9c7ba82ef2e0a51987ca50372782da61c5ac776ee3240a5c7f534d25cc9f5",
+      "matches_source": true,
+      "headers": {
+        "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "route": "/llms.txt",
+      "status": 200,
+      "sha256": "67eb6a825dbe4178ea86f3dbd0ef28934e64bbe99abe88ffde187207ca0560fc",
+      "matches_source": true
+    },
+    {
+      "route": "/mark.svg",
+      "status": 200,
+      "sha256": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+      "matches_source": true
+    },
+    {
+      "route": "/robots.txt",
+      "status": 200,
+      "sha256": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+      "matches_source": true
+    },
+    {
+      "route": "/sitemap.xml",
+      "status": 200,
+      "sha256": "06ac572993168ad88b1cbf43e14c028ec14fecfbb86be8363984d9ab240796af",
+      "matches_source": true
+    },
+    {
+      "route": "/style.css",
+      "status": 200,
+      "sha256": "71eda051bd49a91f74cdbef23828a1afe6486b1ffd2ee129e592fd7c8f3265c7",
+      "matches_source": true
+    },
+    {
+      "route": "/tokens.css",
+      "status": 200,
+      "sha256": "76ef62b2b7d4cc5c90bb31f57b6495c5e5f29c2e08573cde7ed0fddc8fd74e18",
+      "matches_source": true
+    }
+  ],
+  "custom_domain": "https://observatory.sshlg.me",
+  "passed": true,
+  "package_release": {
+    "tag": "v0.2.0",
+    "source_commit": "fb8d692416da63323d29ae4f89ab71f5c5ba3faa",
+    "url": "https://github.com/ssheleg/project-observatory-open-source/releases/tag/v0.2.0",
+    "wheel_sha256": "67d12b81be8e31e78ca916e917f3a590f51e073ce088539a141d07a97460a815",
+    "downloaded_assets_verified": true
+  },
+  "ci": {
+    "engine": "https://github.com/ssheleg/project-observatory-open-source/actions/runs/35599940689",
+    "website": "https://github.com/ssheleg/project-observatory-open-source/actions/runs/35600519090",
+    "platforms": [
+      "ubuntu-python-3.11",
+      "ubuntu-python-3.14",
+      "macos-python-3.14"
+    ],
+    "result": "success"
+  },
+  "browser": {
+    "viewports": [
+      320,
+      1440
+    ],
+    "landing_overflow": false,
+    "article_overflow": false,
+    "returning_visitor_stale_css_regression": "passed in same browser session",
+    "copy_prompt": "passed",
+    "before_after_toggle": "passed",
+    "console_warnings_errors": 0
+  },
+  "privacy_checkpoint": {
+    "commit": "61b38e5895a0e0576eef6b840b1fcb17942b9938",
+    "fresh_clone": true,
+    "files_checked": 295,
+    "history_blobs_checked": 362,
+    "private_identifiers": 302,
+    "findings": 0
+  },
+  "scope": {
+    "social_posts": "drafts only",
+    "original_live_installation": "not switched",
+    "live_provider_calls": "not exercised",
+    "private_receipts": "not included"
+  }
+}
