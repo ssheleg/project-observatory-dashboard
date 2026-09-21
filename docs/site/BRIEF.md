@@ -46,3 +46,11 @@ production browser and checks responsive landing/article layout after deployment
   question in the article headline, sees local-retention evidence with its limits,
   and reaches a redacted inspection/response path. Claude Code, claude-mem and
   Chroma remain distinct; no breach or universal exposure is asserted.
+
+- SITE-09: A field-notes reader understands who built Observatory and follows the
+  owner's progression from project inventory/revival to recurring credential
+  warnings and monitoring. The article preserves the credential-risk promise of
+  SITE-08 while leading with the personal origin. It distinguishes first-person
+  experience, reviewed local aggregate, community self-report and patched external
+  research. Reading and video links work without third-party embeds. The existing
+  canonical URL and visual system remain stable.

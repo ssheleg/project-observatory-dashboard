@@ -1,0 +1,10 @@
+{
+  "humanization": "on",
+  "pass": "own",
+  "comparison": "new origin-story draft to reviewed article; not the deliberately replaced previous article",
+  "draft_words": 1507,
+  "final_words": 1508,
+  "changed_word_spans": 55,
+  "changed_word_ratio": 0.0365,
+  "external_research_words": "Check Point synthesis below 200 words; Reddit paraphrase attributed to its author"
+}

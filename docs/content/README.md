@@ -60,3 +60,14 @@ observations. The existing case study remains the source for the aggregate.
 Telegram preserves mechanism, counts and limits. X omits the aggregate and setup
 details to fit a short post. LinkedIn connects the observation to an operational
 review practice. All link to the same canonical article; no account is posted to.
+
+## Owner-origin revision
+
+The canonical article and X Article now tell the owner's path from folder/repository
+inventory and project revival to credential observations. The [source ledger and
+handoff](../runs/2026-09-21-observatory-origin-story.md) records owner-provided history,
+public biography, external reading and the reviewed local aggregate. The earlier
+short social drafts retain their credential-risk angle and link to this story;
+none were published to an account. The website preview and metadata use the new
+headline. Humanization is on with an own editorial pass; its measured changes
+are recorded beside the handoff.
