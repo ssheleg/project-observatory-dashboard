@@ -1,0 +1,58 @@
+[
+  {
+    "surface": "long-post.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.49,
+    "words": 845
+  },
+  {
+    "surface": "short-post.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.0,
+    "words": 122
+  },
+  {
+    "surface": "x-article.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.48,
+    "words": 848
+  },
+  {
+    "surface": "telegram-ru.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 1.07,
+    "words": 129
+  },
+  {
+    "surface": "telegram-en.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.0,
+    "words": 147
+  },
+  {
+    "surface": "linkedin.md",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.0,
+    "words": 224
+  },
+  {
+    "surface": "x-post.txt",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 0.0,
+    "words": 39
+  },
+  {
+    "surface": "x-post-ru.txt",
+    "humanization": "on",
+    "pass": "own",
+    "draft_to_final_changed_percent": 2.81,
+    "words": 33
+  }
+]

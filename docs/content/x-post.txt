@@ -1,6 +1,6 @@
-What stays behind when an agent finishes?
+Your API key is out of Git. Is it out of your Claude Code history?
 
-Project Observatory tracks projects, metrics and credential copies in local artifacts. The full engine is open source; your keys and data stay in your own workspace.
+Tool output can persist in transcripts and optional memory stores. We found retained credential copies locally.
 
-Setup + the local memory case:
-https://observatory.sshlg.me/
+What we found and what to check:
+https://observatory.sshlg.me/field-notes/

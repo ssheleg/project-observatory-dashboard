@@ -44,3 +44,10 @@ A long list of safeguards can obscure what the user can do next. Name the next a
 
 - Admired: the existing Observatory field-notes website, concrete mechanisms and inspectable examples.
 - Refused: generic security-product hype, particularly universal leak-prevention claims.
+
+## Credential-copy editorial update
+
+Use a concrete, personally relevant risk to earn attention: where a valid key may
+remain after a session. Follow the hook with mechanism, evidence and an actionable
+check. Possibility stays possibility; urgency never establishes theft, a vendor
+vulnerability or prevalence across users. Authorized editorial direction, 2026-09-21.

@@ -1,71 +1,60 @@
-# What stays behind when an agent finishes
+# Claude Code finished. Your API key may still be in the logs
 
-An agent finishes a task. The repository looks fine. Somewhere else, a tool result remains in a transcript, a configuration value has reached a memory database, and a project has stopped receiving attention.
+You keep `.env` out of Git. You avoid pasting credentials into chat. Before publishing a repository, you check for secrets.
 
-I built Project Observatory to make that surrounding state visible. It observes projects, connects signals to findings and gives the next agent somewhere to start. The public release now contains the complete engine, with each installation keeping its own configuration, credentials and observations.
+But if a command run during a Claude Code session prints a key, where does that output go?
 
-## The copy that outlived the command
+It can become part of the session record. A memory integration can retain information from the tool result. Closing the terminal does not tell you whether those copies are gone. Your application can keep working while a valid credential sits somewhere you never thought to inspect.
 
-A credential does not have to leave a computer to end up somewhere it was never meant to be. A command can print a value. An agent can receive the result. A memory tool can preserve that result long after the command has finished.
+That possibility became concrete in our local setup. An earlier remediation pass recorded **202 value-replacement events in memory stores**: 66 in claude-mem SQLite and 136 in Chroma SQLite. We had credential copies outside the storage intended for them.
 
-That is an illustrative path, not a reconstruction of every event in our records. What we can report from the earlier local deployment is narrower and more concrete: a remediation pass on 14 September 2026 recorded **66 value-replacement events in claude-mem SQLite and 136 in Chroma SQLite**. Together, that is **202 replacement events**.
+Those are replacement events, not 202 different keys or confirmed breaches. Our records establish local retention; they do not establish that an attacker obtained the values.
 
-Those units matter. They are not 202 different keys, 202 incidents or 202 vulnerabilities in those tools. Multiple references can point to one value, and the same database cell can be affected more than once. The records establish that credential copies were retained locally and that replacements were recorded. They do not establish remote exfiltration or prove that every copy was removed.
+## A clean repository leaves part of the question unanswered
 
-The [case study](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md) publishes the aggregate and its limitations. Raw records, credential labels, paths and project identities stay private.
+Consider a debugging task. A tool reads configuration or runs a diagnostic command. Its output includes a credential. The output becomes available to the agent, and an installed memory integration processes it.
 
-## Make the next action visible
+This is an illustrative route, not a reconstruction of every copy we found. Whether a value is retained depends on what the tool emitted, the permissions and the integrations in that installation.
 
-Before inspection, a copied value is one more piece of ordinary output. It can sit beside useful context in a transcript or memory record. Looking only at the repository misses it.
+The mechanisms are documented. Claude Code's [hook reference](https://code.claude.com/docs/en/hooks#common-input-fields) exposes a session transcript path; its [PostToolUse hook](https://code.claude.com/docs/en/hooks#posttooluse) receives tool inputs and responses. The separate claude-mem project documents a [hook that captures tool observations](https://docs.claude-mem.ai/architecture/hooks#stage-3-posttooluse) for memory processing.
 
-Observatory can compare values already known to the local installation against supported, selected artifacts. A finding identifies the location and the credential reference without needing to repeat the value in a conversation. The operator can then decide whether to revoke or rotate the credential, remove retained copies and inspect the remaining exposure surface.
+**claude-mem is an optional integration, not Claude Code's built-in memory.** Chroma is a separate storage component. Mentioning them identifies where our local copies were found; it does not establish a vulnerability in either product.
 
-These are separate actions. Removing a local copy does not revoke a key. Rotating a local slot does not establish that its predecessor has been revoked by the provider. A clean result only describes the inputs and matching method that actually ran.
+A repository scan only covers what it scans. Session records, memory stores, exported reports and their backups can sit outside that scope. Keeping a secret out of Git is useful, but it does not account for every later copy.
 
-The full engine also includes an optional remediation tool for supported companion memory stores. It creates private backups before making changes and requires explicit enablement. Those backups remain sensitive. Neither remediation nor known-value scanning is a promise to remove every historical backup, embedding or encoded representation.
+## What we found, and what we cannot claim
 
-## Projects need an observation history too
+On 14 September 2026, our local remediation journal recorded:
 
-Credential copies were one reason to build this. The broader problem is keeping track of work spread across repositories and services.
+- **66 value-replacement events in claude-mem SQLite**
+- **136 value-replacement events in Chroma SQLite**
 
-You choose a project directory. Observatory discovers repositories within that scope and builds a local registry. It can collect Git activity, working-tree state and project metrics, then connect observations to findings and history. The dashboard gives a person a view of that state; the CLI and MCP give an agent ways to inspect it.
+Several references can refer to one credential, and a cell can be affected more than once. The total cannot be converted into a count of unique keys, incidents or affected users.
 
-Optional adapters extend the view to repository hosts, hosting accounts, domains and analytics. They use the account access that the operator supplies. A missing account or unavailable source must remain visible as missing, rather than quietly becoming a zero or a green status.
+The [case study](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md) publishes the aggregate and its limits. Project names, values, credential labels and raw records remain private. Readers can verify the arithmetic, but cannot reproduce our private observation from the public repository.
 
-Metrics plugins, local session sources, scheduled observation and model-assisted interpretation are part of the engine. They are not all switched on at installation. External access and paid actions need an explicit choice. The first local pipeline can run without a provider key.
+We also cannot infer when every copy was created, who could access it, whether it left the machine, or whether every copy was removed. This is an account of retained local credentials, not an audit of model-provider data handling.
 
-## Public code, private installation
+## Before you share that transcript
 
-The first public package was a smaller portable implementation. That was useful for an isolated demo, but it was not the whole system I wanted to share. The current release includes the original engine with its runtime state moved out of the source tree.
+A transcript can look like harmless debugging history. If it contains a valid key, sharing it also shares whatever access that key grants. The same concern applies when a local memory database is copied into a backup or support bundle.
 
-The distinction is simple: everyone can install the same code; nobody needs my accounts, repository inventory or credential files. Each user creates a private workspace for configuration, registry data, history, generated dashboards and locally managed secret slots. External credential stores can be referenced separately.
+Start with the artifacts you are about to share and the tools configured to retain your agent's work. Check selected transcripts, tool-output logs and memory stores locally. Keep the review output redacted: the useful result is the location and credential reference, not the value pasted into another conversation.
 
-The public source has its own clean Git history. The private operational repository was not made public, and its old commits were not imported. A release gate checks the public files and history, while package checks verify that the distributed engine contains the reviewed source.
+If you find a valid credential in an unintended location, revoke or rotate it at the provider and review the access it had. Removing the copy does not invalidate the key. Revoking the key does not erase the copy. Cleanup and access control need separate checks.
 
-Local permissions are part of the boundary, not an encryption claim. The default secret slots are private files. Anyone adopting the tool still needs to protect the machine and its backups. The authenticated local key service has an explicit reveal operation; it should not be exposed as a public, multi-user service.
+Avoid asking an agent to print your secrets so it can search for them. That can create another copy while you investigate the first.
 
-## Let the agent guide setup
+## Why I built Project Observatory
 
-The onboarding guide starts with a Python environment and a new private workspace. The agent checks requirements, initializes state and runs the doctor before helping the operator choose a project directory.
+I wanted a way to inspect this surrounding state without turning every investigation into another transcript full of sensitive output.
 
-Only then does it offer integrations. A repository inventory task may need read access; token provisioning needs different permissions. Those should not be bundled into one unexplained request for a powerful key.
+Project Observatory can compare locally known secret values against supported artifacts you explicitly select. It records findings with the value withheld. Its optional companion-memory remediation creates private backups before changing supported stores and requires explicit enablement. Those backups are sensitive too.
 
-Credentials are entered through a local hidden prompt, a protected file or an existing credential manager. They do not need to pass through the conversation. The agent should report which integration connected, what could be read and what remains unavailable.
+This is known-value scanning. It cannot promise to find every unknown secret, encoded copy, embedding or historical backup. The first local workflow does not automatically rotate credentials or erase memory stores.
 
-The [installation guide](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/ONBOARDING.md) includes a prompt you can give your coding agent. The [landing page](https://observatory.sshlg.me/#start) has a copyable version. Generated dashboards stay local; the public website contains only explanatory material and synthetic examples.
+The open-source release includes the full engine. The code is shared; your project inventory, accounts, credentials and observations stay in your own private workspace. It also tracks project activity and findings so an agent can pick up work with context about what changed.
 
-## Updates should not replace your installation
+The [setup guide](https://observatory.sshlg.me/#start) gives you a prompt for your coding agent. Start with a private workspace and a directory you understand. Add integrations individually, and enter keys locally rather than in chat.
 
-Moving the full system into open source also means deciding what happens when the code changes. Configuration, workspace, database and plugin contracts have explicit versions. Unsupported future versions are refused before normal writes, and optional configuration fields are preserved.
-
-An upgrade has a preview and a backed-up apply path. Writers must be stopped first, including older executables that cannot know about a new lock. A rollback restores a verified snapshot into a separate home and uses the matching application release. Pointing old code at a newer database is not a rollback strategy.
-
-The earlier portable commands remain available in a separate compatibility mode. Their workspace is not interchangeable with the full engine's database. The [compatibility policy](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/COMPATIBILITY.md) records that boundary and the tested migration cases.
-
-## Where it fits in the harness
-
-The [Skills site](https://skills.sshlg.me/) stays focused on skills. Its separate [Harness section](https://skills.sshlg.me/harness/) explains how they work together with tools around an agent.
-
-Skills guide decisions and implementation. The delivery workflow carries changes through verification and handoff. Project Observatory adds an observation layer over the work and the artifacts it leaves behind. Asset Foundry, still in development, covers asset creation workflows for agents.
-
-You can use Observatory on its own. Start with one directory you understand, inspect the first findings, and add another source when you have a reason to observe it.
+Before you export another Claude Code session, check what it contains. A key does not need to appear in a commit to end up somewhere you did not intend.

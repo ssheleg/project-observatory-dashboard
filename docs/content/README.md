@@ -9,7 +9,7 @@ publish social drafts only after checking the release and live site.
 | Canonical long article | [long-post.md](long-post.md), rendered in [the site](../../site/field-notes/index.html) |
 | Short article | [short-post.md](short-post.md) |
 | X Article | [x-article.md](x-article.md) |
-| X announcement | [x-post.txt](x-post.txt) |
+| X announcement EN / RU | [x-post.txt](x-post.txt), [x-post-ru.txt](x-post-ru.txt) |
 | Telegram Russian | [telegram-ru.md](telegram-ru.md) |
 | Telegram English | [telegram-en.md](telegram-en.md) |
 | LinkedIn | [linkedin.md](linkedin.md) |
@@ -48,3 +48,15 @@ Generated illustration; no dashboard screenshot or operational data. Original PN
 is retained with provenance metadata. SHA-256:
 `70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833`.
 The privacy gate accepts only this reviewed binary digest, including in Git history.
+
+## Credential-copy editorial revision
+
+The article and channel adaptations now lead with API credentials retained after
+Claude Code workflows. Mechanism sources: [Claude Code hooks](https://code.claude.com/docs/en/hooks)
+and [claude-mem lifecycle](https://docs.claude-mem.ai/architecture/hooks), checked
+2026-09-21. These establish capabilities, not the causal history of our private
+observations. The existing case study remains the source for the aggregate.
+
+Telegram preserves mechanism, counts and limits. X omits the aggregate and setup
+details to fit a short post. LinkedIn connects the observation to an operational
+review practice. All link to the same canonical article; no account is posted to.

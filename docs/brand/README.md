@@ -4,7 +4,7 @@ Contract: brand-contract v1
 
 Sources:
   ui: observatory/engine/dashboard/*.py
-  marketing: site/**/*.html docs/content/*.md
+  marketing: site/**/*.html docs/content/*.md docs/content/*.txt
 
 This pack derives from the existing peer-builder website brief and the operator's
 request for a full, privately configured tool. Brand status remains draft;
