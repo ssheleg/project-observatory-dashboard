@@ -1,0 +1,158 @@
+{
+  "source_commit": "0dca20438372c0359786327f2ddf98747dc44845",
+  "deployment_id": "69a58836-27a3-4ab5-b841-e18130b5b9a9",
+  "url": "https://69a58836.project-observatory.pages.dev",
+  "stage": {
+    "name": "deploy",
+    "started_on": null,
+    "ended_on": "2026-09-21T14:15:49.366005Z",
+    "status": "success"
+  },
+  "files": {
+    "site/404.html": "c35dc59f6cccd3461ca62f7d608dd8701227e2765c20e131ff05922d4046bb2c",
+    "site/_headers": "56e50933f25b6fbc3606232bb7ed691a79e6dd55c4e7e39acba28b5275a65d5a",
+    "site/app.js": "60e3c54e47962d856b47aff395840532b6eb7008654c57a2e02aac592ac25f8a",
+    "site/assets/credential-copies-cartoon.png": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c",
+    "site/assets/observatory-cover.png": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+    "site/field-notes/index.html": "162e8ba134fd3ac13bf1c07e494a7db6a8e6ddfdfe1397b2e778ef46b6561da8",
+    "site/index.html": "f8207f4294441a3f5e0586e77e2485f72eebee6e027eecd687bcff4be8efbb0a",
+    "site/llms.txt": "67eb6a825dbe4178ea86f3dbd0ef28934e64bbe99abe88ffde187207ca0560fc",
+    "site/mark.svg": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+    "site/robots.txt": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+    "site/sitemap.xml": "11f485b2fd3d214451d096f0c9218ce1a17a503e53f18a698fe91e019fe41ff3",
+    "site/style.css": "ca2d82d621cc720feb05db0c7f9288a189c828d9310297d828db40922478db1b",
+    "site/tokens.css": "cd1070ac1a6c0eb1add7c4176d16cc72b00fcfdc9530b213ff36a2f15e630c78"
+  },
+  "production_verification": [
+    {
+      "route": "/404.html",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "c35dc59f6cccd3461ca62f7d608dd8701227e2765c20e131ff05922d4046bb2c",
+      "matches_source": true
+    },
+    {
+      "route": "/app.js",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "60e3c54e47962d856b47aff395840532b6eb7008654c57a2e02aac592ac25f8a",
+      "matches_source": true
+    },
+    {
+      "route": "/assets/credential-copies-cartoon.png",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c",
+      "matches_source": true
+    },
+    {
+      "route": "/assets/observatory-cover.png",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+      "matches_source": true
+    },
+    {
+      "route": "/field-notes/",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "162e8ba134fd3ac13bf1c07e494a7db6a8e6ddfdfe1397b2e778ef46b6561da8",
+      "matches_source": true,
+      "headers": {
+        "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "route": "/",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "f8207f4294441a3f5e0586e77e2485f72eebee6e027eecd687bcff4be8efbb0a",
+      "matches_source": true,
+      "headers": {
+        "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "route": "/llms.txt",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "67eb6a825dbe4178ea86f3dbd0ef28934e64bbe99abe88ffde187207ca0560fc",
+      "matches_source": true
+    },
+    {
+      "route": "/mark.svg",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+      "matches_source": true
+    },
+    {
+      "route": "/robots.txt",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+      "matches_source": true
+    },
+    {
+      "route": "/sitemap.xml",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "11f485b2fd3d214451d096f0c9218ce1a17a503e53f18a698fe91e019fe41ff3",
+      "matches_source": true
+    },
+    {
+      "route": "/style.css",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "ca2d82d621cc720feb05db0c7f9288a189c828d9310297d828db40922478db1b",
+      "matches_source": true
+    },
+    {
+      "route": "/tokens.css",
+      "status": 200,
+      "status_ok": true,
+      "sha256": "cd1070ac1a6c0eb1add7c4176d16cc72b00fcfdc9530b213ff36a2f15e630c78",
+      "matches_source": true
+    }
+  ],
+  "custom_domain": "https://observatory.sshlg.me",
+  "unknown_path": {
+    "status": 404,
+    "matches_404": true
+  },
+  "passed": true,
+  "sitemap_registration": {
+    "sitemap": "https://observatory.sshlg.me/sitemap.xml",
+    "operation": "register existing public sitemap",
+    "observed_date": "2026-09-21",
+    "submit_status": 204,
+    "registered": true,
+    "last_submitted": "2026-09-21T14:16:08.440Z",
+    "pending": true,
+    "warnings": "0",
+    "errors": "0"
+  },
+  "fresh_checkout": {
+    "repository": "project-observatory-open-source",
+    "checked_relative_links": 7,
+    "passed": true
+  },
+  "ci": [
+    "https://github.com/ssheleg/project-observatory-open-source/actions/runs/35610573326",
+    "https://github.com/ssheleg/project-observatory-open-source/actions/runs/35610536826"
+  ],
+  "privacy": {
+    "gate": "public-release-privacy",
+    "passed": true,
+    "files_checked": 312,
+    "history_blobs_checked": 402,
+    "private_denylist_entries": 302,
+    "findings": [],
+    "limits": "Pattern/identifier checks cannot prove absence of every secret or private fact. Review source, metadata and release scope independently. Match values and paths are never printed."
+  },
+  "observed_date": "2026-09-21"
+}
