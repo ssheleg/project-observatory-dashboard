@@ -251,9 +251,14 @@ if stale:
           f"keeping {len(authored)} authored one(s)")
 out_projs=[]; relations=list(authored); seen_rel={r["id"] for r in relations}
 seen_edge={(r["type"],r["from"],r["to"]) for r in relations}
-def add_rel(rid,typ,frm,to,refs):
+def add_rel(rid,typ,frm,to,refs,rule=None):
+    # `rule` is the edge's provenance: WHY these two endpoints are linked
+    # (a membership rule, a Heroku link rule, a credential path rule). It was
+    # dropped here, so an edge in relations.json could not say why it existed.
     if rid in seen_rel or (typ,frm,to) in seen_edge: return
-    relations.append({"id":rid,"type":typ,"from":frm,"to":to,"source_refs":refs})
+    rel={"id":rid,"type":typ,"from":frm,"to":to,"source_refs":refs}
+    if rule: rel["rule"]=rule
+    relations.append(rel)
     seen_rel.add(rid); seen_edge.add((typ,frm,to))
 cleared: list[str] = []
 for key in sorted(projs):
@@ -318,7 +323,9 @@ for key in sorted(projs):
     # moves, and an edge id built from the key moved with it.
     slug_id = i.split(":", 1)[1]
     for k in p["repos"]:
-        add_rel(f"relation:{slug_id}:implemented-by:{k}".replace("/","-"),"implemented_by",i,"repository:"+k,SRC)
+        _why = next((r.split(": ", 1)[1] for r in p.get("rules") or [] if r.startswith(f"{k}: ")),
+                    f"{p.get('anchor')} anchor")
+        add_rel(f"relation:{slug_id}:implemented-by:{k}".replace("/","-"),"implemented_by",i,"repository:"+k,SRC,_why)
     for s in p["sites"]:
         if s["confidence"]=="registry-confirmed":
             add_rel(f"relation:{s['owned_domain']}:public-domain-of:{slug_id}","public_domain_of",
@@ -396,7 +403,7 @@ if HEROKU_SRC.is_file():
     _scan = json.loads(HEROKU_SRC.read_text(encoding="utf-8"))
     heroku_apps, _edges = heroku_registry.records(_scan, out_projs, out_repos, relations)
     for e in _edges:
-        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"])
+        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
     _doc = heroku_registry.document(_scan, heroku_apps, OBS)
     _stamped("heroku-apps.json", _doc)
     _t = _doc["totals"]
@@ -454,7 +461,7 @@ if _perrors:
     # whole: emitting half of an operator's grouping is a grouping nobody made.
     sys.exit("collectors/products.json refused:\n  " + "\n  ".join(_perrors))
 for e in _pedges:
-    add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"])
+    add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
     relations[-1]["role"] = e["role"]
 _stamped("products.json", _pdoc)
 products_doc = _pdoc
@@ -494,7 +501,7 @@ if CRED_SRC.is_file():
         paths.source_path("secret_store", paths.SECRETS) / 'projects'))
     credentials, _cedges = credentials_registry.records(_cscan, _vault, out_projs)
     for e in _cedges:
-        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"])
+        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
     _cdoc = credentials_registry.document(credentials, _cscan, OBS)
     _stamped("credentials.json", _cdoc)
     _ct = _cdoc["totals"]

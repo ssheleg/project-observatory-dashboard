@@ -3,6 +3,29 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.1 — 2026-09-23
+
+### Fixed
+
+- Every derived relation names the rule that produced it (`rule` on `implemented_by`, `deployed_to`
+  and `credential_used_by`), so an edge can be traced to its evidence; `validate` now refuses one
+  without it.
+- Two Cloudflare accounts holding a zone of the same name produced one zone id, and one of the zones
+  vanished from the registry. Such zones are now `zone:<name>@<account>`; unique names keep their id.
+- The ENV page showed the production verdict of only the first Heroku app sharing a checkout. It now
+  lists every app's verdict for each variable.
+- The memory-companion scrub re-read every row of both stores on every tick, testing each cell
+  against each known value in turn; on a 5 GB store that step alone ran past half an hour. It now
+  screens whole pages at once and, after one complete pass, reads only rows added since
+  (`state/scrub-watermark.json`). A complete pass returns when the value set changes, weekly, when a
+  table is recreated, or with `--full`. It also reads each store once instead of twice.
+
+### Added
+
+- `deployed_commit` on each Heroku app: the commit its last code release states it deployed, with the
+  release number and source. Rollbacks, promotions and branch-only descriptions give `null`, never a
+  guess from the configured branch. The Heroku page shows the short commit under the deploy date.
+
 ## 0.3.0 — 2026-09-23
 
 ### Added

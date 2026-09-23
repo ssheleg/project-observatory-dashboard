@@ -3190,10 +3190,13 @@ function renderEnv() {
       const m = REMOTE_BY_FOLDER.get(e.project);
       if (!D.remote) return '<span class="anchor">не сканировалось</span>';
       if (!m) return NONE;
-      const v = m.get(e.name);
-      if (!v) return '<span class="unlinked">нет у прода</span>';
-      const [word, kind] = VERDICT_RU[v.verdict] || [v.verdict, ""];
-      return chip(word, kind) + '<div class="anchor">' + E(v.app) + '</div>';
+      const vs = (m.get(e.name) || []).slice().sort((a, b) =>
+        VERDICT_ORDER.indexOf(a.verdict) - VERDICT_ORDER.indexOf(b.verdict) || String(a.app).localeCompare(String(b.app)));
+      if (!vs.length) return '<span class="unlinked">нет у прода</span>';
+      return vs.map(v => {
+        const [word, kind] = VERDICT_RU[v.verdict] || [v.verdict, ""];
+        return chip(word, kind) + '<div class="anchor">' + E(v.app) + '</div>';
+      }).join("");
     })() + '</td>' +
     '<td data-label="Значение" data-key="' + E(envKey(e)) + '">' + envActions(e) + '</td></tr>';
   const t = D.env.totals || {};
@@ -3505,8 +3508,14 @@ for (const a of (D.remote && D.remote.apps) || [])
     const key = String(f).replace(/\/+$/, "").split("/").pop();
     if (!REMOTE_BY_FOLDER.has(key)) REMOTE_BY_FOLDER.set(key, new Map());
     const m = REMOTE_BY_FOLDER.get(key);
-    for (const v of a.vars || []) if (!m.has(v.name)) m.set(v.name, {...v, app: a.app});
+    // EVERY APP, not the first: a prod and a staging app compared with one
+    // folder each have their own verdict, and keeping only the first hid the other.
+    for (const v of a.vars || []) {
+      if (!m.has(v.name)) m.set(v.name, []);
+      if (!m.get(v.name).some(x => x.app === a.app)) m.get(v.name).push({...v, app: a.app});
+    }
   }
+const VERDICT_ORDER = ["same_as_local", "local_only", "differs", "remote_only", "not_compared", "no_local_checkout"];
 const VERDICT_RU = {
   same_as_local: ["то же, что локально", "danger"],
   differs: ["другое значение", "ok"],
@@ -3554,8 +3563,10 @@ function renderHeroku() {
                                   
     const shared = (a.addons_attached || []).length
       ? `<div class="tier">${chip("общая с " + E(a.addons_attached.map(x => x.owner).join(", ")), "warn")}</div>` : "";
+    const sha = a.deployed_commit && a.deployed_commit.sha
+      ? `<div class="anchor mono" title="коммит из описания релиза v${E(a.deployed_commit.release)}">${E(a.deployed_commit.sha.slice(0, 8))}</div>` : "";
     const deploy = a.last_deploy_on
-      ? E(a.last_deploy_on) + (a.last_deploy_on < YEAR_AGO ? `<div class="tier">${chip("больше года", "warn")}</div>` : "")
+      ? E(a.last_deploy_on) + sha + (a.last_deploy_on < YEAR_AGO ? `<div class="tier">${chip("больше года", "warn")}</div>` : "")
       : `<span class="unlinked">${a.never_deployed ? "кода не было" : "не найден"}</span>`;
                                                                                  
                                                                              

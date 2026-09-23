@@ -137,6 +137,15 @@ Known-value scanning finds occurrences of values already known locally. It
 cannot prove the absence of unknown, encoded or previously deleted values.
 Rotation changes the local slot; provider revocation is a separate action.
 
+With `companion_remediation` enabled, each tick replaces known values in the memory companion's
+stores with `[REDACTED:<name>]`, after taking a backup of each store it changes. The first pass reads
+every row; later ticks read only rows added since, per table, and record where they stopped in
+`state/scrub-watermark.json`. That file identifies the value set by an HMAC under the workspace's
+salt, so it holds nothing a value could be recovered from. A complete pass runs again when the set of
+known values changes, a week after the last complete pass, when a table was emptied or recreated, or
+on `tools/scrub_companion.py --full`. A row edited in place between complete passes is caught by the
+weekly pass, not sooner.
+
 ## Connect an agent
 
 The complete MCP server uses stdio. Configure a Python executable from the

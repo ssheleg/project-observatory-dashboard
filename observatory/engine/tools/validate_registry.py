@@ -320,6 +320,9 @@ def main():
                               f"address, which is not a repository in this registry")
     for relation in relations:
         if not relation.get("source_refs") or set(relation["source_refs"])-si: errors.append(f"relation has missing or unresolved sources: {relation['id']}")
+        # Derived edges must say why they exist; an authored edge may explain itself in its own fields.
+        if relation["type"] in ("implemented_by", "deployed_to", "credential_used_by") and not relation.get("rule"):
+            errors.append(f"derived relation carries no rule: {relation['id']}")
     for source in sources:
         artifact=source.get("artifact")
         if not artifact: continue

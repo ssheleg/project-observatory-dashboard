@@ -170,6 +170,28 @@ const commandText = commandHttp.byId("out").innerHTML;
 check("HTTP without an action token describes command mode", commandText.includes('режим команд') && !commandText.includes('страница открыта из файла'));
 check("command mode does not claim execution", commandText.includes('выполните') && !commandText.includes('>показать<'));
 
+// ── two apps compared with one folder: both verdicts are shown ─────────────
+{
+  const inject = 'const REMOTE_BY_FOLDER = new Map();';
+  const twoApps = inject.replace('new Map();', 'new Map(); (() => { const f = ENVF.find(x => x.kind === "env" && x.variables.length); if (!f) return; ' +
+    'const name = f.variables[0].name; const folder = String(f.project); ' +
+    'D.remote = { apps: [ { app: "fixture-prod", compared_with: [folder], vars: [{ name, verdict: "same_as_local" }] }, ' +
+    '{ app: "fixture-staging", compared_with: [folder], vars: [{ name, verdict: "differs" }] } ] }; })();');
+  const patched = source.includes(inject) ? source.replace(inject, twoApps) : null;
+  if (!patched) {
+    check("two apps of one folder are both shown", false, "the page no longer declares REMOTE_BY_FOLDER");
+  } else {
+    const dom2 = makeDom({ hash: "#env" });
+    vm.createContext(dom2.context);
+    vm.runInContext(patched, dom2.context, { filename: "env-tab-two-apps", timeout: 20000 });
+    const o2 = dom2.byId("out").innerHTML;
+    check("two apps of one folder are both shown", o2.includes("fixture-prod") && o2.includes("fixture-staging"),
+          o2.includes("fixture-prod") ? "only the first app" : "neither app");
+    check("and the dangerous verdict comes first",
+          o2.indexOf("fixture-prod") > -1 && o2.indexOf("fixture-prod") < o2.indexOf("fixture-staging"));
+  }
+}
+
 // ── the served page: a token is present and the protocol is http ───────────
 let live;
 try {

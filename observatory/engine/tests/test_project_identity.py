@@ -59,7 +59,7 @@ def test_the_naming_rule_lives_in_one_place() -> None:
           I.local_key("Some_Folder Name") == "local-some-folder-name",
           I.local_key("Some_Folder Name"))
     check("a dot survives, because the registry's slug keeps it",
-          I.local_key("prowl.chat") == "local-prowl.chat", I.local_key("prowl.chat"))
+          I.local_key("example.chat") == "local-example.chat", I.local_key("example.chat"))
     src = (ROOT / "collectors/merge.py").read_text(encoding="utf-8")
     check("and the merge mints through it rather than spelling it again",
           "identity.local_key" in src or "local_key(" in src,
@@ -493,6 +493,8 @@ def test_an_overridden_project_keeps_its_relation_ids() -> None:
     check("the overridden project has its implemented_by edge", bool(mine), str(rels)[:300])
     check("and the edge id names the pinned id, not the merge key",
           all(r["id"].startswith("relation:stable-a:") for r in mine), str([r["id"] for r in mine]))
+    check("and every implemented_by edge says why it exists",
+          all(r.get("rule") for r in rels if r["type"] == "implemented_by"), str(rels)[:300])
 
 
 if __name__ == "__main__":
