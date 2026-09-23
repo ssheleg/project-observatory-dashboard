@@ -164,13 +164,30 @@ def test_the_live_store_holds_only_the_estates_own_work() -> None:
     check("the drop migration is recorded as applied", applied is not None)
 
 
+def test_every_checkout_of_a_repository_is_read() -> None:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("scan_events_t", ROOT / "collectors/scan_events.py")
+    se = importlib.util.module_from_spec(spec); spec.loader.exec_module(se)
+    repos = {"repository:o/app": {"name_with_owner": "o/app", "local": {
+        "path": "/srv/app", "extra_checkouts": [{"folder": "app-wt", "path": "/srv/app-wt"},
+                                                {"folder": "dup", "path": "/srv/app"}]}}}
+    got = se.targets([], repos, {"repository:o/app": "project:app"})
+    paths_ = sorted(t["path"] for t in got)
+    check("the primary checkout and every extra one are read, the primary once",
+          paths_ == ["/srv/app", "/srv/app-wt"], str(paths_))
+    check("an extra checkout is keyed by its repository, so one repo's shas are not 'shared'",
+          {t["label"] for t in got} == {"repository:o/app"}
+          and {t["project_id"] for t in got} == {"project:app"})
+
+
 if __name__ == "__main__":
     print("events — what is recorded, and what silence would have hidden\n")
     for fn in (test_one_rule_two_readers,
                test_truncation_is_detectable_at_all,
                test_truncation_is_detected_against_a_real_repository,
                test_the_migration_drops_only_foreign_events,
-               test_the_live_store_holds_only_the_estates_own_work):
+               test_the_live_store_holds_only_the_estates_own_work,
+               test_every_checkout_of_a_repository_is_read):
         fn()
     print()
     if FAILURES:

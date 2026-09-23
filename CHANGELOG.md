@@ -3,6 +3,19 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.2.9 — 2026-09-23
+
+### Fixed
+
+- Projects whose names slug to one key (a wiki folder `Foo-Bar` and a repository `foo/bar`, or
+  local folders `a b` and `a-b`) are all kept. 0.2.8 kept the last and dropped the others silently;
+  now the highest-precedence anchor keeps the key, the others get a numeric suffix, and the collision
+  is reported as degraded so you can pin names in `identity_overrides.json`.
+- Commits in every checkout of a repository are recorded, not only the primary clone's: a worktree or
+  second clone on another branch held work that never reached the event history.
+- Relation ids use the project id. A project pinned with `identity_overrides.json` kept its id across
+  a rename, but its `implemented_by` and `public_domain_of` edges were renamed with the merge key.
+
 ## 0.2.8 — 2026-09-23
 
 ### Changed

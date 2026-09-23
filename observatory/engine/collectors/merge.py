@@ -598,6 +598,36 @@ if _undeclared:
     print(f"  UNDECLARED owner(s): {', '.join(_undeclared)} — reported as external"
           f" ({_und_cloned} of {len(_und_repos)} cloned here)")
 
+# DISTINCT PROJECTS MAY SLUG TO ONE KEY — a vault folder "Foo-Bar" and a repo
+# foo/bar, or local folders "a b" and "a-b". Writing them into one dict kept the
+# last and dropped the rest without a word. Keep every project: the highest-
+# precedence anchor keeps the key, the others get a deterministic numeric suffix,
+# and the collision is reported as degraded so an operator can pin names in
+# identity_overrides.json. The persisted identity map designed in
+# docs/design/IDENTITY.md replaces the suffix; until then this keeps data.
+_ANCHOR_PRECEDENCE = {"vault-folder": 0, "organisation": 1, "repository": 2, "local-folder": 3}
+_by_key = {}
+for _p in projects.values():
+    _by_key.setdefault(_p["key"], []).append(_p)
+_taken = set(_by_key)
+for _key, _group in sorted(_by_key.items()):
+    if len(_group) < 2:
+        continue
+    _group.sort(key=lambda p: (_ANCHOR_PRECEDENCE.get(p["anchor"], 9), p["name"]))
+    _renamed = []
+    for _p in _group[1:]:
+        _n = 2
+        while f"{_key}-{_n}" in _taken:
+            _n += 1
+        _p["key"] = f"{_key}-{_n}"
+        _taken.add(_p["key"])
+        _renamed.append(f"{_p['name']} -> {_p['key']}")
+    degraded.append({"source": "identity",
+                     "reason": f"{len(_group)} projects share the key {_key!r}; "
+                               f"{_group[0]['name']} keeps it, " + ", ".join(_renamed)
+                               + ". Pin stable names in identity_overrides.json"})
+    print(f"  KEY COLLISION {_key!r}: " + ", ".join(p["name"] for p in _group))
+
 out={"repositories":repos,"projects":{p["key"]:p for p in projects.values()},
      "duplicate_repo_names":duplicates,"degraded":degraded}
 if moved:
