@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""Install, inspect or remove the observatory-log Claude Code plugin.
+
+install  adds the GitHub marketplace, installs the plugin, turns plugin
+         auto-update ON (pass --no-auto-update to keep it off) and sets
+         OBSERVATORY_ROOT / OBSERVATORY_HOME for the plugin's hooks.
+status   reports the marketplace source, auto-update, installed version and
+         whether the hooks can find this engine and workspace.
+uninstall removes the plugin, its marketplace and the keys install added.
+
+Only Claude Code's own CLI and its user settings are touched. Settings are
+backed up once before the first change and rewritten atomically; unrelated
+keys are preserved. CLAUDE_CONFIG_DIR selects a different Claude Code home.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import configuration  # noqa: E402
+
+MARKETPLACE = "observatory-log"
+PLUGIN = f"{MARKETPLACE}@{MARKETPLACE}"
+REPOSITORY = os.environ.get("OBSERVATORY_PLUGIN_REPOSITORY", "ssheleg/project-observatory-dashboard")
+SOURCE = {"source": "github", "repo": REPOSITORY}
+ENV_KEYS = ("OBSERVATORY_ROOT", "OBSERVATORY_HOME")
+
+
+class PluginError(RuntimeError):
+    pass
+
+
+def claude_home() -> Path:
+    value = os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(value).expanduser() if value else Path.home() / ".claude"
+
+
+def claude_bin() -> str:
+    found = os.environ.get("CLAUDE_BIN") or shutil.which("claude")
+    if not found:
+        raise PluginError("Claude Code (`claude`) is not on PATH. Install Claude Code, or add the "
+                          f"marketplace by hand: `/plugin marketplace add {REPOSITORY}` then "
+                          f"`/plugin install {PLUGIN}`")
+    return found
+
+
+def run_claude(*args: str) -> subprocess.CompletedProcess:
+    p = subprocess.run([claude_bin(), "plugin", *args], capture_output=True, text=True, timeout=300)
+    return p
+
+
+def read_json(path: Path) -> dict:
+    if path.is_symlink():
+        raise PluginError(f"{path} is a symbolic link; refusing to edit it")
+    if not path.exists():
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise PluginError(f"{path} is not valid JSON; fix it before installing") from None
+    if not isinstance(doc, dict):
+        raise PluginError(f"{path} must hold a JSON object")
+    return doc
+
+
+def write_json(path: Path, doc: dict) -> None:
+    """Back up once, then replace atomically, keeping the file's mode."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        backup = path.with_name(path.name + ".bak-observatory")
+        if not backup.exists():
+            shutil.copy2(path, backup)
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    fd, tmp = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def settings_path() -> Path:
+    return claude_home() / "settings.json"
+
+
+def known_path() -> Path:
+    return claude_home() / "plugins" / "known_marketplaces.json"
+
+
+def installed_version() -> str | None:
+    doc = read_json(claude_home() / "plugins" / "installed_plugins.json")
+    rows = (doc.get("plugins") or {}).get(PLUGIN) or []
+    return rows[0].get("version") if rows else None
+
+
+def shipped_version() -> str:
+    manifest = ROOT / "skill/plugins/observatory-log/.claude-plugin/plugin.json"
+    return json.loads(manifest.read_text(encoding="utf-8"))["version"]
+
+
+def workspace_env() -> dict:
+    return {"OBSERVATORY_ROOT": str(ROOT), "OBSERVATORY_HOME": str(configuration.home())}
+
+
+def install(auto_update: bool = True) -> dict:
+    steps = []
+    known = read_json(known_path())
+    current = (known.get(MARKETPLACE) or {}).get("source")
+    if current and current != SOURCE:
+        p = run_claude("marketplace", "remove", MARKETPLACE)
+        if p.returncode:
+            raise PluginError("could not remove the previous observatory-log marketplace: "
+                              + (p.stderr or p.stdout).strip()[-300:])
+        steps.append(f"replaced marketplace source {current.get('source')}")
+        current = None
+    p = run_claude("marketplace", "update", MARKETPLACE) if current else \
+        run_claude("marketplace", "add", REPOSITORY)
+    if p.returncode:
+        raise PluginError("marketplace step failed: " + (p.stderr or p.stdout).strip()[-300:])
+    steps.append("marketplace updated" if current else f"marketplace added from {REPOSITORY}")
+    p = run_claude("install", PLUGIN)
+    if p.returncode:
+        p = run_claude("update", PLUGIN)
+        if p.returncode:
+            raise PluginError("plugin install failed: " + (p.stderr or p.stdout).strip()[-300:])
+        steps.append("plugin updated")
+    else:
+        steps.append("plugin installed")
+    settings = read_json(settings_path())
+    settings.setdefault("extraKnownMarketplaces", {})[MARKETPLACE] = {
+        "source": dict(SOURCE), "autoUpdate": auto_update}
+    settings.setdefault("enabledPlugins", {})[PLUGIN] = True
+    previous_env = {k: (settings.get("env") or {}).get(k) for k in ENV_KEYS}
+    settings.setdefault("env", {}).update(workspace_env())
+    write_json(settings_path(), settings)
+    known = read_json(known_path())
+    if MARKETPLACE in known:
+        known[MARKETPLACE]["autoUpdate"] = auto_update
+        write_json(known_path(), known)
+    steps.append(f"auto-update {'on' if auto_update else 'off'}")
+    return {"status": "installed", "plugin": PLUGIN, "source": SOURCE, "auto_update": auto_update,
+            "env": workspace_env(), "replaced_env": {k: v for k, v in previous_env.items()
+                                                      if v and v != workspace_env()[k]},
+            "steps": steps, "next": "Restart Claude Code sessions: plugins load at session start."}
+
+
+def status() -> dict:
+    settings = read_json(settings_path())
+    known = read_json(known_path()).get(MARKETPLACE) or {}
+    extra = (settings.get("extraKnownMarketplaces") or {}).get(MARKETPLACE) or {}
+    env = settings.get("env") or {}
+    have, ship = installed_version(), shipped_version()
+    wanted = workspace_env()
+    problems = []
+    if not have:
+        problems.append("plugin not installed: run `project-observatory full agent install`")
+    elif have != ship:
+        problems.append(f"installed {have}, this engine ships {ship}: run `claude plugin update {PLUGIN}`")
+    source = known.get("source") or extra.get("source")
+    if source and source != SOURCE:
+        problems.append(f"marketplace comes from {source.get('source')}, not GitHub; "
+                        "`agent install` switches it and enables updates")
+    auto = known.get("autoUpdate", extra.get("autoUpdate", False))
+    if have and not auto:
+        problems.append("auto-update is off: `project-observatory full agent install` turns it on")
+    for k in ENV_KEYS:
+        if env.get(k) != wanted[k]:
+            problems.append(f"{k} is {env.get(k)!r} in Claude Code settings; hooks need {wanted[k]!r}")
+    return {"plugin": PLUGIN, "installed_version": have, "shipped_version": ship,
+            "marketplace_source": source, "auto_update": bool(auto),
+            "hook_env": {k: env.get(k) for k in ENV_KEYS}, "ok": not problems, "problems": problems}
+
+
+def uninstall() -> dict:
+    steps = []
+    for args in (("uninstall", PLUGIN), ("marketplace", "remove", MARKETPLACE)):
+        p = run_claude(*args)
+        steps.append(f"{' '.join(args)}: {'ok' if p.returncode == 0 else 'not present'}")
+    settings = read_json(settings_path())
+    changed = False
+    if MARKETPLACE in (settings.get("extraKnownMarketplaces") or {}):
+        del settings["extraKnownMarketplaces"][MARKETPLACE]; changed = True
+    if PLUGIN in (settings.get("enabledPlugins") or {}):
+        del settings["enabledPlugins"][PLUGIN]; changed = True
+    env = settings.get("env") or {}
+    for k, v in workspace_env().items():
+        if env.get(k) == v:
+            del env[k]; changed = True
+    if changed:
+        write_json(settings_path(), settings)
+        steps.append("settings keys removed")
+    return {"status": "uninstalled", "steps": steps,
+            "next": "Restart Claude Code sessions. Your workspace was not touched."}
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="project-observatory full agent",
+                                 description=__doc__.splitlines()[0])
+    sub = ap.add_subparsers(dest="action", required=True)
+    inst = sub.add_parser("install")
+    inst.add_argument("--no-auto-update", action="store_true",
+                      help="install without turning plugin auto-update on")
+    sub.add_parser("status")
+    sub.add_parser("uninstall")
+    a = ap.parse_args(argv)
+    try:
+        if a.action == "install":
+            result = install(auto_update=not a.no_auto_update)
+        elif a.action == "status":
+            result = status()
+        else:
+            result = uninstall()
+    except (PluginError, configuration.ConfigurationError, OSError, subprocess.TimeoutExpired) as exc:
+        print(f"Observatory: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("ok", True) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

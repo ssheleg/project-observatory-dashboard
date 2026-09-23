@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED_TOP = {".github", "observatory", "tests", "tools", "docs", "site"}
+ALLOWED_TOP = {".github", ".claude-plugin", "observatory", "tests", "tools", "docs", "site"}
 ALLOWED_ROOT = {".gitignore", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "pyproject.toml", "AGENTS.md", "requirements-full.lock"}
 SKIP = {".git", ".venv", "__pycache__", "node_modules", "build", "dist"}
 PUBLIC_IMAGES = {

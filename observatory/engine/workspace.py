@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import sqlite3
 import tempfile
 import uuid
@@ -339,6 +340,10 @@ def doctor(base: Path) -> dict:
 
 
 def main(argv: list[str]) -> int:
+    if argv and argv[0] in {"open", "agent"}:
+        sys.path.insert(0, str(config.SOURCE / "tools"))
+        module = __import__("dashboard_open" if argv[0] == "open" else "agent_plugin")
+        return module.main(argv[1:])
     if argv and argv[0] in {"workspace-backup", "upgrade", "restore"}:
         import workspace_upgrade
         return workspace_upgrade.main(["backup" if argv[0] == "workspace-backup" else argv[0], *argv[1:]])

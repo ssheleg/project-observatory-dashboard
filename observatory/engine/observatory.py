@@ -434,12 +434,14 @@ PUBLIC_SOURCE_ONLY = {
     "validate-plugin": "requires the complete companion-plugin development checkout",
     "all": "historical composite includes private development gates; use local or the opt-in tick",
 }
-WORKSPACE_COMMANDS = {"init", "doctor", "version", "configure", "onboard", "migrate-local",
+WORKSPACE_COMMANDS = {"init", "doctor", "version", "configure", "onboard", "migrate-local", "open", "agent",
                       "workspace-backup", "upgrade", "restore"}
 PUBLIC_HELP = """Project Observatory full engine (public profile).
 
   init / onboard / configure   prepare your private workspace
   local                        filesystem → registry → events → findings → dashboard
+  open [--serve]               open the dashboard in a browser (builds it if needed)
+  agent install|status|uninstall  Claude Code plugin; install turns auto-update on
   check [runner options]       isolated synthetic regression suites; no live providers
   check-portable               the same explicit portable regression runner
   backup                       historical SQLite-only backup
