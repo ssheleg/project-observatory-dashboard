@@ -1,6 +1,6 @@
 # Deployments: accounts, environments and what runs where
 
-Status: design for 0.4 (PB-004). Released parts: `deployed_commit` on Heroku apps (0.3.1), account-qualified
+Status: design for 0.4 (PB-004). Slice PB-004a (accounts) shipped in 0.3.3. Other released parts: `deployed_commit` on Heroku apps (0.3.1), account-qualified
 Cloudflare zone ids (0.3.1), and a `rule` on every derived edge (0.3.1). This document is the contract that code
 comments point to. Project and repository ids come from [IDENTITY.md](IDENTITY.md).
 

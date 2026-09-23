@@ -3,6 +3,18 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.3 — 2026-09-24
+
+### Added
+
+- Provider accounts are entities. `registry/accounts.json` lists each Heroku team (or a personal
+  account) and each Cloudflare account under the provider's own id, and every app and zone the provider
+  attributed gets an `in_account` edge that carries its rule. A resource whose account wasn't stated
+  is listed as `unattributed` with the reason, never attached to the only account known. The Heroku
+  scan now records the team id and, for a personal app, the owner's user id. Apps from an older scan
+  stay unattributed until the next Heroku scan. This is the first slice of
+  [docs/design/DEPLOYMENTS.md](docs/design/DEPLOYMENTS.md).
+
 ## 0.3.2 — 2026-09-24
 
 ### Fixed

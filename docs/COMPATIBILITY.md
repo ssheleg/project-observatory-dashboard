@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.2**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.3**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -88,3 +88,10 @@ Deleting either file only forces a complete pass.
 `full doctor` output gains `tick` (`verdict`, `why`, `last_started`, `last_finished`). The server's
 `/health` gains `tick.health` with the same shape. A survey's `degraded` may carry
 `{"source": "tick"}`. These are additions, and existing fields are unchanged.
+
+## Registry: accounts (0.3.3)
+
+New file `registry/accounts.json` (schema_version 1) and a new relation type `in_account`
+(resource → `account:<provider>/<id>`), derived on every emit with a `rule`. Heroku scan rows gain
+`team_id` and `owner_id`. The emit accepts a Heroku scan without them and marks its apps
+unattributed. Existing ids and fields are unchanged.
