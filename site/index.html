@@ -2,59 +2,31 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Project Observatory · Know what your agents leave behind</title>
-<meta name="description" content="A local observation layer for agent-operated projects. Inspect Git state, project metrics and known credential exposures. Run the full engine in your own private workspace, with agent-led onboarding.">
+<title>Project Observatory Dashboard · Your projects, in view</title>
+<meta name="description" content="An open-source local dashboard for your projects, Git activity and credential exposure findings. Copy the setup prompt and let your coding agent guide installation.">
 <link rel="canonical" href="https://observatory.sshlg.me/">
 <meta name="theme-color" content="#072820">
-<meta property="og:title" content="Project Observatory"><meta property="og:description" content="Know what your agents leave behind. Local project visibility and credential exposure findings, with agent-led onboarding.">
+<meta property="og:title" content="Project Observatory"><meta property="og:description" content="Your projects, Git activity and credential exposure findings in one local dashboard. Set it up with your coding agent.">
 <meta property="og:image" content="https://observatory.sshlg.me/assets/observatory-cover.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://observatory.sshlg.me/assets/observatory-cover.png">
 <meta property="og:type" content="website"><meta property="og:url" content="https://observatory.sshlg.me/">
-<link rel="icon" href="mark.svg" type="image/svg+xml"><link rel="stylesheet" href="tokens.css?v=cd1070ac1a6c"><link rel="stylesheet" href="style.css?v=ca2d82d621cc">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Project Observatory","description":"A local observation layer for agent-operated projects","codeRepository":"https://github.com/ssheleg/project-observatory-open-source","license":"https://opensource.org/license/mit","programmingLanguage":"Python","url":"https://observatory.sshlg.me/","author":{"@type":"Person","name":"Sergey Sheleg","url":"https://sshlg.me/"}}</script>
+<link rel="icon" href="mark.svg" type="image/svg+xml"><link rel="stylesheet" href="tokens.css?v=907ff4661bae"><link rel="stylesheet" href="style.css?v=cff4b6ea20e1">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Project Observatory","description":"A local observation layer for agent-operated projects","codeRepository":"https://github.com/ssheleg/project-observatory-dashboard","license":"https://opensource.org/license/mit","programmingLanguage":"Python","url":"https://observatory.sshlg.me/","author":{"@type":"Person","name":"Sergey Sheleg","url":"https://sshlg.me/"}}</script>
 <meta name="robots" content="index,follow,max-image-preview:large"><meta name="author" content="Sergey Sheleg"><meta property="og:site_name" content="Project Observatory"><meta property="og:image:alt" content="Project Observatory: an illustrated observation station connected to project cards."><meta property="og:image:width" content="1672"><meta property="og:image:height" content="941"><meta name="twitter:image:alt" content="Project Observatory: projects, signals, evidence."><script type="application/ld+json" id="site-entities">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://observatory.sshlg.me/#website","name":"Project Observatory","url":"https://observatory.sshlg.me/"},{"@type":"Person","@id":"https://sshlg.me/#person","name":"Sergey Sheleg","url":"https://sshlg.me/"},{"@type":"WebPage","@id":"https://observatory.sshlg.me/#webpage","url":"https://observatory.sshlg.me/","name":"Project Observatory","isPartOf":{"@id":"https://observatory.sshlg.me/#website"},"inLanguage":"en","author":{"@id":"https://sshlg.me/#person"}}]}</script></head>
-<body>
+<body class="home">
 <a class="skip" href="#main">Skip to content</a>
 <main id="main">
 <div class="dawn">
-<header class="shell"><a class="wordmark" href="./"><img src="mark.svg" width="28" height="28" alt="">Project Observatory</a><nav aria-label="Main"><a href="#how">How it works</a><a href="field-notes/">Field notes</a><a href="#start">Get started</a><a href="https://github.com/ssheleg/project-observatory-open-source">GitHub ↗</a></nav></header>
+<header class="shell"><a class="wordmark" href="./"><img src="mark.svg" width="28" height="28" alt="">Project Observatory</a><nav aria-label="Main"><a href="#how">How it works</a><a href="field-notes/">Field notes</a><a href="#start">Get started</a><a href="https://github.com/ssheleg/project-observatory-dashboard">GitHub ↗</a></nav></header>
 <section class="hero shell" aria-labelledby="hero-title">
-<p class="eyebrow">LOCAL OBSERVATION / PART OF THE SSHELEG HARNESS</p>
-<h1 id="hero-title">Know what your<br>agents <span>leave behind</span></h1>
-<p class="lede">The code changed. A key reached a log. Another project stopped moving. Give your agent a place to see it, with findings you can act on.</p>
-<div class="actions"><a class="button primary" href="#start">&gt;_ Start with your agent</a><a class="button ghost" href="#how">Read a sample finding ↓</a></div>
-<p class="proof">Open source · Local state · Explicit project access</p>
-</section>
-</div>
-<section class="sheet section" id="how">
-<div class="section-heading"><p class="eyebrow">01 / THE BLIND SPOT</p><h2>A secret can leave its file<br>without leaving your machine</h2></div>
-<div class="split"><div class="prose"><p>An agent reads a configuration file. A tool echoes its output. The result stays in a session log, a memory database or a generated report.</p><p>Deleting the original output does not revoke the credential. Observatory can compare known secret values against the artifacts you explicitly select, then record a finding without repeating the value.</p><p class="source">A local exposure is not evidence of remote exfiltration or a vulnerability in the application that stored it.</p></div>
-<div class="journey" aria-label="Credential exposure path"><div><span class="step">01</span><strong>Configuration</strong><code>API_TOKEN=[REDACTED]</code></div><div><span class="step">02</span><strong>Agent or tool output</strong><span>The value is copied into an artifact</span></div><div><span class="step">03</span><strong>Persistent copy</strong><span>Text log · JSON transcript · SQLite</span></div><div class="found"><span class="step">04</span><strong>Actionable finding</strong><span>Location, credential label, next action</span></div></div></div>
-<aside class="case-study"><div><p class="eyebrow">FROM AN EARLIER LOCAL DEPLOYMENT</p><h3>202 recorded value replacements</h3><p><strong>66</strong> in claude-mem SQLite · <strong>136</strong> in Chroma SQLite</p></div><div><p>The first recorded pass on 14 September 2026 found retained credential copies in two memory stores. These totals count replacement events, not unique secrets or vendor vulnerabilities.</p><a href="https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md">Read the observation and its limits ↗</a></div></aside>
-<a class="story-preview" href="field-notes/"><img src="assets/observatory-cover.png" width="1672" height="941" loading="lazy" alt=""><span><span class="eyebrow">FIELD NOTES</span><strong>I went looking for forgotten projects. I found copies of my API keys</strong><span>I wanted to map my folders and revive old projects. Repeated key warnings changed what I needed to see. Read the story ↗</span></span></a>
-</section>
-<section class="sheet section" id="example">
-<div class="section-heading"><p class="eyebrow">02 / AN EXAMPLE YOU CAN READ</p><h2>From a buried copy<br>to a visible next step</h2></div>
-<div class="example-top"><p><span class="tag">SYNTHETIC EXAMPLE</span> Fictional project and credential. No live data.</p><div class="switch" role="group" aria-label="Example state"><button type="button" data-state="before" aria-pressed="true">Before</button><button type="button" data-state="after" aria-pressed="false">With Observatory</button></div></div>
-<div class="sample" id="sample-before"><div class="sample-label"><span>sample-project / local artifacts</span><span class="tag">UNREVIEWED</span></div><div class="sample-grid"><div class="file-list"><span>app.py</span><span>.env</span><span class="highlight">session.jsonl</span><span>memory.sqlite</span><span>report.md</span></div><div class="sample-body"><code>tool_result → configuration output<br>API_TOKEN=[REDACTED]<br>… other session events …</code><p>The project still runs. The copied credential is easy to miss among ordinary work artifacts.</p></div></div></div>
-<div class="sample" id="sample-after"><div class="sample-label"><span>sample-project / exposure finding</span><span class="tag confirmed">VALUE MATCH</span></div><dl class="finding"><div><dt>Credential</dt><dd>DEMO_API_TOKEN <small>value withheld</small></dd></div><div><dt>Surface</dt><dd>Selected session transcript</dd></div><div><dt>Evidence</dt><dd>A known value matched in the selected artifact</dd></div><div><dt>Next action</dt><dd>Revoke or rotate at the provider; remove retained copies; scan again</dd></div></dl><p class="sample-foot">Detection records a finding. It does not rotate the key or erase your history automatically.</p></div>
-<p class="source">The demo illustrates the workflow. It is not a count of incidents found in production.</p>
-</section>
-<section class="sheet section" id="projects">
-<div class="section-heading"><p class="eyebrow">03 / MORE THAN SECRET SCANNING</p><h2>Keep the projects<br>in the picture</h2></div>
-<div class="feature-rows"><article><span class="feature-no">A</span><h3>Know what exists</h3><p>Choose the project directory you want to observe. The full engine discovers repositories inside that scope and builds a local registry.</p></article><article><span class="feature-no">B</span><h3>See what moved</h3><p>Inspect working-tree state, Git activity, dependency counts and disk metrics across your configured project scope.</p></article><article><span class="feature-no">C</span><h3>Track credential exposure</h3><p>Keep credential metadata separate from values. Scan selected text and SQLite artifacts for known values with redacted findings.</p></article><article><span class="feature-no">D</span><h3>Give the next agent context</h3><p>Use the CLI, MCP tools and local dashboards to inspect projects, findings and history. Keep generated reports in your private workspace.</p></article></div>
-<div class="boundary"><p class="eyebrow">COMPLETE LOCAL ENGINE</p><p>The original engine is included: project inventory, metrics, findings, MCP, provider adapters, credential tools and optional background jobs. Start locally. Enable integrations individually with your own accounts and keys.</p><a href="https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/MIGRATION.md">Read the migration and compatibility guide ↗</a></div>
-</section>
-<section class="sheet section" id="start">
-<div class="section-heading"><p class="eyebrow">04 / ONBOARD THROUGH YOUR AGENT</p><h2>Start with your own workspace.<br>Add access when it is needed</h2></div>
-<div class="install"><span class="eyebrow">REVIEW THE SOURCE, THEN INSTALL LOCALLY</span><pre>git clone https://github.com/ssheleg/project-observatory-open-source.git
-cd project-observatory-open-source
-python3 -m venv .venv
-.venv/bin/python -m pip install -c requirements-full.lock '.[full]'
-.venv/bin/project-observatory full init
-.venv/bin/project-observatory full onboard</pre><p>Python 3.11 or newer with SQLite extension support, Git and Node.js; macOS and Linux. Use Homebrew Python on macOS. The agent helps you select a project folder and run the first local observation. A separate fictional demo remains available in the compatibility CLI.</p></div>
-<div class="split"><div class="prose"><p>You do not need API keys to try the local workflow. Hand the prompt to your coding agent. It reads the setup guide, prepares an isolated environment and explains each step.</p><ol class="setup-steps"><li><strong>Create a private workspace</strong><span>Keep configuration, keys and observations outside the installed code.</span></li><li><strong>Choose project folders</strong><span>Choose an existing directory you own, understand the observation scope, then run the local pipeline.</span></li><li><strong>Add credentials locally</strong><span>When needed, enter values through the local prompt or standard input. Never paste them into agent chat.</span></li></ol><a href="https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/ONBOARDING.md">Read the complete onboarding guide ↗</a></div>
-<div class="prompt-box"><div class="sample-label"><span>Give this to your agent</span><button id="copy-prompt" type="button">Copy prompt</button></div><pre id="agent-prompt">Set up the full Project Observatory from
-https://github.com/ssheleg/project-observatory-open-source
+<div class="hero-copy">
+<p class="eyebrow">OPEN SOURCE / RUNS ON YOUR MACHINE</p>
+<h1 id="hero-title">Your projects.<br>Your keys.<br><span>Back in view.</span></h1>
+<p class="lede">A local dashboard for the projects your agents work on. See what changed, what needs attention and where known API keys left a copy.</p>
+<div class="quick-start" id="install-prompt">
+<div class="quick-start-head"><span class="prompt-label">START WITH YOUR CODING AGENT</span><button class="button primary" id="copy-prompt" type="button" aria-describedby="copy-status">Copy setup prompt <span aria-hidden="true">↗</span></button></div>
+<p id="copy-status" role="status" aria-live="polite">Paste it into your agent. It will guide the local setup.</p>
+<details id="prompt-details"><summary>Read the setup prompt</summary><pre id="agent-prompt" tabindex="0">Set up the full Project Observatory from
+https://github.com/ssheleg/project-observatory-dashboard
 
 Read README.md, SECURITY.md, docs/ONBOARDING.md and
 docs/AGENT-ONBOARDING.md first. Use an isolated Python
@@ -72,7 +44,58 @@ without my explicit choice.
 
 Show coverage, unavailable sources and next actions.
 Explain upgrade preview, backup and restore. Keep the
-original installation intact during any migration.</pre><p id="copy-status" role="status" aria-live="polite">The prompt stays selectable if clipboard access is unavailable.</p></div></div>
+original installation intact during any migration.</pre></details>
+<noscript><p>Open “Read the setup prompt” and copy the text manually.</p></noscript>
+</div>
+<p class="hero-links">No API key needed to start. <a href="#start">Requirements &amp; manual install ↓</a></p>
+</div>
+<figure class="dashboard-preview" aria-label="Illustrative project dashboard, fictional data">
+<figcaption><span>PROJECT OBSERVATORY</span><span class="preview-local">LOCAL WORKSPACE</span></figcaption>
+<div class="preview-body">
+<div class="preview-title"><h2>Workspace overview</h2><span class="tag">SYNTHETIC EXAMPLE</span></div>
+<p class="preview-subtitle">Projects, changes and findings. One place to look.</p>
+<div class="preview-table" role="table" aria-label="Fictional project inventory">
+<div class="preview-row preview-columns" role="row"><span role="columnheader">Project</span><span role="columnheader">Git state</span><span role="columnheader">Observation</span></div>
+<div class="preview-row" role="row"><strong role="cell">demo-api<small>Application</small></strong><span role="cell">Uncommitted</span><span class="preview-attention" role="cell">Review finding</span></div>
+<div class="preview-row" role="row"><strong role="cell">sample-site<small>Website</small></strong><span role="cell">Clean</span><span role="cell">Recorded</span></div>
+<div class="preview-row" role="row"><strong role="cell">lab-notes<small>Experiment</small></strong><span role="cell">Clean</span><span role="cell">Recorded</span></div>
+</div>
+<div class="preview-finding"><div class="finding-heading"><span class="finding-icon" aria-hidden="true">!</span><strong>A known key has a retained copy</strong></div><p><code>DEMO_API_TOKEN</code> matched in a selected session transcript. Value withheld.</p><div class="preview-next"><span>NEXT ACTION</span><p>Review the location. Rotate the credential.<br>Remove the copy and scan again.</p></div></div>
+<div class="preview-footer"><span>CLI + MCP + local dashboards</span><a href="#example">Explore a sample finding ↓</a></div>
+</div>
+<p class="preview-caption">Illustrative layout with fictional projects. Your data stays in your private workspace.</p>
+</figure>
+</section>
+</div>
+<section class="sheet section" id="how">
+<div class="section-heading"><p class="eyebrow">01 / THE BLIND SPOT</p><h2>A secret can leave its file<br>without leaving your machine</h2></div>
+<div class="split"><div class="prose"><p>An agent reads a configuration file. A tool echoes its output. The result stays in a session log, a memory database or a generated report.</p><p>Deleting the original output does not revoke the credential. Observatory can compare known secret values against the artifacts you explicitly select, then record a finding without repeating the value.</p><p class="source">A local exposure is not evidence of remote exfiltration or a vulnerability in the application that stored it.</p></div>
+<div class="journey" aria-label="Credential exposure path"><div><span class="step">01</span><strong>Configuration</strong><code>API_TOKEN=[REDACTED]</code></div><div><span class="step">02</span><strong>Agent or tool output</strong><span>The value is copied into an artifact</span></div><div><span class="step">03</span><strong>Persistent copy</strong><span>Text log · JSON transcript · SQLite</span></div><div class="found"><span class="step">04</span><strong>Actionable finding</strong><span>Location, credential label, next action</span></div></div></div>
+<aside class="case-study"><div><p class="eyebrow">FROM AN EARLIER LOCAL DEPLOYMENT</p><h3>202 recorded value replacements</h3><p><strong>66</strong> in claude-mem SQLite · <strong>136</strong> in Chroma SQLite</p></div><div><p>The first recorded pass on 14 September 2026 found retained credential copies in two memory stores. These totals count replacement events, not unique secrets or vendor vulnerabilities.</p><a href="https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/site/CASE-STUDY.md">Read the observation and its limits ↗</a></div></aside>
+<a class="story-preview" href="field-notes/"><img src="assets/observatory-cover.png" width="1672" height="941" loading="lazy" alt=""><span><span class="eyebrow">FIELD NOTES</span><strong>I went looking for forgotten projects. I found copies of my API keys</strong><span>I wanted to map my folders and revive old projects. Repeated key warnings changed what I needed to see. Read the story ↗</span></span></a>
+</section>
+<section class="sheet section" id="example">
+<div class="section-heading"><p class="eyebrow">02 / AN EXAMPLE YOU CAN READ</p><h2>From a buried copy<br>to a visible next step</h2></div>
+<div class="example-top"><p><span class="tag">SYNTHETIC EXAMPLE</span> Fictional project and credential. No live data.</p><div class="switch" role="group" aria-label="Example state"><button type="button" data-state="before" aria-pressed="true">Before</button><button type="button" data-state="after" aria-pressed="false">With Observatory</button></div></div>
+<div class="sample" id="sample-before"><div class="sample-label"><span>sample-project / local artifacts</span><span class="tag">UNREVIEWED</span></div><div class="sample-grid"><div class="file-list"><span>app.py</span><span>.env</span><span class="highlight">session.jsonl</span><span>memory.sqlite</span><span>report.md</span></div><div class="sample-body"><code>tool_result → configuration output<br>API_TOKEN=[REDACTED]<br>… other session events …</code><p>The project still runs. The copied credential is easy to miss among ordinary work artifacts.</p></div></div></div>
+<div class="sample" id="sample-after"><div class="sample-label"><span>sample-project / exposure finding</span><span class="tag confirmed">VALUE MATCH</span></div><dl class="finding"><div><dt>Credential</dt><dd>DEMO_API_TOKEN <small>value withheld</small></dd></div><div><dt>Surface</dt><dd>Selected session transcript</dd></div><div><dt>Evidence</dt><dd>A known value matched in the selected artifact</dd></div><div><dt>Next action</dt><dd>Revoke or rotate at the provider; remove retained copies; scan again</dd></div></dl><p class="sample-foot">Detection records a finding. It does not rotate the key or erase your history automatically.</p></div>
+<p class="source">The demo illustrates the workflow. It is not a count of incidents found in production.</p>
+</section>
+<section class="sheet section" id="projects">
+<div class="section-heading"><p class="eyebrow">03 / MORE THAN SECRET SCANNING</p><h2>Keep the projects<br>in the picture</h2></div>
+<div class="feature-rows"><article><span class="feature-no">A</span><h3>Know what exists</h3><p>Choose the project directory you want to observe. The full engine discovers repositories inside that scope and builds a local registry.</p></article><article><span class="feature-no">B</span><h3>See what moved</h3><p>Inspect working-tree state, Git activity, dependency counts and disk metrics across your configured project scope.</p></article><article><span class="feature-no">C</span><h3>Track credential exposure</h3><p>Keep credential metadata separate from values. Scan selected text and SQLite artifacts for known values with redacted findings.</p></article><article><span class="feature-no">D</span><h3>Give the next agent context</h3><p>Use the CLI, MCP tools and local dashboards to inspect projects, findings and history. Keep generated reports in your private workspace.</p></article></div>
+<div class="boundary"><p class="eyebrow">COMPLETE LOCAL ENGINE</p><p>The original engine is included: project inventory, metrics, findings, MCP, provider adapters, credential tools and optional background jobs. Start locally. Enable integrations individually with your own accounts and keys.</p><a href="https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/MIGRATION.md">Read the migration and compatibility guide ↗</a></div>
+</section>
+<section class="sheet section" id="start">
+<div class="section-heading"><p class="eyebrow">04 / ONBOARD THROUGH YOUR AGENT</p><h2>Start with your own workspace.<br>Add access when it is needed</h2></div>
+<div class="install"><span class="eyebrow">REVIEW THE SOURCE, THEN INSTALL LOCALLY</span><pre>git clone https://github.com/ssheleg/project-observatory-dashboard.git
+cd project-observatory-dashboard
+python3 -m venv .venv
+.venv/bin/python -m pip install -c requirements-full.lock '.[full]'
+.venv/bin/project-observatory full init
+.venv/bin/project-observatory full onboard</pre><p>Python 3.11 or newer with SQLite extension support, Git and Node.js; macOS and Linux. Use Homebrew Python on macOS. The agent helps you select a project folder and run the first local observation. A separate fictional demo remains available in the compatibility CLI.</p></div>
+<div class="split"><div class="prose"><p>You do not need API keys to try the local workflow. Hand the prompt to your coding agent. It reads the setup guide, prepares an isolated environment and explains each step.</p><ol class="setup-steps"><li><strong>Create a private workspace</strong><span>Keep configuration, keys and observations outside the installed code.</span></li><li><strong>Choose project folders</strong><span>Choose an existing directory you own, understand the observation scope, then run the local pipeline.</span></li><li><strong>Add credentials locally</strong><span>When needed, enter values through the local prompt or standard input. Never paste them into agent chat.</span></li></ol><a href="https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/ONBOARDING.md">Read the complete onboarding guide ↗</a></div>
+<aside class="setup-note"><p class="eyebrow">LET YOUR AGENT HANDLE SETUP</p><h3>A prompt, then a guided first scan</h3><p>The setup prompt tells your agent to check requirements, create a private workspace and explain what it will read before observing your projects.</p><p>Add provider integrations when you need them. Enter credentials locally. Never paste them into agent chat.</p><a class="button" href="#install-prompt">Get the setup prompt ↑</a></aside></div>
 </section>
 <section class="sheet section" id="harness">
 <div class="section-heading"><p class="eyebrow">05 / THE LARGER WORKING METHOD</p><h2>Skills guide the work.<br>Observatory makes its state visible</h2></div>
@@ -80,6 +103,6 @@ original installation intact during any migration.</pre><p id="copy-status" role
 <p class="source">Your coding agent remains the runtime and permission boundary. Observatory is a local instrument, not a sandbox or a promise to detect every secret.</p>
 </section>
 <section class="sheet section" id="questions"><div class="section-heading"><p class="eyebrow">BEFORE YOU START</p><h2>What will Observatory see?</h2></div><div class="quick-answers"><h3>What is Project Observatory?</h3><p>Project Observatory is an open-source local tool for inspecting project folders, repository activity, metrics and findings. Its optional credential checks look for known secret values in supported artifacts you select.</p><h3>Does it upload my projects or keys?</h3><p>Your inventory and observations live in your private workspace. Optional integrations have their own access and data flows; review them before enabling them. The public website never reads your installation.</p><h3>Can it find every leaked API key?</h3><p>No. Known-value scanning compares selected artifacts with credentials already known locally. It cannot promise to find unknown secrets, every encoded copy or every backup, or establish whether someone obtained a key.</p><h3>How does it fit with Skills?</h3><p><a href="https://skills.sshlg.me/">ssheleg Skills</a> supplies reusable instructions for coding agents. Observatory is a separately installed observation tool in the <a href="https://skills.sshlg.me/harness/">same harness</a>. Read <a href="field-notes/">how a project inventory became an observatory</a>, then use the <a href="#start">agent-guided setup</a>.</p></div></section></main>
-<footer class="sheet"><a class="wordmark" href="./"><img src="mark.svg" width="24" height="24" alt="">Project Observatory</a><p>Built by <a href="https://sshlg.me/">Sergey Sheleg</a> · MIT</p><nav aria-label="Footer"><a href="https://github.com/ssheleg/project-observatory-open-source">Source</a><a href="https://github.com/ssheleg/project-observatory-open-source/blob/main/SECURITY.md">Security</a><a href="https://skills.sshlg.me/harness/">The harness</a></nav></footer>
-<script src="app.js?v=60e3c54e4796" defer></script>
+<footer class="sheet"><a class="wordmark" href="./"><img src="mark.svg" width="24" height="24" alt="">Project Observatory</a><p>Built by <a href="https://sshlg.me/">Sergey Sheleg</a> · MIT</p><nav aria-label="Footer"><a href="https://github.com/ssheleg/project-observatory-dashboard">Source</a><a href="https://github.com/ssheleg/project-observatory-dashboard/blob/main/SECURITY.md">Security</a><a href="https://skills.sshlg.me/harness/">The harness</a></nav></footer>
+<script src="app.js?v=833a8acdf5c4" defer></script>
 </body></html>

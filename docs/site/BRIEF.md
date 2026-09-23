@@ -64,3 +64,33 @@ production browser and checks responsive landing/article layout after deployment
 - SITE-11: A visitor follows a broken Observatory URL -> real 404 response, clear
   message and working links to home, the article and setup. Search crawlers never
   receive the home page under the unknown URL with a success status.
+
+
+## Dashboard landing refresh — 2026-09-23
+
+Owner request: rename the public repository to `project-observatory-dashboard`,
+polish the website and make copying the installation prompt the first action.
+The domain, CLI/package name, private workspace format and released schema
+identifiers stay stable. This is a public marketing-page update; the installed
+private dashboard is not redesigned in this change.
+
+- SITE-12: New visitor opens home → sees Copy setup prompt on the first screen
+  at 1280×900, 390×844 and 320×740 → copies the complete guide → sees a polite
+  success status. The same prompt can be expanded and selected without JavaScript.
+  Clipboard failure opens the prompt, focuses/selects its text and explains manual
+  copy. A pending copy disables the button; it is usable again after completion.
+- SITE-13: Returning operator follows an old GitHub repository or pinned schema
+  URL → resolves to the renamed repository without changing the installed command,
+  released schema identity or private workspace. Active setup links use the new URL.
+- SITE-14: Visitor sees the illustrative dashboard → recognizes fictional data,
+  projects/Git/findings and a next action → can open the interactive example. The
+  preview neither queries nor publishes local installations.
+
+Composition rubric set for this update: setup control visible without scrolling;
+clear project-dashboard purpose; explicit fictional-data label beside preview;
+no horizontal document scrolling at 320px; readable text and keyboard access.
+Two same-content desktop renders compared: forest hero versus paper hero. Selected
+paper: the rust setup button is the dominant action and the preview reads as part
+of the product explanation. This supersedes the earlier dawn selection for home
+only. Article colors and reading layout remain unchanged. No motion or remote
+fonts added. Product conversion outcomes remain unobserved.

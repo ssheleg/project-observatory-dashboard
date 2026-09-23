@@ -73,3 +73,9 @@ receipt. The canonical URL is unchanged. Social posts remain unpublished drafts.
 ## Illustrated reading and SEO update
 
 [Latest bounded handoff](runs/2026-09-21-reading-seo.md) records the cross-site article, reading and search work, checks and delivery status.
+
+
+## Dashboard website and repository rename
+
+[2026-09-23 dashboard-site handoff](runs/2026-09-23-dashboard-site.md) is the entry
+point for the repository rename and prompt-first public website refresh.

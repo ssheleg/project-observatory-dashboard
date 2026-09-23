@@ -336,3 +336,13 @@ em, i { font-style: italic; font-synthesis-style: none; }
   --article-headline-mobile: 2.25rem;
   --article-measure: 42rem;
 }
+
+/* Dashboard landing extension: bounded preview, compact first-screen onboarding.
+   Palette, typography and spacing inherit the existing Field Notes roles. */
+:root {
+  --landing-headline: clamp(2.5rem, 4.6vw, 4rem);
+  --landing-leading: 1.08;
+  --preview-label: 0.625rem;
+  --preview-min: 27rem;
+  --landing-copy: 31rem;
+}

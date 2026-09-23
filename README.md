@@ -9,8 +9,8 @@ Version 0.2 brings the original engine into the public distribution: project and
 The complete engine supports macOS and Linux, Python 3.11+ and SQLite 3.37+ with loadable-extension support. Git and Node.js are needed for the complete local checks. On macOS, use an extension-enabled Python build such as Homebrew Python; some bundled builds cannot load sqlite-vec. The [onboarding guide](docs/ONBOARDING.md) checks this before setup.
 
 ```sh
-git clone https://github.com/ssheleg/project-observatory-open-source.git
-cd project-observatory-open-source
+git clone https://github.com/ssheleg/project-observatory-dashboard.git
+cd project-observatory-dashboard
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -c requirements-full.lock '.[full]'
@@ -77,3 +77,14 @@ Checks use synthetic projects and credentials. Real provider acceptance, externa
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Migration map](docs/MIGRATION.md) · [Release handoff](docs/HANDOFF.md)
 
 MIT licensed.
+
+
+### Repository name and existing installations
+
+The public repository was renamed to `ssheleg/project-observatory-dashboard`.
+The Python package and command remain `project-observatory`; no workspace migration
+or key rotation is required just for the repository rename. Existing clones can
+update their remote with `git remote set-url origin https://github.com/ssheleg/project-observatory-dashboard.git`.
+Published v0.2.0 Fabric schema identifiers retain their original URLs and content
+hashes. Do not rewrite them in an existing installation. GitHub redirects the old
+repository path; verify pinned URL resolution before removing any compatibility URL.

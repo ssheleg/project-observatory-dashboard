@@ -8,7 +8,7 @@ The first useful result should require no credentials: an isolated demo, a visib
 
 ```text
 Set up Project Observatory portable edition from
-https://github.com/ssheleg/project-observatory-open-source
+https://github.com/ssheleg/project-observatory-dashboard
 
 Read README.md, SECURITY.md and docs/ONBOARDING.md first.
 Use an isolated Python environment and run the synthetic tests/demo.
@@ -32,8 +32,8 @@ the remaining optional integration work from docs/MIGRATION.md.
 ## 1. Install and verify
 
 ```sh
-git clone https://github.com/ssheleg/project-observatory-open-source.git
-cd project-observatory-open-source
+git clone https://github.com/ssheleg/project-observatory-dashboard.git
+cd project-observatory-dashboard
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install .
