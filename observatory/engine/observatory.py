@@ -68,7 +68,11 @@ ROOT = Path(__file__).resolve().parent
                                   
 sys.path.insert(0, str(ROOT))
 import configuration
-import paths              
+try:
+    import paths              
+except configuration.ConfigurationError as _exc:
+    print(f"Observatory: {_exc}", file=sys.stderr)
+    raise SystemExit(2) from None
 
                                                                                 
                                                                              

@@ -305,11 +305,12 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "0e7bbae5f83e4cc704dbddb10ef052a3992e5ba6cf093bc365ebb72f40e66570",
-      "bytes": 5300,
+      "export_sha256": "6f895b5288a2c264a8ef5e86985a91750cda3f90c3c396ef04d21c95399dfde8",
+      "bytes": 6535,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "dashboard/audit_pack.py",
@@ -676,11 +677,12 @@
     {
       "path": "observatory.py",
       "source_sha256": "62ad1eb73adff9a9d741314ddde1da9390a4e4b32fa9be94d5858a98f1f5aa58",
-      "export_sha256": "4fab470e1bb71736434ded8795781021a1755a1634be50d4a05271743edf8521",
-      "bytes": 64957,
+      "export_sha256": "64d849f234d347445736abc74890628f4fecc4a8b71a966be84d6abf9b511e1e",
+      "bytes": 65100,
       "python_comments_removed": 234,
       "python_docstrings_removed": 7,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "paths.py",
@@ -1354,11 +1356,12 @@
     {
       "path": "tests/test_workspace_boundaries.py",
       "source_sha256": "542a2e1eea03dbcce41146fef9b3cca335a690452d5a4ffc5e112150a3b4de68",
-      "export_sha256": "71bbab5120e0332c3718b3c4c000f55102b0073778500b0729646dd1dba32fc2",
-      "bytes": 12744,
+      "export_sha256": "718396aa529f5125f30614ac776883394cdf6b8eb5cce1d77e90002da3f86737",
+      "bytes": 13809,
       "python_comments_removed": 1,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_workspace_scheduler.py",

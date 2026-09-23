@@ -13,11 +13,39 @@ SOURCE = Path(__file__).resolve().parent
 class ConfigurationError(RuntimeError):
     pass
 
+
+def _code_roots(here: Path) -> tuple[Path, ...]:
+    """Directories private state must never live in: the shipped code itself.
+
+    The code directory, the installed ``observatory`` package that contains it,
+    and the Git work tree of a source checkout. Data there is deleted by an
+    upgrade or uninstall, or ends up one ``git add`` away from being published.
+    """
+    roots = [here]
+    package = here if here.name == "observatory" else here.parent
+    if package.name == "observatory" and (package / "__init__.py").is_file():
+        roots.append(package)
+    for parent in (here, *here.parents):
+        if (parent / ".git").exists():
+            roots.append(parent)
+            break
+    return tuple(dict.fromkeys(roots))
+
+
+def refuse_home_inside_code(path: Path) -> Path:
+    resolved = path.expanduser().resolve()
+    for root in _code_roots(Path(__file__).resolve().parent):
+        if resolved == root or root in resolved.parents:
+            raise ConfigurationError(
+                f"Choose a private directory outside the installed code and its source checkout "
+                f"(the chosen home is inside {root}); state there is lost on upgrade or can be committed.")
+    return path
+
 def home() -> Path:
     value = os.environ.get("OBSERVATORY_HOME")
     if value and not Path(value).expanduser().is_absolute():
         raise ConfigurationError("OBSERVATORY_HOME must be an absolute path")
-    return Path(value).expanduser() if value else Path.home() / ".local/share/project-observatory-full"
+    return refuse_home_inside_code(Path(value).expanduser() if value else Path.home() / ".local/share/project-observatory-full")
 
 def version_tuple(value: str) -> tuple[int, int, int]:
     if not isinstance(value, str) or not re.fullmatch(r"\d+\.\d+\.\d+", value):
