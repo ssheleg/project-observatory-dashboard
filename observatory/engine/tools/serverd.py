@@ -78,7 +78,9 @@ PLIST = pathlib.Path.home() / "Library/LaunchAgents" / f"{LABEL}.plist"
 AT_RISK = ("ahead", "local-only-branch", "unpushed-and-remote-moved", "diverged")
 REFRESH_SECONDS = 20
 STARTED = time.time()
-VERSION = "0.1.0"
+# The application version, stated once in configuration.py. A literal here said
+# 0.1.0 in /health and in the Server header through every release up to 0.3.3.
+VERSION = configuration.VERSION
 
 
 def now_z() -> str:

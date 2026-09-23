@@ -23,6 +23,13 @@ class VersionConsistency(unittest.TestCase):
         }
         self.assertEqual(len(set(versions.values())), 1, versions)
 
+    def test_no_other_module_states_its_own_version(self):
+        # A second literal drifts: tools/serverd.py said 0.1.0 until 0.3.4.
+        stray = [str(p.relative_to(ROOT)) for p in (ROOT / "observatory/engine").rglob("*.py")
+                 if p.name != "configuration.py"
+                 and re.search(r'(?m)^(?:VERSION|__version__) = "[\d.]+"', p.read_text(encoding="utf-8"))]
+        self.assertEqual(stray, [])
+
     def test_changelog_names_the_current_version(self):
         version = found("pyproject.toml", r'^version = "([\d.]+)"')
         self.assertRegex((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), rf"(?m)^## {re.escape(version)} ")
