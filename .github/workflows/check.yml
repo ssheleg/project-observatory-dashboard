@@ -80,6 +80,21 @@ jobs:
           "$runtime_root/venv/bin/project-observatory" full local
           "$runtime_root/venv/bin/project-observatory" full doctor
           "$runtime_root/venv/bin/project-observatory" full upgrade
+      - name: Installed full engine without the lock file
+        shell: bash
+        run: |
+          # Users often run `pip install project-observatory[full]` without -c; newer
+          # transitive releases must not break the MCP wire or the pages.
+          runtime_root="$(mktemp -d)"
+          runtime_root="$(cd "$runtime_root" && pwd -P)"
+          python -m venv "$runtime_root/venv"
+          wheel_path="$(python -c 'from pathlib import Path; print(next(Path("dist").glob("*.whl")).resolve())')"
+          "$runtime_root/venv/bin/python" -m pip install "${wheel_path}[full]"
+          "$runtime_root/venv/bin/python" -m pip freeze > "$runtime_root/freeze.txt"
+          export OBSERVATORY_HOME="$runtime_root/state"
+          cd "$runtime_root"
+          "$runtime_root/venv/bin/project-observatory" full init
+          "$runtime_root/venv/bin/project-observatory" full check --suite mcp_wire --suite wire_contract --suite pages
       - name: No tracked changes
         run: git diff --exit-code
 

@@ -1212,11 +1212,12 @@
     {
       "path": "tests/test_mcp_wire.py",
       "source_sha256": "6ef615d88123f97f325c42bf8e4a9a41c0d3e501756f82c8833f761143cdf006",
-      "export_sha256": "2977a878afeddf9a508cb0f70e447adf8d8cf6f3c3baaf90e36d8376312cb15c",
-      "bytes": 9610,
+      "export_sha256": "e79e5ab00037f7548f18eeeeb318ba0f406fc869c8f880abbcefcaa1621f2718",
+      "bytes": 10234,
       "python_comments_removed": 13,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_metric_labels.py",
