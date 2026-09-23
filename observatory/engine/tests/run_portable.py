@@ -35,7 +35,7 @@ BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',
     'workspace_scheduler', 'schema_compatibility', 'keyserver_boundary',
     'private_sources', 'public_contracts', 'vault_boundaries', 'provider_secret_boundaries', 'cli_compatibility', 'dashboard_portability',
-    'agent_plugin',
+    'agent_plugin', 'audit_regressions',
 )
 SUITES = LEGACY + BOUNDARY
 HELPERS = ('tmp.py', 'source_reader.py', 'live_estate.py',

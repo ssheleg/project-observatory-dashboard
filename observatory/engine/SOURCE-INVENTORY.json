@@ -307,7 +307,7 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "6f895b5288a2c264a8ef5e86985a91750cda3f90c3c396ef04d21c95399dfde8",
+      "export_sha256": "368bd4ec552e11188d1c94631a7ccd835a6c00b8e3f44e1b98ed7de4835d15ab",
       "bytes": 6535,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
@@ -526,8 +526,9 @@
     {
       "path": "docs/COMPATIBILITY.md",
       "source_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "export_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "bytes": 6434
+      "export_sha256": "82c456ddce520dc3336f0cc312723c80b6798bc8763fcf5fac67b94fede383f3",
+      "bytes": 6434,
+      "upstream_modified": true
     },
     {
       "path": "docs/ONBOARDING.md",
@@ -1067,8 +1068,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "53a851c010976632f61309502c762383da5ed1e63c3200c5007b6f721efdb522",
-      "bytes": 9937,
+      "export_sha256": "394b74ccc9409af20a6b2d2b248d36a2ae8a4c6caaa3d532b69d0512d8155621",
+      "bytes": 9958,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1131,6 +1132,13 @@
       "python_comments_removed": 17,
       "python_docstrings_removed": 8,
       "tool_descriptions_retained": 0
+    },
+    {
+      "path": "tests/test_audit_regressions.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "29e15998d1916bc8931546c88c5e5d0fb4c3925462c8bec4e4f4a72bd2b95aa5",
+      "bytes": 4225
     },
     {
       "path": "tests/test_cli_compatibility.py",
@@ -2012,7 +2020,7 @@
       "tool_descriptions_retained": 0
     }
   ],
-  "file_count": 245,
+  "file_count": 246,
   "excluded": [
     "git-history",
     "operator-registries",
