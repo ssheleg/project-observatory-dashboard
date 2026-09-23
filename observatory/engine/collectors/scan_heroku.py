@@ -75,7 +75,7 @@ HEROKU_REMOTE = re.compile(r"git\.heroku\.com[:/]+([A-Za-z0-9][A-Za-z0-9-]*)\.gi
 
 
 def token() -> tuple[str | None, str | None]:
-    ""                                                         
+    """The CLI's session token, or the reason there is none."""
     if not shutil.which("heroku"):
         return None, ("the heroku CLI is not on PATH; install it or run this "
                       "step on a machine that has it")
@@ -149,9 +149,9 @@ def deployed_commit(desc: str | None) -> str | None:
 
 
 def config_trail(rels: list) -> list[dict]:
-    ""                                                                       
-                                                                         
-                                                  
+    """Releases that changed config vars, newest first — version, date, the
+    variable NAMES, and the addon if one did it. Values never appear in a
+    release description, and none is read here."""
     out = []
     for r in rels or []:
         desc = (r.get("description") or "").strip()

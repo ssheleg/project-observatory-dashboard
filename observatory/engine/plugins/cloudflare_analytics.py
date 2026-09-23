@@ -48,7 +48,7 @@ API = "https://api.cloudflare.com/client/v4"
 
 
 def tokens() -> list[tuple[str, str]]:
-    ""                                                              
+    """(label, token) for every installed account, in file order."""
     out = []
     if TOKEN_DIR.is_dir():
         for p in sorted(TOKEN_DIR.iterdir()):
@@ -65,7 +65,7 @@ def tokens() -> list[tuple[str, str]]:
 
 
 def _call(path_or_query, token: str, graphql: bool = False) -> dict:
-    ""                                                                         
+    """One API call with the error stripped to url+status — never headers."""
     if graphql:
         req = urllib.request.Request(
             f"{API}/graphql", method="POST",
@@ -107,7 +107,7 @@ def zones(token: str) -> list[dict]:
 
 
 def day_bounds(today: datetime.date | None = None) -> tuple[str, str]:
-    ""                                                                        
+    """Yesterday as a CLOSED UTC calendar day — the last complete figure."""
     t = today or datetime.datetime.now(datetime.timezone.utc).date()
     y = t - datetime.timedelta(days=1)
     return y.isoformat(), y.isoformat()
@@ -120,7 +120,7 @@ ZONES_PER_QUERY = 10
 
 
 def fetch_day(token: str, zone_ids: list[str], day: str) -> dict[str, dict]:
-    ""                                                                          
+    """zone_id -> {requests, pageviews, uniques} for one UTC day, in batches."""
     out: dict[str, dict] = {}
     for i in range(0, len(zone_ids), ZONES_PER_QUERY):
         out.update(_fetch_batch(token, zone_ids[i:i + ZONES_PER_QUERY], day))
@@ -155,7 +155,7 @@ def _fetch_batch(token: str, zone_ids: list[str], day: str) -> dict[str, dict]:
 
 def rows_from(zone_list: list[dict], per_zone: dict[str, dict], day: str,
               table: dict[str, str]) -> tuple[list[dict], list[str]]:
-    ""                                                                            
+    """(metric rows, unmapped zone names) — pure, so a test needs no network."""
     rows, unmapped = [], []
     at = f"{day}T00:00:00Z"
     for z in zone_list:

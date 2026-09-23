@@ -43,7 +43,7 @@ def tree_bytes(root: pathlib.Path) -> int:
 
 
 def walk_all(folders, seen: set[str]) -> int:
-    ""                                                                   
+    """Bytes across several folders, counting each place on disk once."""
     total = 0
     for folder in folders:
         path = paths.DATA / folder
@@ -81,7 +81,7 @@ def worktrees_of(project_id: str, relations: list, repos: dict) -> list[str]:
 
 
 def subtree_bytes(root: str) -> int:
-    ""                                                                           
+    """Every byte under `root`, pruning nothing. Used only for a SKIP subtree."""
     total = 0
     for dirpath, _dirnames, filenames in os.walk(root, onerror=lambda _e: None):
         for name in filenames:

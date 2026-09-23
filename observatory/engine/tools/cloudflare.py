@@ -69,15 +69,15 @@ PRESETS: dict[str, dict] = {
 
 
 def token_dir() -> pathlib.Path:
-    ""                                                                             
+    """Where issued analytics tokens live — asked of the plugin, not repeated."""
     import cloudflare_analytics
     return cloudflare_analytics.TOKEN_DIR
 
 
 def _journal(event: str, secret: str, **detail) -> None:
-    ""                                                                    
-                                                                          
-                                                                                 
+    """The vault's movements journal: every issue, rotation and
+    revocation this door performs is on the record beside the vault's own.
+    Never raises — a journal failure must not undo a rotation that happened."""
     try:
         sys.path.insert(0, str(ROOT / "tools"))
         import vault
@@ -131,8 +131,8 @@ def admins() -> list[tuple[str, pathlib.Path]]:
 
 
 def read_admin(label: str | None) -> tuple[str, str]:
-    ""                                                                      
-                                        
+    """(label, value) for one stashed admin token. The value goes no further
+    than the caller's local variable."""
     have = admins()
     if not have:
         raise RuntimeError("no admin token stashed — "
@@ -310,7 +310,7 @@ def existing_token(admin: str, account_id: str, name: str) -> str | None:
 
 
 def mint(admin: str, account_id: str, preset: dict) -> tuple[str, str]:
-    ""                                                                            
+    """(token id, value) — rolling an existing one rather than adding a twin."""
     ids = group_ids(admin, account_id, preset["groups"])
     tid = existing_token(admin, account_id, preset["name"])
     if tid:
@@ -375,7 +375,7 @@ def zones_of(token: str) -> list[dict]:
 
 
 def stash_accounts(stash_label: str) -> list[dict]:
-    ""                                                                             
+    """Every account a stash can issue into — the new record shape or the old."""
     m = read_meta(ADMIN_STORE / stash_label)
     if m.get("accounts"):
         return [a for a in m["accounts"] if a.get("can_issue", True)]
@@ -420,7 +420,7 @@ def find_account(wanted: str | None) -> tuple[str, str, dict]:
 
 def install_issued(value: str, label: str, account: dict, preset_key: str,
                    project: str | None, rolled: bool, stash: str | None = None) -> int:
-    ""                                                                         
+    """Verify the issued token can do the job, then file it with its record."""
     zs = zones_of(value)
     if not zs:
         print(f"  {label}: issued, but it sees no zone — not installed",
@@ -484,9 +484,9 @@ def cmd_issue(preset_key: str, account_label: str | None, project: str | None) -
 
 
 def cmd_install(value: str) -> int:
-    ""                                                                     
-                                                                                
-                                                             
+    """A narrow token minted ELSEWHERE, pasted in: verified the same way an
+    issued one is, filed with a record marking it external — so `ping` watches
+    it and `rotate --leaked` knows it cannot roll it here."""
     if not value:
         print("nothing on stdin", file=sys.stderr)
         return 2
@@ -627,7 +627,7 @@ def cmd_revoke(label: str) -> int:
 
 
 def cmd_ping() -> int:
-    ""                                                                            
+    """Does every stashed and issued token still do its job? No values printed."""
     bad = 0
     for label, path in admins():
         m = read_meta(path)
@@ -665,8 +665,8 @@ def cmd_ping() -> int:
 
 
 def cmd_list() -> int:
-    ""                                                                     
-                        
+    """Names, accounts, dates, projects. Never a value, never a length that
+    could narrow one."""
     a, i = admins(), issued()
     print(f"admin tokens ({len(a)}) — read by this program only:")
     for label, p in a:

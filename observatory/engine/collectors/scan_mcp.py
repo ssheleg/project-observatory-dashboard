@@ -3,13 +3,13 @@
 
     scan_mcp.py store/raw/mcp.json
 
-                                                                         
-                                                                            
-                                                               
-                                                                               
-                                                                              
-                                                                             
-                                                                         
+WHY. The gateway that used to hold every MCP declaration in one place was
+switched off on 2026-09-14; declarations now live in each agent's own config
+(`~/.claude.json` and its project scopes, `~/.cursor/mcp.json`,
+`~/.config/opencode/opencode.json`) plus the plugins Claude Code ships. Nothing
+tracked them, so a server declared in one agent and not another, a server that
+had stopped answering, or a token sitting in a URL were all invisible until a
+session failed. The operator's rule: MCP works without the gateway AND is
              
 
 WHAT IS NEVER WRITTEN. A URL is recorded as scheme+host+path with its QUERY

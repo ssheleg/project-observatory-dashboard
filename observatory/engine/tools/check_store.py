@@ -20,31 +20,31 @@
     PRAGMA quick_check         15 / 15 / 15 ms
     PRAGMA integrity_check    204 / 89 / 87 ms      (first run cold)
 
-                                                                          
-                                                                           
-                                                                                 
-                                                                                 
-                                                                                   
-                                                                             
-                      
+The old note read `quick_check 129 ms` against `integrity_check 97 ms` and
+concluded "the cheaper pragma is not even cheaper in practice". That is the
+benchmark-ordering error: whichever runs first pays for the cold cache. The cheap
+pragma is six times cheaper, and the receipt records a still different number —
+`took_ms: 1623` — because the tick runs this while its own collectors contend for
+the file. Three numbers, three conditions, and the honest form is to name all
+three rather than one.
 
-                                                                          
-                                                                               
-                                                                                   
-                                                                               
-                                                                            
-                                                                              
-                                 
+**And the reason given for the choice was the wrong example.** It said the
+difference is index CONTENT verification, "exactly the class of damage a reader
+would otherwise discover by getting a wrong answer" — while the damage this store
+actually recorded was `SQLITE_CORRUPT: vtable constructor failed: search_notes`
+(2026-09-08T00:54:56Z, 12.09 GiB free, so not the disk-full episode). Driven
+against a planted defect — a copy of the live store with `search_notes_data`
+dropped — BOTH pragmas name it:
 
     quick_check       61 ms  ->  malformed inverted index for FTS5 table main.search_notes
     integrity_check   91 ms  ->  malformed inverted index for FTS5 table main.search_notes
 
-                                                                                   
-                                                                                
-                                                                             
-                                                                             
-                                                                          
-                              
+So `integrity_check` is kept for what SQLite documents it to add — verifying that
+each ORDINARY index agrees with its table, which `quick_check` skips — and not
+for the FTS5 class, which the cheap one catches too. Ninety milliseconds on a
+thirty-minute cycle for a strictly larger check is still the right trade; the
+evidence for it is now the documentation plus a measurement, rather than a
+reversed benchmark.
 
 FOUR verdicts, because three of them are not `ok` for different reasons and a
 reader acting on them does different things:
@@ -69,11 +69,11 @@ sys.path.insert(0, str(ROOT))
 import atomic                                                       # noqa: E402
 import paths                                                        # noqa: E402
 
-                                                                           
-                                                                            
-                                                                               
-                                                                                
-                                           
+#: `integrity_check` and not `quick_check`. The extra work is index content
+#: verification, and an index that disagrees with its table gives a reader a
+#: WRONG ANSWER rather than an error — the failure mode nothing else here can
+#: catch. Measured at 97 ms against 129 ms on 21.7 MiB, so the cheaper pragma is
+#: not even cheaper in practice.
 PRAGMA = "integrity_check"
 
 #: How many of SQLite's lines to keep. It reports one per problem and a badly

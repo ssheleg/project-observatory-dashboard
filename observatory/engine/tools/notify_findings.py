@@ -128,7 +128,7 @@ def now_z() -> str:
 
 
 def _report(when: str, delivered: bool, detail: str, undelivered: list[dict]) -> None:
-    ""                                                                           
+    """What `tools/build_findings.py` reads to know whether the channel works."""
     atomic.write_json(paths.SCRATCH / "notify.json", {
         "attempted_at": when, "delivered": delivered, "detail": detail,
         "undelivered": undelivered})

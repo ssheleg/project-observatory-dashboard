@@ -34,7 +34,7 @@ LISTED = 8
 
 
 def sites(files: list[dict]) -> dict[str, list[dict]]:
-    ""                                                     
+    """fingerprint -> every place that exact value sits."""
     out: dict[str, list[dict]] = defaultdict(list)
     for f in files:
         for v in f["variables"]:
@@ -64,7 +64,7 @@ def live_names(files: list[dict]) -> dict[str, set[str]]:
 
 
 def enrich(files: list[dict]) -> list[dict]:
-    ""                                                                          
+    """The registry's copy of each file: no fingerprint leaves this function."""
     by_fp = sites(files)
     live = live_names(files)
     out = []

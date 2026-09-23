@@ -96,10 +96,10 @@ def composer(text: str) -> set[str]:
 
 
 def gradle(text: str) -> set[str]:
-    ""                                                                        
-                                                                       
-                                                                          
-                               
+    """Gradle is a PROGRAM, not a document, so this counts declarations rather
+    than resolving them — and says so. A build file that computes its
+    dependencies in a loop is undercounted here, which is why the metric's
+    `means` says "declared"."""
     out: set[str] = set()
     for m in re.finditer(r"""^\s*(?:api|implementation|compile)\s*[\('"]+([^'")\s]+)""",
                          text, re.M):
@@ -151,9 +151,9 @@ def count(folder: pathlib.Path) -> tuple[set[str], list[str]]:
             text = f.read_text(encoding="utf-8", errors="replace")
             got = PARSERS[f.name](text)
         except Exception as exc:                                                  
-                                                                           
-                                                                               
-                                              
+            # NAMED, not counted as zero. A project whose manifest will not
+            # parse has not declared no dependencies, and a metric that says it
+            # did is worse than a missing row.
             problems.append(f"{f.name}: {type(exc).__name__}: {str(exc)[:60]}")
             continue
         eco = f.name.split(".")[0]

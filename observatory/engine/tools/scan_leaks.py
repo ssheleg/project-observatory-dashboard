@@ -112,7 +112,7 @@ def _read(p: pathlib.Path) -> str | None:
 
 
 def known_values() -> tuple[dict[str, str], list[dict], list[dict]]:
-    ""                                                                           
+    """value -> a name for it, plus the homes to exclude and what was skipped."""
     values: dict[str, str] = {}
     homes: list[dict] = []
     skipped: list[dict] = []
@@ -180,7 +180,7 @@ def known_values() -> tuple[dict[str, str], list[dict], list[dict]]:
 
 
 def targets(days: int) -> tuple[list[pathlib.Path], list[dict]]:
-    ""                                                                         
+    """Where a value must never appear, and what was left out of the window."""
     out: list[pathlib.Path] = []
     notes: list[dict] = []
     cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
@@ -276,7 +276,7 @@ def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
 
 def scan_file(path: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str],
               start: int, longest: int) -> tuple[dict[str, int], int]:
-    ""                                                       
+    """Occurrences by secret name, and the offset reached."""
     hits: dict[str, int] = {}
     try:
         size = path.stat().st_size

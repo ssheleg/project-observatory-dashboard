@@ -48,9 +48,9 @@ def rows_of(path: pathlib.Path, now: datetime.datetime | None = None) -> list[di
 
 def findings(path: pathlib.Path, known_folders: set[str], data_root: pathlib.Path,
              now: datetime.datetime | None = None) -> list[dict]:
-    ""                                                                     
-                                                                              
-                                         
+    """`known_folders` are the estate folders the registry already joins; a
+    sighting inside the estate whose folder is now known has been picked up by
+    a tick since, and is not reported."""
     seen = rows_of(path, now)
     if not seen:
         return []

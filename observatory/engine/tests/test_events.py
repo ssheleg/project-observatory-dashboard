@@ -76,7 +76,7 @@ def test_one_rule_two_readers() -> None:
 
 
 def test_truncation_is_detectable_at_all() -> None:
-    ""                                                                 
+    """`-N` returning N is ambiguous; `-(N+1)` returning N+1 is not."""
     src = (ROOT / "collectors/scan_events.py").read_text(encoding="utf-8")
     check("the collector asks for one more than the cap", "depth + 1" in src,
           "asking for exactly the cap cannot tell a full repository from a truncated one")
@@ -88,7 +88,7 @@ def test_truncation_is_detectable_at_all() -> None:
 
 
 def test_truncation_is_detected_against_a_real_repository() -> None:
-    ""                                                      
+    """Driven through git, not asserted about the source."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-depth-"))
     subprocess.run(["git", "init", "-q", "-b", "main", str(d)], check=True)
     for k in ("user.email=t@e.com", "user.name=T"):

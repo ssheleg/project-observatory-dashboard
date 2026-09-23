@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The provider quarantines models correctly and tells nobody.
 
-                                                      
+Measured 2026-09-07, and each line is a separate hole:
 
-                                                                                   
-                                                                                
-                                                                             
-                                                   
+    store/provider-health.json          `{}` — a quarantine list, empty = healthy
+    health.provider in the page payload  the ONLY unread key of 14 (no renderer)
+    findings mentioning a model          zero (`grep` over build_findings.py)
+    readers of agent.json#chain_retired  tests only
 
 The mechanism itself is live and right: `agent/providers.py:837` consults
 `unhealthy()` before each attempt, lines 862–898 mark on failure, 901 clears on
@@ -21,11 +21,11 @@ as "where a reader looks" — and no reader reads it there. A comment asserting 
 consumer that does not exist is worse than silence, because it stops the next
 person looking.
 
-                                                                                 
-                                                                                 
-                                                                                 
-                                                                               
-                                                  
+**Two subjects, deliberately not merged.** A RETIRED id is a configured model the
+provider's catalogue no longer lists — a permanent change to the chain's shape,
+fixed by editing `agent/models.json`. A QUARANTINED model failed at call time and
+will be re-probed within the hour. Same file family, opposite remedies, so they
+are two findings rather than one with a mode flag.
 
 **And an empty document must not be read as good news.** `{}` cannot tell "every
 model answered" from "the agent has not run since Tuesday", and the file carries

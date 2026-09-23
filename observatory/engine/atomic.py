@@ -27,11 +27,11 @@ from typing import Any
 
 def write_json(path: str | os.PathLike, data: Any, *, indent: int = 1,
                ensure_ascii: bool = False) -> pathlib.Path:
-    ""                                                                     
+    """Serialise first, replace second. The destination is never truncated.
 
-                                                                           
-                                                                                 
-                                                                             
+    The temp file is created in the SAME directory, because `os.replace` is
+    atomic only within one filesystem — a temp in `/tmp` would make this a copy
+    across devices and reintroduce the partial write it exists to prevent."""
     dest = pathlib.Path(path)
     # Refuse future registry versions and retain optional extension fields.
     import configuration

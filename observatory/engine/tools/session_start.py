@@ -83,7 +83,7 @@ def remote_of(top: pathlib.Path) -> str:
 
 
 def nwo(remote: str) -> str:
-    ""                                                          
+    """`owner/name` out of any GitHub remote spelling, or ''."""
     r = remote.strip()
     for pre in ("git@github.com:", "https://github.com/", "ssh://git@github.com/", "git://github.com/"):
         if r.startswith(pre):
@@ -98,8 +98,8 @@ def load(name: str) -> dict:
 
 
 def resolve(top: pathlib.Path, remote: str) -> dict | None:
-    ""                                                                           
-                                                                  
+    """The project this checkout belongs to — by folder under the estate first,
+    by the remote's owner/name through the repositories second."""
     projects = load("projects.json").get("projects") or []
     try:
         rel = top.resolve().relative_to(paths.DATA.resolve())

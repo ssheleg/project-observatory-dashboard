@@ -113,13 +113,13 @@ def prose_removed(src: str) -> str:
     are *made of* string literals — `/ "store" / "raw"` is two STRING tokens. It
     would report a clean repository for ever.
 
-                                                                             
-                                                                     
-                                                           
-                                                                                
-                                                                          
-                                                                          
-                         
+    The first run of this check reported six violations that were all its own
+    prose: comments explaining the very fix they were flagged for, in
+    `scan_bitbucket.py`, `survey.py`, `notify_findings.py`,
+    `validate_registry.py`, `build_dashboard.py` and this suite's own docstring.
+    That is the seventh occurrence of the pattern-matches-prose class this
+    session, inverted: not an assertion satisfied by an explanation, but a
+    checker accusing one.
 
     Blanked in place, so the reported line number is the real one.
     """

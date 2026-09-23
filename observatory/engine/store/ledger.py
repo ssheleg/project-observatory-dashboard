@@ -45,19 +45,19 @@ MAX_TEXT = 4000
 
 
 class LedgerError(Exception):
-    ""                                                                
+    """Base for every refusal. Each subclass is a different remedy."""
 
 
 class OwnerRequired(LedgerError):
-    ""                                            
+    """A write with no declared owner. Trap T7."""
 
 
 class OwnerRefused(LedgerError):
-    ""                                                                         
+    """The writer may not touch this record. The operator's rows are sacred."""
 
 
 class RevisionConflict(LedgerError):
-    ""                                                                                  
+    """Compare-and-swap failed. Carries the current revision so the caller can merge."""
 
     def __init__(self, memory_id: str, expected: int, current: int) -> None:
         super().__init__(f"{memory_id}: expected revision {expected}, current is {current}")
@@ -65,7 +65,7 @@ class RevisionConflict(LedgerError):
 
 
 class IllegalTransition(LedgerError):
-    ""                                                 
+    """The lifecycle has no edge from here to there."""
 
 
 def _now() -> str:
@@ -289,7 +289,7 @@ def append(
 
 def transition(conn: sqlite3.Connection, memory_id: str, *, to_state: str,
                owner: str, expected_revision: int, why: str | None = None) -> dict:
-    ""                                                                              
+    """Move a record's state by appending a revision. Content is carried forward."""
     prior = current(conn, memory_id)
     if prior is None:
         raise LedgerError(f"{memory_id} does not exist")
@@ -483,7 +483,7 @@ def live(conn: sqlite3.Connection, project_id: str | None = None,
 
 
 def live_cursor(row: dict) -> str:
-    ""                                             
+    """The cursor that continues after this row."""
     return f"{row['created_at']}|{row['memory_id']}"
 
 

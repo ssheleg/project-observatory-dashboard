@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Commit the generated registry, or explain why not.
 
-                                                                             
-                                                                           
-                                                                              
-                                                                         
-                                    
+`tools/commit_projection.py` solved this for the wiki on 2026-09-04
+and the identical problem sat unnamed in this repository: the tick rewrites
+`registry/*.json` every thirty minutes and nothing committed them, so the tree
+was dirty within half an hour of any commit and a real abandoned edit was
+invisible among the generated churn.
 
 The sibling's rule was "refuse if anything outside the projection is modified".
 That is right for the wiki, where the whole repository is the projection's home
@@ -16,13 +16,13 @@ committer that refuses on any dirt never runs.
 What actually has to be true is narrower and testable — **the commit must
 capture nothing but the registry**:
 
-                                                                     
-                                                                              
-                                                       
-                                                                               
-                         
-                                                                               
-                                         
+* only paths under `registry/` are staged, with an explicit pathspec;
+* the index must already be clean, because `git commit` writes the whole index
+  and a file somebody staged by hand would be swept in;
+* no merge, rebase or cherry-pick may be in progress, since committing into one
+  rewrites what it means;
+* it never pushes — a commit is recoverable locally, a push is the operator's
+  decision about what leaves the machine.
 
 It is a writer of a guarded path like any other, so it asks agent-sync's own
 guard first wherever the project declares coordination.

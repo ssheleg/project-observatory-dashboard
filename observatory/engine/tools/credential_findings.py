@@ -44,7 +44,7 @@ def _short(cred: dict) -> str:
 
 
 def lifetime_cap(creds: list[dict]) -> list[dict]:
-    ""                                                                          
+    """A cap with no reset — one row each, because each is one edit to fix."""
     out = []
     for c in creds:
         if c.get("limit") in (None, 0) or c.get("limit_reset"):
@@ -67,7 +67,7 @@ def lifetime_cap(creds: list[dict]) -> list[dict]:
 
 
 def unclaimed(creds: list[dict]) -> list[dict]:
-    ""                                                                          
+    """Credentials no project claims. ONE row: the remedy is a curation pass."""
     rows = [c for c in creds if not (c.get("used_by") or [])]
     if not rows:
         return []
@@ -88,7 +88,7 @@ def unclaimed(creds: list[dict]) -> list[dict]:
 
 
 def untracked(creds: list[dict]) -> list[dict]:
-    ""                                                                 
+    """Known only from a leak — the worst shape, and one row each."""
     out = []
     for c in creds:
         if c.get("kind") != "leaked-untracked":
@@ -111,7 +111,7 @@ def untracked(creds: list[dict]) -> list[dict]:
 
 
 def shared_rotation(creds: list[dict]) -> list[dict]:
-    ""                                                                             
+    """One credential, several projects: a fact whose consequence is a decision."""
     rows = [c for c in creds if len(c.get("used_by") or []) > 1]
     if not rows:
         return []
@@ -260,8 +260,8 @@ def project_file_exposed(creds: list[dict]) -> list[dict]:
 
 
 def findings(doc: dict | None) -> list[dict]:
-    ""                                                                               
-                                                                              
+    """Every credential rule. Empty when nothing was scanned — absent is not clean,
+    and the tab says so where a reader is already asking about credentials."""
     if not doc:
         return []
     creds = doc.get("credentials") or []

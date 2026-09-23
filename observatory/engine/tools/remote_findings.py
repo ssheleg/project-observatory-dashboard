@@ -154,7 +154,7 @@ def findings(doc: dict | None) -> list[dict]:
                        or "re-read both inventories under one salt, then emit"),
         })
 
-                                                                                                                  
+    # ── an application whose configuration would not be read ────────────────
     unreadable = [a["app"] for a in apps if a.get("error")]
     if unreadable:
         out.append({

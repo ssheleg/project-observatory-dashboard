@@ -138,7 +138,7 @@ def exclusions() -> tuple[list[tuple[str, str]], dict[str, str]]:
 
 
 def excluded(name: str, shapes: list[tuple[str, str]], names: dict[str, str]) -> str | None:
-    ""                                                        
+    """The reason this name is not a project here, or None."""
     key = (name or "").strip().lower()
     if key in names:
         return f"curated: {names[key][:80]}"
@@ -343,12 +343,12 @@ def scan() -> dict:
                 u['sessions'] += 1
                 u['session_ids'].add(r['sid'])
                 continue
-                                                                               
-                                                                            
-                                                                           
-                                                                              
-                                                                                  
-                                                   
+            # TWO outcomes, not one. A name the operator has classified as "not
+            # a project here" is skipped with its reason on record; anything
+            # else is UNKNOWN WORK and becomes a finding. Reporting both as
+            # "unmatched" is what makes a list of eighteen names — thirty of
+            # whose sessions are a plugin's own version folders — read as noise,
+            # and a noisy list is one nobody opens.
             why = excluded(r["project"], shapes, names)
             if why:
                 skipped[r["project"]] = why

@@ -128,7 +128,7 @@ def non_latin_share(text: str) -> float:
 
 
 class _Answer:
-    ""                                                                     
+    """The provider returns a validated dict; the loop wants attributes."""
 
     def __init__(self, d: dict) -> None:
         self.worth_recording = bool(d.get("worth_recording"))

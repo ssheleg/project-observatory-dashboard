@@ -50,13 +50,13 @@ sys.path.insert(0, str(ROOT))
 import atomic
 import paths                                                                      
 
-                                                                  
-                                                                        
-                                                                                
-                                                                  
-                                                                          
-                                                                            
-                                                                    
+#: HOW TO REGENERATE, and it was written wrong for six iterations.
+#: `./observatory.py shape --write` prints the shape and writes nothing:
+#: `observatory.py`'s `main()` reads `argv[1]` and ignores the rest, so the flag
+#: never reached this file. The instruction sat in this header, in
+#: `tools/check_docs.py`'s failure message twice, and in a test's hint —
+#: four copies of a command that does nothing, found when rule 14 fired on a
+#: real change and the fix it recommended did not fix it.
 WRITE_CMD = "`.venv/bin/python tools/registry_shape.py --write`"
 
 DOC = ROOT / "docs/REGISTRY_SHAPE.md"

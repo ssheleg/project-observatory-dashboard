@@ -57,11 +57,11 @@ if not gh:
     degraded.append({"source":"github", "reason":"no repository listing available; remote account coverage was not measured"})
 
 def _optional(name, key, default):
-    ""                                                                    
+    """A collector that needs the network is optional here, never assumed.
 
-                                                                            
-                                                                            
-                                         
+    Missing input must read as "not measured this run", not as "measured and
+    empty" — the second is a claim, and it is the one that quietly deletes
+    fields the last run had filled in."""
     f = SP/name
     if not f.is_file():
         degraded.append({"source":name, "reason":"optional collector output unavailable; not measured"})

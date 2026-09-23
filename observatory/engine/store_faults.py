@@ -142,10 +142,10 @@ def record(op: str, exc: BaseException | None = None, *, detail: str = "") -> di
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         return row
     except Exception:                                                               
-                                                                                
-                                                                                 
-                                                                                
-                                     
+        # DELIBERATELY BARE. Every branch above can fail on a machine whose disk
+        # is full or whose store directory has gone — the exact conditions this
+        # module exists for. Returning None loses the record; raising would lose
+        # the fault it was recording.
         return None
 
 

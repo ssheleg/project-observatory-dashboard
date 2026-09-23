@@ -83,10 +83,10 @@ import stat
 from runtime_identity import IdentityError, load as load_identity
 
 TOKEN_FILE = paths.STATE / ".keyserver-token"
-                                                                                  
-                                                                                
-                                                                               
-                                                                             
+#: UNDER `STATE`, NOT `STORE` — the same knob `tools/use_secret.py` honours, and
+#: until 2026-09-14 this one did not: every test that started a server wrote its
+#: `reveal` rows into the LIVE journal, so the security record could not tell a
+#: gate run from a person (16 rows on 2026-09-12 were most likely the suite).
 AUDIT = paths.STATE / "logs" / "keyserver.jsonl"
 HEADER = "X-Observatory-Token"
 #: WHO IS ASKING. The token says the caller is on this machine and read a 600
@@ -101,8 +101,8 @@ _CALLER: contextvars.ContextVar[str] = contextvars.ContextVar("caller", default=
 
 
 def caller_name(raw: str | None) -> str:
-    ""                                                                           
-                                                                        
+    """The caller's own name, or `unnamed`. Printable, short, one token: a header
+    is attacker-shaped input and this lands in a journal people grep."""
     if not raw:
         return "unnamed"
     s = re.sub(r"[^A-Za-z0-9._:@/+-]", "", raw.strip())[:80]
@@ -127,9 +127,9 @@ VAULT_DEST = re.compile(r"^vault:(?P<project>[a-z0-9][a-z0-9._-]{0,63})"
 
 
 def known_projects() -> set[str]:
-    ""                                                                         
-                                                                             
-                                      
+    """Project slugs this estate holds — from the registry, plus whatever the
+    vault already carries, so a project that has a slot keeps working even if
+    the registry has not caught up."""
     names: set[str] = set()
     doc = paths.REGISTRY / "projects.json"
     try:
@@ -148,7 +148,7 @@ def known_projects() -> set[str]:
 
 
 def check_destination(dest: str) -> str:
-    ""                                                                       
+    """The destination, or a refusal that says what a good one looks like."""
     if dest in DESTINATIONS:
         return dest
     m = VAULT_DEST.match(dest or "")
@@ -172,7 +172,7 @@ def token() -> str:
 
 
 def audit(action: str, subject: str, detail: dict) -> None:
-    ""                                                                           
+    """Written BEFORE the action, because a log written after loses the crash."""
     AUDIT.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     row = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "action": action, "subject": subject,
@@ -207,8 +207,8 @@ def _door():
 
 
 def act_mint(body: dict) -> dict:
-    ""                                                                   
-                                                                      
+    """Mint through the door and deliver, without the value crossing this
+    process's edge: the door writes it straight to the destination."""
     dest = check_destination(body.get("destination"))
     name = (body.get("name") or f"observatory-{dest}").strip()
     limit = float(body.get("limit") or 0)
@@ -258,7 +258,7 @@ def act_revoke(body: dict) -> dict:
 
 
 def act_leak(body: dict) -> dict:
-    ""                                                                          
+    """Mark a credential leaked. No value crosses — only where it was seen."""
     for field in ("project", "env", "name", "where"):
         if not (body.get(field) or "").strip():
             raise ValueError(f"{field} is required; a leak with no `where` is a note "

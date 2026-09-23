@@ -97,15 +97,15 @@ def code_keeping_strings(src: str) -> str:
     A third reader, because the two above answer different questions and neither
     fits the class "a core file must not name a plugin's vocabulary":
 
-                                                                  
-                                                                       
-                                                                              
-                                                                     
-                                                                             
-                                                                               
-                                                                         
-                                                                        
-                                                  
+    * `code_only` (above) blanks string literals, so it would MISS
+      `"… WHERE metric = 'disk.bytes'"` — which is the exact defect
+      `tools/build_findings.py` shipped on 2026-09-07 and the most likely form
+      the violation takes, since coupling to a metric happens in SQL.
+    * `check_paths.prose_removed` keeps string literals, because the rules IT
+      checks are made of them — so it flags prose that lives inside a string:
+      `dashboard/build_dashboard.py` embeds a page's JavaScript in Python
+      strings, and a `//` comment there explaining why the page must not
+      special-case one metric read as a use of it.
 
     So: keep the strings, and treat a line that is a comment in the EMBEDDED
     language as prose as well. Deleting a comment to satisfy a checker is the

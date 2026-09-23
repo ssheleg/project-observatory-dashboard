@@ -549,7 +549,7 @@ def _post(base_url: str, key: str, body: dict, timeout: int = 120) -> dict:
         f"{base_url}/chat/completions", data=data, method="POST",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                  "User-Agent": UA,
-                                                                                    
+                 # OpenRouter attributes traffic by these two. They are not secrets.
                  "HTTP-Referer": "https://github.com/ssheleg/project-observatory-dashboard",
                  "X-Title": "Project Observatory"})
     try:
@@ -850,12 +850,12 @@ def key_status() -> str:
 def scheduled_key_status() -> str:
     """What the TICK will resolve, which is the one that spends.
 
-                                                                            
-                                                                                  
-                                                                             
-                                                                             
-                                                                                
-                                                                              
+    `key_status()` answers for the shell it is run in, and the shell exports
+    `OPENROUTER_API_KEY` on this machine — so an operator who had just given the
+    project its own key file ran this command, saw the environment's key, and
+    reasonably concluded the file had not taken (2026-09-10). It had: launchd
+    passes only HOME and PATH, so the scheduled run never sees that variable and
+    reads the file. Two callers, two answers, and until now the command showed
                 
 
     Computed by asking the same resolver with the key variables removed, rather
