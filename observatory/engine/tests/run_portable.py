@@ -29,6 +29,7 @@ LEGACY = (
     'runtime_identity', 'remote_env',
     'project_identity',
     'sessions',
+    'env_page', 'metric_labels',
 )
 BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',
@@ -39,7 +40,8 @@ BOUNDARY = (
 SUITES = LEGACY + BOUNDARY
 HELPERS = ('tmp.py', 'source_reader.py', 'live_estate.py',
            'render_provider_health.py', 'render_dashboard.mjs', 'test_portable_mcp.py', 'run_portable.py',
-           'dashboard_fixture.py', 'emitter_fixture.py', 'session_fixture.py', 'surface_fixture.py')
+           'dashboard_fixture.py', 'emitter_fixture.py', 'session_fixture.py', 'surface_fixture.py',
+           'env_tab_check.js')
 RUNTIME_DIRS = ('agent', 'collectors', 'dashboard', 'mcp', 'plugins', 'store', 'tools')
 ROOT_FILES = (
     'activity.py', 'atomic.py', 'companion_faults.py', 'configuration.py',

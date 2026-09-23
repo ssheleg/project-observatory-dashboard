@@ -37,6 +37,7 @@ portable_setup()
 sys.path.insert(0, str(ROOT / "tests"))
 import paths              
 import tmp as tmpdir              
+import dashboard_fixture
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 HARNESS = ROOT / "tests/render_dashboard.mjs"
@@ -67,18 +68,8 @@ def render(page: pathlib.Path, count: str | None = None) -> dict | None:
         return {}
 
 
-def build(dest: pathlib.Path) -> pathlib.Path:
-    ""                                                           
-
-                                                                           
-                                                                               
-                                                                      
-       
-    out = dest / "page.html"
-    subprocess.run([PY, "dashboard/build_dashboard.py"], cwd=ROOT,
-                   env=dict(os.environ, OBSERVATORY_DASHBOARD=str(out)),
-                   capture_output=True, text=True, timeout=600)
-    return out
+def build(dest: pathlib.Path, *, samples=2) -> pathlib.Path:
+    return dashboard_fixture.build(dest, samples=samples)
 
 
 def test_the_page_runs_to_completion() -> None:
@@ -113,7 +104,7 @@ def test_every_panel_renders_something() -> None:
     for panel in ("tiles", "health", "findings", "out"):
         check(f"`{panel}` was written", written.get(panel, 0) > 0,
               f"{written.get(panel, 0)} chars — a blank panel reads as 'nothing to show'")
-    check("the project list is the bulk of the page", written.get("out", 0) > 10_000,
+    check("the synthetic project list renders", written.get("out", 0) > 0,
           str(written.get("out")))
 
 
@@ -128,6 +119,7 @@ def test_the_spend_row_renders_at_all() -> None:
     if not r:
         return
     health = r["health"]
+    check("selected state spend reaches the rendered row", "4.0000" in health and "2.5000" in health, health[-200:])
     check("the spend row is on the page", "потрачено этим проектом" in health,
           health[-200:])
     check("with the day's figure beside the month's", "из них сегодня" in health,
@@ -157,13 +149,11 @@ def test_the_health_panel_shows_what_the_store_holds() -> None:
         print(("  SKIP  node is not installed here"
               " [uncoverable: executing the page needs node, and the only two executors here — dashboard/smoke.js and tests/render_dashboard.mjs — are both node]"))
         return
-    sys.path.insert(0, str(ROOT / "dashboard"))
-    import importlib
-    import build_dashboard
-    importlib.reload(build_dashboard)
-    store = build_dashboard.from_store()
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-render4-"))
-    r = render(build(d))
+    page=build(d)
+    payload=json.loads(re.search(r'const D = (\{.*?\});\n',page.read_text(),re.S).group(1))
+    store={'health':payload['health']}
+    r = render(page)
     if not r:
         return
     health = r["health"]
@@ -311,9 +301,7 @@ def test_a_metric_that_moved_says_so_on_the_page() -> None:
     moved = [m for r in payload["rows"] for m in (r.get("metrics") or [])
              if m.get("p") is not None and m["p"] != m["v"]]
     if not moved:
-        print("  SKIP  no series on this estate has two DIFFERENT samples yet "
-              "[uncoverable here: the property needs a metric that changed, and "
-              "the negative half — one sample renders no marker — is driven below]")
+        check("the fixture produced a changed metric series", False)
         return
     got = render(page, count='class="delta')
     if got is None:
@@ -335,19 +323,7 @@ def test_a_single_sample_renders_no_movement() -> None:
                                                         
        
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-delta-one-"))
-    db = d / "one.db"
-    shutil.copy2(paths.DB, db)
-    conn = sqlite3.connect(db)
-    conn.execute("DELETE FROM metrics WHERE at NOT IN"
-                 " (SELECT MAX(at) FROM metrics m2"
-                 "  WHERE m2.project_id = metrics.project_id AND m2.metric = metrics.metric)")
-    conn.commit()
-    conn.close()
-    out = d / "page.html"
-    subprocess.run([PY, "dashboard/build_dashboard.py"], cwd=ROOT,
-                   env=dict(os.environ, OBSERVATORY_DASHBOARD=str(out),
-                            OBSERVATORY_DB=str(db)),
-                   capture_output=True, text=True, timeout=600)
+    out = build(d, samples=1)
     payload = json.loads(re.search(r'const D = (\{.*?\});\n',
                                    out.read_text(encoding="utf-8"), re.S).group(1))
     with_prev = [m for r in payload["rows"] for m in (r.get("metrics") or []) if "p" in m]

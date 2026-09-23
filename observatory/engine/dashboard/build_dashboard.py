@@ -403,7 +403,7 @@ def from_store() -> dict:
                                                                               
                                                                       
     for key, name in (("wallet", "wallet.json"), ("provider", "provider-health.json")):
-        f = paths.STORE / name
+        f = paths.STATE / name
         if f.is_file():
             try:
                 out["health"][key] = json.loads(f.read_text(encoding="utf-8"))
@@ -3201,8 +3201,8 @@ function renderEnv() {
     ? '«показать» и «копировать» действуют: страницу отдаёт ' +
       '<span class="mono">tools/keyserver.py</span>, и каждое раскрытие пишется в ' +
       '<span class="mono">store/logs/keyserver.jsonl</span> до того, как файл будет прочитан'
-    : 'страница открыта из файла и прочитать значение не может — кнопка отдаёт ' +
-      'команду в буфер; запустите <span class="mono">' + E(toolCommand('keyserver.py')) + '</span>, ' +
+    : 'режим команд: кнопка копирует команду в буфер; выполните её в терминале. ' +
+      'Запустите <span class="mono">' + E(toolCommand('keyserver.py')) + '</span>, ' +
       'чтобы раскрывать и копировать прямо отсюда';
   out.innerHTML = filterLine(rows.length, ENVV.length, "переменных") + '<div class="card"><table>' +
     '<colgroup><col style="width:26%"><col style="width:17%"><col style="width:20%">' +
@@ -3227,21 +3227,22 @@ function renderEnv() {
                                                                               
                                                 
       const alarming = es.filter(e => e.cls === "secret" && e.git === "tracked");
-      const open = !!q || !!sel.value || alarming.length > 0;
+      const open = !!q || !!sel.value || active.size > 0 || alarming.length > 0;
       const secrets = es.filter(e => e.cls === "secret").length;
       return '<tbody class="grp' + (open ? '' : ' folded') + '" data-envgroup="' + E(p || "-") + '">' +
       '<tr><th colspan="6" scope="colgroup"><button class="grp-fold" type="button"' +
       ' aria-expanded="' + (open ? 'true' : 'false') + '">' + E(p || "вне проекта") +
-      ' <span class="n">' + es.length + ' переменных' +
-      (secrets ? ' · ' + secrets + ' секретных' : '') + '</span>' +
+      ' <span class="n">' + es.length + ' ' + plural(es.length, 'переменная', 'переменные', 'переменных') +
+      (secrets ? ' · ' + secrets + ' ' + plural(secrets, 'секрет', 'секрета', 'секретов') : '') + '</span>' +
       (alarming.length ? ' ' + chip(alarming.length + " секрет(ов) в git", "danger") : '') +
       '</button></th></tr>' +
       es.map(row).join("") + '</tbody>';
     }).join("") + '</table></div>' +
     '<p class="dmeta">Показано ' + rows.length + ' из ' + ENVV.length + ' переменных · ' +
-    (t.env_files || 0) + ' живых файлов и ' + (t.templates || 0) + ' шаблонов в ' +
-    (t.projects || 0) + ' проектах · ' + (t.secrets || 0) + ' читаются как секрет · ' +
-    (t.shared_across_projects || 0) + ' значений делят несколько проектов · измерено ' +
+    (t.env_files || 0) + ' ' + plural(t.env_files || 0, 'живой файл', 'живых файла', 'живых файлов') + ' и ' +
+    (t.templates || 0) + ' ' + plural(t.templates || 0, 'шаблон', 'шаблона', 'шаблонов') + ' в ' +
+    (t.projects || 0) + ' ' + plural(t.projects || 0, 'проекте', 'проектах', 'проектах') + ' · ' + (t.secrets || 0) + ' читаются как секрет · ' +
+    'общих значений: ' + (t.shared_across_projects || 0) + ' · измерено ' +
     E(D.env.scanned_on || "—") + '<br>' + howto +
     '. Значений нет ни в этой странице, ни в реестре: «общее значение» установлено ' +
     'солёным отпечатком, а соль лежит вне git и не покидает машину.</p>';

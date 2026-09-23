@@ -318,9 +318,8 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
     check("the ENV table folds by project and says each group's size",
           "grp-fold" in src and "data-envgroup" in src and "переменных" in src,
           "a fold that hides a count is the cap this repository refuses")
-    check("a search or a filter unfolds everything",
-          "const open = !!q || !!sel.value || alarming.length > 0" in src,
-          "folding a result set answers a question with a closed box")
+    # Filter expansion is driven on rendered fixture data by tests/env_tab_check.js
+    # (suite env_page); the source expression is not pinned here.
     check("and a secret tracked by git opens its own group",
           'e.cls === "secret" && e.git === "tracked"' in src,
           "the one case urgent enough to be above the fold")
