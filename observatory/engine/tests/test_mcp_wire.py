@@ -19,7 +19,16 @@ import tmp as tmpdir
 
 from mcp import ClientSession, StdioServerParameters                              
 from mcp.client.stdio import stdio_client                                         
-import mcp.types as mtypes                                                        
+import mcp.types as mtypes
+import mcp.client.session as _mcp_session
+
+# The SDK gives `server/discover` a fixed 10 s. Here the server is a fresh child
+# started from an uncompiled sandbox copy (PYTHONDONTWRITEBYTECODE) while other
+# suites run in parallel, so its first answer can take longer than an installed
+# server ever does. Give the start its own budget instead of failing the wire
+# check on machine load; every later request keeps the SDK default.
+STARTUP_BUDGET_SECONDS = float(os.environ.get("OBSERVATORY_MCP_STARTUP_BUDGET", "60"))
+_mcp_session.DISCOVER_TIMEOUT_SECONDS = max(_mcp_session.DISCOVER_TIMEOUT_SECONDS, STARTUP_BUDGET_SECONDS)                                                        
 
 REQUIRED = ["observatory_status", "observatory_project", "observatory_timeline",
             "observatory_recall", "observatory_record", "observatory_propose"]
