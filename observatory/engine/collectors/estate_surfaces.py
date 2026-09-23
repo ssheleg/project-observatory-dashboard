@@ -194,6 +194,13 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
         for dom in pr.get("domains") or []:
             prod_of[dom.lower()] = pr["id"]; prod_name[pr["id"]] = pr["name"]
     out = []
+    # ONE ZONE NAME CAN LIVE IN TWO ACCOUNTS (a zone moved, or a duplicate added
+    # by mistake). The id was the name alone, so the second row collided and the
+    # validator rejected the registry. A name held by one account keeps
+    # `zone:<name>`; a name held by several is qualified by its account.
+    _accounts_of: dict[str, set] = {}
+    for z in scan.get("zones", []):
+        _accounts_of.setdefault(z["name"], set()).add(z.get("account_id") or z.get("account_label"))
     for z in scan.get("zones", []):
         name = z["name"]
         reg = by_name.get(name)
@@ -222,7 +229,9 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
         else:
             standing = "unclassified"
         out.append({
-            "id": f"zone:{name}", "name": name,
+            "id": (f"zone:{name}" if len(_accounts_of.get(name) or ()) < 2
+                   else f"zone:{name}@{z.get('account_label') or z.get('account_id')}"),
+            "name": name, "account_id": z.get("account_id"),
             "account": z.get("account_name"), "account_label": z.get("account_label"),
             "status": z.get("status"), "paused": z.get("paused"), "plan": z.get("plan"),
             "registered_domain": f"domain:{name}" if reg else None,

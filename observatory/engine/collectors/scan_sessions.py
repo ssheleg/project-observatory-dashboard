@@ -367,7 +367,7 @@ def scan() -> dict:
             # EXCLUSION dictionary passed to `excluded()` below. After the first
             # session that spanned two claude-mem names, every later lookup ran
             # against a set of project strings instead — so the curated
-            # exclusions silently stopped applying and `sshlg` landed in BOTH
+            # exclusions silently stopped applying and the home folder landed in BOTH
             # buckets, excluded once and reported twelve times. A pure function
             # returning two answers for one argument is how the shadowing
             # showed itself; the invariant that catches it is that the two

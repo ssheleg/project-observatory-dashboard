@@ -131,6 +131,23 @@ CONFIG_SET = re.compile(r"^Set (?P<names>.+?) config vars?$")
 CONFIG_ADDON = re.compile(r"^Update (?P<name>[A-Z0-9_]+) by (?P<addon>[a-z0-9-]+)$")
 
 
+_DEPLOY_SHA = re.compile(r"^Deploy ([0-9a-f]{7,40})$")
+
+
+def deployed_commit(desc: str | None) -> str | None:
+    """The commit a code release says it deployed, or None.
+
+    Heroku writes "Deploy 1a2b3c4d" for a git or GitHub deploy. A rollback or a
+    promotion names a release, not a commit, and gets None rather than a guess.
+    The match is exact on purpose: "Deploy main" or "Deploy feature-cafe123"
+    names a branch, and a branch is where deploys come from, not what is
+    running (PB-123). heroku_registry publishes it as `deployed_commit` with its
+    source, so a reader can tell a stated commit from a missing one.
+    """
+    m = _DEPLOY_SHA.match(desc or "")
+    return m.group(1) if m else None
+
+
 def config_trail(rels: list) -> list[dict]:
     ""                                                                       
                                                                          
@@ -264,7 +281,8 @@ def scan_app(app: dict, tok: str) -> dict:
                                            
     row["config_releases"] = config_trail(rels)
     row["last_deploy"] = ({"version": code["version"], "at": code["created_at"],
-                           "desc": (code.get("description") or "")[:120]}
+                           "desc": (code.get("description") or "")[:120],
+                           "commit": deployed_commit(code.get("description"))}
                           if code else None)
     # `releases_seen == RELEASE_WINDOW` and no code release means the window ran
     # out, not that no deploy exists. Said out loud so a reader cannot mistake a

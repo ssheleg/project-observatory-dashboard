@@ -212,6 +212,10 @@ def records(scan: dict, projects: list[dict], repos: list[dict],
             "dyno_cost": a.get("dyno_cost", 0),
             "addon_cost": a.get("addon_cost", 0),
             "last_deploy_on": ((a.get("last_deploy") or {}).get("at") or "")[:10] or None,
+            # What is running, as the release says it. Never the configured branch.
+            "deployed_commit": ({"sha": a["last_deploy"]["commit"], "release": a["last_deploy"].get("version"),
+                                 "source": "heroku-release-description"}
+                                if (a.get("last_deploy") or {}).get("commit") else None),
             "last_release_on": ((a.get("last_release") or {}).get("at") or "")[:10] or None,
             "never_deployed": a.get("last_deploy") is None
                               and not a.get("deploy_beyond_window"),
@@ -228,7 +232,7 @@ def records(scan: dict, projects: list[dict], repos: list[dict],
         if project:
             edges.append({"id": f"relation:{project.split(':',1)[1]}:deployed-to:{a['name']}",
                           "type": "deployed_to", "from": project, "to": rec["id"],
-                          "source_refs": ["SRC-0013"]})
+                          "rule": rec.get("link_rule"), "source_refs": ["SRC-0013"]})
     return apps, edges
 
 

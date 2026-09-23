@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.0**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.1**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -68,3 +68,12 @@ each project id, which ids are retired, and repositories' former names. It is wr
 step. A workspace upgraded from 0.2.x gets it on the first emit with every existing id unchanged.
 An unreadable map stops the emit step instead of re-minting ids. Contract:
 [docs/design/IDENTITY.md](https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/design/IDENTITY.md).
+
+## Registry: provenance and account-qualified ids (0.3.1)
+
+- Every derived relation (`implemented_by`, `deployed_to`, `credential_used_by`) carries a `rule`
+  naming the evidence that produced it; `validate` rejects one without it.
+- A Cloudflare zone name held by two or more accounts gets the id `zone:<name>@<account>`. A name
+  held by one account keeps `zone:<name>`, so only duplicated zones change id on upgrade.
+- `heroku-apps.json` rows gain `deployed_commit` (`{sha, release, source}`), taken only from a
+  release description that states a commit, never from the configured branch; `null` otherwise.
