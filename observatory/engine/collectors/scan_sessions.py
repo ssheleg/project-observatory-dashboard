@@ -50,15 +50,15 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import paths                                                                      
 import atomic                                                                     
 
-                                                              
-                                                                      
-                                                                 
+#: The store this reads. One path, and it is the plugin's own.
+#: Resolved through `paths`, like every other location this repository
+#: reads — see `paths.COMPANION_DB` for why it is redirectable.
 STORE = paths.COMPANION_DB
 
-                                                             
-                                                                             
-                                                                         
-                                            
+#: Sessions older than this are not read. The event window in
+#: `store/retention.json` is 365 days, so anything older would be written and
+#: then tombstoned on the next retention pass — work for nothing, and a
+#: misleading "events grew" in the meantime.
 WINDOW_DAYS = 365
 
 
@@ -233,8 +233,8 @@ def verdict_for(folders: set[str]) -> tuple[str, list[str]]:
     if gone:
         return "estate-folder-gone", gone
     if folders:
-                                                                             
-                                                                             
+        # The folders exist, so the name is an alias for work in a folder the
+        # matcher did not connect — a rule to add, not a project to invent.
         return "folder-exists-unmatched", sorted(folders)
     return "no-path-recorded", []
 
@@ -314,10 +314,10 @@ def scan() -> dict:
                                             f"Activity falls back to commits alone"}]}
         del ev_total
 
-                                                                           
-                                                                                
-                                                                           
-                                                                  
+    # HELD OPEN for the verdict query below, and closed on the way out. The
+    # connection was closed here, so reading the evidence needed either a second
+    # open or this line moved; one connection for one read-only pass is the
+    # smaller change and the store is opened `mode=ro` either way.
     ev_conn = conn
 
                                                                              
@@ -363,15 +363,15 @@ def scan() -> dict:
             prev["started_at"] = min(prev["started_at"] or "", r["started"] or "") or None
             prev["started_on"] = (prev["started_at"] or "")[:10]
             prev["ended_on"] = max(prev["ended_on"], (r["ended"] or "")[:10])
-                                                                                 
-                                                                                
-                                                                               
-                                                                         
-                                                                             
-                                                                               
-                                                                         
-                                                                          
-                                                                      
+            # `spellings`, not `names`: this used to rebind `names`, which is the
+            # EXCLUSION dictionary passed to `excluded()` below. After the first
+            # session that spanned two claude-mem names, every later lookup ran
+            # against a set of project strings instead — so the curated
+            # exclusions silently stopped applying and `sshlg` landed in BOTH
+            # buckets, excluded once and reported twelve times. A pure function
+            # returning two answers for one argument is how the shadowing
+            # showed itself; the invariant that catches it is that the two
+            # buckets can never share a name (tests/test_sessions.py).
             spellings = set(prev["claude_mem_project"].split(" + ")) | {r["project"]}
             prev["claude_mem_project"] = " + ".join(sorted(spellings))
             continue
@@ -407,9 +407,9 @@ def scan() -> dict:
                     " LIMIT 200", (name, f"%{paths.DATA}/%", f"%{paths.DATA}/%")):
                 u["paths"] |= estate_paths(row["files_read"], row["files_modified"])
         except sqlite3.Error as exc:
-                                                                               
-                                                                               
-                                                                    
+            # NAMED, never silently empty: a shape change here would make every
+            # lost project read as "no path recorded", which is the answer this
+            # whole classification exists to stop being the default.
             degraded.append({
                 "source": "claude-mem",
                 "reason": f"the paths behind {name!r} could not be read "
@@ -473,11 +473,11 @@ def to_events(out: dict) -> int:
     from store import db as store_db
     conn = store_db.connect()
     scan_id = store_db.scan_id("sessions", now())
-                                                                                
-                                                                             
-                                                                                
-                                                                            
-                                                                               
+    # Session events are a DERIVED stream, rebuildable from claude-mem, so a key
+    # change is a rewrite rather than a migration. Rows written under the old
+    # `ref = session_id` are removed here; without this the store would hold two
+    # key shapes for one fact and every count of them would be wrong. Stated
+    # rather than done quietly, because deleting measured rows is not a detail.
     stale = conn.execute(
         "DELETE FROM events WHERE kind='session' AND ref NOT LIKE '%:project:%'")
     if stale.rowcount:

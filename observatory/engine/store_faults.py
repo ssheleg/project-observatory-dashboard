@@ -59,13 +59,13 @@ import paths
                                                                
 LOG = paths.SCRATCH / "store-faults.jsonl"
 
-                                                                             
-                                                                              
-                                             
+#: How many of the most recent lines a reader consults. Named so the bound is
+#: findable, and `recent()`'s callers are told when it was reached rather than
+#: being handed a silently shortened history.
 READ_TAIL = 200
 
-                                                                           
-                                                                    
+#: `lsof` is asked with a timeout, because a diagnostic that hangs during a
+#: failure is a worse outcome than one that reports "could not ask".
 HOLDER_TIMEOUT_S = 2.0
 
 
@@ -96,7 +96,7 @@ def _holders(db: pathlib.Path) -> tuple[int | None, str]:
         return None, f"lsof did not answer within {HOLDER_TIMEOUT_S:.0f}s"
     except OSError as exc:
         return None, f"lsof could not run: {type(exc).__name__}"
-                                                                         
+    # rc 1 with empty output is lsof's ordinary "no process has it open".
     return len([x for x in p.stdout.split() if x.strip()]), ""
 
 
@@ -172,9 +172,9 @@ def recent(days: float = 7.0) -> list[dict]:
         try:
             when = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
         except ValueError:
-                                                                               
-                                                                               
-                                                            
+            # An unreadable timestamp is KEPT, not dropped: the fault happened,
+            # and discarding it because its stamp is unparseable would make the
+            # count understate the very thing being counted.
             out.append(row)
             continue
         if when.timestamp() >= cutoff:

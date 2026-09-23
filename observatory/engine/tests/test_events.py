@@ -134,24 +134,24 @@ def test_the_live_store_holds_only_the_estates_own_work() -> None:
     own = {p["id"]: p.get("ownership") for p in
            json.loads((paths.REGISTRY / "projects.json").read_text(encoding="utf-8"))["projects"]}
     conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
-                                                                                
-                                                                                
-                                                                                 
-                                                                      
-                                                                                
-                                                                              
-                                                                            
-                                                                         
+    # BY KIND, because the invariant in this test's name is about whose WORK the
+    # store holds, and ownership is only a proxy for that. It is the right proxy
+    # for a commit, whose author is external — `estate.why_excluded` says so in
+    # those words. It is the wrong proxy for a session: a session in a
+    # third-party clone happened because the operator sat down and worked in it,
+    # so it IS the estate's own work and excluding it would lose the answer to
+    # "where was work done" for every borrowed checkout. The session half is
+    # asserted below on the field that actually decides it — the actor.
     rows = conn.execute("SELECT project_id, COUNT(*) FROM events"
                         " WHERE kind = 'commit' GROUP BY project_id").fetchall()
     foreign = {pid: n for pid, n in rows if not estate.records_events(own.get(pid))}
     check("no COMMIT belongs to a project outside the estate's own work",
           not foreign, str(dict(list(foreign.items())[:3])))
-                                                                              
-                                                                          
-                                                                            
-                                                                           
-                                        
+    # The other half of the invariant, on the field that decides it. Narrowing
+    # the check above without this would have dropped coverage rather than
+    # corrected it: a `session` row with somebody else's actor would then be
+    # unremarked, and "the store holds only the estate's own work" would be
+    # asserted by nothing for that kind.
     actors = dict(conn.execute("SELECT actor, count(*) FROM events"
                                " WHERE kind = 'session' GROUP BY actor"))
     check("every session event is the operator's own work",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                              
+"""Which trap is guarded by which test — derived, never typed.
 
                                                                               
                                                                             
@@ -18,11 +18,11 @@
                                                                            
                                                                           
 
-                                                                
-                                                                                 
+    def test_a_frozen_clock_still_yields_distinct_ids() -> None:
+        \"\"\"Trap: T12 — the whole defect is two runs inside one second.\"\"\"
 
-                                                                               
-                                                                       
+— and this tool reads the declarations, compares them with the traps the pack
+declares, and writes the table between the two markers in the document.
 
                                                                                
                                                                        
@@ -33,10 +33,10 @@
                                                                              
                
 
-                                                                   
-                                                           
-                                                                           
-   
+    tools/trap_map.py            the mapping, and what is unguarded
+    tools/trap_map.py --check    exit non-zero on any drift
+    tools/trap_map.py --write    regenerate the table in the knowledge pack
+"""
 from __future__ import annotations
 import argparse
 import ast
@@ -47,17 +47,17 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import atomic                                                                  
+import atomic                                                      # noqa: E402
 
 PACK = ROOT / "docs/knowledge-pack.md"
 BEGIN = "<!-- trap-map:begin -->"
 END = "<!-- trap-map:end -->"
-                                                             
+#: `Trap: T12` or `Traps: T22, T23`, anywhere in a docstring.
 MARKER = re.compile(r"^\s*Traps?:\s*(T\d+(?:\s*,\s*T\d+)*)\s*(?:—.*)?$", re.M)
 
 
 def declared() -> dict[str, str]:
-    ""                                                       
+    """Every trap the pack declares, id -> its bold title."""
     out: dict[str, str] = {}
     for tid, title in re.findall(r"^\| (T\d+) \| \*\*(.+?)\.\*\*", PACK.read_text("utf-8"), re.M):
         out[tid] = title
@@ -65,12 +65,12 @@ def declared() -> dict[str, str]:
 
 
 def _dispatched(tree: ast.Module) -> set[str]:
-    ""                                                     
+    """Names referenced inside `if __name__ == "__main__"`.
 
-                                                                             
-                                                                           
-                            
-       
+    A suite here dispatches by listing its functions; one that is defined and
+    not listed runs never and reports nothing, which is a guard that cannot
+    fire in its purest form.
+    """
     names: set[str] = set()
     for node in tree.body:
         if isinstance(node, ast.If) and any(
@@ -80,7 +80,7 @@ def _dispatched(tree: ast.Module) -> set[str]:
 
 
 def guards() -> list[dict]:
-    ""                                                                             
+    """Every declaration of a trap in a test, with what can be checked about it."""
     out: list[dict] = []
     for path in sorted(ROOT.glob("tests/*.py")):
         src = path.read_text("utf-8", errors="replace")
@@ -102,7 +102,7 @@ def guards() -> list[dict]:
 
 
 def steps_by_file() -> dict[str, list[str]]:
-    ""                                                                          
+    """file -> the gate steps that run it, read from `observatory.py` itself."""
     spec = importlib.util.spec_from_file_location("obs_for_traps", ROOT / "observatory.py")
     obs = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(obs)
@@ -116,7 +116,7 @@ def steps_by_file() -> dict[str, list[str]]:
 
 
 def report() -> tuple[dict, list[str]]:
-    ""                                               
+    """The mapping and every drift in it, as data."""
     decl, found, steps = declared(), guards(), steps_by_file()
     by_trap: dict[str, list[dict]] = {}
     for g in found:
@@ -138,14 +138,14 @@ def report() -> tuple[dict, list[str]]:
 
 
 def efficacy() -> dict[str, str]:
-    ""                                                                           
+    """How each trap's guard was WATCHED failing, read from the sweep's registry.
 
-                                                                             
-                                                                               
-                                                                                 
-                                                                              
-                                        
-       
+    Attribution is derived here; efficacy is derived there. The column exists
+    because a reader of the table asks the second question the moment the first
+    is answered — and because an empty cell is then a visible gap rather than a
+    silence. Loaded lazily: a missing tool degrades to an empty column instead
+    of taking the whole derivation down.
+    """
     try:
         spec = importlib.util.spec_from_file_location("eff_map", ROOT / "tools/trap_efficacy.py")
         eff = importlib.util.module_from_spec(spec)
@@ -159,7 +159,7 @@ def efficacy() -> dict[str, str]:
 
 
 def table(data: dict) -> str:
-    ""                                                                               
+    """The generated block: one row per trap, in the order the pack declares them."""
     steps = data["steps"]
     eff = efficacy()
     lines = [BEGIN,

@@ -46,10 +46,10 @@ server = MCPServer(
     title="Project Observatory",
     version=VERSION,
     description="What is true of every project on this machine.",
-                                                                                  
-                                                                              
-                                                                                 
-                            
+    # An LLM client READS this to decide what the server can do, so a stale one is
+    # not cosmetic. It said "Read-only" and named three tools while eight were
+    # served and two of them write — and the gateway's own comment repeated the
+    # same claim in Russian.
     instructions=(
         "Seven tools read and two write.\n"
         "READ: `observatory_status` surveys the current scope; a requested scan pin "
@@ -334,8 +334,8 @@ def observatory_recall(
            "note": "conflicting records are returned together and are not ranked; "
                    "absence here is not proof of absence",
            "degraded": degraded}
-                                                                               
-                                                                
+    # Only when a further page really exists. A cursor handed out at the end of
+    # the walk would have a caller asking for nothing, for ever.
     if more and rows:
         out["nextCursor"] = L.live_cursor(rows[-1])
     return out
@@ -394,13 +394,13 @@ def observatory_findings(
     rows = [x for x in doc["findings"]
             if order.get(x["severity"], 3) <= (floor if severity != "all" else 2)
             and (include_acknowledged or not x.get("acked"))]
-                                                                                
-                                                                                   
-                                                                             
-                                                                            
-                                                                                 
-                                                                           
-                       
+    # TWO dates, because they answer different questions and one of them used to
+    # answer both badly. `builtAt` is when these findings last CHANGED — it stops
+    # moving when nothing moves, which is what makes the registry committable
+    # (see `tools/build_findings.py`). On its own that reads as staleness: a
+    # caller seeing three days would assume the observer had stopped. `checkedAt`
+    # is when the observer last completed a scan, from the store, where run
+    # metadata belongs.
     degraded, checked_at = [], None
     try:
         c = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
@@ -506,10 +506,10 @@ def observatory_propose(
         registry_ids |= {r["id"] for r in json.loads(
             (paths.REGISTRY / "repositories.json").read_text(encoding="utf-8"))["repositories"]}
     except (OSError, ValueError, KeyError) as exc:
-                                                                           
-                                                                               
-                                                                               
-                                           
+        # The registry is unreadable, so the subject cannot be checked. The
+        # proposal is still accepted and the gap is NAMED: refusing every write
+        # because a file could not be read would make an unreadable registry an
+        # outage rather than a degradation.
         registry_ids = set()
         unknown_subject = f"the registry could not be read to check the subject: {exc}"
     else:
@@ -575,8 +575,8 @@ def resource_project(project_id: str) -> dict[str, Any]:
 def resource_dashboard() -> str:
     f = paths.DASHBOARD_HTML
     if not f.is_file():
-                                                                              
-                                                            
+        # A resource must not pretend. An empty string would render as a blank
+        # page and read as "the estate has nothing to show".
         return ("<!doctype html><meta charset=\"utf-8\"><title>not built</title>"
                 "<p>The dashboard has not been built on this machine. Run "
                 "<code>./observatory.py dashboard</code>.</p>")

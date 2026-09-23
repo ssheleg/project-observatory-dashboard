@@ -31,9 +31,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
-                                                                             
-                                                                              
-                                                                         
+# THROUGH `tests/tmp`, which registers the removal. A bare `tempfile.mkdtemp`
+# leaves its directory behind, and `tools/check_paths.py` refuses one for that
+# reason — on a volume with 4.4 GiB free the rule earns its keep twice.
 sys.path.insert(0, str(ROOT / "tests"))
 import tmp as tmpdir                                                              
 

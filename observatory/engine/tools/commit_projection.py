@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                                
+"""Commit the generated projection in the wiki, under a lease, or explain why not.
 
                                                                            
                                                                               
                                                                                   
                                          
 
-                                                                         
+Three rules keep a scheduled committer from being worse than the problem:
 
-                                                                             
-                                                                               
-              
-                                                                             
-                                                                   
-                                                                             
-                                         
-   
+* **Only the projection.** If anything outside `inventory/` is modified, this
+  stops and touches nothing: a scheduled job must never sweep up a human's work
+  in progress.
+* **Under a lease.** `inventory/` is a guarded path in that repository, and a
+  background job is exactly the second writer the lease exists for.
+* **Never pushes.** A commit is recoverable locally; a push is the operator's
+  decision about what leaves the machine.
+"""
 from __future__ import annotations
 import argparse, json, subprocess, sys, pathlib
 
@@ -37,18 +37,18 @@ def git(*args: str, cwd: pathlib.Path) -> tuple[int, str]:
 
 
 def agent_sync() -> pathlib.Path | None:
-    ""                                                  
+    """One resolver, shared with the registry committer.
 
-                                                                               
-                                                                               
-                                                                     
+    This had its own copy that sorted the version directories as STRINGS, which
+    puts 1.100.0 below 1.19.2 and silently runs an old copy of the coordination
+    tool. `tick_lease.agent_sync_script` compares them as numbers."""
     sys.path.insert(0, str(ROOT / "tools"))
     import tick_lease
     return tick_lease.agent_sync_script()
 
 
 def report(outcome: str, detail: str = "", **extra) -> None:
-    ""                                            
+    """The run's outcome as a fact, on EVERY path.
 
                                                                                
                                                                                  
@@ -58,9 +58,9 @@ def report(outcome: str, detail: str = "", **extra) -> None:
                                                                              
            
 
-                                                                              
-                                                                
-       
+    `last_commit` is read from the wiki itself, so a reader can tell a refusal
+    that happened once from one that has been standing for days.
+    """
     last = ""
     try:
         code, out = git("log", "-1", "--format=%cI", cwd=paths.VAULT.parent)
@@ -95,10 +95,10 @@ def main() -> int:
         print(f"git status failed: {out}", file=sys.stderr)
         report("status-failed", out)
         return 0
-                                                                               
-                                                                              
-                                                                            
-                                   
+    # `XY path`, but a rename is `R  old -> new` and the status letters vary in
+    # width across git versions. Taking the last whitespace-separated field is
+    # right for every shape, and slicing a fixed offset was not — it ate a
+    # character off the first path.
     changed = [l.split()[-1] for l in out.splitlines() if l.strip()]
     if not changed:
         print("the wiki is clean — nothing to commit")
@@ -117,8 +117,8 @@ def main() -> int:
         return 0
     if a.dry_run:
         print(f"would commit {len(changed)} projection file(s): {', '.join(changed)}")
-                                                                            
-                                                                 
+        # A dry run reports nothing: it is a question, and answering it must
+        # not overwrite the record of what the last real run did.
         return 0
 
     script = agent_sync()

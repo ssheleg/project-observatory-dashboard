@@ -39,9 +39,9 @@ SRC = ["SRC-0016"]
 EVIDENCE_RANK = (
     ("operator-claim", 0),
     ("repo-config:", 1),
-                                                                              
-                                                                             
-                                                                               
+    # A zone's DNS pointing at a Heroku app the registry has already tied to a
+    # project: two measurements chained, neither of them a name match. Ranked
+    # with GitHub — measured outside this machine, stronger than a wiki note.
     ("dns:", 2),
     ("github:", 2),
     ("bitbucket:", 3),
@@ -71,7 +71,7 @@ def registrable(host: str, owned: set[str]) -> str | None:
     return None
 
 
-                                                                                                                                                                                       
+# ─────────────────────────── host -> project, ranked ─────────────────────────
 
 def host_table(projects: list[dict]) -> dict[str, tuple[str, int]]:
     ""                                                                 
@@ -105,8 +105,8 @@ def resolve(host: str, table: dict[str, tuple[str, int]]) -> str | None:
     return None
 
 
-                                                                            
-                                                           
+#: Where a DNS target points, by suffix. The handle is what a later join can
+#: use: a Heroku hostname, a Pages project, a Vercel alias.
 TARGET_SUFFIXES = (
     (".herokudns.com", "heroku"), (".herokuapp.com", "heroku"),
     (".pages.dev", "cloudflare-pages"), (".workers.dev", "cloudflare-workers"),
@@ -175,7 +175,7 @@ def _boundary() -> dict:
         return {}
 
 
-                                                                                                                                                                                                                              
+# ─────────────────────────── zones ────────────────────────────────────────────
 
 def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
               products: list[dict] | None = None) -> list[dict]:
@@ -183,9 +183,9 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
     by_name = {d["name"]: d for d in domains}
     table = host_table(projects)
     boundary = _boundary()
-                                                                           
-                                                                               
-                                                                    
+    # A CURATED product's domains: eSIM Plus claims esimplus.* as one thing
+    # while no single repository is its site — the domain has an owner at the
+    # product level, and saying "unclassified" there would be false.
     prod_of: dict[str, str] = {}
     prod_name: dict[str, str] = {}
     for pr in products or []:
@@ -199,9 +199,9 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
         reg = by_name.get(name)
         pid = resolve(name, table)
         b = boundary.get(name) or {}
-                                                                             
-                                                                            
-                                                    
+        # ONE WORD PER ZONE, in this order: a project claims it (linked); the
+        # operator ruled on it (outside / pending); nobody has said anything
+        # (unclassified). The dashboard sorts on it.
         targets = zone_targets(z)
         readable = not any("error" in r for r in (z.get("records") or []))
         if pid:
@@ -247,9 +247,9 @@ def zones_document(scan: dict, rows: list[dict], obs_date: str) -> dict:
         by[r["standing"]] = by.get(r["standing"], 0) + 1
     return {
         "schema_version": 1, "updated_on": obs_date,
-                                                                              
-                                                                               
-                                                            
+        # A DATE, not a clock: the committed registry may not change every run
+        # by construction (test_tick_repo's rule), and a timestamp with seconds
+        # is exactly that. The scan receipt keeps the clock.
         "scanned_on": (scan.get("scanned_at") or "")[:10] or None,
         "accounts": scan.get("accounts", []),
         "note": ("Every Cloudflare zone the estate holds a token for, joined to the "
@@ -268,7 +268,7 @@ def zones_document(scan: dict, rows: list[dict], obs_date: str) -> dict:
     }
 
 
-                                                                                                                                                                                                                        
+# ─────────────────────────── products ─────────────────────────────────────────
 
 def load_curated() -> tuple[dict, list[str]]:
     try:
@@ -371,9 +371,9 @@ def products_document(projects: list[dict], domains: list[dict], obs_date: str
                  "rows are derived from a shared registrable domain and carry none — "
                  "an inference labelled as one."),
         "roles": roles, "products": rows,
-                                                                             
-                                                                                 
-                            
+        # A curated member this registry does not hold: dropped from the row,
+        # named here — absent is not zero, and a silent drop is a member nobody
+        # notices vanishing.
         "degraded": [{"source": "collectors/products.json", "reason": m} for m in missing],
         "totals": {"products": len(rows),
                    "curated": sum(1 for r in rows if r["kind"] == "curated"),
@@ -384,7 +384,7 @@ def products_document(projects: list[dict], domains: list[dict], obs_date: str
     return doc, edges, errors
 
 
-                                                                                                                                                                                                                  
+# ─────────────────────────── MCP servers ──────────────────────────────────────
 
 LIVENESS = ("connected", "failed", "needs-auth", "not-listed", "not-probed")
 

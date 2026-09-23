@@ -29,7 +29,7 @@
    
 from __future__ import annotations
 
-                                                                    
+#: Listed by name up to this many, as everywhere else on this board.
 LISTED = 6
 
 

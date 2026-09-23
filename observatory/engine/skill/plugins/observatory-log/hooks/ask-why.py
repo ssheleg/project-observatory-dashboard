@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-""                                                                     
+"""Turn a record_turn.py result into the Stop hook's structured output.
 
-                                                                             
-                                                                     
+Standard library only, and silent on anything unexpected: a hook that reports
+its own confusion as a failure teaches the operator to disable hooks.
 
-                                                                        
-                                                                             
-                                                                              
-                                                                              
-            
-   
+It never blocks. The facts are already on the record without the agent's
+cooperation, so the only thing left to ask for is the `why` — and asking is
+worth more than a veto that costs a turn. An absent `why` stays visible in the
+ledger as a proposed record with a null field, which is accountability without
+obstruction.
+"""
 from __future__ import annotations
 import json
 import sys
@@ -35,7 +35,7 @@ def main() -> int:
                                                                                
         reason = r.get("reason") or ""
         if not r.get("fault"):
-            return 0                                                               
+            return 0                   # nothing changed, not watched, or explained
         print(json.dumps({"systemMessage":
                           "Observatory could NOT record this turn: " + reason +
                           "\n\nThe facts of this turn are not in the ledger. "
@@ -44,7 +44,7 @@ def main() -> int:
                           "suppressOutput": True}))
         return 0
     if r.get("hasWhy"):
-        return 0                                                             
+        return 0                                          # already explained
 
     mid = r.get("memoryId")
     rev = r.get("revision")
@@ -67,10 +67,10 @@ def main() -> int:
         "and skip it. An empty `why` on a trivial edit is honest; an invented one "
         "is worse than nothing, because it will be read as true."
     )
-                                                                                
-                                                                                 
-                                                                            
-                                                                                
+    # THE NUDGE AT THE MOMENT OF WORK. The agent is already inside this project;
+    # rebuilding its graph or touching its note costs least right now. Thresholds
+    # match the board's grace (7 days), and None means the artefact does not
+    # exist — not adopting graphify is a choice this hook does not argue with.
     stale_bits = []
     g = r.get("graphAgeDays")
     if isinstance(g, int) and g > 7:

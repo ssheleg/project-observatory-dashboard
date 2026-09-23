@@ -1,4 +1,4 @@
-""                                                                                
+"""Disposable session source and registry, never the companion's real database."""
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import importlib.util

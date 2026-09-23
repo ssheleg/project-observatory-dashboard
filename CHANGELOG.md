@@ -5,6 +5,12 @@ while the major version is 0, a minor release may change behaviour and says so h
 
 ## Unreleased
 
+### Changed
+
+- The engine's comments and docstrings are back: 3,049 lines restored from the original sources
+  that the first public export had blanked, filtered for private identifiers, with every file's
+  syntax tree unchanged.
+
 ### Added
 
 - `full doctor` reports `coverage_warnings`: an enabled integration or feature whose source is not

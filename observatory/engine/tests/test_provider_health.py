@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                            
+"""The provider quarantines models correctly and tells nobody.
 
                                                       
 
@@ -8,18 +8,18 @@
                                                                              
                                                    
 
-                                                                         
-                                                                                 
-                                                                                
-                                                                                
-                                   
+The mechanism itself is live and right: `agent/providers.py:837` consults
+`unhealthy()` before each attempt, lines 862–898 mark on failure, 901 clears on
+success, and the mark expires after `probe_after_minutes` so a health check that
+only runs on failure can still recover. Nothing here changes that. The defect is
+that the result reaches no surface.
 
-                                                                          
-                                                                                
-                                                                               
-                                                                                 
-                                                                             
-               
+**What that costs, in the boundary's own words.** `providers.py:217` about
+`chain_retired`: a three-model chain "could become one and the only visible sign
+would be the bill". The same comment then names `agent/observe.py`'s run report
+as "where a reader looks" — and no reader reads it there. A comment asserting a
+consumer that does not exist is worse than silence, because it stops the next
+person looking.
 
                                                                                  
                                                                                  
@@ -27,13 +27,13 @@
                                                                                
                                                   
 
-                                                                                
-                                                                                
-                                                                                 
-                                                                           
-                                                                            
-                                   
-   
+**And an empty document must not be read as good news.** `{}` cannot tell "every
+model answered" from "the agent has not run since Tuesday", and the file carries
+no `as of` at all. The honest third outcome comes from `agent.json#ran_at`, which
+already exists and is already read: with a recent run, empty means measured
+healthy; with no run, health is simply not measured, and the finding says so
+rather than reporting a clean bill.
+"""
 from __future__ import annotations
 import json, pathlib, re, subprocess, sys
 
@@ -56,13 +56,13 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def findings_for(health: dict | None, agent: dict | None) -> list[dict]:
-    ""                                                        
+    """The provider rule alone, over documents this test owns.
 
-                                                                               
-                                                                               
-                                                                              
-                                                               
-       
+    Callable on two dicts rather than on the repository, because the live files
+    are `{}` and a recent run — the good state — so the rule could never be
+    watched doing anything here. Every branch below is a state the live estate
+    has not been in yet, which is the whole reason to plant it.
+    """
     import build_findings as B
     fn = getattr(B, "provider_findings", None)
     if fn is None:
@@ -73,7 +73,7 @@ def findings_for(health: dict | None, agent: dict | None) -> list[dict]:
 RECENT = {"ran_at": "2026-09-07T20:00:00Z"}
 
 
-                                                                                                                                                     
+# ─────────── a quarantined model is reported ───────────────────────────
 
 def test_a_quarantined_model_is_named() -> None:
     out = findings_for({"vendor/m": {"since": "2026-09-07T19:00:00Z",
@@ -113,7 +113,7 @@ def test_a_retired_chain_link_is_a_different_finding() -> None:
     check("a retirement is not reported as a quarantine", not q, str([f["type"] for f in out]))
 
 
-                                                                                                                           
+# ─────────── and an empty file is not good news by itself ──────────────
 
 def test_empty_with_a_recent_run_is_measured_health() -> None:
     out = findings_for({}, RECENT)
@@ -124,9 +124,9 @@ def test_empty_with_a_recent_run_is_measured_health() -> None:
 
 
 def test_empty_with_no_run_is_not_health() -> None:
-    ""                                                                          
-                                                                               
-                                                                            
+    """The distinction the file cannot make on its own. An empty quarantine list
+    plus an agent that has never run means health was never established — and
+    reporting that as healthy is the one outcome this repository forbids."""
     out = findings_for({}, None)
     if out and out[0].get("type") == "ABSENT":
         return
@@ -149,13 +149,13 @@ def test_an_unreadable_file_degrades_rather_than_passing() -> None:
           "'no model is quarantined' must not look alike")
 
 
-                                                                                                                   
+# ─────────── the page has a renderer, watched with real input ──────────
 
 def test_the_page_renders_a_non_empty_quarantine() -> None:
-    ""                                                                            
-                                                                             
-                                                                           
-                               
+    """T18: a degradation nobody has watched work does not work. `health.provider`
+    has only ever been `{}` on this machine, so a renderer added for it would
+    ship untested by construction. This drives the page's own script with a
+    planted non-empty value."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the page script references health.provider",
           re.search(r"(H\.provider\b|\[[\"']provider[\"']\])", src) is not None,
@@ -173,11 +173,11 @@ def test_the_page_renders_a_non_empty_quarantine() -> None:
           (p.stdout + p.stderr)[-400:])
 
 
-                                                                                                               
+# ─────────── the comment that named a reader that did not exist ────────
 
 def test_retirement_report_is_consumed_and_clears_after_recovery() -> None:
-                                                                               
-                                                                
+    # The report's actual reader is the contract; source comments may be absent
+    # in a sanitized distribution without changing the behavior.
     retired = findings_for({}, dict(RECENT, chain_retired=["vendor/gone"]))
     check("the report reaches the retirement finding reader",
           any(f.get("type") == "provider.chain_retired" for f in retired))

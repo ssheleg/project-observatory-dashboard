@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-""                                                                  
+"""What leaves the store — and, more importantly, what must never.
 
-                                                                               
-                                                                                 
-                                   
-   
+Every case here plants a row with a chosen age and asserts on the outcome. Ages
+are set by writing `created_at` directly, which is the only way to test a horizon
+without waiting ninety days for it.
+"""
 from __future__ import annotations
 import importlib.util, json, os, pathlib, sqlite3, sys, tempfile
 import sys as _sys, pathlib as _pl
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parent))
-import tmp as tmpdir              
+import tmp as tmpdir  # noqa: E402
 from datetime import datetime, timedelta, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -60,10 +60,10 @@ def age(conn, memory_id: str, days: int) -> None:
 
 
 def test_an_old_proposed_row_is_tombstoned_not_deleted() -> None:
-    ""                                                     
+    """A proposed row past the horizon becomes a tombstone.
 
-            
-       
+    Trap: T6
+    """
     conn, L, R = fresh()
     r = L.append(conn, owner="agent:observer", statement="an old guess", state="proposed",
                  confidence=0.4, project_id="project:x")
@@ -150,10 +150,10 @@ def test_superseded_is_protected_because_a_correction_points_at_it() -> None:
 
 
 def test_the_purge_attests_or_reports_incomplete() -> None:
-    ""                                                                   
+    """Erasure is complete per REVISION, and covers a row that came back.
 
-                  
-       
+    Trap: T22, T23
+    """
     conn, L, R = fresh()
     ix = importlib.util.module_from_spec(
         importlib.util.spec_from_file_location("ix_t", ROOT / "store/indexer.py"))
@@ -176,10 +176,10 @@ def test_the_purge_attests_or_reports_incomplete() -> None:
           conn.execute("SELECT count(*) FROM search_notes WHERE memory_id = ?",
                        (r["memoryId"],)).fetchone()[0] == 0)
     check("apply returns 0 when every backend attested", rc == 0, str(rc))
-                                                                           
-                                                                                  
-                                                                                 
-                                                            
+    # A row that returns to the index behind retention's back — a rebuild
+    # against a stale checkpoint does exactly this — must be removed on the NEXT
+    # pass, not only on the one that tombstoned it. That hole was real: the purge
+    # used to run only for rows tombstoned in the same pass.
     with conn:
         conn.execute("INSERT INTO search_notes (memory_id, revision, statement, why)"
                      " VALUES (?,?,?,?)", (r["memoryId"], 1, "snuck back in", ""))
@@ -238,17 +238,17 @@ def test_volatile_rows_are_deleted_and_the_spine_is_not() -> None:
 
 
 def test_an_unverifiable_index_is_quarantined_not_counted() -> None:
-    ""                                                                 
+    """A backend that cannot be checked is not a backend that is clean.
 
-             
-       
+    Trap: T24
+    """
     conn, L, R = fresh()
     r = L.append(conn, owner="agent:observer", statement="tombstone me", state="proposed",
                  confidence=0.4)
     age(conn, r["memoryId"], 400)
     real = R.indexer.load_vec
     try:
-        R.indexer.load_vec = lambda c: False                                     
+        R.indexer.load_vec = lambda c: False        # the extension will not load
         rc = R.cmd_apply(conn)
         rec = R.purge_projections(conn)
         check("the vector index reads UNVERIFIABLE, never 'absent' or clean",
@@ -265,10 +265,10 @@ def test_an_unverifiable_index_is_quarantined_not_counted() -> None:
 
 
 def test_the_collector_and_retention_share_one_horizon() -> None:
-    ""                                                    
+    """Two components must not fight every thirty minutes.
 
-             
-       
+    Trap: T25
+    """
     cfg = json.loads((__import__("paths").config_file("retention.json")).read_text())
     src = (ROOT / "collectors/scan_events.py").read_text(encoding="utf-8")
     check("the collector reads retention.json rather than carrying its own number",

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-""                                                                              
+"""A citation must name the thing that measured, not merely a thing that exists.
 
                                                                              
                                                                            
                                                                                
                                                  
 
-                                                                               
-                                                                            
-                                                                                
-                                               
-   
+A source now declares `evidence_for`, and the validator asserts the converse: a
+record carrying one of those fields must cite that source. It is a NECESSARY
+condition — nothing here can prove a citation true — but it closes the class
+where a measured field appears with no witness.
+"""
 from __future__ import annotations
 import json, os, pathlib, shutil, subprocess, sys, tempfile
 
@@ -21,8 +21,8 @@ from test_portable_mcp import setup as portable_setup, PROJECT_ID as SYNTHETIC_P
 portable_setup()
 
 sys.path.insert(0, str(ROOT / "tests"))
-import tmp as tmpdir              
-import paths                                                                    
+import tmp as tmpdir  # noqa: E402
+import paths                                                        # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 FAILURES: list[str] = []
@@ -93,7 +93,7 @@ def test_the_liveness_file_carries_and_resolves_its_provenance() -> None:
 
 
 def test_the_validator_CATCHES_a_false_citation() -> None:
-    ""                                                                        
+    """The planted defect: the rule must fail the state it was written for."""
     reg = sandbox()
     code, out = validate(reg)
     check("the sandbox starts green", code == 0, out[-200:])
@@ -127,7 +127,7 @@ def test_the_validator_CATCHES_liveness_without_provenance() -> None:
 
 
 def test_a_curated_override_adds_a_witness_rather_than_replacing_them() -> None:
-    ""                                                                                 
+    """Found by the rule above the first time it ran, on this repository's own data."""
     src = (ROOT / "collectors/emit_registry.py").read_text(encoding="utf-8")
     check("source_refs from an override are unioned, not assigned",
           'ck=="source_refs" else cv' in src and 'k=="source_refs" else v' in src,

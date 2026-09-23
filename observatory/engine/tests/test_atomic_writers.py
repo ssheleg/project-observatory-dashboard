@@ -53,7 +53,7 @@ def half_write(dest: pathlib.Path, text: str) -> None:
         raise OSError(28, "No space left on device")
 
 
-                                                                                                                                                   
+# ─────────── the two mechanisms, side by side ──────────────────────────
 
 def test_a_plain_write_that_stops_halfway_destroys_the_destination() -> None:
     ""                                                                   
@@ -88,13 +88,13 @@ def test_atomic_write_text_leaves_the_destination_untouched() -> None:
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-atomic2-"))
     dest = d / "shape.md"
     dest.write_text("the previous document\n", encoding="utf-8")
-                                                                         
-                                                                       
-                                                                            
-                                                                         
-                                                                           
-                                                                       
-                
+    # A WRITE THAT CANNOT FINISH, at the point where a full disk actually
+    # reports itself. The first version subclassed `str` with a raising
+    # `encode`, which never fired: `TextIOWrapper.write` encodes through the
+    # codec, not through the object's method — so the simulation passed
+    # silently while proving nothing. `os.fsync` is the honest point: it is
+    # where deferred write errors surface, and `atomic` calls it before
+    # replacing.
     real_fsync = os.fsync
     raised = False
     try:
@@ -129,11 +129,11 @@ def test_it_adds_no_trailing_newline_of_its_own() -> None:
           repr(p.read_text(encoding="utf-8")))
 
 
-                                                                                                                                           
+# ─────────── every tracked writer goes through it ──────────────────────
 
-                                                                               
-                                                                                
-                                                      
+#: The five tracked writers plus the page, as a module list. The map inside the
+#: sweep below pairs each with its artefact; this is the same set, named once so
+#: the binding check and the sweep cannot drift apart.
 TRACKED_SOURCES = ("tools/build_findings.py", "tools/export_ledger.py",
                    "tools/fabric_hash.py", "tools/registry_shape.py",
                    "dashboard/build_dashboard.py", "tools/run_probes.py",
@@ -161,7 +161,7 @@ def test_no_tracked_artefact_is_written_by_a_plain_write() -> None:
                  if ".write_text(" in l and "atomic.write_text" not in l]
         check(f"{rel} writes {artefact} through atomic",
               not plain, str(plain[:2]))
-                                                                           
+    # Private generated artifacts must stay outside the public source tree.
     import paths
     for artifact in (paths.REGISTRY / "findings.json", paths.REGISTRY / "ledger.jsonl",
                      paths.DOCS / "REGISTRY_SHAPE.md"):
@@ -219,9 +219,9 @@ def test_the_manifest_stamper_can_actually_write() -> None:
               
     import shutil, subprocess
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-stamp-"))
-                                                                             
-                                                                          
-                                      
+    # A COPY of the real manifest in a temp tree: stamping the live one would
+    # make this suite a writer of a tracked file, which is what the gate's
+    # purity verdict exists to refuse.
     work = d / "repo"
     work.mkdir()
     (work / "tools").mkdir()

@@ -73,10 +73,10 @@ def test_the_defect_it_exists_for() -> None:
     after = {migrate.to_utc_z(s) for s in same}
     check("after: the same instant is one value", len(after) == 1, str(after))
 
-                                                                                 
-                                                                                
-                                                                                
-                                                                                   
+    # The shape that actually broke a window: a commit made at 23:30 local on the
+    # 6th is 21:30Z on the 6th. Asked for "since the 7th" the raw string answers
+    # yes, because "2026-09-06T23:30:00+02:00" > "2026-09-07T00:00:00Z" is FALSE
+    # — but "2026-09-07T00:30:00+03:00", the same instant, answers the other way.
     cutoff = "2026-09-07T00:00:00Z"
     raw_a, raw_b = "2026-09-06T23:30:00+02:00", "2026-09-07T00:30:00+03:00"
     check("before: two spellings of one instant fall on opposite sides of a cutoff",
@@ -91,8 +91,8 @@ def test_the_migration_converts_and_is_idempotent() -> None:
     rows = [("a", "2026-09-06T23:30:00+02:00"), ("b", "2026-09-06T16:30:00-05:00"),
             ("c", "2026-09-06T21:30:00Z"), ("d", "2026-09-06T21:29:00")]
     conn.executemany("INSERT INTO events (id, occurred_at) VALUES (?,?)", rows)
-                                                                              
-                                                                               
+    # Every row here is unattributed, which migration 0002 keeps by design: an
+    # unattributed checkout is a gap in the registry, not somebody else's work.
     first = migrate.apply(conn)
     check("the migration reports what it did", first and "normalised" in first[0], str(first))
     got = dict(conn.execute("SELECT id, occurred_at FROM events").fetchall())

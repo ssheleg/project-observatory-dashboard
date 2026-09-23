@@ -134,9 +134,9 @@ def test_the_verdicts_are_the_four_the_scenario_asks_for() -> None:
             {"name": "PLAIN", "class": "config"},
             {"name": "ONLY_HERE", "class": "secret", "fingerprint": "dddd"},
         ]},
-                                                                                
-                                                                              
-                                
+        # A TEMPLATE MUST NOT BE COMPARED: `.env.example` holds a placeholder by
+        # construction, and comparing against one reports every application as
+        # differing from itself.
         {"kind": "template", "project": "demo", "path": "demo/.env.example", "variables": [
             {"name": "SAME", "class": "secret", "fingerprint": "ffff"}]},
     ]}
@@ -197,7 +197,7 @@ def test_differing_is_not_a_finding_and_sharing_is_one() -> None:
         {"app": "b", "compared_with": ["/x/b"], "error": None, "retired_in_use": [],
          "counts": {}, "vars": [{"name": "TOKEN", "class": "secret",
                                  "verdict": "same_as_local"},
-                                                                              
+                                # a CONFIG value equal on both sides is normal
                                 {"name": "APP_ENV", "class": "config",
                                  "verdict": "same_as_local"}]}]}
     rows = rf.findings(shared)
@@ -312,8 +312,8 @@ def test_a_retired_archive_is_read_from_the_vault_shape() -> None:
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-vault-"))
     slot = d / "demo" / "prod"
     slot.mkdir(parents=True)
-                                                                          
-                                                    
+    # The stamp `tools/vault.py` actually writes: its own `now()` with the
+    # colons removed, so the date keeps its hyphens.
     (slot / "API_TOKEN.retired-2026-09-01T100000Z").write_text(_k("old") + "\n", encoding="utf-8")
     (slot / "API_TOKEN").write_text(_k("new") + "\n", encoding="utf-8")
     (slot / "API_TOKEN.meta.json").write_text("{}", encoding="utf-8")

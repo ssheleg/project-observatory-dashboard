@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                             
+"""A temp directory that goes away, because 98 of them did not.
 
-                                                                              
-                                                                    
-                                                                                
-                                                                              
-                                      
+Every suite here builds its fixtures in `tempfile.mkdtemp()`, and `mkdtemp` is
+the one that does NOT clean up — that is its whole difference from
+`TemporaryDirectory`. Thirteen of the suites copy something substantial into it:
+the live store is 22 MB and `test_erasure_bytes` copies it twice, the registry
+and `store/raw` go in whole elsewhere.
 
                                                                                 
                                                                                
@@ -21,10 +21,10 @@
                                                                                  
                                     
 
-                                                                               
-                                                                           
-                                                        
-   
+It does NOT run on SIGKILL, and that is stated rather than hidden: a killed run
+leaves its directory, and `tools/check_paths.py` cannot help with that. The
+remedy there is the operating system's periodic cleaner.
+"""
 from __future__ import annotations
 import atexit
 import shutil
@@ -32,7 +32,7 @@ import tempfile
 
 
 def mkdtemp(prefix: str = "observatory-") -> str:
-    ""                                                                     
+    """`tempfile.mkdtemp`, registered for removal when the process ends."""
     path = tempfile.mkdtemp(prefix=prefix)
     atexit.register(shutil.rmtree, path, ignore_errors=True)
     return path

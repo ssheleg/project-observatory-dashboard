@@ -1,8 +1,8 @@
-""                                                      
+"""Walk the estate root and describe every folder in it.
 
-                                                                               
-                                                                                
-                             
+The BASE collector: `merge.py` starts from this file, and `scan_remotes.py` and
+`scan_bitbucket.py` derive what to probe from it. Everything downstream inherits
+whatever this one gets wrong.
 
                                                                        
                                                                                 
@@ -23,8 +23,8 @@
                                                                          
                                                                 
 
-                                           
-   
+    scan_filesystem.py store/raw/local.json
+"""
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import atomic
@@ -34,10 +34,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 DATA = paths.DATA
 
-                                                                                 
-                                                                               
-                                                                             
-                                                                             
+#: A folder walk is bounded. Nothing here needs an exact count above this — the
+#: figure is a size signal on the dashboard — and an unbounded `rglob` over a
+#: mounted volume or a node_modules forest is a tick that never finishes. The
+#: cap is REPORTED per row, so a capped number is never read as an exact one.
 FILE_COUNT_CAP = 20000
 
 
@@ -68,16 +68,16 @@ GIT_ENV = {"LC_ALL": "C", "LANGUAGE": ""}
 
 
 def sh(args, cwd=None):
-    ""                                                                       
+    """(output, reason_it_could_not_be_read). One of the two is always empty.
 
-                                                                          
-                                                                               
-                                                                                
-                             
+    THREE OUTCOMES, where there was one. An empty string used to mean "the
+    command said nothing", "the command failed" and "the command could not run"
+    at once — and the first is a fact about the repository while the other two
+    are facts about this run.
 
-                                                                               
-                                                       
-       
+    Git runs under `GIT_ENV` so the messages the caller matches are the ones it
+    was written against, whatever the machine's locale.
+    """
     try:
         r = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=25,
                            env={**os.environ, **GIT_ENV})
@@ -105,13 +105,13 @@ DOMAIN_RX = re.compile(r"\b((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net
 
 
 def exclusions() -> tuple[tuple[str, ...], dict[str, str]]:
-    ""                                                            
+    """(prefixes, {name: why}) — the SAME file `merge.py` reads.
 
-                                                                               
-                                                                         
-                                                                            
-                                                                     
-       
+    One source of truth, so a folder cannot be excluded from the registry while
+    still costing a full walk here. A missing file is not fatal: scanning
+    everything is the older, slower, correct behaviour, and refusing to scan
+    because a curation file is absent would be worse than being slow.
+    """
     f = paths.config_file('folder_exclusions.json')
     try:
         doc = json.loads(f.read_text(encoding="utf-8"))
@@ -145,7 +145,7 @@ def detect(p: Path):
     if (p/"skills").is_dir() and (p/".claude-plugin").exists(): kinds.append("claude-plugin")
     return kinds
 def _nwo_of(url: str) -> str:
-    ""                                                                     
+    """`owner/name` from a git URL, or "" — the merge matches by this."""
     m = re.search(r"(?:github\.com|bitbucket\.org)[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?$", url)
     return f"{m.group(1)}/{m.group(2)}" if m else ""
 
@@ -197,7 +197,7 @@ def homepage(p: Path):
                     hits.append((f"env:{envf.name}:{m.group(1)}", "https://" + host))
         except OSError:
             pass
-                                                                                   
+    # nginx `server_name` in a checkout's own conf — the server naming its hosts.
     for conf in list(p.glob("*.conf")) + list(p.glob("nginx/*.conf")) + list(p.glob("deploy/*.conf")) + list(p.glob("docker/*.conf")):
         try:
             for m in re.finditer(r"server_name\s+([^;]+);", conf.read_text(encoding="utf-8", errors="replace")):
@@ -211,7 +211,7 @@ def homepage(p: Path):
 
 
 def count_files(p: Path) -> tuple[int, bool]:
-    ""                                                                  
+    """(files, capped). Stops at FILE_COUNT_CAP and says that it did."""
     n = 0
     try:
         for f in p.rglob("*"):
@@ -220,8 +220,8 @@ def count_files(p: Path) -> tuple[int, bool]:
                 if n >= FILE_COUNT_CAP:
                     return n, True
     except OSError:
-                                                                               
-                                                                      
+        # A permission error or a vanished directory mid-walk: the count so far
+        # is what was measured, and `capped` is the wrong word for it.
         return n, False
     return n, False
 
@@ -264,9 +264,9 @@ if _why:
 for entry in sorted(os.listdir(DATA)):
     p = DATA/entry
     if entry.startswith(".") or not p.is_dir(): continue
-                                                                           
-                                                                                
-                             
+    # EXCLUDED HERE, not two modules later. Reported rather than dropped: a
+    # folder absent from the output with no reason is indistinguishable from one
+    # the scan failed to see.
     if entry.startswith(EXCLUDED_PREFIXES) or entry in EXCLUDED_NAMES:
         skipped.append({"folder": entry,
                         "why": EXCLUDED_NAMES.get(entry)
@@ -319,8 +319,8 @@ for entry in sorted(os.listdir(DATA)):
             {"path": m.get("path", ""), "url": m.get("url", ""),
              "nwo": _nwo_of(m.get("url", ""))}
             for m in subs if m.get("path")]
-                                                                              
-                                                                              
+    # The code graph's age, so a graph that fell behind its code is a FACT the
+    # findings can compare with the last commit, not a habit anyone remembers.
     gj = p / "graphify-out" / "graph.json"
     if gj.is_file():
         try:
@@ -330,8 +330,8 @@ for entry in sorted(os.listdir(DATA)):
             pass
     if git:
         unread = {}
-                                                                            
-                                                                        
+        #: (field, argv). `remote` is the load-bearing one: an unread remote
+        #: sends the repository downstream as a folder-anchored project.
         for field, argv in (
                 ("remote", ["git", "remote", "get-url", "origin"]),
                 ("branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"]),
@@ -370,10 +370,10 @@ for entry in sorted(os.listdir(DATA)):
         if why:
             unread["dirty"] = why
         if unread:
-                                                                            
-                                                                                 
-                                                                           
-                                                                      
+            # A `git remote get-url origin` that exits 1 because there IS no
+            # origin is the common, legitimate case — and it is still recorded,
+            # because "no origin configured" and "git could not answer" are
+            # different facts and only the row itself can carry which.
             rec["unread"] = unread
             degraded.append({"source": f"folder:{entry}",
                              "reason": "; ".join(f"{k}: {v}" for k, v in unread.items())})
@@ -391,9 +391,9 @@ for entry in sorted(os.listdir(DATA)):
         n, capped = count_files(p)
         rec["file_count"] = n
         if capped:
-                                                                                 
-                                                                               
-                                          
+            # NOT a sentinel. `-1` used to mean "not counted" for two folders and
+            # nothing said so; a number a reader cannot tell from a real one is
+            # worse than a flag beside it.
             rec["file_count_capped"] = True
     rows.append(rec)
 

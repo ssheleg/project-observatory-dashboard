@@ -125,7 +125,7 @@ def side_effect_verdict(before, after, later) -> dict:
 
 
 async def call_record(session, args: dict) -> dict:
-                                     
+    # Verbatim, for the reason above.
     return payload(await session.call_tool("observatory_record", dict(args)))
 
 
@@ -137,11 +137,11 @@ async def assess_record(session, args: dict, out_schema: dict,
     def say(text: str, ok: bool, note: str = "") -> None:
         a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
 
-                                                                                 
-                                                                               
-                                                                                 
-                                                                                
-                                                             
+    # THE LIVE STORE ON PURPOSE, not `paths.DB`. The probe runs against a scratch
+    # store (the child gets its own OBSERVATORY_DB), and the assertion below is
+    # that the OPERATOR's ledger did not grow. Reading `paths.DB` here would read
+    # the scratch store and make the assertion vacuous — it looks like the bug
+    # `tools/notify_findings.py` had, and it is the opposite.
     live_before = ledger_rows(paths.DB)
     accepted = await call_record(session, args)
     try:
@@ -156,20 +156,20 @@ async def assess_record(session, args: dict, out_schema: dict,
     say("a well-formed write is accepted in state 'proposed', never higher",
         shape_ok and accepted.get("state") == "proposed", shape_note or str(accepted)[:140])
 
-                                                                         
-                                                                                
-                                                                                
-                                                                             
-                                                                           
-                                                                               
-                                                                            
-     
-                                                                               
-                                                                                
-                                                                             
-                                                                              
-                                                                             
-                                                                        
+    # WHY it was refused, not merely that something failed. This asserted
+    # `bool(res.is_error)` — true for a misspelled tool name, a crashed server
+    # or any unrelated error — so the assertion could not distinguish "refused
+    # because `owner` is missing" from "the call broke". In the artefact this
+    # project publishes as its conformance evidence, that is a green nobody
+    # earned. The refusal must NAME the field, and the ledger must be untouched
+    # by this specific call: `is_error` says nothing about what was written.
+    #
+    # ONE assertion, with the manifest's declared wording verbatim — "refused
+    # BEFORE THE LEDGER IS TOUCHED" already asserts both halves, and neither was
+    # being checked. Splitting it into two would have made the probe evaluate
+    # seven assertions against six declared, changing `fabric-agent.json`, its
+    # contentHash and the published `assertions.md` — a revision bump and a
+    # publish the operator owns, for a claim the manifest already makes.
     before_rows = ledger_rows(scratch_db)
     res = await session.call_tool("observatory_record", {"statement": "no owner"})
     text = " ".join(str(getattr(c, "text", c)) for c in (res.content or []))
@@ -217,8 +217,8 @@ def ledger_rows(db: pathlib.Path) -> int:
 
 
 async def call(session, args: dict) -> dict:
-                                                                             
-                                                                            
+    # Verbatim, for the reason above: `observatory_status` takes the declared
+    # `scope` object now, and unpacking it here would hide the day it stops.
     return payload(await session.call_tool("observatory_status", dict(args)))
 
 
@@ -327,7 +327,7 @@ def assess(pid: str, data: dict, OUT_SCHEMA: dict, requested: dict | None = None
     def say(text: str, ok: bool, note: str = "") -> None:
         a.append({"assertion": text, "verdict": "PASS" if ok else "FAIL", "note": note})
 
-                                                                                  
+    # Validate the payload the server returned, not the one this runner annotated.
     clean = {k: v for k, v in data.items() if not k.startswith("_")}
     try:
         jsonschema.validate(clean, OUT_SCHEMA)
@@ -391,9 +391,9 @@ def assess(pid: str, data: dict, OUT_SCHEMA: dict, requested: dict | None = None
         say("degraded names each bitbucket workspace whose listing was not read, "
             "carrying the collector's own reason; it is silent when every workspace "
             "was listed",
-                                                                                
-                                                                                
-                                                                                  
+            # A source is now `bitbucket:<workspace>`: the notice must say WHICH
+            # surface is dark, and a bare "bitbucket" cannot. Silence is correct
+            # once a credential exists, so absence of a thin repository is a pass.
             any(x == "bitbucket" or x.startswith("bitbucket:") for x in sources)
             or not [r for pr in data["projects"] for r in pr["repositories"]
                     if r.get("discoveredBy") == "local-remote-only"],
@@ -431,9 +431,9 @@ async def run_read_capability(cap: dict) -> list[dict]:
                 before = (registry_fingerprint(), ledger_max_revision())
                 data = await call_tool_for(session, cap, args)
                 after = (registry_fingerprint(), ledger_max_revision())
-                                                                                
-                                                                                 
-                                                     
+                # A THIRD READING, with no call between it and the second. It is
+                # what tells "the call wrote" from "the tick wrote while the call
+                # ran" — see `side_effect_verdict`.
                 later = (registry_fingerprint(), ledger_max_revision())
                 assessor = READ_ASSESSORS[probe["id"]]
                 results = (assessor(data, out_schema, args) if assessor is assess_detail
@@ -535,8 +535,8 @@ async def run() -> dict:
                 args = local_fixture(probe["inputFixture"])
                 before = (registry_fingerprint(), ledger_max_revision())
                 if probe["id"] == "survey-declares-degradation":
-                                                                           
-                                                                         
+                    # A separate child receives a directory as its DB path;
+                    # no live or fixture database is renamed or modified.
                     with tempfile.TemporaryDirectory(prefix="observatory-degraded-probe-") as blocked:
                         async with stdio_client(params_for(pathlib.Path(blocked))) as (dr, dw):
                             async with ClientSession(dr, dw) as degraded_session:
@@ -627,23 +627,23 @@ if __name__ == "__main__":
     RECEIPTS = paths.STATE / "probe-receipts.json"
     report = asyncio.run(run())
     if CHECK:
-                                                                         
-                                                                                
-                                                                                 
-                                                                         
-                                                                           
-                                                                                 
-                                                           
+        # A stale receipt is only a problem when it describes a different
+        # SUBJECT. Everything else in it is re-measured by this very run — but
+        # "the subject" is four things, not one: the manifest's content hash, the
+        # contract version, the pinned contract commit and the provider's
+        # revision. Comparing the hash alone let a receipt measured against
+        # another contract revision pass, in the artefact whose entire purpose is
+        # to say what these assertions were measured under.
         stored = json.loads(RECEIPTS.read_text(encoding="utf-8")) if RECEIPTS.exists() else {}
         drift[:] = [(k, stored.get(k), report.get(k))
                  for k in ("manifestContentHash", "contractVersion",
                            "contractCommit", "providerRevision")
                  if stored.get(k) != report.get(k)]
-                                                                               
-                                                                                 
-                                                                              
-                                                                        
-                          
+        # REPORTED, then the run is still shown. The first version raised here,
+        # so a drifted receipt produced three lines about the receipt and NOT ONE
+        # probe verdict — a check that hides its own measurement to complain
+        # about the paperwork. The exit code is decided at the end, with
+        # everything else.
         if drift:
             for key, was, now_ in drift:
                 print(f"receipts describe {key}={was!r}, it is now {now_!r}",

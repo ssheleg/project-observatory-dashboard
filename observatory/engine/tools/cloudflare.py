@@ -53,9 +53,9 @@ import paths
 
 API = "https://api.cloudflare.com/client/v4"
 ADMIN_STORE = paths.source_path("secret_store", paths.SECRETS) / 'cloudflare-admin'
-                                                                           
-                                                                               
-                                                            
+#: The name every token this program issues carries, per preset. Finding it
+#: again is what makes a second issue ROLL one token instead of leaving a trail
+#: of orphans nobody can identify in the operator's account.
 PRESETS: dict[str, dict] = {
     "analytics": {
         "name": "observatory-analytics-read (managed)",
@@ -90,7 +90,7 @@ def today() -> str:
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
-                                                                                                                                                                                                                  
+# ─────────────────────────── the wire ───────────────────────────────────────
 
 def _request(path: str, token: str, payload: dict | None = None,
              method: str | None = None) -> dict:
@@ -118,7 +118,7 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-") or "unnamed"
 
 
-                                                                                                                                                                                                    
+# ─────────────────────────── the admin stash ────────────────────────────────
 
 def admins() -> list[tuple[str, pathlib.Path]]:
     if any(p.is_symlink() for p in (ADMIN_STORE, *ADMIN_STORE.parents)):
@@ -194,8 +194,8 @@ def cmd_stash(value: str) -> int:
     try:
         _request("/user/tokens/verify", value)
     except RuntimeError as exc:
-                                                                        
-                                                                                  
+        # An account-owned token 401s here while working; only a NETWORK
+        # failure is fatal at this point — the discovery below is the real test.
         if "unreachable" in str(exc):
             print(f"refused: {exc}", file=sys.stderr)
             return 1
@@ -229,9 +229,9 @@ def cmd_stash(value: str) -> int:
     if len(accts) == 1:
         label = slug(accts[0]["name"])
     else:
-                                                                             
-                                                                             
-                                                                            
+        # The stash is named after the USER when the token spans accounts —
+        # `User Details: Read` gives the email; without it, the first account
+        # with a `+N` marker so the name says it is not one account's token.
         email = ""
         try:
             email = (_request("/user", value).get("result") or {}).get("email", "")
@@ -243,7 +243,7 @@ def cmd_stash(value: str) -> int:
     write_secret(dest, value)
     write_meta(dest, json.dumps(
         {"kind": "admin", "accounts": accts,
-                                                                               
+         # the single-account fields stay for readers of the older record shape
          "account_id": accts[0]["id"], "account_name": accts[0]["name"],
          "stashed_on": today(), "why": "issues narrow tokens; never handed to a plugin"},
         ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -438,8 +438,8 @@ def install_issued(value: str, label: str, account: dict, preset_key: str,
     write_meta(dest, json.dumps({
         "kind": "issued", "preset": preset_key,
         "account_id": account["id"], "account_name": account["name"],
-                                                                               
-                                                                  
+        # which stash minted it — rotation reads the admin from here, because
+        # a multi-account stash is not named after any one account
         "stash": stash or prior.get("stash"),
         "project": project or prior.get("project"),
         "permission_groups": list(PRESETS[preset_key]["groups"]),
@@ -477,8 +477,8 @@ def cmd_issue(preset_key: str, account_label: str | None, project: str | None) -
     except RuntimeError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1
-                                                                               
-                                                                          
+    # The issued file is named after the ACCOUNT, not the stash: three accounts
+    # behind one stash must land as three files the plugin can tell apart.
     return install_issued(value, slug(account["name"]), account, preset_key,
                           project, rolled, stash=stash_label)
 
@@ -526,7 +526,7 @@ def cmd_install(value: str) -> int:
     return 0
 
 
-                                                                                                                                                                                          
+# ─────────────────────────── rotate, revoke, ping ───────────────────────────
 
 def issued() -> list[pathlib.Path]:
     d = token_dir()

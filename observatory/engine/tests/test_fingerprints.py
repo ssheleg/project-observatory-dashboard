@@ -101,9 +101,9 @@ def test_the_latest_two_are_ordered_by_insertion_not_by_luck() -> None:
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE observations (id TEXT PRIMARY KEY, scan_id TEXT,"
                  " subject_id TEXT, kind TEXT, payload_json TEXT, observed_at TEXT)")
-                                                                                  
-                                                                                
-                    
+    # Written in this order, in the SAME second, with ids whose alphabetical order
+    # is the OPPOSITE of the insertion order — which is what a random hex does
+    # half the time.
     for oid in ("obs:zzz-older", "obs:aaa-newer"):
         conn.execute("INSERT INTO observations VALUES (?,?,?,?,?,?)",
                      (oid, "s", "estate", KIND, "{}", "2026-09-06T12:00:00Z"))
@@ -128,7 +128,7 @@ def test_the_latest_two_are_ordered_by_insertion_not_by_luck() -> None:
     check("and latest_two is gone rather than kept for this test",
           "def latest_two" not in src,
           "a function whose only reader is its own test is not a reader")
-                                                                           
+    # The same inversion, over the ordering that replaced it: oldest first.
     asc = [r[0] for r in conn.execute(
         "SELECT id FROM observations WHERE kind = ? ORDER BY observed_at, rowid",
         (KIND,))]

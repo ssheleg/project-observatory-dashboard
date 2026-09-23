@@ -103,10 +103,10 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
         why = ""
         seen.add(name)
         if not folders:
-                                                                               
-                                                                               
-                                                                               
-                                                             
+            # NO CHECKOUT IS NOT A MISMATCH. An application whose source is not
+            # on this disk has nothing to be compared against, and calling that
+            # `remote_only` would put nineteen applications' worth of variables
+            # on the board as a difference nobody can act on.
             verdict = "no_local_checkout"
         elif name not in local:
             verdict = "remote_only"

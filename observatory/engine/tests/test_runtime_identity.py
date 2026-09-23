@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                         
+"""Runtime identity checks use disposable roots and never report values."""
 from __future__ import annotations
 import hashlib
 import json
@@ -41,7 +41,7 @@ def put(path, value, mode=0o600):
 
 def reader(root, kind, default=False):
     module, fn, _, _ = KINDS[kind]
-                                                                        
+    # Old implementations can only touch this synthetic legacy sentinel.
     code = f'''import paths, pathlib, importlib, json, hashlib
 paths.STORE = pathlib.Path({str(root / 'legacy')!r})
 if {default!r}: paths.STATE = paths.STORE
@@ -65,7 +65,7 @@ def cli(root, kind, action='init'):
 
 
 def program(root, script, *args):
-                                                                           
+    # Even a regression to STORE must only read/write a synthetic checkout.
     code = f"import paths, pathlib, runpy, sys; paths.STORE = pathlib.Path({str(root / 'legacy')!r}); sys.argv = {[script, *args]!r}; runpy.run_path({str(ROOT)!r} + '/' + {script!r}, run_name='__main__')"
     return [sys.executable, '-c', code]
 
@@ -217,7 +217,7 @@ print(json.dumps({{"status": status}}))
 def test_scanner_and_server_fail_before_effects():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp); (root / 'data' / 'project').mkdir(parents=True)
-                                                                                
+        # Synthetic value never leaves the scanner except through a fingerprint.
         (root / 'data' / 'project' / '.env').write_text('API_TOKEN=' + '7d41f0bc9a2e5183c6b740fe29ad5c83' + '\n')
         output = root / 'inventory.json'; output.write_text('{"previous":true}\n')
         cmd = program(root, 'collectors/scan_env.py', str(output))

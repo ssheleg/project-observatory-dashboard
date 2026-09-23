@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-""                                                                              
+"""Fingerprint the registry, then say what moved since the previous fingerprint.
 
-                                                                                  
-                                                                            
+Deterministic. No model participates — this is the INPUT the agent reads, and it
+is computed before any token is spent so that a quiet machine costs nothing.
 
-                                                                              
-                                                                                
-                                      
+Why fingerprints rather than a git diff of registry/*.json: git sees only what
+was committed, and the interesting moment is often before that. A fingerprint is
+taken on every scan, committed or not.
 
                                                                                                                                 
                                                                                 
                                                                                    
 
-                                                                     
+Run `snapshot` after an emit, then `diff` to fill the `deltas` table:
 
-                                                 
-                                             
-   
+    python3 collectors/compute_deltas.py snapshot
+    python3 collectors/compute_deltas.py diff
+"""
 from __future__ import annotations
 import argparse, json, sys, pathlib, uuid
 from datetime import datetime, timezone
@@ -26,15 +26,15 @@ import paths
 from collectors import registry_read
 from store import db as store_db
 
-                                                                            
-                                                       
+#: One rule, two collectors — see `collectors/registry_read.py` for why an
+#: unreadable registry may not degrade to an empty one.
 RegistryUnreadable = registry_read.RegistryUnreadable
 
-KIND = store_db.FINGERPRINT_KIND                                      
+KIND = store_db.FINGERPRINT_KIND   # the store owns its own vocabulary
 COLLECTOR_VERSION = "compute_deltas/1"
 
-                                                                                
-                                                        
+#: What a change in each field means, in words the agent will read. A delta kind
+#: with no meaning attached is a diff nobody can act on.
 FIELD_MEANING = {
     "repos": "the set of repositories implementing it changed",
     "last_activity_on": "work happened",
@@ -48,8 +48,8 @@ FIELD_MEANING = {
     "name": "it was renamed",
 }
 
-                                                                              
-                                                                 
+#: The two kinds that are not a field changing, and which need the explanation
+#: most: they were the ones arriving at the agent as a bare word.
 LIFECYCLE_MEANING = {
     "project-appeared": "the estate gained a project the previous scan did not hold",
     "project-disappeared": "a project the previous scan held is gone — deleted, "
@@ -58,13 +58,13 @@ LIFECYCLE_MEANING = {
 
 
 def meaning_of(kind: str) -> str:
-    ""                                            
+    """The sentence FIELD_MEANING was written for.
 
-                                                                            
-                                                                                 
-                                                                               
-                                                                            
-                                  
+    Its docstring said the table held "what a change in each field means, in
+    words the agent will read" — and only its KEYS were ever used, to enumerate
+    which fields moved. `agent/observe.py` sent `kind: before -> after` and the
+    prose went nowhere: written for a reader that did not exist. This is the
+    accessor that gives it one."""
     if kind in LIFECYCLE_MEANING:
         return LIFECYCLE_MEANING[kind]
     return FIELD_MEANING.get(kind[:-len("-changed")] if kind.endswith("-changed") else kind, "")
@@ -104,8 +104,8 @@ def fingerprints(conn) -> dict[str, dict]:
     return out
 
 
-                                                                                
-                                                                    
+#: The cursor's name. One string, one place — `store/schema.sql` documents the
+#: table and this is the only key written into it by this collector.
 CURSOR = "deltas.diffed_through"
 
 
@@ -121,7 +121,7 @@ def remember(conn, scan_id: str) -> None:
 
 
 def fingerprints_kept(conn) -> list:
-    ""                                                                        
+    """Every fingerprint still on record, oldest first. Retention keeps a few.
 
                                                                         
                                                                                     
@@ -132,8 +132,8 @@ def fingerprints_kept(conn) -> list:
                                                                             
                                                                                  
 
-                                                                               
-                                                           
+    Replaces `latest_two()`, whose contract was "the two most recent" and could
+    therefore not express "since the last one I diffed"."""
     return list(conn.execute(
         "SELECT id, scan_id, payload_json, observed_at FROM observations"
         " WHERE kind = ? ORDER BY observed_at, rowid", (KIND,)))
@@ -160,7 +160,7 @@ def cmd_snapshot(conn) -> int:
 
 
 def pair(conn) -> tuple[object, object, list[str], int]:
-    ""                                                             
+    """Which two fingerprints to compare, and what saying so costs.
 
                                                                                 
                                                                           
@@ -184,9 +184,9 @@ def pair(conn) -> tuple[object, object, list[str], int]:
                                                                                 
                                                       
 
-                                                                               
-                                   
-       
+    Returns (from_row, to_row, notes, folded). `from_row` is None when there is
+    nothing to compare against yet.
+    """
     kept = fingerprints_kept(conn)
     notes: list[str] = []
     if not kept:
@@ -209,12 +209,12 @@ def pair(conn) -> tuple[object, object, list[str], int]:
     elif through in by_scan:
         from_row = kept[by_scan[through]]
     else:
-                                                                                
-                                                                             
-                                                                                 
-                                                                              
-                                                                                
-               
+        # The last diffed fingerprint has been pruned — retention keeps only a
+        # few. The oldest one still on record is the closest available floor,
+        # and whatever moved between the pruned state and it CANNOT be recovered.
+        # Said out loud: this is the one case where a delta is genuinely lost,
+        # and a collector that hid it would be claiming completeness it does not
+        # have.
         from_row = kept[0]
         notes.append(f"the last diffed fingerprint ({through}) has been pruned; "
                      f"comparing from the oldest one still kept ({from_row['scan_id']}) — "
@@ -276,10 +276,10 @@ def cmd_diff(conn) -> int:
                      kind, json.dumps(was, ensure_ascii=False),
                      json.dumps(is_, ensure_ascii=False)))
                 written += 1
-                                                                            
-                                                                                
-                                                                            
-                                                                 
+        # INSIDE the transaction that wrote the deltas. Advancing the cursor
+        # afterwards would leave a window where the rows exist and the record of
+        # having written them does not — and the next run would write them
+        # again, which is the defect this cursor exists to close.
         remember(conn, new["scan_id"])
     pending = conn.execute(
         "SELECT count(*) FROM deltas WHERE consumed_at IS NULL").fetchone()[0]
@@ -298,10 +298,10 @@ def main() -> int:
     conn = store_db.connect()
     try:
         if args.command == "snapshot":
-                                                                             
-                                                                                 
-                                                                          
-                                                                       
+            # A REFUSAL, not a fingerprint of nothing. An unreadable registry
+            # recorded as `{}` would make every project look disappeared, and the
+            # next diff would hand the agent one `project-disappeared` per
+            # project — its most expensive input, entirely fictional.
             try:
                 return cmd_snapshot(conn)
             except RegistryUnreadable as exc:

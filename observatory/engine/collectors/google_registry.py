@@ -35,13 +35,13 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "plugins"))
 import paths                                            
 
-                                                                            
-                                                                            
-                                                                        
-                                                                    
-                                                                               
-                                                                               
-                                                                       
+#: Google's own console addresses, written onto every row so a reader of the
+#: registry can follow them without the page. They are DATA in a file beside
+#: this module and not constants in it: one of Google's paths spells, by
+#: Google's choice, the id of an installed plugin, and the seam rule
+#: (`tests/test_metric_series.py`) forbids a plugin's id in core code — a URL
+#: of Google's is a fact about Google, not a coupling, and the gate cannot tell
+#: the two apart from a string. The file says the same in its own note.
 CONSOLES_PATH = paths.config_file('google_consoles.json')
 
 
@@ -88,8 +88,8 @@ def boundary(path: pathlib.Path) -> dict[str, dict]:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-                                                                                
-                                                                               
+    # `hosts` is host -> decision, the shape the zones already read. A list here
+    # would be a second spelling of one file, so the mapping is taken as it is.
     hosts = doc.get("hosts") or {}
     if isinstance(hosts, list):
         return {(r.get("host") or "").lower(): r for r in hosts if isinstance(r, dict)}
@@ -129,8 +129,8 @@ def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[
         return hostmap.resolve(host, table)
     declared = declared_map(declared_path)
     outside = boundary(paths.config_file('host_boundary.json'))
-                                                                             
-                                                                          
+    # A project is findable by its own name and by every folder it holds: the
+    # estate spells one thing three ways and the join has to survive that.
     names: dict[str, str] = {}
     for p in projects:
         names.setdefault(_norm(p["name"]), p["id"])
@@ -142,10 +142,10 @@ def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[
         pid = (prop.get("property") or "").split("/")[-1]
         aid = (prop.get("account") or "").split("/")[-1]
         project, rule, why = match(prop, declared, owner_of, names)
-                                                                                 
-                                                                              
-                                                                                
-                                                  
+        # THREE STANDINGS, not two — the same shape the zones carry. A property
+        # nobody claims is a question; a property whose hosts the operator has
+        # already called somebody else's is an answer, and asking again is how a
+        # board teaches people to stop reading it.
         hosts = prop.get("hosts") or []
         said = [outside[h] for h in hosts if h in outside]
         if project:
@@ -204,9 +204,9 @@ def document(scan: dict, prop_rows: list[dict], obs_date: str) -> dict:
                  "claims is named, not hidden: by the operator's estate rule it "
                  "belongs to somebody else or is not being worked on."),
         "source_refs": ["SRC-0019"],
-                                                                                
-                                                                               
-                                                                              
+        # A DATE, not a clock: the committed registry may not carry a value that
+        # changes on every run by construction (`tests/test_tick_repo.py`), and
+        # the first emit of this file did — caught by the gate the same day.
         "scanned_on": (scan.get("scanned_at") or "")[:10],
         "totals": {
             "properties": len(prop_rows),

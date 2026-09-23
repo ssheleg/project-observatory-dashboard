@@ -37,12 +37,12 @@ WORKERS = 6
 RDAP = "https://rdap.org/domain/"
 RDAP_RETRIES = 4
 RDAP_BACKOFF = 2.0
-                                                                            
-                                                                         
-                             
+# One RDAP query at a time. The registry side is a shared public service and
+# 58 names arriving at once is what earned the 429s; the whole pass still
+# finishes in under a minute.
 RDAP_WORKERS = 1
-                                                                                 
-                                                                         
+# Enough for this estate; a multi-label public suffix (co.uk) would need the PSL,
+# and asserting one is not the same as having it — see `registrable()`.
 TWO_LABEL_SUFFIXES = {"co.uk", "com.br", "com.au", "co.jp", "com.ua", "co.il"}
 
 
@@ -198,9 +198,9 @@ def probe(host: str) -> tuple[str, dict]:
     info: dict = {"checked_at": now(), "nameservers": ns, "a": a, "cname": cname,
                   "registrable": registrable(host)}
 
-                                                                                
-                                                                                
-                            
+    # The A and CNAME lookups are what decide "resolves". If EITHER could not be
+    # performed, the question was not answered — and an unanswered question is
+    # not a negative answer.
     probe_err = a_err or cn_err
     if probe_err:
         info["resolves"] = None
@@ -217,8 +217,8 @@ def probe(host: str) -> tuple[str, dict]:
             info["http_unmeasured"] = http_err
     else:
         info["http"] = 0
-                                                                               
-                                                      
+        # Stated plainly: this is the state that makes a listed homepage a lie.
+        # Only reached when the DNS actually answered.
         info["dark"] = True
     return host, info
 

@@ -18,8 +18,8 @@ import re
 
 LISTED = 6
 
-                                                                               
-                                                                              
+#: Names that identify rather than authenticate. An account id, a project id, a
+#: SID, a public key: holding one proves nothing, so seeing one proves little.
 IDENTIFIER = re.compile(r"(_ID$|_SID$|ACCOUNT_ID|PROJECT_ID|CLIENT_ID|_PUBLIC|"
                         r"PUBLIC_|_URL$|_HOST$|_REGION$|_BUCKET$)", re.I)
 

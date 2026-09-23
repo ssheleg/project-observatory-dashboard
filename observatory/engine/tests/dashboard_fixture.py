@@ -1,4 +1,4 @@
-""                                                                               
+"""Build the real dashboard from synthetic data, never a cached personal page."""
 from datetime import datetime, timedelta, timezone
 import json
 import os
@@ -34,7 +34,7 @@ def seed(root: Path, *, samples=2) -> dict:
     conn.close()
     (root/'state/wallet.json').write_text(json.dumps({'days':{now.strftime('%Y-%m-%d'):2.5},'months':{now.strftime('%Y-%m'):4.0},'denomination':'credits'}))
     (root/'state/provider-health.json').write_text(json.dumps({}))
-                                                                                 
+    # A deliberately different content stamp proves the two clocks independently.
     p=root/'registry/projects.json';doc=json.loads(p.read_text());doc['updated_on']='2001-01-01';p.write_text(json.dumps(doc))
     (root/'registry/findings.json').write_text(json.dumps({'counts':{'info':1,'warning':0,'critical':0},'findings':[{'id':'finding:fixture','type':'work.unattributed','subject':'session-name:fixture','severity':'info','title':'Synthetic unresolved work','detail':'Fixture evidence','action':'Review fixture mapping','evidence':['SRC-0012']}]}))
     from collectors.env_registry import document

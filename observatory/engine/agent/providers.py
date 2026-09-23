@@ -110,7 +110,7 @@ def config() -> dict:
     return json.loads(CONFIG.read_text(encoding="utf-8"))
 
 
-                                                                                                                                                                                                           
+# ─────────────────────────────── the catalogue ───────────────────────────────
 
 def _fetch_catalogue(base_url: str) -> dict:
     req = urllib.request.Request(f"{base_url}/models", headers={"User-Agent": UA})
@@ -165,7 +165,7 @@ def catalogue(refresh: bool = False) -> tuple[dict, str]:
     return models, "fetched now"
 
 
-                                                                                                                                                                                                                         
+# ──────────────────────────────── health ─────────────────────────────────────
 
 def _health() -> dict:
     if HEALTH.exists():
@@ -205,7 +205,7 @@ def unhealthy(model_id: str) -> str | None:
     return entry.get("reason", "unhealthy")
 
 
-                                                                                                                                                                                                                   
+# ──────────────────────────────── selection ──────────────────────────────────
 
 def resolve_chain(requested: str | None = None) -> tuple[list[dict], str, str]:
     ""                                                        
@@ -258,7 +258,7 @@ def estimate(model: dict, in_tokens: int, out_tokens: int) -> float:
     return (in_tokens * model["price_in_per_1m"] + out_tokens * model["price_out_per_1m"]) / 1e6
 
 
-                                                                                                                                                                                                                         
+# ───────────────────────────────── wallet ────────────────────────────────────
 
 _provider_usage_cache: dict | None = None
 
@@ -390,8 +390,8 @@ def wallet_state() -> dict:
         "daily_ceiling": cfg["daily_ceiling"],
         "month": round(pu["monthly"], 6) if pu else local_month,
         "monthly_ceiling": cfg["monthly_ceiling"],
-                                                                                
-                                                                            
+        # Velocity is always local: the API reports day, week and month, never a
+        # rolling window, and a rolling window is what catches a loop today.
         "window_spend": round(recent, 6),
         "velocity_ceiling": cfg["velocity_ceiling"],
         "window_minutes": cfg["velocity_window_minutes"],
@@ -460,10 +460,10 @@ def check_budget(provider: str = "openrouter") -> str | None:
     today, month = s["local_today"], s["local_month"]
     source = "this project's journal"
     own_meter = provider == "openrouter"
-                                                                               
-                                                                             
-                                                                                
-                                                     
+    # The key's own limit is the outer backstop. It is checked first because it
+    # is the one that returns a 402 instead of degrading, and knowing that is
+    # about to happen is worth more than discovering it. It is OpenRouter's key,
+    # so it is skipped for anything bought elsewhere.
     if own_meter and s.get("key_remaining") is not None and s["key_remaining"] <= 0:
                                                                                  
                                                                                
@@ -541,7 +541,7 @@ def charge(model_id: str, cost: float, tokens_in: int, tokens_out: int,
     return check_budget()
 
 
-                                                                                                                                                                                                                     
+# ────────────────────────────── the call ─────────────────────────────────────
 
 def _post(base_url: str, key: str, body: dict, timeout: int = 120) -> dict:
     data = json.dumps(body).encode("utf-8")
@@ -585,8 +585,8 @@ KEY_SHAPES = {
 KEY_ANTI_SHAPES = {"OPENAI_API_KEY": ("sk-or-",)}
 
 
-                                                                             
-                                                                         
+#: Which variables have already been reported as holding the wrong shape. The
+#: fact is about the environment, so it is worth saying once and no more.
 _SHAPE_WARNED: set[str] = set()
 
 
@@ -665,8 +665,8 @@ def write_shape_report(rows: list[dict] | None = None) -> pathlib.Path:
             if isinstance(prior.get("observations"), dict):
                 doc["observations"] = prior["observations"]
         except (ValueError, OSError):
-                                                                                
-                                                                             
+            # An unreadable receipt is replaced rather than allowed to block the
+            # write: it holds no canon, only the last look at an environment.
             pass
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for r in rows:
@@ -750,8 +750,8 @@ def embed(texts: list[str], log=print) -> dict:
     cfg = config()["embedding"]
     if not texts:
         return {"vectors": [], "tokens": 0, "cost": 0.0, "model": cfg["model"]}
-                                                                            
-                                                               
+    # For THIS provider's meter. `cfg["provider"]` is openai; the OpenRouter
+    # counters and key limit describe a different key entirely.
     stop = check_budget(cfg["provider"])
     if stop:
         raise BudgetExceeded(stop)
@@ -791,8 +791,8 @@ def embed(texts: list[str], log=print) -> dict:
                 f"{len(v)}. Two writers into one vector column with different widths do not "
                 f"fail — they degrade cosine search silently, so this refuses instead.")
     tokens = int((raw.get("usage") or {}).get("total_tokens") or 0)
-                                                                              
-                                                   
+    # Estimated, not reported: OpenAI publishes no catalogue endpoint, so this
+    # comes from a dated line in agent/models.json.
     cost = tokens * float(cfg["price_per_1m_tokens"]) / 1e6
     charge(f"{cfg['provider']}/{cfg['model']}", cost, tokens, 0, provider=cfg["provider"],
            estimated=True)
@@ -914,8 +914,8 @@ def complete(messages: list[dict], *, schema_name: str, schema: dict,
                 "response_format": {"type": "json_schema",
                                     "json_schema": {"name": schema_name, "strict": True,
                                                     "schema": schema}},
-                                                                             
-                                                                      
+                # Routes only to endpoints that actually support the response
+                # format, instead of discovering they do not by a 400.
                 "provider": {"require_parameters": True},
                 "max_tokens": 2048,
             }
@@ -927,9 +927,9 @@ def complete(messages: list[dict], *, schema_name: str, schema: dict,
                 mark_unhealthy(model["id"], str(exc))
                 break                                                                   
             except CredentialError:
-                                                                              
-                                                                             
-                                               
+                # The key is the problem, not this model. Marking three models
+                # unhealthy for one dead credential is how a chain comes back
+                # empty after the key is fixed.
                 raise
             except Fatal as exc:
                 mark_unhealthy(model["id"], str(exc))
@@ -942,8 +942,8 @@ def complete(messages: list[dict], *, schema_name: str, schema: dict,
             tin = int(usage.get("prompt_tokens") or 0)
             tout = int(usage.get("completion_tokens") or 0)
             if cost == 0.0:
-                                                                                 
-                                                                              
+                # The provider did not report a cost. Estimate from the catalogue
+                # rather than record zero: an unpriced call still spent money.
                 cost = estimate(model, tin, tout)
                 log(f"  {model['id']}: no cost reported; estimated {cost:.6f} from the catalogue")
             stop = charge(model["id"], cost, tin, tout,
@@ -958,8 +958,8 @@ def complete(messages: list[dict], *, schema_name: str, schema: dict,
             try:
                 parsed = json.loads(content)
             except json.JSONDecodeError as exc:
-                                                                            
-                                                                      
+                # Paid for, and unusable. Not retryable at the same model: a
+                # schema it cannot honour will not start honouring it.
                 mark_unhealthy(model["id"], f"unparseable structured output: {exc}")
                 log(f"  {model['id']}: structured output did not parse — {exc}")
                 break
@@ -988,9 +988,9 @@ if __name__ == "__main__":
     elif a.what == "chain":
         chain, level, prov = resolve_chain()
         print(f"selection level: {level} · catalogue {prov}\n")
-                                                                              
-                                                                              
-                                                                          
+        # A CHAIN THAT LOST A MODEL SAYS SO. Printed before the survivors, not
+        # after: a reader who sees three lines where the config names four has
+        # no way to know unless the loss is stated where they are looking.
         gone = (chain[0] if chain else {}).get("chain_retired") or []
         if gone:
             print(f"\033[33m{len(gone)} configured model(s) are NOT in the "
@@ -1010,10 +1010,10 @@ if __name__ == "__main__":
     elif a.what == "key":
         here = key_status()
         print(here)
-                                                                              
-                                                                                
-                                                                                
-                                                
+        # AND WHAT THE SCHEDULE WILL USE. The tick is what spends, and it does
+        # not inherit this shell — so the answer above is about the operator's
+        # terminal and not about the system. Printed always, and only called out
+        # as a difference when the two disagree.
         there = scheduled_key_status()
         if there != here:
             print(f"  the scheduled tick resolves a DIFFERENT key: {there}")

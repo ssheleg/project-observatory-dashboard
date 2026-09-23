@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                         
+"""Publishing a project detached its own history, silently.
 
                                                                   
                                                                                  
@@ -19,14 +19,14 @@
                                                                                
                                     
 
-                                                                             
-                                                                            
-                                                             
-                                                                                   
-                                                                           
-                                                                               
-                      
-   
+**The resolution needs no new state and asserts nothing.** The folder name is
+inside the old id, the registry says which project owns that folder now, and
+comparing MINTED ids rather than inverting the slug is exact:
+`re.sub(r"[^a-z0-9.-]+","-",…)` maps both `a_b` and `a-b` to `a-b`, so an inverse
+would be a guess. So `identity.py` owns the one rule for how a local-folder
+project is named, `merge.py` mints through it, and readers ask it for the ids a
+project used to carry.
+"""
 from __future__ import annotations
 import importlib, json, os, pathlib, sqlite3, subprocess, sys
 
@@ -34,7 +34,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
-import tmp as tmpdir                                                            
+import tmp as tmpdir                                                # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 FAILURES: list[str] = []
@@ -46,7 +46,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
         FAILURES.append(f"{name}: {detail}")
 
 
-                                                                                                                   
+# ─────────── one rule for how a local-folder project is named ──────────
 
 def test_the_naming_rule_lives_in_one_place() -> None:
     import identity as I
@@ -107,10 +107,10 @@ def test_the_index_maps_old_ids_to_the_project_that_holds_them_now() -> None:
           "a resolver that returns the input teaches its callers nothing")
 
 
-                                                                                                                                                     
+# ─────────── the finding tells the two apart ───────────────────────────
 
 def findings_for(rows: list[tuple[str, str]], projects: list[dict]) -> list[dict]:
-    ""                                                   
+    """`rows` are (project_id, statement) ledger rows."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-ident-"))
     (d / "registry").mkdir()
     (d / "scratch").mkdir()
@@ -203,7 +203,7 @@ def test_a_registry_with_no_orphans_is_silent() -> None:
     check("nothing is raised", got == [], str(got)[:200])
 
 
-                                                                                                                                   
+# ─────────── the project's view follows the former id ──────────────────
 
 def planted_store() -> tuple[pathlib.Path, dict]:
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-view-"))
@@ -242,9 +242,9 @@ def planted_store() -> tuple[pathlib.Path, dict]:
             os.environ[k] = v
     import paths
     importlib.reload(paths)
-                                                                                 
-                                                                
-                                                        
+    # `store.db` as well: it captures `paths.DB` at ITS import, so reloading only
+    # `paths` leaves survey opening the LIVE store — the order
+    # tests/test_project_surface.py already established.
     from store import db as store_db
     importlib.reload(store_db)
     return d, env
@@ -288,8 +288,8 @@ def test_the_detail_includes_the_notes_written_before_publication() -> None:
 
 
 def test_an_unpublished_project_asks_for_no_extra_ids() -> None:
-    ""                                                                          
-                                                                                  
+    """A `local-folder`-anchored project must not widen its own query to its own
+    id twice — harmless, but it would mean the resolver was returning itself."""
     import identity as I
     importlib.reload(I)
     p = {"id": "project:local-solo", "anchor": "local-folder", "local_folders": ["solo"]}
@@ -304,7 +304,7 @@ def test_an_unpublished_project_asks_for_no_extra_ids() -> None:
           str(I.ids_for(pub, [pub])))
 
 
-                                                                                                                       
+# ─────────── the rollup folds instead of the reader summing ────────────
 
 def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
     ""                                                                          
@@ -329,8 +329,8 @@ def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
     subprocess.run([PY, "store/migrate.py"], cwd=ROOT, env=env,
                    capture_output=True, text=True, timeout=600)
     con = sqlite3.connect(db)
-                                                                             
-                                                          
+    # THE SAME DAY under both ids, by two different authors. A reader summing
+    # two rows would report 2 active days; the truth is 1.
     stamp = "2026-09-07T10:00:00Z"
     for i, (pid, actor) in enumerate((("project:local-sample-site", "ann"),
                                       ("project:sample-site", "bob"))):
@@ -365,8 +365,8 @@ def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
 
 
 def test_a_former_row_with_no_counterpart_is_kept_and_counted() -> None:
-    ""                                                                          
-                                                                             
+    """Deleting a row whose week was NOT recomputed would lose it: a frozen week
+    whose events retention has pruned holds numbers nothing can reproduce."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-keep-"))
     (d / "registry").mkdir()
     (d / "scratch").mkdir()
@@ -382,7 +382,7 @@ def test_a_former_row_with_no_counterpart_is_kept_and_counted() -> None:
     subprocess.run([PY, "store/migrate.py"], cwd=ROOT, env=env,
                    capture_output=True, text=True, timeout=600)
     con = sqlite3.connect(db)
-                                                                 
+    # A week under the FORMER id with no events behind it at all.
     con.execute("INSERT INTO project_week (project_id, week, week_start, commits,"
                 " active_days, authors, computed_at, frozen_at)"
                 " VALUES (?,?,?,?,?,?,?,?)",

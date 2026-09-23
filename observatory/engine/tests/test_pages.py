@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                               
+"""The split dashboard: nine pages, two shared files, and what each page carries.
 
-                                                                             
-                                                                            
-                                                       
+WHY THIS FILE. The single page was 1.3 MB with seven tabs, and the operator's
+verdict was that it could not be used (plan v2, M1; scenario S12). The split
+answers it, and three of its properties break silently:
 
-                                                                           
-                                                                           
-                                     
-                                                                            
-                                                                     
-                                                                               
-                                                              
+  1. the NAVIGATION must come before the findings in the document — three
+     earlier iterations put alerts above the way out, and every one of them
+     passed every check that existed;
+  2. a page must carry ONLY the data it renders, or the split saves nothing;
+  3. the shared style and script must sit BESIDE the page as relative
+     siblings, or `file://` — which is how these pages are opened most of the
+     time — loads a page with no style and no script at all.
 
-                                                                            
-                                                                             
-   
+`dashboard/smoke_pages.py` executes each page; this reads what smoke cannot:
+document order, byte size, the slice, and the routes the server answers with.
+"""
 from __future__ import annotations
 import http.client
 import json
@@ -36,12 +36,12 @@ portable_setup()
 
 sys.path.insert(0, str(ROOT / "dashboard"))
 sys.path.insert(0, str(ROOT / "tests"))
-import paths                                                                    
-import shell                                                                    
-import tmp as tmpdir                                                            
+import paths                                                        # noqa: E402
+import shell                                                        # noqa: E402
+import tmp as tmpdir                                                # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
-                                                                            
+#: An index a person waits for is an index nobody opens (plan v2, T-02 DoD).
 INDEX_BUDGET = 120 * 1024
 PORT = 47989
 FAILURES: list[str] = []
@@ -54,8 +54,8 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def built() -> dict[str, str]:
-    ""                                                                       
-                                                                
+    """Every page as text. The `dashboard` step builds them before this runs;
+    a missing one is a failure here rather than an exception."""
     out = {}
     for name, _t, _k in shell.PAGES:
         p = paths.DASHBOARD_DIR / f"{name}.html"
@@ -94,8 +94,8 @@ def test_the_navigation_comes_before_the_alerts() -> None:
 
 
 def test_the_shared_files_are_relative_siblings() -> None:
-    ""                                                                    
-                                                                       
+    """`file://` is the common way these are opened, and it has no root: a
+    leading slash resolves to the filesystem root and loads nothing."""
     for name, html in built().items():
         if not html:
             continue
@@ -245,15 +245,15 @@ def test_every_bridge_leads_somewhere_that_exists() -> None:
 
 
 def test_the_keys_page_offers_the_doors_own_verbs() -> None:
-    ""                                                                    
+    """S15 — a key's lifecycle goes through the door, and only the door.
 
-                                                                          
-                                                                              
-                                                                             
-                                                                                
-                                                                            
-                                                                              
-       
+    The page named the doors nowhere: both admin stashes sat among sixteen
+    alphabetical machine files, every row offered one command, and two of them
+    were wrong for the row (`install_key.py` for a key the door now issues, a
+    vault `rotate` for a credential with no slot to rotate). Every verb the page
+    offers is checked here against the tool it names — a button offering a
+    subcommand the door dropped is how a reader learns to distrust the column.
+    """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the page has sections and names the doors first",
           "CRED_SECTIONS" in src and '"Двери"' in src
@@ -299,13 +299,13 @@ def test_the_keys_page_offers_the_doors_own_verbs() -> None:
 
 
 def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
-    ""                                                                     
+    """T-31 and T-06: the two remaining pages a person could not work from.
 
-                                                                            
-                                                                             
-                                                                               
-                                                                           
-       
+    The Heroku table named an application and left the operator to retype it
+    into every command; the domains table raised three questions it could not
+    answer and pointed nowhere; the ENV table was 250 rows over 88 projects —
+    fifteen thousand pixels — when a reader opening it wants ONE project.
+    """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     for cmd in ("heroku ps:restart -a ", "heroku logs -t -a ", "heroku apps:info -a "):
         check(f"a Heroku row carries `{cmd.strip()}`", cmd in src,
@@ -323,22 +323,22 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
     check("and a secret tracked by git opens its own group",
           'e.cls === "secret" && e.git === "tracked"' in src,
           "the one case urgent enough to be above the fold")
-                                                                            
-                                                                             
-                                                                          
-                                                                           
-                                                                        
+    # THE GROUP HEADER MUST SPAN EVERY COLUMN, checked in the renderer's own
+    # source: the built page carries the script, not the table it draws, so a
+    # check against the HTML would silently assert nothing. Adding a ninth
+    # column and leaving `colspan="8"` leaves the last column outside every
+    # group heading — which is what happened twice while writing this.
     for fn in ("renderHeroku", "renderDomains", "renderEnv", "renderCreds"):
         body = src.split(f"function {fn}(", 1)[1].split("\nfunction ", 1)[0]
         thead = re.search(r"<thead>.*?</thead>", body, re.S)
-                                                                               
-                                                                                   
+        # The span is either a literal `colspan="N"` (env keeps its own header)
+        # or the first argument of `grpHead(N, …)`, the shared header since D-12.
         span = re.search(r'colspan="(\d+)"|\$\{grpHead\((\d+),', body)
         check(f"{fn}: the table and its group header are both readable here",
               bool(thead) and bool(span), "one of them moved out of this function")
         if not (thead and span):
             continue
-                                                                                         
+        # A column is `<th>` or a sortable `sortTh(` (D-11) — both are one header cell.
         cols = len(re.findall(r"<th>|sortTh\(", thead.group(0)))
         said = span.group(1) or span.group(2)
         check(f"{fn}: the group header spans all {cols} column(s)",
@@ -347,9 +347,9 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
 
 
 def test_the_shell_names_the_page_and_offers_the_theme() -> None:
-    ""                                                                       
-                                                                           
-                                                     
+    """Backlog D-03/D-04/D-05 (audit A-01, A-14, A-15): nine pages shared one
+    title and one heading, the theme followed the OS with no way to choose,
+    and the way out scrolled away on a long table."""
     pages = built()
     titles = {n: re.search(r"<title>([^<]*)</title>", h).group(1) for n, h in pages.items() if h}
     check("every page has its own title, and they differ",
@@ -377,9 +377,9 @@ def test_the_shell_names_the_page_and_offers_the_theme() -> None:
 
 
 def test_the_live_verbs_have_a_listener_and_the_pages_can_be_live() -> None:
-    ""                                                                     
-                                                                           
-                                              
+    """The audit's one critical (A-02/A-03): `credAction()` was defined and
+    nothing called it, and the keyserver served only the single page, so no
+    page a person opens could ever be LIVE."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("a delegated listener reaches credAction from every [data-act] button",
           'closest("[data-act][data-cred]")' in src and "credAction(btn, c)" in src,
@@ -409,7 +409,7 @@ def test_every_table_says_what_narrowed_it() -> None:
 
 
 def test_the_findings_page_is_a_working_surface() -> None:
-    ""                                                              
+    """Audit A-04: no address, no filter, no link to the subject."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("every finding row carries an id and a permalink", 'id="${E(fid)}"' in src
           and 'class="fperma"' in src, "")
@@ -471,8 +471,8 @@ def test_the_findings_page_is_a_working_surface() -> None:
     ks = (ROOT / "tools/keyserver.py").read_text(encoding="utf-8")
     actions_src = ks.split("ACTIONS = {", 1)[1].split("}", 1)[0]
     routes = set(re.findall(r'"([a-z-]+)":', actions_src))
-                                                                    
-                                                                                   
+    # The verbs' third element: a literal `, "limit"]`, or a ternary
+    # `? "enable" : "disable"]` — both spellings are read, `null` is a copy verb.
     verbs_src = src.split("function credVerbs(", 1)[1].split("\nfunction ", 1)[0]
     offered = set(re.findall(r',\s*"([a-z][a-z-]+)"\]', verbs_src))
     offered |= {t for pair in re.findall(r'\? "([a-z-]+)" : "([a-z-]+)"\]', verbs_src) for t in pair}
@@ -500,16 +500,16 @@ def test_the_findings_page_is_a_working_surface() -> None:
     check("the shell strips the tab strip from split pages and the script asks before writing a counter",
           'r\'<nav class="tabs"[^>]*>.*?</nav>' in shell_src and "const setN = " in src
           and 'getElementById("n-projects").textContent' not in src, "")
-                                                                                           
+    # D-21: «правила» is a VIEW switch beside the table, outside the filter group.
     seg = src.split('id="seg-projects"', 1)[1].split("</div>", 1)[0]
     check("the rules chip left the filter group and stands in a view switch",
           'data-f="rules"' not in seg and 'id="view-projects"' in src
           and 'data-f="rules"' in src.split('id="view-projects"', 1)[1][:400], "")
-                                                                           
+    # D-22: an empty estate is a sentence and the command, not eight zeros.
     check("an empty registry renders one sentence with a workspace-local observation command",
           'class="tile empty-estate"' in src and 'data-copy="${E(cliCommand("local"))}"' in src
           and "if (MORE_TILES) MORE_TILES.onclick" in src, "")
-                                                                             
+    # D-19: every grouped table declares its columns; unused tokens are gone.
     check("mcp, traffic, domains and heroku tables carry a colgroup",
           src.count("<colgroup>") >= 7, f"{src.count('<colgroup>')} colgroups")
     check("the three unused tokens left the template copy",
@@ -517,7 +517,7 @@ def test_the_findings_page_is_a_working_surface() -> None:
 
 
 def test_the_panel_is_a_dialog_that_keeps_the_keyboard() -> None:
-    ""                    
+    """Audit A-08/A-09."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the panel is a labelled dialog", 'role="dialog" aria-labelledby="panel-title"' in src
           and 'id="panel-title"' in src, "")
@@ -596,7 +596,7 @@ def test_the_server_serves_the_pages_and_refuses_the_rest() -> None:
                          ("/dashboard/nope.html", "a name the shell does not know"),
                          ("/dashboard/app.json", "a sibling file that is not an asset")):
             code, body, _c = get(bad)
-            named = b"index" in body                                                  
+            named = b"index" in body                    # the 404 names the real pages
             check(f"{why} is 404, and never a file read", code == 404 and named,
                   f"{code} {body[:80]!r}")
     finally:

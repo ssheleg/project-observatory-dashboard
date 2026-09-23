@@ -33,7 +33,7 @@ def write_json(path: str | os.PathLike, data: Any, *, indent: int = 1,
                                                                                  
                                                                              
     dest = pathlib.Path(path)
-                                                                           
+    # Refuse future registry versions and retain optional extension fields.
     import configuration
     import paths
     if dest.parent.resolve() == paths.REGISTRY.resolve() and dest.suffix == ".json":
@@ -58,9 +58,9 @@ def write_json(path: str | os.PathLike, data: Any, *, indent: int = 1,
                                                             
             fh.write("\n")
             fh.flush()
-                                                                           
-                                                                               
-                                                                             
+            # The rename is atomic; the CONTENT reaching the platter is not
+            # implied by it. On a machine that has already lost a database to a
+            # write it could not finish, that distinction is the whole point.
             os.fsync(fh.fileno())
         os.replace(tmp, dest)
         return dest
@@ -168,8 +168,8 @@ def write_json_carrying(path: str | os.PathLike, doc: dict, *,
     out = dict(doc)
     for k in stamps:
         out[k] = carried.get(k, now)
-                                                                            
-                                                                              
-                                                                         
+    # The key ORDER is preserved from `doc`, because these files are read by
+    # people in a diff: a stamp that jumps to the end of the object on the run
+    # that carries it forward would show as a move of every line between.
     write_json(dest, out, **kw)
     return dest, not carried

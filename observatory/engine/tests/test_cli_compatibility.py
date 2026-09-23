@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Public/full CLI routing contracts; synthetic roots and mocked execution only."""
 from __future__ import annotations
 import contextlib
 import io

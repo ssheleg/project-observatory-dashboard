@@ -124,8 +124,8 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
         else:
             b["sessions"] += 1
             b["session_days"].add(stamp[:10])
-                                                                                
-                                                              
+        # `first_at`/`last_at` span ANY activity: they answer "when in this week
+        # was this project touched", and a session is a touch.
         b["first"] = min(b["first"], stamp)
         b["last"] = max(b["last"], stamp)
 
@@ -136,8 +136,8 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
         for (pid, week), b in sorted(buckets.items()):
             monday = date.fromisoformat(b["week_start"])
             if monday < cutoff:
-                                                                             
-                                                               
+                # The window starts inside this week, so the count would be a
+                # fraction of the truth with nothing saying so.
                 skipped_partial += 1
                 continue
             if (pid, week) in frozen:
@@ -157,10 +157,10 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
                 " WHERE project_week.frozen_at IS NULL",
                 (pid, week, b["week_start"], b["commits"], len(b["days"]),
                  len(b["authors"]), b["sessions"], len(b["session_days"]),
-                                                                             
-                                                                     
-                                                                            
-                                                                             
+                 # A SET UNION, not a sum. Two commits and one session on the
+                 # same Tuesday is one day worked, and `active_days +
+                 # session_days` would say two — which is why the union is
+                 # stored rather than left to a reader who cannot compute it.
                  len(b["days"] | b["session_days"]),
                  b["first"], b["last"], now_iso()))
             written += 1
@@ -186,25 +186,25 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
                 else:
                     kept_unfolded += 1
 
-                                                                              
-                                                                           
+        # Freeze what the window has left behind. This is what makes the table
+        # outlive its source: after this, no recompute can zero these rows.
         froze = conn.execute(
             "UPDATE project_week SET frozen_at = ?"
             " WHERE frozen_at IS NULL AND week_start < ?",
             (now_iso(), cutoff.isoformat())).rowcount
-                                                                                 
-                                                                                
-                                                                              
-                                                                               
+    # A FROZEN ROW WITH NO SESSION FIGURE can never be completed: the freeze rule
+    # forbids rewriting it and the events under it are gone. Counted here so the
+    # gap is a number a reader can see rather than a silent NULL. Zero on this
+    # machine when the columns shipped, which is the only reason none was lost.
     unfillable = conn.execute(
         "SELECT count(*) FROM project_week"
         " WHERE frozen_at IS NOT NULL AND sessions IS NULL").fetchone()[0]
     return {"weeks_written": written, "weeks_frozen_now": froze,
             "already_frozen": skipped_frozen, "partial_weeks_skipped": skipped_partial,
             "frozen_without_sessions": unfillable,
-                                                                                 
-                                                                                
-                                                                                
+            # NAMED, not folded into `weeks_written`. A rename that moves rows is
+            # a fact about the estate, and a row KEPT because its week could not
+            # be recomputed is the one number a reader would want and never get.
             "weeks_superseded_by_rename": superseded,
             "weeks_kept_unfolded": kept_unfolded,
             "window_days": window_days(), "cutoff": cutoff.isoformat()}
@@ -245,10 +245,10 @@ def main() -> int:
         print(status(conn))
         return 0
     r = refresh(conn)
-                                                                             
-                                                                               
-                                                                               
-                                                              
+    # THE NUMBERS OUTLIVE THE RUN. `partial_weeks_skipped` counts weeks whose
+    # data will never be captured, and it lived on stdout only — piped by the
+    # tick into a log nothing reads on a schedule. A month of zero writes, or a
+    # rising skip count, looked exactly like a healthy rollup.
     try:
         paths.SCRATCH.mkdir(parents=True, exist_ok=True)
         (paths.SCRATCH / "rollup.json").write_text(

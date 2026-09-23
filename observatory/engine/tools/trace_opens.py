@@ -55,11 +55,11 @@ sys.path.insert(0, str(ROOT / "tests"))
 import paths                                                                    
 import tmp as tmpdir                                                            
 
-                                                                             
-                                                                                  
-                                                                          
-                                                                                
-                                                        
+#: A step this tool will not run, and why. Tracing means EXECUTING, and three
+#: of these leave the machine while two spend money — a measurement that sends a
+#: notification or writes a commit is not a measurement. Named rather than
+#: skipped silently: a reader has to be able to see which part of the graph this
+#: tool cannot settle, and go and settle it another way.
 REFUSED: dict[str, str] = {
     "notify": "sends a notification to a person, and no redirect makes an "
               "already-delivered message undelivered",
@@ -88,18 +88,18 @@ SAFE_MODE: dict[str, tuple[dict[str, str], str]] = {
               "the vector call — the only thing that costs — never happens"),
 }
 
-                                                                               
-                                                                              
-                                       
+#: Everything this process can be asked to open by name. Enumerated rather than
+#: guessed: a door missing from this list is a read the report will not carry,
+#: and the report would look identical.
 TOUCHED: list[tuple[str, str]] = []
 
 
-                                                                           
-                                                                               
-                                                                      
-                                                                       
-                                                                                
-                                      
+#: A redirected artefact, mapped back to the name the GRAPH speaks. Without
+#: this the sandbox swallows the very writes under test: `dashboard` writes the
+#: page into a temporary directory, the report sees a path outside the
+#: repository and drops it, and the comparison then accuses the step of
+#: declaring a write it did not make. The redirect is the tracer's own doing, so
+#: undoing it is the tracer's own job.
 def _canonical() -> list[tuple[pathlib.Path, str]]:
     out = []
     for var, name in (("OBSERVATORY_DASHBOARD", "docs/projects-dashboard.html"),
@@ -111,9 +111,9 @@ def _canonical() -> list[tuple[pathlib.Path, str]]:
         v = os.environ.get(var)
         if v:
             out.append((pathlib.Path(v).resolve(), name))
-                                                                            
-                                                                                  
-                                                                
+    # Longest first: STATE is `store` and SCRATCH is `store/raw` in the real
+    # layout, and in the sandbox they are siblings — but a caller may point them
+    # at nested paths, and the more specific mapping has to win.
     return sorted(out, key=lambda kv: len(str(kv[0])), reverse=True)
 
 
@@ -159,13 +159,13 @@ def install() -> None:
     pathlib.Path.write_text = lambda self, *a, **k: (_record("w", self), real_wt(self, *a, **k))[1]
     pathlib.Path.read_bytes = lambda self, *a, **k: (_record("r", self), real_rb(self, *a, **k))[1]
     pathlib.Path.write_bytes = lambda self, *a, **k: (_record("w", self), real_wb(self, *a, **k))[1]
-                                                                           
-                                                                              
-                                                                             
+    # A STORE IS A FILE. `sqlite3.connect` opens it in the C layer where no
+    # wrapper of `open` can see it, and three of the four steps under test are
+    # store writers — a report that missed them would be confidently empty.
     def connect(target, *a, **k):
-                                                                                 
-                                                                               
-                                                       
+        # `file:…?mode=ro` is a URI, not a path: recording it verbatim produced
+        # a "write" of a filename containing a query string. The mode is IN the
+        # string, and a read-only connection is a read.
         s = str(target)
         if s.startswith("file:"):
             path, _, query = s[len("file:"):].partition("?")
@@ -175,9 +175,9 @@ def install() -> None:
         return real_connect(target, *a, **k)
 
     sqlite3.connect = connect
-                                                                            
-                                                                             
-                                                     
+    # The atomic writer's LAST act. `atomic.write_json` writes a sibling and
+    # renames it, so without this the report names the temporary file and not
+    # the artefact the graph is declared in terms of.
     os.replace = lambda src, dst, *a, **k: (_record("w", dst), real_replace(src, dst, *a, **k))[1]
     shutil.copy = lambda s, d, *a, **k: (_record("r", s), _record("w", d), real_copy(s, d, *a, **k))[2]
     shutil.copy2 = lambda s, d, *a, **k: (_record("r", s), _record("w", d), real_copy2(s, d, *a, **k))[2]
@@ -244,11 +244,11 @@ def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
                 "OBSERVATORY_SCRATCH": str(work / "raw"),
                 "OBSERVATORY_DASHBOARD": str(work / "page.html"),
                 "OBSERVATORY_STATE": str(work / "state"),
-                                                                              
-                                                                           
-                                                                              
-                                                                              
-                                                             
+                # THE REGISTRY TOO. `emit`, `findings` and `export-ledger` all
+                # write into it, and the first version of this tool did not
+                # redirect it — which is how tracing `dashboard` rewrote the
+                # operator's page one door over. A tracer that damages what it
+                # measures is not one anybody will run twice.
                 "OBSERVATORY_REGISTRY": str(work / "registry"),
                 "OBSERVATORY_ACKS": str(work / "acks.json"),
                 "OBSERVATORY_TRACE_OUT": str(work / "touched.json")})
@@ -293,10 +293,10 @@ def compare(step: str, seen: dict, decl: dict) -> list[str]:
        
     say = decl.get(step) or {"reads": [], "writes": []}
     out: list[str] = []
-                                                                             
-                                                                              
-                                                                              
-                               
+    # THE STORE IS NOT IN THE GRAPH, on purpose: "every writer touches it and
+    # the graph would say nothing" (`tests/test_pipeline.py`). Reporting it on
+    # every run would train a reader to skim this output, which is the failure
+    # a report exists to avoid.
     exempt = ("store/observatory.db",)
 
     def covered(path: str, names: list[str]) -> bool:
@@ -319,8 +319,8 @@ def compare(step: str, seen: dict, decl: dict) -> list[str]:
         else:
             other += 1
     if other:
-                                                                               
-                                                                             
+        # COUNTED, never dropped. These cannot invert an ordering, but a reader
+        # who sees only the first list would think the step opens four files.
         out.append(f"{step} also read {other} file(s) no step writes "
                    f"(source, fixtures, checked-in inputs) — not an ordering risk")
     for p in say["writes"]:

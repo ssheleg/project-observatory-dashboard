@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                         
+"""List a Bitbucket workspace, or say precisely why it could not be listed.
 
                                                                        
 
@@ -7,41 +7,41 @@
                                                         
                                                                                   
 
-                                                                              
-                                                                             
-                                                                   
+The 200 is not access. Anonymous listing returns only PUBLIC repositories, and
+this workspace has none, so the endpoint answers and reveals nothing. That is
+worth writing down because a status code alone reads like coverage.
 
-                                                                            
-                                                                            
-                                                                               
-                                                                               
-                                                                                 
-                                       
+So the sixteen repositories under `mobyrix` are known from one thing only: a
+local clone points at them. Their default branch and whether the checkout is
+current come from `scan_remotes.py`, which needs no credential. Everything else
+— description, visibility, language, dates, and above all **repositories that
+were never cloned to this machine** — needs the API, and this collector is what
+uses it the moment a credential exists.
 
                                                                                 
                                                                                 
                          
 
-                                                                             
-                                                                      
-                                       
+    username:app_password     -> HTTP Basic  (also the shape of an API token,
+                                 which Bitbucket sends as email:token)
+    <token>                   -> Bearer
 
-                                                                             
-                                                                             
-                             
+An absent credential is a STATE, not a failure: the collector writes an empty
+listing with a named degradation and exits 0, because launchd would otherwise
+retry a missing file forever.
 
-                                              
-   
+    scan_bitbucket.py store/raw/bitbucket.json
+"""
 from __future__ import annotations
 import base64, json, pathlib, stat, sys, urllib.error, urllib.request
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import paths              
+import paths  # noqa: E402
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import listing_guard              
-import local_scan              
+import listing_guard  # noqa: E402
+import local_scan  # noqa: E402
 
 SECRET = paths.source_path("secret_store", paths.SECRETS) / 'bitbucket'
 API = "https://api.bitbucket.org/2.0/repositories/"
@@ -54,10 +54,10 @@ def now() -> str:
 
 
 def workspaces() -> list[str]:
-    ""                                                                      
-                                                                                  
-                                                                              
-                                                             
+    """Derived from what the machine actually points at, never hardcoded."""
+    # `paths.SCRATCH`, not `ROOT / "store" / "raw"`: the second is the one input a
+    # test cannot redirect, which is the same defect the validator's registrar
+    # export had and the survey's liveness file had after it.
     src = paths.SCRATCH / "local.json"
     if not src.is_file():
         return []
@@ -72,7 +72,7 @@ def workspaces() -> list[str]:
 
 
 def credential() -> tuple[str | None, str, str]:
-    ""                                                                            
+    """(header value, how it was formed, why it is absent) — never the value."""
     if not SECRET.is_file():
         return None, "", (f"no credential at {SECRET}. Create a Bitbucket API token or "
                           f"app password, write it there as `username:token`, chmod 600.")
@@ -123,14 +123,14 @@ def list_workspace(ws: str, auth: str) -> tuple[list[dict], str]:
 
 
 def previous(dest: pathlib.Path) -> tuple[list[dict], str]:
-    ""                                                                      
+    """The last listing and when it was taken, or ([], "") if there is none.
 
-                                                                              
-                                                                               
-                                                                              
-                                                                                
-                                                                                
-       
+    Read before anything is written, because this collector rewrites the WHOLE
+    document on every run: with no credential it wrote `repositories: []` and a
+    named degradation, which is honest about the run and destructive about the
+    estate. A workspace that was listed yesterday and 401s today would have gone
+    from sixteen repositories to zero, with the reason recorded beside the hole.
+    """
     if not dest.is_file():
         return [], ""
     try:
@@ -160,8 +160,8 @@ def main(argv: list[str]) -> int:
                                 "reason": "no local clone points at bitbucket.org, "
                                           "so no workspace to list"})
     elif auth is None:
-                                                                             
-                                                              
+        # Named per workspace: a host reading `degraded` must be able to tell
+        # WHICH surface is dark, not merely that something is.
         for w in ws:
             out["degraded"].append({"source": f"bitbucket:{w}", "reason": why})
     else:
@@ -171,11 +171,11 @@ def main(argv: list[str]) -> int:
             if err:
                 out["degraded"].append({"source": f"bitbucket:{w}", "reason": err})
 
-                                                                            
-                                                                          
-                                                                             
-                                                                                 
-                                                       
+    # The same rule GitHub applies, in the shape this document has: one file
+    # holding both the rows and the degradations, so the previous rows are
+    # CARRIED FORWARD rather than left unwritten. `stale_since` says out loud
+    # that they were measured by an earlier run — an answer that is older beats
+    # one that is wrong, but only if it admits its age.
     reason = listing_guard.empty_would_lose(
         "bitbucket", len(was), len(out["repositories"]),
         f"Delete {dest.name} by hand if the workspaces really are empty.")

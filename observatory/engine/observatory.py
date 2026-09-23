@@ -63,9 +63,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-                                                                              
-                                                                            
-                                  
+# `paths` for the artefacts a NON_MUTATING group must not write. Imported here
+# rather than inside the function so a typo is a startup error rather than a
+# failure in the middle of a gate.
 sys.path.insert(0, str(ROOT))
 import configuration
 try:
@@ -410,8 +410,8 @@ NEEDS = {
 }
 
 
-                                                                              
-                                                                     
+# The complete pipeline keeps its public command names; mutable arguments live
+# in the selected private workspace rather than the program checkout.
 def workspace_argument(value: str) -> str:
     for prefix, base in (("store/raw", paths.SCRATCH), ("registry", paths.REGISTRY)):
         if value == prefix or value.startswith(prefix + "/"):
@@ -423,8 +423,8 @@ def workspace_argument(value: str) -> str:
 STEPS = {name: [workspace_argument(v) for v in cmd] for name, cmd in STEPS.items()}
 STEPS["check-portable"] = [PY, "tests/run_portable.py"]
 
-                                                                               
-                                                                              
+# This marker selects a published source profile, never a user's configuration.
+# The historical installation retains its original gate when no marker exists.
 PUBLIC_SOURCE_ONLY = {
     "setup": "install the distribution with its full extra instead",
     "deps": "install the distribution with its full extra instead",
@@ -476,7 +476,7 @@ def unavailable_step(name: str, public: bool) -> str:
     if public and name in PUBLIC_SOURCE_ONLY:
         return PUBLIC_SOURCE_ONLY[name]
     for arg in STEPS.get(name, [])[1:]:
-                                                                             
+        # Positional source entry points, not mutable workspace input/output.
         if not arg.startswith("-") and not Path(arg).is_absolute() and Path(arg).suffix in {".py", ".sh", ".js"}:
             if not (ROOT / arg).is_file():
                 return "the command's source payload is not included in this distribution"
@@ -540,14 +540,14 @@ def run(step: str, *, offline: bool = False) -> tuple[int, list[str]]:
     return proc.wait(), skips
 
 
-                                                                              
-                                                                                
-                                                                                
-                                                                                
-                                                                               
-                                                                           
-                                                                    
-                                                                  
+#: Artefacts a NON_MUTATING group may legitimately write, with the reason. The
+#: page is the declared one: `dashboard` and `smoke` are both IN the check group
+#: and read a file git ignores, so building it is what a gate over a page has to
+#: do. Nothing under `store/raw/` belongs here — no step of `check` produces a
+#: collector report, so every one of them is a test that forgot to redirect —
+#: which is why the smoke verdict below sits beside the page rather than in
+#: `store/raw/`: putting it there would have cost that ban its first
+#: exception, and the ban is what catches an unredirected fixture.
 IGNORED_WRITES_ALLOWED = {
                                                                                 
                                                                              
@@ -573,14 +573,14 @@ IGNORED_WRITES_ALLOWED = {
         "— true of the record and useless to a reader",
 }
 
-                                                                              
-                                                                              
-                                                                              
-                                                                              
-                                                                       
-                                                                           
-                                                                               
-                          
+#: A DIFFERENT CLAIM, and it needs its own container. Everything above says "a
+#: step of the gate may write this". This says "a process that is NOT the gate
+#: writes this, so finding it changed is not evidence about this tree at all".
+#: They were briefly one dict, and the cost was immediate: the `store/raw` ban
+#: three paragraphs up became a lie about the very first entry, and the
+#: assertion that `IGNORED_WRITES_ALLOWED` holds exactly one path had to be
+#: broken to fit a file no gate step writes. A blanket exemption is a bad price
+#: for a true observation.
 FOREIGN_WRITES_IGNORED = {
     "store/raw/integrity.json":
         "written by the scheduled tick's store check, which runs early in the "
@@ -629,8 +629,8 @@ FOREIGN_WRITES_IGNORED = {
 WATCHED_TABLES = ("ledger", "deltas", "events", "observations", "metrics",
                   "proposals", "project_week", "outbox", "tombstones", "scans")
 
-                                                                             
-                                                                              
+#: The companion plugin's recorder, which writes a ledger row when ANY Claude
+#: session on this machine ends a turn — `tools/record_turn.py`'s own owner.
 FOREIGN_ROW_WRITER = "agent:claude-code"
 
                                                                                 
@@ -643,9 +643,9 @@ FOREIGN_ROW_WRITER = "agent:claude-code"
                                                                                
 FOREIGN_ROWS_EXCLUDED = {
     "ledger": "SELECT count(*) FROM ledger WHERE owner IS NOT ?",
-                                                                                
-                                                                               
-                                                                               
+    # `outbox` carries no owner of its own; a row is traced to the ledger row it
+    # projects. A row whose ledger entry is gone is COUNTED rather than assumed
+    # foreign — an orphan is exactly the kind of thing this check exists for.
     "outbox": "SELECT count(*) FROM outbox WHERE memory_id NOT IN "
               "(SELECT memory_id FROM ledger WHERE owner IS ?)",
 }
@@ -788,8 +788,8 @@ def main(argv: list[str]) -> int:
         if reason:
             print(f"Observatory: check-portable unavailable: {reason}", file=sys.stderr)
             return 2
-                                                                             
-                                                                          
+        # Before workspace validation/tightening: a public gate needs no live
+        # state and its runner creates fresh private synthetic workspaces.
         return subprocess.call([*STEPS["check-portable"], *argv[2:]], cwd=ROOT)
     steps = GROUPS.get(name, [name] if name in STEPS else None)
     if steps is None:
@@ -829,20 +829,20 @@ def main(argv: list[str]) -> int:
     if steps is None:
         print(f"unknown step: {name}", file=sys.stderr)
         return 2
-                                                                            
-                                                                               
-                                              
-                                                                           
-                                                                           
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-     
-                                                                               
-                                                                              
-                                                                           
-                                             
+    # Compared as a DELTA, not against cleanliness: this repository is dirty
+    # while it is being worked on, and a gate must still be able to say whether
+    # IT was the thing that changed something.
+    # SERIALIZE against the writer, do not merely detect it afterwards. The
+    # tick rewrites registry/*.json one atomic replace at a time while this
+    # group spends ten minutes reading them, so a tick landing mid-gate can put
+    # a NEW relations.json beside an OLD projects.json in front of a cross-file
+    # check — a dangling reference that never existed, reported as a failure.
+    # The detection below still stands as the backstop; this is the prevention.
+    #
+    # Not a refusal when the lease is unavailable: blocking the operator's gate
+    # because a scheduled job holds a key is worse than the race it avoids. It
+    # proceeds and says what it gave up, which is the same rule every other
+    # degradation in this repository follows.
     held, why = (None, "")
     if name in NON_MUTATING:
         sys.path.insert(0, str(ROOT / "tools"))
@@ -851,10 +851,10 @@ def main(argv: list[str]) -> int:
             held, why = tick_lease.hold(tick_lease.GATE_IDENTITY)
         except Exception as exc:                                             
             held, why = None, f"the lease helper is unusable: {type(exc).__name__}: {exc}"
-                                                                              
-                                                                               
-                                                                                
-                                                               
+        # flush=True: the steps below are subprocesses writing straight to the
+        # inherited descriptor, while this process's own prints sit in a buffer
+        # until exit. Without it the lease line lands at the END of a redirected
+        # log — after the verdict it was supposed to qualify.
         print(f"\033[2m{why}\033[0m" if held else
               f"\033[33mrunning WITHOUT the registry lease — {why}. A registry write "
               f"landing mid-run will be reported as a tree change below rather than "
@@ -920,21 +920,21 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
             failed_at, failed_code = step, code
             unreached = steps[pos + 1:]
             break
-                                                                                 
-                                                                               
-                                                                             
-                                                      
-     
-                                                                            
-                                                                                
-                                                                              
-                                                                                
-                                                                                
-                                               
-     
-                                                                                 
-                                                                               
-                                                                              
+    # ASSERTION BLOCKS, one level below `skipped` above. That one is about a step
+    # this machine cannot run at all; this is about a suite that ran, exited 0,
+    # and quietly asserted less than it contains. The wording says "assertion
+    # block" and never "step" for exactly that reason.
+    #
+    # NOT RED, and that is a decision. The commonest cause is the agent-sync
+    # lease being held by the scheduled tick, which happens every thirty minutes
+    # — and a gate that goes red on a routine event is a gate whose red gets
+    # ignored, which costs more than the silence it replaces. What this fixes is
+    # narrower and real: a PASS total can no longer be quoted without the number
+    # of assertions that did not run beside it.
+    #
+    # NO RECEIPT either. `check` is in NON_MUTATING and its own rule says nothing
+    # under `store/raw/` belongs to it, so a gate writing its own receipt would
+    # break the purity verdict it exists to enforce. Printed, and that is all.
     if block_skips:
         n = sum(len(v) for v in block_skips.values())
         print(f"\n\033[33m{n} assertion block(s) did not run, in "
@@ -985,10 +985,10 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
     if before is not None:
         after = tree_state()
         if after and after[0] != before[0]:
-                                                                                 
-                                                                                 
-                                                                             
-                                                                              
+            # WHO changed it matters. The scheduled tick commits the registry, so
+            # a tick that lands mid-gate makes dirty paths turn CLEAN — and the
+            # first version of this message accused the gate of writing them.
+            # A gate that reports the wrong cause is a gate people argue with.
             appeared_now = sorted(after[1] - before[1])
             vanished_now = sorted(before[1] - after[1])
                                                                                  

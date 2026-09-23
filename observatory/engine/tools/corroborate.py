@@ -75,7 +75,7 @@ def refs_containing(path, sha: str) -> list[str]:
     names = []
     for line in out.splitlines():
         name = line.strip().lstrip("* ").strip()
-                                                                                 
+        # A detached HEAD prints as `(HEAD detached at …)`, which is not a ref.
         if name and not name.startswith("("):
             names.append(name)
     return names
@@ -123,9 +123,9 @@ def check_session(row) -> tuple[bool | None, str]:
     ev = json.loads(row["evidence_json"] or "[]")
     repo = next((e for e in ev if str(e.get("uri", "")).startswith("repo:repository:")), None)
     if not repo or not repo.get("head"):
-                                                                      
-                                                                               
-                                                              
+        # A CONTRADICTION, not an unaskable: the row was written to be
+        # verifiable and does not carry what it needs. Nothing about the estate
+        # is unmeasurable here — the record itself is short.
         return False, "the row records no repository head to verify"
     nwo = repo["uri"].split("repo:repository:", 1)[1]
     path = clone_path(nwo)
@@ -155,11 +155,11 @@ def check_session(row) -> tuple[bool | None, str]:
                           f"pushing and tidying up leaves behind")
             return True, (f"git says {sha} is still an ancestor of {where} in "
                           f"{nwo}, checked {now}")
-                                                                              
-                                                                                
-                                                                             
-                                                                               
-                                                                              
+        # A WITNESS LOOKED AT WHAT THE ROW CLAIMED AND DISAGREED. That stays a
+        # refusal: the row records the branch the work was done on, and a branch
+        # that exists and no longer holds the commit is the fact the original
+        # check was written for. Where another ref reaches it, the message says
+        # so — the person deciding needs that, and it is not the same claim.
         held = [h for h in refs_containing(path, sha) if h != resolved]
         return False, (f"{sha} exists in {nwo} but is not an ancestor of {resolved}; "
                        f"the branch moved away from it"
@@ -169,8 +169,8 @@ def check_session(row) -> tuple[bool | None, str]:
                           " and no other ref reaches it either, so a garbage "
                           "collection will take it"))
 
-                                                                             
-                                                        
+    # THE NAME RESOLVES NOWHERE, local or remote. The commit may still be one
+    # ref away, and if it is, the work plainly survived.
     held = refs_containing(path, sha)
     if held:
         return True, (f"no branch named {branch} exists in {nwo} any more, but git "
@@ -202,14 +202,14 @@ def main(argv: list[str]) -> int:
                                                                     
     promoted, refused, unaskable, needs_person = [], [], [], []
     for row in rows:
-                                                                                
-                                                                            
-                                                                        
-                                                                           
-                                                                                
-                                                                             
-                                                                               
-                                   
+        # ONE rule, and it is positive: `session` is the only kind with evidence
+        # a machine can re-check. There were two — a `NO_MECHANICAL_CHECK`
+        # denylist above this line, holding `observation` — and it was
+        # unreachable, since anything in it is also `!= "session"` and both
+        # branches did the same thing. A denylist sitting above the real gate is
+        # worse than redundant: a reader takes it for the gate and adds a new
+        # kind expecting it to be refused by default, when the positive rule is
+        # what actually refuses it.
         if row["kind"] != "session":
             needs_person.append((row["memory_id"], row["kind"]))
             continue

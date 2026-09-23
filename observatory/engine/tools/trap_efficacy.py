@@ -83,7 +83,7 @@ def _forget(work: pathlib.Path, name: str) -> None:
 
 
 MUTATIONS: list[dict] = [
-                                                                                                                                                                     
+    # ── the registry's own claims ──────────────────────────────────────────
     {"trap": "T1", "subject": "registry", "file": "relations.json",
      "find": '"id": "relation:example-app:implemented-by:example-org-example-app",',
      "replace": ('"id": "relation:example-app:implemented-by:planted",\n'
@@ -106,7 +106,7 @@ MUTATIONS: list[dict] = [
      "find": "\n", "replace": "\n", "sql": None, "truncate": True,
      "why": "an export that carries only its header is not a backup"},
 
-                                                                                                                                                                  
+    # ── the code that must refuse ─────────────────────────────────────────
     {"trap": "T7", "subject": "source", "file": "store/ledger.py",
      "find": 'raise OwnerRequired("a write must declare its owner; there is no default")',
      "replace": 'owner = owner or "operator"',
@@ -122,22 +122,22 @@ MUTATIONS: list[dict] = [
                  '#: OBSERVATORY_KEY_FILE overrides the search entirely'),
      "why": "a ceiling that travels in the request is one the provider may ignore"},
 
-                                                                                                                                                                                  
-                                                                          
-                                                                             
-                                                              
+    # ── the store's shape ─────────────────────────────────────────────────
+    # `vec_notes_vector_chunks%` is what the guard measures, and the first
+    # attempt planted `vec_probe_…` — invisible to it, reported as MISSED
+    # against a guard that was fine. The name is the mutation.
     {"trap": "T34", "subject": "db",
      "sql": ["CREATE TABLE IF NOT EXISTS vec_notes_vector_chunks99 (contents BLOB)",
              "INSERT INTO vec_notes_vector_chunks99 VALUES (zeroblob(300000000))"],
      "why": "428 MB of empty pre-allocation is what a per-record partition key buys"},
 
-                                                                                                                                                  
+    # ── the rest of the registry's claims ─────────────────────────────────
     {"trap": "T2", "subject": "registry", "file": "projects.json",
      "find": '"vault-overview:projects/example-app/example-app.md"', "replace": '',
      "why": "a site with no evidence is a domain that was merely mentioned somewhere"},
-                                                                                   
-                                                                            
-                                                                              
+    # The repository must be one whose site evidence IS a `github:…:homepageUrl`,
+    # or the fork branch is never reached and the guard reports nothing. The
+    # first attempt marked a repository whose site came from a vault overview.
     {"trap": "T3", "subject": "registry", "file": "repositories.json",
      "patch": lambda d: [r.__setitem__("fork", True) for r in d["repositories"]
                          if r["name_with_owner"] == "example-org/example-app"],
@@ -179,7 +179,7 @@ MUTATIONS: list[dict] = [
      "patch_dir": lambda w: _forget(w, "example-app"),
      "why": "a folder on disk that reaches the registry by no anchor at all"},
 
-                                                                                                                                                              
+    # ── the rules that live in code ───────────────────────────────────────
     {"trap": "T5", "subject": "source", "file": "collectors/emit_registry.py",
      "find": 'authored = [r for r in rel_doc["relations"] if r["type"] not in DERIVED_TYPES]',
      "replace": ('authored = [dict(r, id=r["id"] + "-carried") for r in rel_doc["relations"]]'),
@@ -251,9 +251,9 @@ MUTATIONS: list[dict] = [
      "replace": 'args.insert(1, "--since=3000 days ago")',
      "why": "the collector inserted what retention deleted, every thirty minutes, "
             "1161 events at a time"},
-                                                                               
-                                                                           
-                                                     
+    # BOTH call sites. The guard greps the source AND drives a dead key through
+    # the chain, so one site left intact keeps the grep green and the drive
+    # honest — a partial mutation measures nothing.
     {"trap": "T14", "subject": "source", "file": "agent/providers.py",
      "edits": [('raise Retryable(f"HTTP {exc.code}: {detail}") from exc\n'
                 '        if exc.code in (401, 403):',
@@ -264,8 +264,8 @@ MUTATIONS: list[dict] = [
                 'detail = exc.read().decode("utf-8", errors="replace")[:300]\n'
                 '        if exc.code in (499,):')],
      "why": "one dead key walked all three models and left all three unhealthy"},
-                                                                              
-                                                                         
+    # BOTH spellings, because either alone leaves the redirect working and the
+    # guard reports MISSED against a degradation that is still reachable.
     {"trap": "T18", "subject": "source", "file": "agent/providers.py",
      "edits": [('    search = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)\n'
                 '              if os.environ.get("OBSERVATORY_KEY_FILE") else KEY_FILES)',
@@ -284,7 +284,7 @@ MUTATIONS: list[dict] = [
      "why": "an anchor read as part of the path is one of three false-positive "
             "classes that gave the wiki six broken links and it had none"},
 
-                                                                                                          
+    # ── the last six, so every trap carries an efficacy claim ─────────────
     {"trap": "T4", "subject": "source", "file": "collectors/emit_registry.py",
      "find": '"default_branch":r.get("default_branch") or prev.get("default_branch",""),',
      "replace": '"default_branch":(prev.get("default_branch","") + (r.get("default_branch") or "")),',
@@ -320,11 +320,11 @@ MUTATIONS: list[dict] = [
             "in one process to show, which is why this one runs the whole suite"},
 ]
 
-                                                                               
-                                                                               
-                                                                              
-                                                                            
-                                                                              
+#: Traps whose guard plants its OWN defect and drives the real code against it,
+#: so efficacy is established inside the suite rather than by this harness. The
+#: value names the line that does the planting; the harness checks it is still
+#: there. That is a weaker claim than a mutation and it is stated as one: it
+#: proves the planting code exists, not that it still plants what it once did.
 SELF_DRIVEN: dict[str, tuple[str, str]] = {
     "T12": ("tests/test_scan_ids.py", 'old = f"sessions-{FROZEN}"'),
     "T16": ("tests/test_skill.py", "plant"),
@@ -519,15 +519,15 @@ def main(argv: list[str]) -> int:
     for mut in plan:
         gs = by_trap.get(mut["trap"], [])
         if mut.get("step"):
-                                                                               
-                                                                            
-                                                                              
-                                  
+            # The defect takes two tests in one process to show, so the subject
+            # is the STEP. No guard function to resolve, and saying so beats
+            # reporting "no guard declares this trap" about a trap whose guard
+            # is the suite itself.
             gs = [(mut["step"], "")]
         elif mut.get("guard"):
-                                                                                
-                                                                                
-                                                                            
+            # An explicit guard, for a trap whose several guards do not all read
+            # the mutation's subject. Named in the registry rather than guessed,
+            # and checked: a stale name is reported, never silently skipped.
             rel, fn = mut["guard"].split("::")
                                                                                
                                                                                 

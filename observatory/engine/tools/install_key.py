@@ -45,8 +45,8 @@ sys.path.insert(0, str(ROOT))
 import private_io
 import paths                                                                    
 
-                                                                                
-                                                                 
+#: consumer -> (file, what reads it). Enumerated, because a fourth consumer must
+#: be a deliberate line here rather than a guess at install time.
 DESTINATIONS: dict[str, tuple[pathlib.Path, str]] = {
     "observatory": (paths.STORE / ".openrouter-key",
                     "the tick's agent and indexer (`./observatory.py key` shows "

@@ -156,9 +156,9 @@ def period_start(now: datetime, every_hours: float) -> datetime:
     return EPOCH + timedelta(hours=hours * int(n // hours))
 
 
-                                                                                
-                                                                               
-                   
+#: Two periods. One is the cadence itself — a sample taken at the start of the
+#: period is one period old by its end, which is normal. Two means a period was
+#: missed entirely.
 STALE_PERIODS = 2.0
 
 
@@ -268,10 +268,10 @@ def run_one(conn, m: dict, known_projects: set[str], force: bool) -> dict:
     return result
 
 
-                                                                          
-                                                                                
-                                                                          
-                                                    
+#: What a manifest must carry, and what each field is for. Checked without
+#: running anything, so `--check` can answer "is this plugin well-formed" before
+#: the plugin gets a chance to be wrong at runtime — the same separation
+#: `tools/validate_registry.py` gives the fact base.
 REQUIRED = {
     "id": "the source name every row it writes is stamped with, and the key its "
           "age gate is measured by",
@@ -423,12 +423,12 @@ def main() -> int:
         if a.only and m.get("id") != a.only:
             continue
         r = run_one(conn, m, known, a.force)
-                                                                           
-                                                                              
-                                                                               
-                                           
-                                                                             
-                                                                 
+        # WHY IT SKIPPED, not merely that it did. A missing credential is a
+        # STATE the operator may have chosen; a crash, a timeout or a non-zero
+        # exit is a broken plugin. The findings builder grades them differently
+        # and cannot do that from one flag.
+        # THE SERIES FIRST, because the classification reads it: `not_due` is
+        # only honest when the newest sample is actually current.
         r["last_at"], r["last_recorded"] = last_measurement(conn, r["id"])
         r["every_hours"] = m.get("every_hours")
         r["seriesAgePeriods"] = series_age(r["last_at"],

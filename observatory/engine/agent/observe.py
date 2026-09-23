@@ -42,13 +42,13 @@ except Exception:
         return ""
 
 OWNER = "agent:observer"
-                                                                            
-                                                                      
+#: The ceiling on what the agent may assert about its own reading. Certainty
+#: is the operator's to grant, and `proposed` at 1.0 reads as settled.
 AGENT_MAX_CONFIDENCE = 0.95
 
-                                                                         
-                                                                            
-                                       
+#: The shape the model must return. Declared once, sent as the provider's
+#: json_schema, and `strict: true` — so an answer that does not fit is the
+#: provider's 400, not our parsing bug.
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -204,15 +204,15 @@ def build_prompt(pid: str, deltas: list, facts: dict, prior: list[str]) -> str:
     lines = [f"# Project\n{pid}", "", "## Typed facts already known",
              json.dumps(facts, ensure_ascii=False, indent=1), "", "## What moved"]
     for m in fold(deltas):
-                                                                                 
-                                                                            
-                                                                                  
-                                                                              
-                                                                         
+        # The MEANING beside the numbers. `collectors/compute_deltas.py` has held
+        # a table of what each field's change means "in words the agent will
+        # read" since it was written, and the agent never received it — only the
+        # keys were used, to list which fields moved. `commits-changed: 885 ->
+        # 886` and "commits were recorded" are different amounts of help.
         means = _meaning(m["kind"])
-                                                                          
-                                                                                 
-                                                                               
+        # NO STEP COUNT ON A SINGLE CHANGE. When the agent runs on its own
+        # schedule almost every movement is one step, so `(over 1 changes)` would
+        # be noise on nearly every prompt — and wrong grammar on all of them.
         span = f"   (over {m['changes']} changes)" if m["changes"] > 1 else ""
         lines.append(f"- {m['kind']}: {m['before_json']} -> {m['after_json']}"
                      + span + (f"   ({means})" if means else ""))
@@ -292,14 +292,14 @@ def main() -> int:
                 " WHERE d.consumed_at IS NULL").fetchone()
             atomic.write_json(paths.SCRATCH / "agent.json", {
                 "ran_at": now(), "recorded": rec, "skipped": skip, "failed": fail,
-                                                                             
-                                                                             
-                                                                        
-                                                                            
+                # TWO SHAPES OF A BAD ANSWER, counted separately because they
+                # need different remedies. `malformed` contradicts itself and
+                # leaves its deltas unconsumed; `unreasoned` is a usable
+                # judgement with no reason given, and its delta IS consumed.
                 "malformed": bad, "unreasoned": mute,
-                                                                                
-                                                                                
-                                                                                 
+                # THE REASONS, not only the count. Bounded by the finding rather
+                # than here: this file is gitignored scratch, and truncating the
+                # evidence at the source would leave the reader nothing to widen.
                 "faults": faults,
                 "chain_retired": retired or [],
                 "halted_by": halted,
@@ -359,28 +359,28 @@ def main() -> int:
               f"this run takes {len(projects)}, oldest first"
               + (f"; {len(waiting)} project(s) wait for the next run" if waiting else ""))
 
-                                                                                
-                              
+        # A dry run spends nothing and needs no credential, so it answers before
+        # either is consulted.
         if args.dry_run:
             for pid in projects:
                 p = build_prompt(pid, by_project[pid], project_facts(pid),
                                  already_recorded(conn, pid))
                 print(f"\n{'=' * 70}\n{p}")
             print(f"\n--- dry run: {len(projects)} prompt(s), 0 tokens spent")
-                                                                              
-                                                                           
-                                                                      
-                                                    
+            # NOT reported, deliberately: a dry run spends nothing and decides
+            # nothing, so overwriting the record of the last REAL run would
+            # erase the reason a stall is being reported. Same rule as
+            # `tools/corroborate.py`'s `if not dry`.
             return 0
 
-                                                                              
-                                                                               
-                                                                                   
-                                                                                
-                                                                                 
-                                                                             
-                                                                                 
-                                               
+        # The credential check comes BEFORE the budget check, and the order is
+        # load-bearing. `check_budget` reads the provider's own counters, so it
+        # resolves the key — and `read_key` REFUSES a key file the group or world
+        # can read, by raising. `have_key()` catches that; `check_budget()` does
+        # not. With the checks the other way round, a key at mode 644 produced an
+        # uncaught traceback in the scheduled tick instead of the degradation
+        # written for exactly that case. Three of the four degradations here were
+        # driven by tests; this was the fourth.
         if not providers.have_key():
             print(f"DEGRADED: {providers.key_status()}\n"
                   f"The collectors already recorded the facts; only the interpretation is "
@@ -411,8 +411,8 @@ def main() -> int:
                       f"the catalogue and were skipped: {', '.join(retired_models)}",
                       file=sys.stderr)
         except Exception as exc:
-                                                                                
-                                                               
+            # Not fatal here: `complete` resolves the chain itself and will fail
+            # loudly if it cannot. This is only for the report.
             print(f"  chain could not be resolved for the report: {exc}", file=sys.stderr)
         halted_by = None
         first_call = True
@@ -425,9 +425,9 @@ def main() -> int:
                      {"role": "user", "content": prompt}],
                     schema_name="interpretation", schema=SCHEMA,
                     requested=args.model,
-                                                                                  
-                                                                             
-                                                                     
+                    # The key and the chain are a property of the RUN, not of each
+                    # project. Printed once, they are provenance; printed per
+                    # project, they are noise that hides the results.
                     log=(lambda m: print(m)) if first_call else (lambda m: None))
                 first_call = False
             except providers.BudgetExceeded as exc:
@@ -549,8 +549,8 @@ def main() -> int:
                 failed += 1
                 continue
             if prior is not None and prior["statement"] == parsed.interpretation:
-                                                                                
-                                                                                   
+                # The same sentence twice adds a revision that says nothing new,
+                # and append-only is a reason to be careful about what is appended.
                 with conn:
                     conn.executemany("UPDATE deltas SET consumed_at = ? WHERE id = ?",
                                      [(now(), i) for i in ids])
@@ -583,10 +583,10 @@ def main() -> int:
                     expected_revision=prior["revision"] if prior else None,
                     statement=parsed.interpretation, project_id=pid,
                     function="episodic", scope="project", state="proposed",
-                                                                                  
-                                                                                 
-                                                                                   
-                                                                                     
+                    # Capped BELOW 1: an automated writer may not claim certainty.
+                    # The model returned exactly 1.0 on a real run and it was let
+                    # through, because the only check was that the source contained
+                    # a min() call — a test that read the code instead of the data.
                     confidence=stored_confidence,
                                                                                 
                                                                        

@@ -100,7 +100,7 @@ def _private_dirs(leaf: pathlib.Path) -> None:
     _no_symlinks(leaf)
     leaf.mkdir(parents=True, exist_ok=True, mode=0o700)
     _no_symlinks(leaf)
-                                                                              
+    # Injecting an env file must not chmod the user's whole project directory.
     walk = leaf
     while walk == STORE or STORE in walk.parents:
         fd = os.open(walk, os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0))
@@ -527,8 +527,8 @@ def cmd_inject(a) -> int:
     if not target_dir.is_dir():
         die(f"{target_dir} is not a directory")
     env_file = target_dir / ".env"
-                                                                              
-                                                               
+    # THE GITIGNORE CHECK IS NOT OPTIONAL. An .env that git would commit turns
+    # an injection into a publication on the next `git add -A`.
     probe = subprocess.run(["git", "check-ignore", "-q", str(env_file)],
                            cwd=target_dir, capture_output=True, timeout=60)
     in_repo = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=target_dir,

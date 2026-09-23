@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-""                                      
+"""The plugin seam, and what it refuses.
 
-                                                                                  
-                                                                              
-                                                                            
-                                                                                
-                                                                               
-                                                                        
+Adding an analytics source used to mean editing six core files — the step table,
+the merge, the emitter, the validator, the findings builder and the dashboard.
+The reason was a category error rather than a missing abstraction: a traffic
+figure was being treated as a REGISTRY FACT. It is not one. The registry answers
+what EXISTS, is validated, lives in git and is rewritten whole on every emit; a
+measurement taken at an instant accumulates and belongs beside `events`.
 
-                                                                              
-                                                                             
-                                                                              
-                                         
-   
+So the seam is one contract, and the interesting half is not that a plugin can
+write — it is what happens when one misbehaves. A plugin that can write any
+metric name is a plugin whose output nobody can check, and every rule below is
+driven with a plugin planted to break it.
+"""
 from __future__ import annotations
 import json, os, pathlib, sqlite3, subprocess, sys, tempfile
 
@@ -23,9 +23,9 @@ from test_portable_mcp import setup as portable_setup, PROJECT_ID as SYNTHETIC_P
 portable_setup()
 
 sys.path.insert(0, str(ROOT / "tests"))
-import live_estate                                                              
-import tmp as tmpdir              
-import paths                                                                    
+import live_estate                                                  # noqa: E402
+import tmp as tmpdir  # noqa: E402
+import paths                                                        # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 FAILURES: list[str] = []
@@ -102,7 +102,7 @@ def test_re_measuring_replaces_rather_than_duplicates() -> None:
 
 
 def test_an_undeclared_metric_is_refused() -> None:
-    ""                                                                          
+    """A plugin that can write any name is one whose output nobody can check."""
     pid = real_project()
     plugins, db = sandbox(BASE, emitter([
         {"project_id": pid, "metric": "something.i.invented", "at": "2026-09-07T00:00:00Z",
@@ -130,7 +130,7 @@ def test_an_unknown_project_and_a_bad_timestamp_are_refused() -> None:
 
 
 def test_a_missing_requirement_skips_with_a_reason() -> None:
-    ""                                                                              
+    """The rule every collector here follows: not read is a state, not a failure."""
     m = dict(BASE, requires=["env:OBSERVATORY_NO_SUCH_VARIABLE"])
     plugins, db = sandbox(m, emitter([]))
     out = run(plugins, db)
@@ -215,7 +215,7 @@ def test_the_reference_plugin_measured_the_live_estate() -> None:
 
 
 def test_a_plugin_written_from_the_readme_alone_runs() -> None:
-    ""                                        
+    """The document's central promise, driven.
 
                                                                         
                                                                                 
@@ -228,17 +228,17 @@ def test_a_plugin_written_from_the_readme_alone_runs() -> None:
                                                                         
                
 
-                                                                               
-                                                         
-       
+    This drives the shape the README now teaches: import `paths` from the root,
+    read the registry through it, print one row per line.
+    """
     pid = real_project()
     script = (
         "import json, pathlib, sys\n"
         "sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))\n"
-                                                                              
-                                                                               
-                                                                               
-                                                                                
+        # The plugin directory is redirected here, so `parents[1]` is the temp
+        # sandbox and `paths` has to come from the repository the runner starts
+        # in. A real plugin lives under the checkout, where `parents[1]` IS the
+        # root — the import line the README teaches is the one asserted below.
         "sys.path.insert(0, %r)\n"
         "import paths\n"
         "projects = json.loads((paths.REGISTRY / 'projects.json')"
@@ -264,8 +264,8 @@ def test_a_plugin_written_from_the_readme_alone_runs() -> None:
 
 
 def test_the_readme_tells_an_author_what_the_script_is_given() -> None:
-    ""                                                                          
-                                                          
+    """The silence that produced the two inlined paths. Asserted on the document
+    because the document is the artefact an author has."""
     text = (ROOT / "plugins/README.md").read_text(encoding="utf-8")
     check("it says nothing is handed to the script",
           "No arguments, no stdin" in text,

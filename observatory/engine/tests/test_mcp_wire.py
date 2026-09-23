@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-""                                                     
+"""Talk to the server over real stdio, as a host would.
 
-                                                                               
-                                                                                
-                                    
-   
+Not an import check: this spawns mcp/server.py as a subprocess, negotiates, and
+calls each declared tool. A tool that imports but cannot be called over the wire
+is the failure this exists to catch.
+"""
 from __future__ import annotations
 import asyncio, json, os, pathlib, sys, tempfile
 
@@ -15,7 +15,7 @@ from test_portable_mcp import setup as portable_setup, PROJECT_ID as SYNTHETIC_P
 portable_setup()
 
 sys.path.insert(0, str(ROOT / "tests"))
-import tmp as tmpdir              
+import tmp as tmpdir  # noqa: E402
 
 from mcp import ClientSession, StdioServerParameters                              
 from mcp.client.stdio import stdio_client                                         
@@ -51,8 +51,8 @@ def payload(result) -> dict:
 
 
 async def run() -> None:
-                                                                             
-                                   
+    # A throwaway store: the write tools are exercised for real, and the live
+    # ledger never sees a test row.
     tmp = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-wire-")) / "test.db"
     params = StdioServerParameters(command=sys.executable,
                                    args=[str(ROOT / "mcp/server.py")], cwd=str(ROOT),
@@ -118,7 +118,7 @@ async def run() -> None:
             check("a scope missing its value is a typed answer, not a crash",
                   data.get("error") == "missing value" and not res.is_error, str(data)[:120])
 
-                                                                             
+            # ---- the write path, over the wire, including its refusals ----
             res = await session.call_tool("observatory_record", {
                 "statement": "wire test wrote this", "owner": "agent:wire-test",
                 "project_id": "project:observatory-wire-test", "why": "to prove the path exists"})

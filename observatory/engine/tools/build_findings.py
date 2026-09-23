@@ -44,16 +44,16 @@ OUT = paths.REGISTRY / "findings.json"
 ACKS = paths.FINDING_ACKS
 TODAY = date.today().isoformat()
 SOON_CRITICAL, SOON_WARNING = 30, 90
-                                                                              
-                                                                            
-                                                                             
-                                                                     
+#: How long a committed revision may sit unindexed before it is a finding. Six
+#: hours is twelve ticks at the launchd cadence: long enough that a provider
+#: hiccup or one reached ceiling resolves itself without paging the operator,
+#: short enough that a wedged queue is caught the same day it wedges.
 PROJECTION_LAG_HOURS = 6
 
-                                                                        
-                                                                                  
-                                                                               
-                                                                          
+#: How long a measured change may wait for interpretation before it is a
+#: finding. The same six hours as the projection's, for the same reason — twelve
+#: ticks at the launchd cadence — and named separately because the two answer
+#: different questions and one of them may need to move without the other.
 INTERPRETATION_LAG_HOURS = 6
 
                                                                        
@@ -61,12 +61,12 @@ INTERPRETATION_LAG_HOURS = 6
                                                                               
                                                                           
 PROJECTION_COMMIT_HOURS = 24
-                                                                              
-                                                                            
-                                                                               
-                                                                              
-                                                                               
-                                         
+#: Four ticks. `deltas.diffed_through` advances on every SUCCESSFUL diff, even
+#: one that found nothing, so a cursor that has not moved while fingerprints
+#: keep arriving means the `deltas` step itself has stopped running — and the
+#: agent is then being fed an empty queue while the estate changes. Four ticks
+#: rather than two, because a manual `snapshot` between ticks legitimately puts
+#: the pair out of step for one interval.
 DELTA_DIFF_HOURS = 2
                                                                              
                                                                            
@@ -82,9 +82,9 @@ DISK_WARNING_MIB, DISK_CRITICAL_MIB = 5120, 1024
                                   
 SCAN_WARNING_HOURS, SCAN_CRITICAL_HOURS = 3, 24
 
-                                                                              
-                                                                             
-                                                            
+#: Tick steps whose failure is worse than a degradation, and why. Anything not
+#: named here is a warning: the tick is designed to carry on, and most of its
+#: steps degrade into "not measured this run". These do not.
 SEVERE_STEPS = {
     "retention": "An ERASURE DID NOT COMPLETE. The ledger rows are tombstoned — the "
                  "system's own view says they are gone — while a derived index either "
@@ -99,9 +99,9 @@ REVIEW_HORIZON_DAYS = int(json.loads(
 )['ledger']['proposed_days'])
 REVIEW_BACKLOG = 20
 
-                                                                              
-                                                                              
-                                                    
+#: How many (source, reason) pairs a `collector.degraded` row prints. Six RDAP
+#: 404s fit; a collector failing on ninety owners must not print ninety lines,
+#: and the remainder is COUNTED rather than dropped.
 DEGRADED_LISTED = 8
 
 
@@ -145,10 +145,10 @@ def _remote_asked() -> str:
     except ValueError:
         return f"at {when}"
     hours = (datetime.now(timezone.utc) - made).total_seconds() / 3600
-                                                                              
-                                                                                
-                                                                              
-                                                                    
+    # THE DAY, NOT ONLY THE CLOCK. The first version printed `03:01Z, 27h ago`
+    # and a reader could not tell which day that was — and it dropped the date
+    # the row used to carry, which `tests/test_at_stake.py` noticed within the
+    # minute because the row's age assertion had been leaning on it.
     return (f"{when[:10]} {when[11:16]}Z, {hours:.0f}h ago" if hours >= 1
             else f"{when[:10]} {when[11:16]}Z, under an hour ago")
 
@@ -175,9 +175,9 @@ def days_until(iso: str) -> int | None:
         return None
 
 
-                                                                         
-                                                                               
-                            
+#: A daily growth big enough to be worth a sentence beside a full volume.
+#: Below this, a working tree's churn is noise — an editor's swap files and a
+#: build cache moving about.
 GROWTH_MIB_PER_DAY = 100
 
                                                                                 
@@ -262,9 +262,9 @@ SYNC_FINDINGS = {
         "the remote commit is not in this clone and there is no tracking ref to "
         "compare against, so the direction cannot be told without a fetch",
         "fetch when it matters — nothing local can answer this one"),
-                                                                              
-                                                                             
-                                                          
+    #: Set by `merge.py` when the probe could not reach the remote at all. The
+    #: reason is already reported by `remote.unreachable`; this row exists so
+    #: the state is DECLARED rather than silently skipped.
     "unreachable": ("info", "could not be compared with its remote",
                     "the remote did not answer when it was last probed",
                     "see the unreachable-remote finding for what git said"),
@@ -279,13 +279,13 @@ SYNC_FINDINGS = {
                                                      
 SYNC_SILENT = frozenset({"current"})
 
-                                                                              
-                                                                               
-                                                                            
-                                                                            
-                                                                                
-                                                                               
-                 
+#: The states that mean "there are commits here and on no remote". Spelled out
+#: rather than derived from the `warning` rows above, which it currently equals
+#: exactly: severity answers "how loudly should this be said", and one day a
+#: state will earn a warning for some other reason. Tying the two would move
+#: this set silently when that happens. Checked against `scan_remotes.STATES` by
+#: `tests/test_unpublished_work.py`, so a typo here cannot pass as a state that
+#: never matches.
 AT_RISK = frozenset({"local-only-branch", "ahead", "unpushed-and-remote-moved",
                      "diverged"})
 
@@ -430,9 +430,9 @@ def disk_culprits() -> tuple[list[str], list[str]]:
         c.close()
 
 
-                                                                              
-                                                                                
-                                                                                 
+#: Where the harness keeps the COPY it actually runs. A module constant rather
+#: than an inlined `Path.home()`, so a test can point it somewhere and drive the
+#: divergence — the rule `tools/check_paths.py` enforces for every other input.
 def shorten(p: pathlib.Path) -> str:
     ""                                                                          
     try:
@@ -465,32 +465,32 @@ def hours_since(stamp: str) -> float | None:
     return (datetime.now(timezone.utc) - when).total_seconds() / 3600
 
 
-                                                                             
-                                                                               
-                                                                       
+#: How many quarantined models a finding lists before it says how many it did
+#: not. A chain is three or four models long, so this is generous by design and
+#: exists so the cap is a constant rather than a slice nobody can find.
 QUARANTINE_LISTED = 6
 
-                                                                                 
-                                                                                  
-                                                                               
+#: A run older than this makes an empty quarantine list say nothing about health.
+#: The tick is every thirty minutes, so six hours is twelve missed cycles — well
+#: past "the agent is between runs" and into "nobody has asked a model lately".
 HEALTH_STALE_HOURS = 6.0
 
 
-                                                                               
-                                                                            
-                                                                           
-                                                                          
-                                                                               
+#: Faults inside the window before the pattern is a warning rather than a note.
+#: THREE, not two: `tick.step_failed` already reports the event, so a single
+#: fault would be two findings for one incident, and two in a week is still
+#: plausibly one bad afternoon. Three is where "the store fails sometimes"
+#: becomes the claim, and that claim has a different remedy from any one crash.
 STORE_FAULT_PATTERN = 3
 
-                                                                                
-                                                               
+#: The window the pattern is counted over. Matches `store_faults.recent()`'s own
+#: default so the finding and the CLI answer the same question.
 STORE_FAULT_DAYS = 7.0
 
-                                                                                
-                                                                              
-                                                                                
-                                                                   
+#: The window for LOST TURNS, and it matches `companion_faults.read()`'s default
+#: for the same reason. No `PATTERN` threshold beside it: one store fault in a
+#: week is plausibly one bad afternoon, whereas one turn the companion could not
+#: record is a hole in the ledger that nothing else will ever fill.
 COMPANION_FAULT_DAYS = 7.0
 
                                                                               
@@ -498,7 +498,7 @@ COMPANION_FAULT_DAYS = 7.0
                                                                 
 COMPANION_LISTED = 6
 
-                                                   
+#: The owner every interpretation is written under.
 AGENT_OWNER = "agent:observer"
 
 
@@ -507,23 +507,23 @@ AGENT_OWNER = "agent:observer"
 SKIP_SITES_LISTED = 5
 
 
-                                                                            
-                                                                            
-                                                                           
-                                                                                
-                                               
+#: What the provider's `limit_reset` words mean as a date. Only the one this
+#: account actually sends is interpreted; every other word yields None, so a
+#: finding says "not derivable" instead of printing a date nobody measured.
+#: OpenRouter sends `monthly` for a key limit, and a monthly key limit resets at
+#: the start of the next calendar month in UTC.
 RESET_WORDS = ("monthly",)
 
 
-                                                                           
-                                                                                  
-                                                                                
+#: How many holders the lever names before it says how many it did not. The
+#: helper already returns at most five ≥1 GB; this bounds a longer list from any
+#: other caller, and the row states the remainder rather than trimming silently.
 LEVER_HOLDERS_LISTED = 5
 
 
-                                                                             
-                                                                          
-                                   
+#: How many stale checkouts the aggregate names before it says how many more.
+#: Six is what fits one line beside sixty other findings; the remainder is
+#: stated rather than trimmed away.
 STALE_LISTED = 6
 
 
@@ -824,10 +824,10 @@ def gate_skip_findings(sites: list[dict]) -> list[dict]:
     return [{
         "type": "gate.skips_uncovered", "subject": "gate:assertions",
         "severity": "info",
-                                                                              
-                                                                           
-                                                                                
-                                                                              
+        # THREE HEADLINES, because the third state arrived: nothing unexamined
+        # and a judged gap still open. "0 of 70 do not say" as a title is a
+        # sentence about an empty set, and a reader who sees a zero at the front
+        # stops reading — so when the unexamined count is nil the gap leads.
         "title": ((f"{len(gaps)} of {len(skips)} skip site(s) "
                    f"{'is a judged gap' if len(gaps) == 1 else 'are judged gaps'}: "
                    f"the property is assertable and nothing asserts it yet")
@@ -845,19 +845,19 @@ def gate_skip_findings(sites: list[dict]) -> list[dict]:
                    + (f"{notes} further marker(s) annotate a run whose assertions "
                       f"do run, and are not counted here. " if notes else "")
                    + gap_text
-                                                                              
-                                                                          
-                                                                                
-                                                                               
-                                                                             
-                                                                           
-                                                                           
-                                                  
+                   # RENDERED ONLY WHEN THERE IS A LIST. This sentence used to
+                   # open with "One site does say: tests/test_footprint.py
+                   # points at tests/test_delivery.py" — true when exactly one
+                   # named a cover, false once 43 did — and then printed "The
+                   # rest: ." with nothing between the colon and the stop, on
+                   # the day the unexamined count reached zero. A hardcoded
+                   # count in prose beside a computed one is the drift this
+                   # whole board exists to remove.
                    + (("The unexamined: "
-                                                                                
-                                                                               
-                                                                            
-                                
+                       # `.get`, not `[...]`. A finding that raises on a missing
+                       # field is the thing that breaks the findings build, and
+                       # this one did exactly that against a fixture without
+                       # `line`.
                        + listed([f"{s.get('file', '?').split('/')[-1]}"
                                  f":{s.get('line', '?')}" for s in shown], 5)
                        + (f", and {rest} more" if rest > 0 else "")
@@ -967,9 +967,9 @@ MERGE_REMEDY = {
                  "stay `external`",
 }
 
-                                                                                
-                                                                               
-                   
+#: What a source nobody has written a remedy for gets. NOT one of the two above:
+#: a wrong prescription is followed, and the only evidence it was wrong is that
+#: nothing changed.
 MERGE_REMEDY_UNKNOWN = ("read the reason above — this degradation's class has no "
                         "recorded remedy in tools/build_findings.py, so nothing "
                         "here can tell you what to run")
@@ -1058,10 +1058,10 @@ def _erasure_horizon(row: dict) -> str:
             f"somebody decides first.")
 
 
-                                                                                
-                                                                           
-                                                                           
-                                                
+#: Cache for the day the estate began recording dark hosts — the MINIMUM first
+#: sighting in the file. A host standing on that day may have been dark for
+#: years; one first seen later was measured going dark. Derived rather than
+#: stored, so it needs no constant to keep true.
 _DARK_EPOCH: list[str | None] = []
 
 
@@ -1200,9 +1200,9 @@ def companion_findings(rows: list[dict], slot: dict,
             projects.append(p)
     reasons: list[str] = []
     for r in rows:
-                                                                              
-                                                                              
-                                     
+        # WHITESPACE NORMALISED, never a first line kept and the rest dropped:
+        # `[0]` on `splitlines()` is a silent cut, and `clipped` is what marks
+        # the one that has to happen.
         why = clipped(" ".join(str(r.get("reason") or "?").split()), 110)
         if why not in reasons:
             reasons.append(why)
@@ -1237,11 +1237,11 @@ def companion_findings(rows: list[dict], slot: dict,
                       "matches this repository",
             "evidence": ["store/raw/companion-faults.jsonl"]})
 
-                                                                                
-                                                                                 
-                                                                                
-                                                                                  
-                                   
+    # THE THIRD OUTCOME: the slot says the last turn faulted and the durable log
+    # has no such line. The append is the one write in this path that can fail on
+    # a full disk — the condition under which turns are ALSO most likely to be
+    # lost — so a count that silently omits it would be at its least trustworthy
+    # exactly when it matters most.
     at = str((slot or {}).get("at") or "")
     sess = str((slot or {}).get("session") or "")
     if (slot or {}).get("fault") and _within(at, days) and not any(
@@ -1474,28 +1474,28 @@ def provider_findings(health: dict | None, agent: dict | None) -> list[dict]:
 
 def collect() -> list[dict]:
     out: list[dict] = []
-                                                                               
-                                                                               
-                                
-                                                                             
-                                                                              
-                                                                               
-                                                                          
+    # WHERE THE ESTATE RUNS, on the same board as what it is made of. Absent is
+    # not clean and the rules know it: no scan means no rows, rather than a row
+    # claiming nothing is wrong.
+    # THE PATH INSERT, not a bare import. `tools/` is on `sys.path` only when
+    # this file is RUN as a script; imported by a test from elsewhere the bare
+    # import raised `ModuleNotFoundError` and took the whole rule set down with
+    # it — caught by `test-finding-rules` one gate run after it shipped.
     sys.path.insert(0, str(paths.ROOT / "tools"))
     import heroku_findings
     _hd = paths.REGISTRY / "heroku-apps.json"
     out.extend(heroku_findings.findings(
         json.loads(_hd.read_text(encoding="utf-8")) if _hd.is_file() else None))
-                                                                               
-                                                                                 
-                                                            
+    # WHAT THE CREDENTIAL INVENTORY OWES. `secret.leaked_unrotated` below reads
+    # the leak register; these read its neighbours — a lifetime cap, an account
+    # nothing claims, a credential known only from its leak.
     import credential_findings
     _cd = paths.REGISTRY / "credentials.json"
     out.extend(credential_findings.findings(
         json.loads(_cd.read_text(encoding="utf-8")) if _cd.is_file() else None))
-                                                                          
-                                                                               
-                                          
+    # WHAT SITS IN THE WORKING COPIES. The credential rules above read the
+    # provider accounts; these read the disk, and the two disagree often enough
+    # that neither is the other's summary.
     import env_findings
     _ed = paths.REGISTRY / "env-inventory.json"
     out.extend(env_findings.findings(
@@ -1528,10 +1528,10 @@ def collect() -> list[dict]:
     _rd = paths.REGISTRY / "remote-env.json"
     out.extend(remote_findings.findings(
         json.loads(_rd.read_text(encoding="utf-8")) if _rd.is_file() else None))
-                                                                                 
-                                                                             
-                                                                                 
-                       
+    # A VALUE OF OURS, SEEN SOMEWHERE ELSE. `tools/check_secrets.py` asks whether
+    # a tracked file holds anything key-SHAPED; this reads what the leak scan
+    # measured, which is the stronger question and the one that has actually gone
+    # wrong here twice.
     import leak_findings
     _ld = paths.SCRATCH / "leak-scan.json"
     out.extend(leak_findings.findings(
@@ -1556,9 +1556,9 @@ def collect() -> list[dict]:
         dark = h.get("resolves") is False and host in owned
         nc = (owned.get(host) or {}).get("namecheap") or {}
         renew_on, auto_renew = nc.get("expires_on"), nc.get("auto_renew")
-                                                                         
-                                                                              
-                                     
+        # Expiry belongs to the registered name. Reporting a subdomain as
+        # "expiring" would attribute its apex's deadline to something that has
+        # no registration of its own.
         if exp and about == host and host in owned:
             d = days_until(exp)
             if d is not None and d <= SOON_WARNING:
@@ -1607,10 +1607,10 @@ def collect() -> list[dict]:
         if verdict == "unreadable":
             unread_status.append(about)
         elif verdict == "held":
-                                                                               
-                                                                            
-                                                                               
-                                                                 
+            # Raised against the REGISTERED name, once. Every subdomain carries
+            # its apex's RDAP record, so emitting per host produced the same
+            # finding twice under one id — ids are the dedupe key and must be
+            # unique, which `main` now asserts rather than hopes.
             held.setdefault(about, {"statuses": m.get("statuses") or [],
                                     "expires_on": m.get("expires_on"), "hosts": []})
             held[about]["hosts"].append(host)
@@ -1677,20 +1677,20 @@ def collect() -> list[dict]:
                       "with, then `./observatory.py domains`",
             "evidence": ["registry:domain-liveness.json"]})
 
-                                                                              
-                                                                              
-                                                                          
-                                                                               
-                                                                                 
-                                                                                
-     
-                                                                           
-                                                                            
-                                                          
+    # A CLONE WHOSE `origin` NAMES AN ADDRESS THAT MOVED. GitHub keeps the old
+    # path working as a redirect, so `git fetch` succeeds and nothing anywhere
+    # says the address belongs to somebody else now. The merge follows the
+    # transfer on every tick — that is what keeps a phantom repository out of
+    # the registry — and it recorded having done so for nobody until this rule:
+    # two clones on this machine, every half hour, since the transfers happened.
+    #
+    # One finding per clone, not one for the lot: the remedy is a different
+    # command in a different directory each time, and a merged finding would
+    # make the operator reconstruct the list to act on it.
     for c in reg("stale-remotes.json").get("clones", []):
         if not c.get("folder"):
-                                                                                 
-                                                           
+            # No local checkout means nothing to repoint — the transfer is then
+            # merely history, and history is not a finding.
             continue
         out.append({
             "type": "repo.stale_remote", "subject": f"clone:{c['folder']}",
@@ -1799,26 +1799,26 @@ def collect() -> list[dict]:
             "action": "free space on the configured project volume; the storage "
                       "metrics identify the largest working trees",
             "evidence": ["shutil.disk_usage(.).free"]})
-                                                                               
-                                                                                
-                                                                    
+        # WHO IS RESPONSIBLE, from the plugin layer rather than from a `du` the
+        # operator has to run. This is the whole reason `disk-usage` exists, and
+        # until now its 92 rows had no reader outside the dashboard.
         big, grow = disk_culprits()
         if big or grow:
             out[-1]["detail"] += (
                 "\n\nLargest working trees: " + (", ".join(big) or "none over 0.5 GB")
                 + ".\nGrowing since the previous sample: "
                 + (", ".join(grow) or f"nothing by more than {GROWTH_MIB_PER_DAY} MiB")
-                                                                               
-                                                                                
-                                                                              
-                                                                                
-                                                   
+                # THE INSTALLED PLUGIN'S OWN WORDS. A literal "the `disk-usage`
+                # plugin, which excludes `.git`" here is a sentence that becomes
+                # false the day another plugin takes the role — and it put a
+                # plugin's name back into a core file, which is the promise this
+                # whole indirection exists to keep.
                 + f". Measured by the `{footprint_source() or 'footprint'}` plugin: "
                 + (footprint_means() or "see its manifest for what the number "
                                         "includes."))
-                                                                              
-                                                                               
-                                                                                
+            # AND WHAT WOULD ACTUALLY FREE SPACE. The list above answers "what
+            # does this project cost"; a full volume asks a different question,
+            # and the two were being confused by one finding reading one metric.
             freeable = reclaimable_holders()
             if freeable:
                 out[-1]["detail"] += (
@@ -1839,11 +1839,11 @@ def collect() -> list[dict]:
         try:
             _c = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
             try:
-                                                                             
-                                                                               
-                                                                                 
-                                                                            
-                                 
+                # PER-PROJECT latest, not a global MAX(at). Both shapes agree
+                # today because the disk plugin stamps the calendar day, so all
+                # 90 rows carry one timestamp — but a plugin that ever stamps a
+                # real moment would make the global shape shrink this number
+                # without a word.
                 _rec_total = _c.execute(
                     "SELECT sum(m.value) FROM metrics m JOIN ("
                     "  SELECT project_id, MAX(at) at FROM metrics WHERE metric=?"
@@ -1873,10 +1873,10 @@ def collect() -> list[dict]:
             print(f"  fixtures.json unreadable: {exc}", file=sys.stderr)
             swept = {}
         refused = swept.get("refused") or []
-                                                                               
-                                                                              
-                                                                                 
-                                                                    
+        # `stale_bytes`, NOT it plus `freed_bytes`. What removal reclaimed is a
+        # SUBSET of what was found stale, so adding them reported 18 GiB for a
+        # 9 GiB leak — caught by the suite on its first green run, which is the
+        # whole reason the number is asserted rather than eyeballed.
         leaked = int(swept.get("stale_bytes") or swept.get("freed_bytes") or 0)
         if refused or int(swept.get("stale") or 0) or int(swept.get("removed") or 0):
             gib = leaked / 1024 ** 3
@@ -2026,12 +2026,12 @@ def collect() -> list[dict]:
                           f"it is not a project here")
             out.append({
                 "type": "work.unattributed", "subject": f"session-name:{name}",
-                                                                          
-                                                                            
-                                                                            
-                                             
-                                                                        
-                                                        
+                # A LOST PROJECT IS THE LOUDEST OF THE THREE, whatever its
+                # session count: the other two are naming problems, and this
+                # one is work whose only record is a store this system reads
+                # read-only and does not own.
+                # A KEPT FACT IS NO LONGER URGENT: the warning was about
+                # perishability, not about the decision.
                 "severity": ("info" if kept else
                              ("warning" if verdict == "estate-folder-gone" or n >= 10
                               else "info")),
@@ -2065,9 +2065,9 @@ def collect() -> list[dict]:
         except ValueError:
             _health = None
     else:
-                                                                             
-                                                                               
-                                                                           
+        # ABSENT is not unreadable: the boundary writes the file on the first
+        # failure, so a system that has never quarantined anything has no file.
+        # Treated as empty, which then falls to the `ran_at` horizon below.
         _health = {}
     _ag = paths.SCRATCH / "agent.json"
     _agent: dict | None = None
@@ -2089,22 +2089,22 @@ def collect() -> list[dict]:
     except Exception as exc:                                                        
         print(f"  skip-site survey failed: {type(exc).__name__}: {exc}", file=sys.stderr)
 
-                                                                               
-                                                                               
-                                                                                   
-                                               
+    # THE STORE'S OWN FAULT HISTORY. Read through the module that writes it, so
+    # the finding and `store_faults.py --days` cannot disagree about the window
+    # or the tail — two readers of one log with two slicing rules is how a report
+    # and a CLI start contradicting each other.
     try:
         import store_faults
         out += store_fault_findings(store_faults.recent(STORE_FAULT_DAYS))
     except Exception as exc:                                                        
         print(f"  store fault log unreadable: {type(exc).__name__}: {exc}", file=sys.stderr)
 
-                                                                                 
-                                                                                
-                                                                              
-                                                                             
-                                                                                 
-                                                           
+    # THE PAGE ITSELF. Hashed here rather than inside the rule, so the rule stays
+    # a pure function of two arguments and every one of its four outcomes can be
+    # driven from a fixture — including the two nobody's estate has been in.
+    # BESIDE THE PAGE, so `OBSERVATORY_DASHBOARD` redirects the verdict along
+    # with the artefact it is about — one variable, and no second knob that can
+    # point at a different build than the one being hashed.
     try:
         smoke = paths.DASHBOARD_HTML.with_suffix(".smoke.json")
         rec = json.loads(smoke.read_text(encoding="utf-8")) if smoke.is_file() else None
@@ -2145,9 +2145,9 @@ def collect() -> list[dict]:
         limit = doc.get("limit")
         others = key_month - own_month
         age = hours_since(doc.get("checked_at") or "")
-                                                                             
-                                                                              
-                                                                
+        # WARNING only when the key is close to spent, because that is when a
+        # neighbour's spending becomes this system's problem: at zero, nothing
+        # can be bought and the outer backstop stops everything.
         low = (remaining is not None and limit
                and float(remaining) < 0.2 * float(limit))
                                                                                
@@ -2158,10 +2158,10 @@ def collect() -> list[dict]:
                                                                                  
                                                                                 
         spent = remaining is not None and float(remaining) <= 0
-                                                                                
-                                                                                  
-                                                                                  
-                                                            
+        # ONE derivation, shared with the symptom below. `limit_reset` is a word
+        # ("monthly"), never a date, so a block the system knows is temporary said
+        # nothing about when it lifts — and a warning that will be lit for three
+        # weeks reads exactly like one nobody has looked at.
         _reset = reset_date(doc.get("limit_reset"))
         if others > max(1.0, own_month * 2):
             out.append({
@@ -2299,9 +2299,9 @@ def collect() -> list[dict]:
                 "evidence": ["store/raw/serverd.json",
                              str(sd_plist)]})
 
-                                                                          
-                                                                           
-                                                                               
+    # A SESSION OBEYING OLD RULES. The handshake in `tools/skill_check.py`
+    # records what version of a MANDATORY skill each session read; a recent
+    # `stale` sighting means an agent is following text that has since changed.
     sk = paths.SCRATCH / "skill-sessions.json"
     if sk.is_file():
         try:
@@ -2680,26 +2680,26 @@ def collect() -> list[dict]:
                            "`~/.claude/plugins/cache/`, not the checkout, so every "
                            "change to the hook has no effect until it is "
                            "reinstalled: "
-                                                                         
-                                                                           
-                                                                               
-                                                                                
-                                                                             
-                                                                             
+                           # `~`-relative WHERE IT APPLIES. `relative_to`
+                           # raises for a path outside home, which is every
+                           # overridden install — so the tidier display broke
+                           # the finding it was tidying, and a test that pointed
+                           # the constant at a temp directory found it in one
+                           # run. Shortening a path must not be able to fail.
                            + listed([shorten(c) for c in stale], 3)),
                 "action": "`claude plugin uninstall observatory-log@observatory-log` "
                           "then install it again from the local marketplace, and "
                           "restart the session — hooks are read at session start",
                 "evidence": ["~/.claude/plugins/cache/observatory-log"]})
 
-                                                                               
-                                                                               
-                                                                              
-                                                                        
-     
-                                                                           
-                                                                              
-                                           
+    # THE WATCHER STOPPED WATCHING. Everything else in this file reports on the
+    # ESTATE; this reports on the observatory, and it is the only finding whose
+    # absence is itself the failure — a stopped tick produces no findings at
+    # all, so the last built set stays on the dashboard looking current.
+    #
+    # Which is why the age is measured from the STORE rather than from this
+    # file: `findings.json` is rebuilt by the same tick that scans, so its own
+    # freshness cannot testify to anything.
     newest_scan = None
     if paths.DB.is_file():
         try:
@@ -2766,9 +2766,9 @@ def collect() -> list[dict]:
             out.append({
                 "type": "wiki.links_unchecked", "subject": "wiki:links",
                 "severity": "info",
-                                                                            
-                                                                             
-                                                                                 
+                # AN ABSOLUTE STAMP, not a relative age, for the same reason
+                # as the disk figure above: a stamp is stable until the audit
+                # runs again, while "37h" changes every hour in a committed file.
                 "title": (f"the wiki's links have not been checked since "
                           f"{doc.get('ran_at')}" if stale is not None
                           else "the wiki's link check has never completed"),
@@ -2855,9 +2855,9 @@ def collect() -> list[dict]:
         elsewhere = {"malformed", "credential"}
         mine = [x for x in faults if (x.get("kind") or "") not in elsewhere]
         n_failed = int(adoc.get("failed") or 0)
-                                                                            
-                                                                          
-                                                            
+        # The count minus what other findings cover. A report written before
+        # `faults` existed carries the count and no list, and going silent
+        # because the DETAIL is missing would hide the fact.
         covered = len(faults) - len(mine)
         unexplained = max(n_failed - covered, 0) if faults else n_failed
         if unexplained:
@@ -3053,10 +3053,10 @@ def collect() -> list[dict]:
                               f"and `--check` for the manifest",
                     "evidence": ["store/raw/plugins.json#plugins"]})
             elif refused:
-                                                                           
-                                                                                 
-                                                                            
-                                                                               
+                # REFUSED IS NOT SKIPPED. The plugin ran and wrote rows the
+                # runner rejected — an undeclared metric, an unknown project, a
+                # timestamp that is not UTC Z. The measurements are silently
+                # absent rather than wrong, which is the harder failure to see.
                 out.append({
                     "type": "plugin.refused", "subject": f"plugin:{p['id']}",
                     "severity": "warning",
@@ -3131,16 +3131,16 @@ def collect() -> list[dict]:
                           "boundary as a commit-only series",
                 "evidence": ["store/raw/rollup.json#frozen_without_sessions"]})
 
-                                                                                
-                                                                                  
-                                                                                
-                                                                               
-                                                                                 
-                                         
-     
-                                                                               
-                                                                                     
-                                                                          
+    # AN ERASURE WHOSE BYTES ARE STILL IN THE FILE. `retention.py apply` returns
+    # non-zero for this, so `tick.step_failed` grades it critical too — but that
+    # finding says "a step failed" and this one says WHICH guarantee is open and
+    # what reopens it. The receipt is read rather than the log, because the log
+    # is not read on a schedule and the whole point of persisting it was that the
+    # attestation should outlive the run.
+    #
+    # Only a measured NEGATIVE is raised. An absent receipt means retention has
+    # not run in this checkout — true of every fresh clone — and raising it would
+    # put a critical finding in front of anyone who cloned the repository.
     ret = paths.SCRATCH / "retention.json"
     if ret.is_file():
         try:
@@ -3149,11 +3149,11 @@ def collect() -> list[dict]:
             rec = {}
         scrubbed = (rec.get("scrub") or {}).get("scrubbed")
         if scrubbed is False:
-                                                                              
-                                                                            
-                                                                              
-                                                                                
-                                                         
+            # TWO STATES, NOT ONE. `failed` means the pass never completed, so
+            # nothing was erased; without it the rows went and the file kept
+            # their text. A single title asserting "rows were erased" would be
+            # false in the first case — a finding that misstates what happened
+            # is worse than none, because it is acted on.
             broke = rec.get("failed")
             out.append({
                 "type": "erasure.not_scrubbed", "subject": "store:observatory.db",
@@ -3274,10 +3274,10 @@ def collect() -> list[dict]:
                 parent = next((d for d in held if s["host"].endswith("." + d)), None)
                 out.append({
                     "type": "site.dead", "subject": p["id"],
-                                                                               
-                                                                             
-                                                                             
-                                                                                
+                    # A SYMPTOM OF A KNOWN CAUSE IS NOT INDEPENDENTLY CRITICAL.
+                    # It stays a finding — the dashboard shows findings per
+                    # project, and a project whose site is dark must not look
+                    # clean — but the operator has one thing to do, not three.
                     "severity": "warning" if parent else "critical",
                     "title": f"{p['name']} publishes {s['host']}, which is dark",
                     "detail": ("The registry presents this host as the project's "
@@ -3439,9 +3439,9 @@ def collect() -> list[dict]:
                                                                                 
                                              
     release_metric = metric_for_role(RELEASE_COUNT_ROLE)
-                                                                                
-                                                                             
-                            
+    # `paths.DB`, not the local `db` — that name is bound further down in this
+    # function, and reading it here made the whole block an UnboundLocalError
+    # rather than a finding.
     if release_metric and paths.DB.is_file():
         try:
             c = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
@@ -3469,8 +3469,8 @@ def collect() -> list[dict]:
             if (p.get("activity_tier") or "") in quiet_tiers:
                 shipped_none[p["id"]] = p
     if shipped_none:
-                                                                                 
-                                                                     
+        # QUIETEST FIRST, by the date the tier is derived from. A list ordered by
+        # id would put the decision that has waited longest anywhere.
         order = sorted(shipped_none.values(),
                        key=lambda p: (p.get("last_activity_on") or "", p["id"]))
         rows = [f"{p['id']} ({p.get('activity_tier')}, last "
@@ -3516,9 +3516,9 @@ def collect() -> list[dict]:
         verdict = str(iv.get("verdict") or "")
         age_h = hours_since(iv.get("ran_at") or "")
         if verdict in ("damaged", "unopenable"):
-                                                                                
-                                                                          
-                                                                          
+            # CRITICAL, and the only finding in this file that says so about the
+            # store: `registry/ledger.jsonl` is "the only copy outside the
+            # store", and everything else here is derived and rebuildable.
             said = ("SQLite reported problems in the file"
                     if verdict == "damaged" else
                     "the file would not open as a database at all")
@@ -3571,13 +3571,13 @@ def collect() -> list[dict]:
             print(f"  tick-lease.json unreadable: {exc}", file=sys.stderr)
             lease = {}
         skips = int(lease.get("consecutive_skips") or 0)
-                                                                                 
-                                                                               
-                                                      
+        # ONE skip is the design working — the next tick is thirty minutes away
+        # and a single gap costs half an hour. Two means an hour, which is when
+        # "the dashboard is current" stops being true.
         if skips >= TICK_SKIPS_BEFORE_WARNING:
             holder = str(lease.get("holder") or "another run")
-                                                                             
-                                                                      
+            # NAMED, not guessed. `ga` is the gate's own tag and nothing else
+            # uses it; any other holder is reported as the id it gave.
             who = ("a `./observatory.py check` run — the gate holds the registry "
                    f"for its whole duration ({holder})"
                    if holder.startswith("r-ga") else holder)
@@ -3705,9 +3705,9 @@ def collect() -> list[dict]:
                   f"repository published nowhere, so this history exists on one "
                   f"disk.")
         if dirty:
-                                                                           
-                                                                              
-                                                      
+            # A DIFFERENT LOSS. These are not committed even locally, so no
+            # amount of pushing would have saved them; saying "push" over them
+            # would be a remedy for the wrong problem.
             detail += (f" {dirty} uncommitted file{'' if dirty == 1 else 's'} "
                        f"beside it are not in any commit, local or otherwise.")
         out.append({
@@ -3802,13 +3802,13 @@ def collect() -> list[dict]:
                           "either way — the deltas stay queued."),
                 "evidence": ["store:raw/agent.json", "store:deltas"]})
 
-                                                                               
-                                                                             
-                                                                              
-                                                                               
-                                                                            
-                                                                          
-                                                 
+    # A NOTIFICATION CHANNEL THAT COULD NOT DELIVER. `tools/notify_findings.py`
+    # used to record a failed send as if it had happened — the dedup key is
+    # `(kind, ref)`, so one failed `osascript` silenced a critical finding for
+    # ever. It now records only what was delivered and writes the failure here,
+    # because the alternative to a permanent silence is a retry every thirty
+    # minutes that nobody hears either: the operator has to learn that the
+    # channel is dead, not merely stop receiving.
     notif = paths.SCRATCH / "notify.json"
     if notif.is_file():
         try:
@@ -3835,12 +3835,12 @@ def collect() -> list[dict]:
                           "or read the dashboard instead — the findings are all there",
                 "evidence": ["store:raw/notify.json", "registry:findings.json"]})
 
-                                                                            
-                                                                              
-                                                                       
-                                                                              
-                                                                           
-                                                                        
+    # A STEP OF THE TICK THAT FAILED. Twelve of the tick's steps piped their
+    # output through the logger and discarded the exit code (`set -o pipefail`
+    # was on, so the value existed and was thrown away). One of them is
+    # `store/retention.py apply`, whose non-zero exit means an erasure did not
+    # complete — the contract's "completion blocks until every configured
+    # backend attests" was true of the function and false of the system.
     tickf = paths.SCRATCH / "tick.json"
     if tickf.is_file():
         try:
@@ -3865,12 +3865,12 @@ def collect() -> list[dict]:
                           f"`./observatory.py` for that step by hand to see it fail",
                 "evidence": ["store:raw/tick.json", "store:logs/tick.log"]})
 
-                                                                             
-                                                                      
-                                                                
-                                                                           
-                                                                       
-                                                                
+    # WORK GIT CAN NO LONGER PLACE. `tools/corroborate.py` refuses to promote
+    # a `session` row whose recorded sha is gone or has fallen off its
+    # branch, and its own docstring calls that "a finding, not a
+    # corroboration" — while the refusal went to stdout and nowhere else.
+    # The row then waits `proposed` until retention erases it at ninety
+    # days, taking the only record of the vanished work with it.
     corr = paths.SCRATCH / "corroboration.json"
     if corr.is_file():
         try:
@@ -3922,10 +3922,10 @@ def collect() -> list[dict]:
     if db.is_file():
         try:
             c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-                                                                             
-                                                                           
-                                                                               
-                                                                
+            # RECORDS, not revisions. The first version counted rows and said
+            # "43 are still proposed" while 28 records were: one memory had
+            # nineteen revisions and was counted nineteen times. A queue length
+            # that counts history is a number nobody can act on.
             n = c.execute(
                 "SELECT COUNT(*) FROM ledger l JOIN (SELECT memory_id, MAX(revision) rev "
                 "FROM ledger GROUP BY memory_id) m ON l.memory_id = m.memory_id "
@@ -3965,11 +3965,11 @@ def collect() -> list[dict]:
             except sqlite3.Error as exc:
                 print(f"  queue shape unreadable: {exc}", file=sys.stderr)
 
-                                                                                  
-                                                                                   
-                                                                                    
-                                                                                   
-                                                
+            # A COUNT is not the alarm; a DEADLINE is. "106 await review" reads as
+            # housekeeping, and it read that way for as long as the number climbed.
+            # "9 will be erased unreviewed in eleven days" is a decision with a date
+            # on it — and erasure by timeout is what `tools/corroborate.py` calls
+            # "not review" in its own docstring.
             soon = c.execute(
                 "SELECT COUNT(*), MIN(l.created_at) FROM ledger l"
                 " JOIN (SELECT memory_id, MAX(revision) rev FROM ledger GROUP BY memory_id) m"
@@ -4057,12 +4057,12 @@ def collect() -> list[dict]:
                 "evidence": ["store:ledger"]})
 
 
-                                                                                  
-                                                                                 
-                                                                                   
-                                                                                 
-                                                                                  
-                                                    
+        # The projection's LAG, by age rather than by count. A count says nothing:
+        # 500 rows that drain on the next tick are healthy, and one row stuck for
+        # a week is not — it means every search since then answered from an index
+        # missing it. The age is the ledger's `created_at`, because an append and
+        # its outbox row are one transaction (`store/ledger.py:_commit_revision`),
+        # so the committed time IS the enqueue time.
         stale_at = (datetime.now(timezone.utc)
                     - timedelta(hours=PROJECTION_LAG_HOURS)).strftime("%Y-%m-%dT%H:%M:%SZ")
         try:
@@ -4193,8 +4193,8 @@ def main(argv: list[str]) -> int:
         if f["severity"] == "critical" and not f.get("acked"):
             print(f"  ! {f['title']}")
     if gone:
-                                                                               
-                                                                             
+        # `listed`, on stdout too: the tick swallows this into a log, and "four
+        # findings resolved" when eleven did is the same wrong reading there.
         print(f"  resolved since last run: {listed(gone, 4)}")
     return 0
 

@@ -74,8 +74,8 @@ def load_annotations() -> dict[str, dict]:
         _register_problem(ANNOTATIONS, exc)
         return {}
 
-                                                                             
-                                                                   
+#: A vault slot is exactly three segments deep. Anything else is not a secret
+#: slot — `leaks.jsonl` and the retired archive live beside them.
 SLOT = 3
 
 
@@ -211,11 +211,11 @@ def _plugin_readers() -> dict[str, str]:
             if not req.startswith("path:"):
                 continue
             target = pathlib.Path(req[5:]).expanduser()
-                                                                          
-                                                                              
-                                                                             
-                                                                              
-                                                    
+            # BY NAME, against the DEFAULT store rather than the one being
+            # scanned: "which plugin reads a secret called X" is a property of
+            # the manifests, not of where the store happens to sit. Comparing
+            # against the scanned root made every reader None under a sandbox,
+            # which is the one place this is tested.
             if target.parent == MACHINE_STORE:
                 out[target.name] = f"plugins/{script}"
     return out
@@ -231,10 +231,10 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
     for p in sorted(root.iterdir()):
         if p.name.startswith(".") or p.name.endswith((".meta.json", ".tmp")):
             continue
-                                                                               
-                                                                               
-                                                                                   
-                                                                          
+        # THE VAULT IS NOT A MACHINE SECRET. `secrets/projects/` is the project
+        # vault's own store, and every slot inside it already has a record from
+        # `from_vault` — counting the directory again would report one credential
+        # for the whole vault and inflate the totals the validator checks.
         if p.name == "projects":
             continue
         if p.is_dir():
@@ -243,7 +243,7 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
                                                                             
             files = [c for c in sorted(p.iterdir())
                      if c.is_file() and not c.name.startswith(".")
-                                                                           
+                     # a .meta.json is the RECORD of a holder, not a holder
                      and not c.name.endswith(".meta.json")]
             if not files:
                 continue
@@ -261,9 +261,9 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
             continue
         if not p.is_file():
             continue
-                                                                               
-                                                                           
-                                                 
+        # A service-account file states its own identity in the clear, and that
+        # identity is what an operator needs to grant or revoke access. The
+        # private key beside it is never touched.
         identity = None
         if p.name.endswith(".json"):
             try:
@@ -292,7 +292,7 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
                                                                              
                                     
 PROJECT_SECRET_DIRS = ("secrets", ".secrets")
-                                                          
+#: Files that are the ABSENCE of a secret rather than one.
 NOT_A_SECRET = {".gitkeep", ".gitignore", ".DS_Store", "README.md", "readme.md"}
 
 
@@ -518,8 +518,8 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
         if leak:
             c["leaked_on"] = (leak.get("at") or "")[:10]
             c["leaked_where"] = (leak.get("where") or "")[:400]
-                                                                        
-                                                      
+        # MEASURED FIRST. A vault slot names its project in the path; an
+        # OpenRouter key names the consumer it serves.
         if c.get("serves") and dest_owner.get(c["serves"]):
             edge(c["id"], dest_owner[c["serves"]], "destination-path", ["SRC-0014"])
                                                                        
@@ -572,9 +572,9 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
     for c in creds:
         sig = signatures.get(c["id"])
         if sig:
-                                                                              
-                                                                                
-                                                     
+            # CARRIED WHOLE, not unpacked into the record: `signature.purpose`
+            # says where the sentence came from, and a bare `purpose` field on a
+            # measured record would read as measured.
             c["signature"] = sig
     creds.sort(key=lambda c: (c["kind"], c["id"]))
     return creds, edges
@@ -607,9 +607,9 @@ def document(creds: list[dict], scan: dict, obs_date: str) -> dict:
         "destinations": scan.get("destinations") or {},
         "unlisted_destinations": scan.get("unlisted_destinations") or [],
         "degraded": scan.get("degraded") or [],
-                                                                         
-                                                                                    
-                                                                                  
-                                                                   
+        # A curated register that exists and would not read. Empty is the
+        # normal state; a row here is a board row (`credential.register_unreadable`)
+        # and withholds `credential.unsigned`, which would otherwise fire on every
+        # credential at once and say the opposite of what happened.
         "registers_unreadable": list(REGISTER_PROBLEMS),
     }

@@ -28,18 +28,18 @@ def load(name):
         return json.load(handle)
 
 
-                                                                               
-                                                                                 
-                                                                              
-                                                                                   
-                       
+#: The rolling windows the work tiles report over. Rolling rather than calendar
+#: weeks, because every one of the 852 rows in `project_week` is still `open` —
+#: the freeze rule fires at `week_start < today - 365d` and the oldest week is
+#: exactly one year old — so a "this week" tile would be comparing a partial week
+#: against a whole one.
 WORK_WINDOWS = (7, 28)
 
 
 
-                                                                            
-                                                                               
-                                                                  
+#: The clone states that assert work on this disk and possibly nowhere else.
+#: Named here rather than repeated: `collectors/scan_remotes.AT_RISK_STATES` is
+#: the same list at the measuring end, and the two must not drift.
 AT_RISK_SYNC = ("ahead", "local-only-branch", "unpushed-and-remote-moved",
                 "diverged")
 
@@ -59,9 +59,9 @@ def at_risk_total(repos: dict) -> dict:
     if not risky:
         return {}
     counted = [r for r in risky if isinstance((r.get("local") or {}).get("unpushed"), int)]
-                                                                           
-                                                                                
-                                                                               
+    # MEASURED AS NOTHING is its own group, not part of the unmeasured. Two
+    # `local-only-branch` checkouts hold no commit any remote lacks, and calling
+    # them "not counted" overstated the uncertainty of the estate's own figure.
     nothing = [r for r in risky if (r.get("local") or {}).get("nothing_exclusive")]
     unmeasured = len(risky) - len(counted) - len(nothing)
     if not counted:
@@ -109,12 +109,12 @@ def work_stats() -> dict:
                 (f"-{days} days",)).fetchone()
             if r is None:
                 continue
-                                                                                
-                                                    
+            # The window is IN THE LABEL. "2222" means nothing on its own, and a
+            # tile is one number beside one caption.
             out[f"коммитов за {days} дн"] = r["c"]
             out[f"проектов в работе, {days} дн"] = r["p"]
-                                                                              
-                                                     
+        # WHERE the work went, not only how much. A name rather than a number,
+        # which the tile renderer prints identically.
         top = conn.execute(
             "SELECT project_id, count(*) c FROM events WHERE kind='commit'"
             "   AND project_id IS NOT NULL"
@@ -124,8 +124,8 @@ def work_stats() -> dict:
             out[f"больше всего работы, {max(WORK_WINDOWS)} дн"] = (
                 top["project_id"].split(":", 1)[-1])
     except sqlite3.Error as exc:
-                                                                              
-                                                        
+        # NAMED. A silent handler here would drop the tiles and leave the page
+        # looking exactly as it did before this existed.
         print(f"  work tiles unavailable: {type(exc).__name__}: {exc}", file=sys.stderr)
         return {}
     finally:
@@ -225,9 +225,9 @@ def from_store() -> dict:
         out["queue"] = _queue(conn)
         out["digest"] = _digest(conn)
     except sqlite3.Error as exc:
-                                                                            
-                                                                              
-                           
+        # The queue is the least of what this function returns; a store that
+        # cannot answer for it must not cost the caller the weeks, metrics and
+        # health beside it.
         out["queue"] = []
         out["degraded"] = (out["degraded"] or "") + f" очередь не прочиталась: {type(exc).__name__}"
     try:
@@ -300,8 +300,8 @@ def from_store() -> dict:
                     if m["n"] == r["metric"]:
                         m["p"], m["pat"] = r["value"], r["at"]
                         break
-                                                                            
-                                                                                 
+        # S3: the story of ONE project. Ten commits is what a panel can show
+        # without becoming a log; the rest is what `observatory_timeline` is for.
         for r in conn.execute(
                 "SELECT project_id, occurred_at, actor, payload_json FROM events"
                 " WHERE kind='commit' AND project_id IS NOT NULL"
@@ -359,10 +359,10 @@ def from_store() -> dict:
             "registry_proposals": conn.execute(
                 "SELECT COUNT(*) FROM proposals WHERE status='proposed'").fetchone()[0],
         }
-                                                                               
-                                                                          
-                                                                                  
-                                 
+        # The projection's lag. Both search indexes are fed by the outbox, so a
+        # pending queue means the answer any search gives is missing these
+        # revisions — and this page is where "the observer is still watching" is
+        # supposed to be legible.
         lag = conn.execute(
             "SELECT count(*) AS n, min(l.created_at) AS oldest FROM outbox o"
             " JOIN ledger l ON l.memory_id = o.memory_id AND l.revision = o.revision"
@@ -489,9 +489,9 @@ def _findings_panel(FINDINGS: dict) -> dict:
         per_type[f["type"]] = n + 1
         items.append({**f, "folded": n >= FINDINGS_ON_PAGE})
     folded_by_type = {k: v - FINDINGS_ON_PAGE for k, v in per_type.items() if v > FINDINGS_ON_PAGE}
-                                                                            
-                                                                              
-                                                 
+    # WHAT THE OPERATOR SILENCED, beside what speaks (S5). Withheld from the
+    # list and the counts, shown here with the reason — a silence nobody can
+    # see later is the silence this file refuses.
     silenced = [{"id": f["id"], "type": f["type"], "severity": f["severity"],
                  "title": f["title"], "acked": f["acked"]}
                 for f in FINDINGS["findings"] if f.get("acked")]
@@ -512,14 +512,14 @@ def build():
 
     _fd = INV / "findings.json"
     FINDINGS = json.loads(_fd.read_text(encoding="utf-8")) if _fd.is_file() else None
-                                                                                
-                                                                          
-                                                        
+    # ABSENT IS NOT EMPTY. A fresh clone has no scan and `heroku-apps.json` will
+    # not exist; the tab then says the estate was never asked, rather than
+    # showing nothing and reading as "you host nothing".
     _hd = paths.REGISTRY / "heroku-apps.json"
     HEROKU = json.loads(_hd.read_text(encoding="utf-8")) if _hd.is_file() else None
-                                                                               
-                                                                            
-                                                                                   
+    # NEVER A VALUE, and the document is built so it cannot hold one: a `label`
+    # is what the provider calls a key. `tools/check_secrets.py` reads it on
+    # every gate run, so the page inherits that guarantee rather than restating it.
     _cd = paths.REGISTRY / "credentials.json"
     CREDS = json.loads(_cd.read_text(encoding="utf-8")) if _cd.is_file() else None
                                                                                
@@ -568,11 +568,11 @@ def build():
         CREDS["unrecorded"] = [{**u, "project": _hk_project.get(u["app"])}
                                for u in _movements.unrecorded(_hk_trail, _movements.read_moves(_leaks))]
 
-                                                                           
-                                                                                 
-                                                                              
-                                                                              
-                                                          
+    # WHAT IS ON THIS DISK, as names. The credential document above answers
+    # "which accounts exist"; this answers "what is sitting in the working copy",
+    # and the whole document is sent rather than a trimmed one: the trim saved
+    # 156KB of a 1.1MB page and cost a paragraph explaining what had been left
+    # out, which is a bad trade for a file opened locally.
     _ed = paths.REGISTRY / "env-inventory.json"
     ENVD = json.loads(_ed.read_text(encoding="utf-8")) if _ed.is_file() else None
                                                                                       
@@ -624,9 +624,9 @@ def build():
                                   "admin_url": _p.get("admin_url"),
                                   "hosts": _p.get("hosts") or [],
                                   "rule": _p.get("link_rule")})
-                                                                               
-                                                                                 
-                                                     
+    # SEARCH CONSOLE, JOINED THE SAME WAY: a site is a host, and a host already
+    # resolves to a project through the registry — so the console link lands on
+    # the project rather than on a list nobody opens.
     import sys as _sys
     _sys.path.insert(0, str(paths.ROOT / "plugins"))
     import hostmap as _hostmap
@@ -702,9 +702,9 @@ def build():
                                                                                
                                                                             
             "wiki_notes": project.get("vault_notes", 0),
-                                                                             
-                                                                               
-                                      
+            # Measured liveness, folded in per host. A homepage that does not
+            # resolve is the one fact about a site an operator must not have to
+            # discover by clicking it.
             "sites": [{**x, "live": LIVE.get(x["host"])} for x in project.get("sites", [])],
             "products": PRODUCT_OF.get(project["id"], []),
             "repos": [{
@@ -737,8 +737,8 @@ def build():
     rows.sort(key=lambda r: (r["ownership"] != "owned", r["owner"].lower(), -len(r["repos"]), r["name"].lower()))
 
     stats = {
-                                                                        
-                                                             
+        # WHAT HAPPENED, first, because the estate's inventory answers a
+        # different question and answered it alone until now.
         **work_stats(),
                                                                              
                                                                       
@@ -752,16 +752,16 @@ def build():
         "dirty": sum(1 for r in rows for x in r["repos"] if x["dirty"]),
         "unsynced": sum(1 for r in rows for x in r["repos"]
                         if x["sync"] and x["sync"] != "current"),
-                                                                                 
-                                                                               
-                                                                    
+        # Counted although it is shown nowhere. An inactive repository anchors no
+        # project, so it cannot appear in a row — and a registry that hides a
+        # thing without saying how many it hid is lying by omission.
         "inactive_repos": sum(1 for r in repos.values()
                               if r.get("status") == "inactive"),
         "dead_site": sum(1 for r in rows
                          if any(s.get("live") and not s["live"]["resolves"] for s in r["sites"])),
-                                                                                
-                                                                       
-                                                      
+        # PROJECTS whose lifecycle is archived — not archived repositories, of
+        # which there are more. One word for two populations reads as a
+        # contradiction the moment both are on screen.
         "archived": sum(1 for r in rows if r["lifecycle"] == "archived"),
         "archived_repos": sum(1 for r in repos.values() if r.get("archived")),
         "domains": len(domains),
@@ -775,9 +775,9 @@ def build():
                                      
         "domains_no_row": len(domains - {s["host"] for r in rows for s in r["sites"]}),
         "owners": len({r["owner"] for r in rows}),
-                                                                           
-                                                                             
-                                                                              
+        # THE COUNT OF WHAT IS RUNNING, beside the count of what exists. An
+        # application nothing claims is the same omission as a domain nothing
+        # claims, one provider over, and it is the reason this tile is a pair.
         "heroku_apps": len(HEROKU["apps"]) if HEROKU else 0,
         "heroku_unlinked": (HEROKU.get("totals", {}).get("unlinked", 0) if HEROKU else 0),
         "heroku_cost": (HEROKU.get("totals", {}).get("monthly_cost", 0) if HEROKU else 0),
@@ -788,10 +788,10 @@ def build():
                             if a["state"] in ("down", "suspended") or a["crashed"])
                         if HEROKU else 0),
     }
-                                                                           
-                                                                           
-                                                                            
-                      
+    # A project's own applications, folded onto its row. `state` and `cost`
+    # travel with it because the two questions an operator asks of a hosted
+    # project — is it up, what does it cost — must be answerable without
+    # leaving the row.
     if HEROKU:
         by_project = {}
         for a in HEROKU["apps"]:
@@ -822,9 +822,9 @@ def build():
                           "queue": store.get("queue") or [],
                           "digest": store.get("digest"),
                           "health": store["health"], "store_degraded": store["degraded"],
-                                                                               
-                                                                                 
-                                                                                  
+                          # Acknowledged findings are withheld from the page on
+                          # purpose: the operator silenced them, and a panel that
+                          # shows them anyway teaches that silencing does nothing.
                           "findings": (_findings_panel(FINDINGS)
                                        if FINDINGS else None),
                                                                                
@@ -3918,8 +3918,8 @@ if __name__ == "__main__":
     OUT.parent.mkdir(parents=True, exist_ok=True)
     atomic.write_text(OUT, build())
     print(f"wrote {OUT} ({OUT.stat().st_size // 1024} KB)")
-                                                                               
-                                                                    
+    # The split pages, from the same payload: docs/dashboard/index.html is what
+    # a person opens; the single page above is what the checks read.
     sizes = build_pages(build.last_payload)
     print(f"wrote {len(sizes)} page(s) under {paths.DASHBOARD_DIR}: "
           + ", ".join(f"{k} {v // 1024} KB" for k, v in sizes.items()))

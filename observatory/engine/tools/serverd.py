@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-""                                                                               
+"""The observatory's always-on local server: live like the memory worker is live.
 
-                                                                       
-                                                                           
-                                                                         
-                                                                  
-                                                                               
+    tools/serverd.py --run            # foreground (launchd calls this)
+    tools/serverd.py --install       # launchd plist: RunAtLoad + KeepAlive
+    tools/serverd.py --uninstall     # off, and STAYS off until --install
+    tools/serverd.py --status        # is it up, and what it knows
+    tools/serverd.py --once          # one refresh cycle, receipt, exit (tests)
 
-                                                                              
-                                                                                
-                                                                             
+WHAT IT IS. The tick is a pulse: every thirty minutes it measures and stops. A
+person or an agent between pulses talks to files. This daemon is the third shape
+— a process that is UP by default, dies only when told to, and answers now:
 
                                                                                 
                                                                                  
@@ -38,10 +38,10 @@
                                                                               
                                                                            
 
-                                                                             
-                                                                           
-                                     
-   
+SECURITY. Binds 127.0.0.1 only. Serves NO secret values anywhere: `/leaks` is
+names, places and dates from the register, which never held values to begin
+with. GET only; anything else is 405.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -72,9 +72,9 @@ except ImportError:
     import install_launchd
 LABEL = install_launchd.instance_label("server")
 PLIST = pathlib.Path.home() / "Library/LaunchAgents" / f"{LABEL}.plist"
-                                                                           
-                                                                          
-                                                              
+#: Sync states that mean work exists on this disk only. Mirrors the board's
+#: `AT_RISK`; spelled here because the daemon must not import the findings
+#: builder (it reads receipts the builder writes — a cycle).
 AT_RISK = ("ahead", "local-only-branch", "unpushed-and-remote-moved", "diverged")
 REFRESH_SECONDS = 20
 STARTED = time.time()
@@ -93,11 +93,11 @@ def _read_json(p: pathlib.Path):
 
 
 def refresh_remote() -> dict:
-    ""                                                                    
+    """The remote axis, summarised from what the collectors last measured.
 
-                                                                            
-                                                
-       
+    Absent is not zero: when the registry cannot be read the summary SAYS so
+    instead of reporting an estate with no risk.
+    """
     doc = _read_json(paths.REGISTRY / "repositories.json")
     if not doc:
         return {"readable": False, "measured_from": None, "states": {},
@@ -149,15 +149,15 @@ def refresh_leaks() -> dict:
     open_rows = [r for r in rows if r.get("id") not in settled]
     return {"register": True, "readable": True, "total": len(rows),
             "open": len(open_rows),
-                                                                           
-                                                                             
-                                                
+            # The PLACE travels with the name: "which secret" without "seen
+            # where" cannot be judged, and the register never held values, so
+            # there is nothing here to withhold.
             "open_secrets": [{"secret": r.get("secret"), "where": r.get("where"),
                               "at": r.get("at")} for r in open_rows]}
 
 
 def refresh_skills() -> dict:
-    ""                                                                    
+    """Shipped skill versions beside what sessions have reported using."""
     shipped: dict[str, str] = {}
     for sk in (ROOT / "skill/plugins/observatory-log/skills").glob("*/SKILL.md"):
         body = sk.read_text(encoding="utf-8")
@@ -189,7 +189,7 @@ def heartbeat() -> dict:
 
 
 def local_request(host: str, origin: str | None, fetch_site: str | None, port: int) -> bool:
-    ""                                                                             
+    """Loopback binding alone does not prevent a rebinding origin reading state."""
     if host not in {f"127.0.0.1:{port}", f"localhost:{port}"}:
         return False
     if fetch_site == "cross-site":
@@ -210,8 +210,8 @@ def local_request(host: str, origin: str | None, fetch_site: str | None, port: i
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = f"observatory-serverd/{VERSION}"
 
-    def log_message(self, fmt, *args):                                      
-        pass                                                                    
+    def log_message(self, fmt, *args):                    # quiet by design;
+        pass                                              # launchd keeps stderr
 
     def _json(self, doc, code=200):
         body = json.dumps(doc, ensure_ascii=False, indent=1).encode("utf-8")
@@ -227,7 +227,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         super().end_headers()
 
-    def do_GET(self):                                                 
+    def do_GET(self):                                     # noqa: N802
         if not local_request(self.headers.get("Host", ""), self.headers.get("Origin"),
                              self.headers.get("Sec-Fetch-Site"), self.server.server_address[1]):
             self._json({"error": "only local browser origins are accepted"}, 403)
@@ -290,7 +290,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         "routes": ["/", "/dashboard/<page>.html", "/health", "/remote",
                                    "/leaks", "/skills"]}, 404)
 
-    def do_POST(self):                                                
+    def do_POST(self):                                    # noqa: N802
         self._json({"error": "GET only — this server changes nothing"}, 405)
 
 
@@ -301,9 +301,9 @@ def serve(port: int) -> int:
         while True:
             try:
                 heartbeat()
-            except Exception as exc:                                             
-                print(f"heartbeat: {type(exc).__name__}: {exc}",                 
-                      file=sys.stderr)                                  
+            except Exception as exc:                       # noqa: BLE001 — the
+                print(f"heartbeat: {type(exc).__name__}: {exc}",  # beat survives
+                      file=sys.stderr)                     # a bad cycle
             time.sleep(REFRESH_SECONDS)
 
     threading.Thread(target=beat, daemon=True).start()
@@ -390,7 +390,7 @@ def status() -> int:
     return 0 if alive else 1
 
 
-def main(argv: list[str]) -> int:                                            
+def main(argv: list[str]) -> int:  # noqa: PLW0603 — PORT set via globals()
     ap = argparse.ArgumentParser(description=(__doc__ or "Serve the private Project Observatory dashboard.").splitlines()[0])
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--run", action="store_true")

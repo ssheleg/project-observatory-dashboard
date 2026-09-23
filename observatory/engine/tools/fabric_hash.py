@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                             
+"""Compute and stamp provider.contentHash in fabric-agent.json.
 
                                                             
                                                                         
@@ -12,8 +12,8 @@
                                                                         
                                                         
 
-                                                                     
-   
+Canonical form: UTF-8 JSON, keys sorted, no insignificant whitespace.
+"""
 from __future__ import annotations
 import copy, hashlib, json, sys
 from pathlib import Path

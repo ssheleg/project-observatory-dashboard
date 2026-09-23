@@ -49,7 +49,7 @@ import paths
 import atomic                                                                   
 import google_auth                                                              
 
-                                                                            
+#: Analytics settle daily; a shorter window buys nothing and costs a minute.
 MAX_AGE_HOURS = 12
                                                                                 
                                                                            
@@ -59,7 +59,7 @@ GSC_READ = "https://www.googleapis.com/auth/webmasters.readonly"
 ADMIN = "https://analyticsadmin.googleapis.com/v1beta"
 DATA = "https://analyticsdata.googleapis.com/v1beta"
 GSC = "https://searchconsole.googleapis.com/webmasters/v3"
-                                                                         
+#: Where this machine keeps the credentials collectors authenticate with.
 SECRET_STORE = paths.source_path("secret_store", paths.SECRETS)
 
 
@@ -164,9 +164,9 @@ def window(prop: str, tok: str) -> dict:
         return {"error": d["__error__"]}
     rows = d.get("rows") or []
     if not rows:
-                                                                               
-                                                                             
-                                                                            
+        # NO ROWS IS NOT ZERO USERS in every case — a property with no stream
+        # ever installed answers the same way as one nobody visited. Both are
+        # written as measured zero and the stream list beside it says which.
         return {"users_30d": 0, "sessions_30d": 0, "views_30d": 0, "empty": True}
     v = [m.get("value") for m in rows[0].get("metricValues") or []]
     def n(i):

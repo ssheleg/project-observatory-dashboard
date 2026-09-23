@@ -42,7 +42,7 @@ def main() -> int:
     html = PAGE.read_text(encoding="utf-8")
     css_raw = html[html.index("<style>") + 7:html.index("</style>")]
     css = strip_comments(css_raw)
-                                                                 
+    # The chrome is everything outside the embedded data literal.
     data_at = html.find("const D = ")
     chrome = html[:data_at] + html[html.find("\n", html.find("};", data_at)):]
 
@@ -81,18 +81,18 @@ def main() -> int:
           "status colour must be paired with text")
     check("the page declares its charset for file://", "meta charset" in html[:400])
 
-                                                                                      
-                                                                            
-                                                                       
-                                                           
-                                                                              
-                                                                            
-                                                                         
-                                                                              
-                                                                             
-                                                                             
-                                                                              
-                                                                         
+    # ── Structure, added after the pack audit passed a visibly broken page ──
+    # Thirteen conformance checks were green while the sticky header floated
+    # over its own rows. Every rule below is the negative of a bug that
+    # actually shipped here, so each one is worth its line.
+    # ONE HEADER PER TABLE, not one header in the file. The defect this guards
+    # is a table split per owner group, where every group's header sticks at
+    # the same offset and the reader gets forty of them stacked. Counting
+    # headers in the FILE also forbade a second table that is never in the DOM
+    # at the same time as the first, which is what the Heroku tab is: the two
+    # lists replace each other in `#out`, so at most one header exists at any
+    # moment. The equality still fails on the original defect — one `<table`
+    # against N `<thead` — and now passes the thing it was never about.
     check("one header per table, not one per owner group",
           html.count("<thead") == html.count("<table") and html.count("<thead") >= 1,
           f"{html.count('<thead')} headers for {html.count('<table')} table(s) — "

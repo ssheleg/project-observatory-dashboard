@@ -20,16 +20,16 @@ def check(name, ok, detail=''):
 def load_collector():
     spec=importlib.util.spec_from_file_location('scan_sessions_t', ROOT/'collectors/scan_sessions.py')
     mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-                                                                             
+    # Pure attribution checks must not read the author's committed inventory.
     mod.paths=type('FixturePaths', (), {'REGISTRY': pathlib.Path('/nonexistent/synthetic-registry')})
     return mod
 
 def test_the_attribution_rules_are_ordered_by_evidence() -> None:
     m = load_collector()
-                                                                              
-                                                                              
-                                                                           
-                                                                        
+    # The display name is DIFFERENT from the slug on purpose. `Alpha` folds to
+    # `alpha`, which is also the id slug, so the slug rule claims it first —
+    # correctly, since rules are ordered by how much evidence they carry. A
+    # fixture where they coincide tests the ordering, not the name rule.
     projects = [
         {"id": "project:alpha", "name": "Alpha Reporting",
          "local_folders": ["alpha-checkout"]},
@@ -109,8 +109,8 @@ def test_equal_strength_owners_remain_ambiguous():
         row=next((r for r in out['unattributed'] if r['name']=='service'),{})
         check('ambiguous raw fact retains evidence', row.get('verdict')=='ambiguous-project' and row.get('candidates')==['project:alpha','project:beta'] and row.get('session_ids')==['repository-session','shared'] and bool(row.get('reason')))
         f.collector.to_events(out)
-                                                                             
-                                                                            
+        # A previous version picked a candidate. Reconciliation must withdraw
+        # that derived event without deleting independently attributed work.
         conn=f.db.connect()
         conn.execute("INSERT INTO events(id,project_id,kind,ref,actor,occurred_at,payload_json) VALUES (?,?,?,?,?,?,?)",
                      ('old-guessed-event','project:alpha','session','repository-session:project:alpha','operator','2026-08-01','{}'))
@@ -178,7 +178,7 @@ def test_emitter_preserves_session_date_and_citation():
     with tempfile.TemporaryDirectory(prefix='observatory-session-emit-') as td:
         root=pathlib.Path(td);seed(root)
         model=root/'raw/model.json';doc=json.loads(model.read_text())
-                                                                                    
+        # The model already has the merge's dates. This tests projection, not merge.
         project=doc['projects']['fixture-a'];project['last_session_on']='2026-08-01';project['last_activity']='2026-08-01'
         model.write_text(json.dumps(doc))
         p=subprocess.run([PY,str(ROOT/'collectors/emit_registry.py'),str(root/'raw')],cwd=ROOT,env=environment(root),capture_output=True,text=True)

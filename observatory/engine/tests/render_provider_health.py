@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-""                                                                        
+"""Drive the page's health panel with a quarantine list that is not empty.
 
-                                                                               
-                                                                                 
-                                                                                     
-                                            
+`health.provider` has only ever been `{}` on this machine, because the boundary
+clears a model's mark on its next success. So a renderer for it ships untested by
+construction — trap T18, a degradation nobody has watched work — unless something
+plants the state the estate has not been in.
 
-                                                                             
-                                                                                  
-                                                                       
+This builds the real page, patches the payload's `"provider": {}` to hold two
+quarantined models, runs the page's own script through `render_dashboard.mjs`, and
+asserts the health container names them. Exit 0 means the row rendered.
 
-                                                                              
-                                                                            
-                                    
-   
+Kept as its own file rather than folded into the suite: it needs `node`, and a
+suite that silently skips its only end-to-end assertion when node is missing
+reads as green for the wrong reason.
+"""
 from __future__ import annotations
 import json, os, pathlib, re, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
-import tmp as tmpdir                                                              
+import tmp as tmpdir                                                  # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 PLANTED = {

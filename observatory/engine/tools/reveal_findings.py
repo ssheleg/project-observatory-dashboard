@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                 
+"""What the keyserver's own journal owes the board.
 
                                                                                
                                                                            
@@ -12,7 +12,7 @@
                                                                            
                                                                           
 
-                                                      
+TWO RULES, BOTH ABOUT FREQUENCY, NEITHER ABOUT VALUES:
 
                                                                                 
                                                                         
@@ -20,19 +20,19 @@
                                                                             
                                                                           
 
-                                                                             
-                                                                         
-                                                                  
-   
+The journal holds names and places, never values (keyserver.audit()), so this
+module carries nothing it could leak; and it never raises on a journal it
+cannot read — an unreadable journal is its own row, not silence.
+"""
 from __future__ import annotations
 import collections
 import datetime
 import json
 import pathlib
 
-                                                                            
-                                                                           
-                                                                     
+#: Reveals of ONE subject inside the window that make a burst. Six is chosen
+#: from the measurement: a person opening a page reveals a variable once or
+#: twice; the loop that prompted this rule did it thirty-three times.
 BURST = 6
 WINDOW_HOURS = 24
 LISTED = 4

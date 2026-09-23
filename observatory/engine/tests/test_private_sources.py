@@ -1,4 +1,4 @@
-""                                                                              
+"""Portable credential/config boundaries, using an empty synthetic home only."""
 from __future__ import annotations
 import json
 import os
@@ -82,14 +82,14 @@ assert not paths.HOME.exists(), 'imports created runtime state'
     def test_explicit_legacy_secret_reference_is_preserved(self):
         target=self.base/'legacy-secrets'
         (self.home/'config').mkdir(parents=True)
-                                                                                
+        # The configuration schema is owned centrally; use its current envelope.
         self.run_python('''
 import json, configuration
 p=configuration.home()/'config/settings.json'
 d=configuration.load();d.setdefault('sources',{})['secret_store']='''+repr(str(target))+'''
 p.write_text(json.dumps(d))
 ''')
-                                                                        
+        # Use the actual canonical config path exposed by configuration.
         self.run_python('''
 from pathlib import Path
 import configuration, paths

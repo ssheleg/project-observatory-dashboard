@@ -1,9 +1,9 @@
-""                                                                      
+"""Private runtime identity: reads never bootstrap; init never replaces.
 
-                                                                              
-                                                                             
-                                                                       
-   
+The selected final directory is opened without following a symlink. Operations
+are relative to that descriptor. Ancestors belong to the local operator; this
+is not a defence against a hostile owner moving the ancestor hierarchy.
+"""
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ MAX_BYTES = 128
 
 
 class IdentityError(RuntimeError):
-    ""                                                                      
+    """Safe diagnostic containing a path and reason, never file contents."""
 
 
 def failure(path: Path, kind: str, reason: str) -> IdentityError:
@@ -45,7 +45,7 @@ def _directory(path: Path, kind: str, initialize: bool) -> int:
 
 
 def _read(fd: int, path: Path, kind: str) -> str:
-                                                                
+    # NONBLOCK makes a FIFO refuse without waiting for a writer.
     child = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
     try:
         info = os.fstat(child)
@@ -67,12 +67,12 @@ def _read(fd: int, path: Path, kind: str) -> str:
 
 
 def load(path: Path, kind: str, *, initialize: bool = False) -> str:
-    ""                                                                   
+    """Read one identity, or explicitly publish a fully written new file.
 
-                                                                             
-                                                                               
-                                                                               
-       
+    link() is atomic and refuses an existing destination. Another initializer
+    either wins publication or reads the same complete winner. No O_TRUNC path.
+    Errors leave any existing destination untouched; no legacy fallback exists.
+    """
     if kind not in KINDS:
         raise ValueError('unknown runtime identity kind')
     fd = None
@@ -87,7 +87,7 @@ def load(path: Path, kind: str, *, initialize: bool = False) -> str:
         candidate = f'.identity-{secrets.token_hex(16)}.tmp'
         child = os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                         0o600, dir_fd=fd)
-        temporary = candidate                                                  
+        temporary = candidate  # cleanup only a file this call actually created
         with os.fdopen(child, 'wb') as stream:
             stream.write((KINDS[kind][2]() + '\n').encode('ascii'))
             stream.flush()

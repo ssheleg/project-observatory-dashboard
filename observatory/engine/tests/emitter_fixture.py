@@ -1,4 +1,4 @@
-""                                                                              
+"""Frozen synthetic inputs for emitter behavior tests; no personal raw store."""
 from pathlib import Path
 import json
 import os

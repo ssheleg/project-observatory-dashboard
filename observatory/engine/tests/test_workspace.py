@@ -1,4 +1,4 @@
-""                                                                                     
+"""Fresh installs, stable config and full original local workflow in isolated homes."""
 from __future__ import annotations
 import json
 import os

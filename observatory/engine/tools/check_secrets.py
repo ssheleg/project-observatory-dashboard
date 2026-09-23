@@ -77,14 +77,14 @@ NORMALISED_FLOOR = 0.78
                                                                                
 MIN_BODY = 24
 
-                                                                                
-                                                                                 
-                          
+#: Shapes a vendor defines precisely enough that the prefix alone is the answer.
+#: A false positive here costs one allowlist line with a reason; a false negative
+#: is a leaked credential.
 EXACT_SHAPES = {"aws access key", "google api key"}
 
-                                                                             
-                                                                             
-                                   
+#: (name, pattern). Each is a vendor prefix that means "this is a credential"
+#: rather than a guess about shape. The generic assignment rule at the end is
+#: what catches an unbranded token.
 PATTERNS = [
     ("openai/openrouter", re.compile(r"\bsk-(?:or-v1-|proj-|ant-api03-)?[A-Za-z0-9_\-]{16,}")),
     ("github token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}")),
@@ -94,8 +94,8 @@ PATTERNS = [
     ("slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{16,}")),
     ("google api key", re.compile(r"\bAIza[A-Za-z0-9_\-]{20,}")),
     ("private key block", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY")),
-                                                                             
-                                                                 
+    # An unbranded token assigned to a name that says what it is. The name is
+    # what makes it worth measuring; the entropy is what decides.
     ("named secret", re.compile(
         r"(?i)\b(?:api[_-]?key|secret|token|passwd|password)\b\s*[:=]\s*"
         r"['\"]([A-Za-z0-9_\-+/=]{20,})['\"]")),
@@ -136,8 +136,8 @@ ALLOWLIST: dict[str, str] = {
         "composes the header now, so this covers the history hit only",
 }
 
-                                                                                
-                                                                   
+#: Paths never scanned, with the reason. This file quotes every pattern it hunts
+#: for, and the decisions log quotes the audit's findings verbatim.
 SKIP = {
     "tools/check_secrets.py": "it contains the patterns themselves",
     "docs/DECISIONS.md": "it quotes the audit's findings, including the fixture",
@@ -208,9 +208,9 @@ def scan_text(text: str, where: str) -> list[dict]:
                                     "credential from a placeholder"})
                 continue
             if len(body) < MIN_BODY:
-                                                                              
-                                                                              
-                                                                
+                # Too short to measure and not an exact shape: reported, never
+                # silently dropped, because "below the measurable length" is a
+                # different answer from "measured and harmless".
                 hits.append({"where": f"{where}:{line}", "kind": label,
                              "entropy": round(entropy(body), 2),
                              "normalised": round(normalised(body), 2),
@@ -286,9 +286,9 @@ def main() -> int:
                 allowed.append({**hit, "allowed_because": ALLOWLIST[hit["file"]]})
                 continue
             if hit.get("credential") or hit["entropy"] is None:
-                                                                               
-                                                                                 
-                                     
+                # ROTATION, not a rewrite. A rewrite breaks every clone and the
+                # credential is compromised either way — the audit's own remedy
+                # text says the same.
                 hit["remedy"] = "rotate the credential at its issuer; a history "
                 credentials.append(hit)
             else:

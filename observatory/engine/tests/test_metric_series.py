@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                           
+"""The plugin layer had 92 measurements and no series, and nothing read them.
 
                                                                                 
                                                                                
@@ -18,24 +18,24 @@
                                                                             
                                    
 
-                                                                           
-                                                                            
-                                                                                
-                                                                           
-                                                                             
-                                                    
+**And nothing read the rows.** 92 measurements, one reader: the dashboard's
+"latest value" panel. `host.disk_low` — the critical finding that says the
+volume is nearly full — could not name a single project responsible, while the
+answer sat in the store. It names the largest working trees and the fastest
+growers now, and the per-project surface carries `previous` and `change` so a
+host can render a direction rather than a magnitude.
 
-                                                                            
-                                                                          
-                                                                           
-                                                             
+**`not_due` could not say "the series stopped".** A plugin can be installed,
+healthy, exiting zero and skipping every tick while its newest sample gets
+older. That reads as health, which is how a metric layer goes quiet without
+anyone noticing. `plugin.stale` fires at two cadence periods.
 
-                                                                         
-                                                                               
-                                                                           
-                                                                            
-                                                 
-   
+**And the seam's own claim was untested.** `plugins/README.md` opens with
+"Adding one touches no file outside this directory". The only real test of that
+is a second plugin, so this iteration wrote one — `dependency-weight`, 53
+projects measured — and the assertion below is mechanical: no file outside
+`plugins/` may name a plugin's id or its metrics.
+"""
 from __future__ import annotations
 import importlib, json, os, pathlib, re, subprocess, sys
 from datetime import datetime, timedelta, timezone
@@ -50,7 +50,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 OWN = SYNTHETIC_PROJECT
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
-import tmp as tmpdir                                                            
+import tmp as tmpdir                                                # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 FAILURES: list[str] = []
@@ -68,7 +68,7 @@ def runner():
     return importlib.reload(R)
 
 
-                                                                                                                                                       
+# ─────────── the cadence means what it says ────────────────────────────
 
 def test_a_daily_cadence_is_a_calendar_day() -> None:
     R = runner()
@@ -114,11 +114,11 @@ def test_a_late_recording_does_not_delay_the_next_period() -> None:
                 now=datetime(2026, 9, 6, 23, 59, tzinfo=UTC)) is False, "")
     check("a cadence of 0 is always due", R.due(conn, "disk-usage", 0) is True)
     conn.close()
-                                                                          
-                                                                                 
-                                                                                   
-                                                                             
-                                                   
+    # THE STORE MODULE TOO, not only `paths`. Reloading `paths` alone left
+    # `store.db` bound to the fixture path, so the NEXT test in this file read an
+    # empty store and reported "there is no measurement to look at" — a fixture's
+    # environment becoming another test's fact, which is the class the gate's
+    # purity contract exists to catch one level up.
     os.environ.pop("OBSERVATORY_DB", None)
     importlib.reload(paths)
     importlib.reload(store_db)
@@ -135,7 +135,7 @@ def test_the_gate_reads_the_samples_own_stamp() -> None:
     check("it compares against the period start", "period_start(" in src, "")
 
 
-                                                                                                                                                       
+# ─────────── a stopped series is not health ────────────────────────────
 
 def test_a_stopped_series_is_reported_rather_than_called_not_due() -> None:
     R = runner()
@@ -185,7 +185,7 @@ def test_the_stale_classification_becomes_a_finding() -> None:
               "exits cleanly" in got[0]["detail"], got[0]["detail"][:160])
 
 
-                                                                                                                                                     
+# ─────────── the measurements reach a reader ───────────────────────────
 
 def test_the_surface_carries_a_direction_not_only_a_magnitude() -> None:
     import survey
@@ -205,9 +205,9 @@ def test_the_surface_carries_a_direction_not_only_a_magnitude() -> None:
 
 
 def test_the_disk_finding_names_who_is_responsible() -> None:
-    ""                                                                      
-                                                                               
-                 
+    """The plugin's stated reason, as an assertion. `host.disk_low` said the
+    volume was nearly full and could not name one project, while 92 rows sat in
+    the store."""
     import build_findings as B
     importlib.reload(B)
     big, grow = B.disk_culprits()
@@ -224,12 +224,12 @@ def test_the_disk_finding_names_who_is_responsible() -> None:
               "Largest working trees" in low[0]["detail"], low[0]["detail"][-160:])
 
 
-                                                                                                                                                                           
+# ─────────── the seam's own claim ──────────────────────────────────────
 
 def test_adding_a_plugin_touches_no_file_outside_plugins() -> None:
-    ""                                                                          
-                                                                                
-                              
+    """`plugins/README.md`'s first promise, and a second plugin is the only real
+    test of it. Mechanical: no file outside `plugins/` may name a plugin's id or
+    any metric it declares."""
     manifests = sorted((ROOT / "plugins").glob("*.json"))
     check("there is more than one plugin, so the claim is testable",
           len(manifests) >= 2, f"{[m.name for m in manifests]}")
@@ -238,16 +238,16 @@ def test_adding_a_plugin_touches_no_file_outside_plugins() -> None:
         doc = json.loads(m.read_text(encoding="utf-8"))
         names.append(doc["id"])
         names += [x["name"] for x in doc.get("metrics") or []]
-                                                                               
-                                                                       
-                                                                                
-                                                                   
-                                                                             
-                                                                              
-                          
+    # PROSE REMOVED FIRST, because a comment naming `disk.bytes` as the example
+    # everyone reads is documentation, not coupling — the distinction
+    # `dashboard/audit_pack.py` was written about, one layer down. What must not
+    # appear is a plugin's vocabulary in CODE: the first version of
+    # `build_findings.disk_culprits()` put `disk.bytes` in SQL and broke this
+    # promise in the same change that tested it. It resolves the metric by the
+    # declared `role` now.
     import source_reader
-                                                                           
-                                                        
+    # The source exporter enumerates shipped plugin files; it is packaging,
+    # not a runtime consumer of their metric vocabulary.
     packaging = ROOT / "tools/export_public_source.py"
     hay = [p for p in ROOT.rglob("*.py") if ".venv" not in p.parts
            and "plugins" not in p.parts and "tests" not in p.parts and p != packaging]
@@ -308,8 +308,8 @@ def test_an_unparseable_manifest_is_a_problem_not_a_zero() -> None:
 
 
 def test_the_runner_accepts_only_declared_metrics() -> None:
-    ""                                                                       
-                                                              
+    """The seam's other guarantee, driven against the new plugin: a metric it
+    emits without declaring is refused rather than written."""
     p = subprocess.run([PY, "collectors/run_plugins.py", "--check"], cwd=ROOT,
                        capture_output=True, text=True, timeout=300)
     check("every manifest validates", p.returncode == 0, (p.stdout + p.stderr)[-200:])

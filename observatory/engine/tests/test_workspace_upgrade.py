@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                              
+"""Private synthetic workspace snapshots, forward upgrades and safe restores."""
 from __future__ import annotations
 import contextlib
 import importlib

@@ -108,19 +108,19 @@ def caller_name(raw: str | None) -> str:
     s = re.sub(r"[^A-Za-z0-9._:@/+-]", "", raw.strip())[:80]
     return s or "unnamed"
 
-                                                                               
-                                                                            
-                                                       
+#: The destinations `tools/install_key.py` owns. A mint may only land in one of
+#: these: an arbitrary path from a request body would make this an arbitrary
+#: file writer that happens to hold a provisioning key.
 DESTINATIONS = {"observatory", "claude-mem"}
 
-                                                                           
-                                                                         
-                                                                              
-                                                                            
-                                                                           
-                                                                                
-                                                                               
-                                                                        
+#: THE SECOND SHAPE OF DESTINATION: a slot in this estate's vault (plan v2,
+#: T-27). The door has taken `--to vault:<project>/<env>/<NAME>` since it
+#: existed and this server could not ask for one, so a key for a project could
+#: only be issued from a terminal. The pattern is the whole guard, and it is
+#: deliberately narrow: three segments, a lowercase project and env, and an
+#: UPPER_SNAKE variable name — the shape `tools/vault.py` itself enforces. The
+#: project must also be one this estate KNOWS, because a typo in a project name
+#: does not fail here, it quietly creates a slot nothing will ever read.
 VAULT_DEST = re.compile(r"^vault:(?P<project>[a-z0-9][a-z0-9._-]{0,63})"
                         r"/(?P<env>[a-z][a-z0-9-]{0,15})"
                         r"/(?P<name>[A-Z][A-Z0-9_]{0,63})$")
@@ -346,8 +346,8 @@ def act_reveal(body: dict) -> dict:
     root = paths.DATA.resolve()
     target = (root / path).resolve()
     if root not in target.parents:
-                                                                                
-                                                                             
+        # Belt and braces: the inventory is built from a walk of this root, so a
+        # path escaping it would mean the scan itself had been tampered with.
         raise ValueError(f"{path} resolves outside {root}")
     audit("reveal", f"{path}:{name}", {"class": next(
         (v.get("class") for v in rec["variables"] if v.get("name") == name), None)})
@@ -405,7 +405,7 @@ ACTIONS = {"mint": act_mint, "limit": act_limit, "revoke": act_revoke,
            "leak": act_leak, "reveal": act_reveal, "annotate": act_annotate,
            "disable": act_disable, "enable": act_enable, "rotate-key": act_rotate_key}
 
-                                                                          
+#: Refused on purpose, with the reason the caller needs rather than a 404.
 REFUSED = {
     "put": "a value travels on stdin and nowhere else — run `tools/vault.py put` yourself",
     "rotate": "a value travels on stdin and nowhere else — run `tools/vault.py rotate` yourself",
@@ -519,10 +519,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                           "./observatory.py dashboard"})
                 return
             html = page.read_text(encoding="utf-8")
-                                                                                
-                                                                               
-                                                                            
-                                    
+            # THE TOKEN IS GIVEN TO THE PAGE, not typed by a person. It is not a
+            # credential for anything outside this process, it never leaves the
+            # machine, and the alternative is a human copying a token into a
+            # browser every morning.
             html = html.replace("</head>",
                                 f'<meta name="observatory-token" content="{html_module.escape(str(self.server.token), quote=True)}">'
                                 f"</head>", 1)

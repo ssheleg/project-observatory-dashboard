@@ -81,10 +81,10 @@ def scan() -> list[dict]:
     for d in sorted((V/"projects").iterdir()):
         if not d.is_dir(): continue
         notes=sorted(d.rglob("*.md"))
-                                                                                   
-                                                                                     
-                                                                                
-                                
+        # A directory with no notes is not a project. Deleting a folder's last note
+        # leaves the empty subdirectories behind, and those kept the project alive in
+        # the registry with `vault_notes: 0` — a project that exists because a
+        # filesystem entry does.
         if not notes:
             continue
         blob="\n".join(p.read_text(encoding="utf-8",errors="replace") for p in notes)
@@ -104,7 +104,7 @@ def scan() -> list[dict]:
             "domains": sorted({x for x in KNOWN if re.search(r"(?<![\w.-])"+re.escape(x)+r"(?![\w-])", blob)}),
             "github": sorted({f"{a}/{b}" for a,b in REPO_RX.findall(blob)}),
             "bitbucket": sorted({f"{a}/{b}" for a,b in BB_RX.findall(blob)}),
-                                                                 
+            # From the OVERVIEW's opening only — see opening().
             "datapaths": sorted(set(DATA_RX.findall(
                 opening(ov.read_text(encoding="utf-8", errors="replace")) if ov.exists() else ""))),
         })

@@ -1,4 +1,4 @@
-""                                                                             
+"""Owner-only atomic credential files and a narrowly validated legacy alias."""
 from __future__ import annotations
 import contextlib
 import fcntl

@@ -16,10 +16,10 @@ from collectors import registry_read
 from store import db as store_db, migrate
 
 COLLECTOR_VERSION = "scan_events/2"
-                                                                            
-                                                                               
-                                                                                
-                                                           
+# A SAFETY VALVE, not the bound. The bound is the retention window, which is
+# what makes the collector and the pruner agree (trap T25). At 200 this was the
+# real limit and it was silent: 30,674 of the estate's 39,702 commits inside the
+# window were never recorded, and no line anywhere said so.
 DEFAULT_DEPTH = 10000
 
 
@@ -118,18 +118,18 @@ def targets(projects: list[dict], repos: dict[str, dict],
     for rid, repo in repos.items():
         local = repo.get("local")
         if not local or not local.get("path"):
-                                                                         
-                                                                                
-                                                                    
+            # A repository in the registry with no checkout here. Skipped
+            # silently and always was: there is no history on this disk to read,
+            # which is a fact about the listing rather than a fault.
             continue
         out.append({"label": rid, "project_id": owner_of.get(rid), "repo_id": rid,
                     "path": local["path"], "created_on": repo.get("created_on") or "",
                     "name": repo.get("name_with_owner") or rid.split(":", 1)[1]})
     for p in projects:
         lo = p.get("local_only") or {}
-                                                                                  
-                                                                                 
-                                                                              
+        # `unpublished` is `is_git and no parseable remote` (collectors/merge.py),
+        # so this admits exactly the folders that HAVE history and no repository.
+        # The other ten `local-only` projects are not git repositories at all.
         if not lo.get("unpublished") or not lo.get("path"):
             continue
         out.append({"label": p["id"], "project_id": p["id"], "repo_id": None,
@@ -157,9 +157,9 @@ def by_age(t: dict) -> tuple[str, str]:
 def main() -> int:
     depth = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_DEPTH
     horizon = retention_horizon_days()
-                                                                               
-                                                                                 
-                                              
+    # NO SCAN ROW YET, deliberately. A refusal here has recorded nothing, and a
+    # `scans` row that exists because the registry was unreadable is a segment of
+    # the spine with no measurement behind it.
     try:
         projects = registry_read.read("projects.json", "projects")
         repos = {r["id"]: r for r in
@@ -185,16 +185,16 @@ def main() -> int:
     ownership_of = {p["id"]: p.get("ownership") for p in projects}
     inserted = skipped = checkouts = 0
     excluded = truncated = unreadable = 0
-                                                                                 
-                                                                          
+    #: A repository git answered about, with nothing in the window. An ANSWER, so
+    #: it belongs beside the counts and not in `degraded` — see `git()`.
     quiet: list[str] = []
-                                                                              
-                                                                                 
+    #: reason -> the repositories it applied to. A policy exclusion is a rule,
+    #: not an incident, so it is summarised by rule rather than listed 118 times.
     excluded_why: dict[str, list[str]] = {}
-                                                                         
-                                                                          
-                                                                         
-                                                                         
+    #: FAULTS ONLY. Policy exclusions used to land here too, so `degraded
+    #: sources: 118` was mostly the estate's own rule about other people's
+    #: repositories and a broken checkout hid inside it. They are counted
+    #: separately now and reported as `excluded`, which is what they are.
     degraded: list[dict] = []
                                                                              
                                                                               
@@ -204,28 +204,28 @@ def main() -> int:
                                  
     owner_of_sha: dict[str, str] = {}
     shared: list[tuple[str, str, int]] = []
-                                                                                   
-                                                                              
-                                                                           
-                                                                                 
-                                                                        
-                                                                                
-                                                                            
-                                                                                
-                                                  
+    # ORDERED BY AGE, not by name. A commit is recorded once — it is one piece of
+    # work, and giving the inherited copy its own row would credit the younger
+    # repository with the elder's history, which is the mistake `estate.py`
+    # exists to prevent one level up. Which repository gets it therefore matters,
+    # and until now it was decided by `sorted()`: alphabetical luck. The
+    # repository that existed FIRST owns shared ancestry, which is a rule rather
+    # than an accident — and on the live pair it happens to agree with the
+    # alphabet, so the change is visible only in the reporting, which is where a
+    # silent ambiguity should have been all along.
     unpublished = 0
-                                                                                
-                                                                                    
-                                                                             
-                                                                          
+    # THE LOOP IS WRAPPED, because the scan row already exists. Anything raising
+    # inside it — and it walks 172 checkouts on a volume that has been at 100% —
+    # would otherwise leave `finished_at` NULL for ever: `scans` is the table
+    # retention never prunes, and every delta hangs off it by foreign key.
     try:
       for t in sorted(targets(projects, repos, owner_of), key=by_age):
           rid = t["label"]
-                                                                             
-                                                                                  
-                                                                             
-                                                                                 
-                                       
+          # One rule, two readers: the companion plugin's recorder has always
+          # refused to write about somebody else's history, and this collector did
+          # not. Thirty per cent of the commits in the window came from seven
+          # `external` projects, which would have made a stranger's tool the most
+          # active thing in the estate.
           own = ownership_of.get(t["project_id"])
           if not estate.records_events(own):
               excluded += 1
@@ -237,33 +237,33 @@ def main() -> int:
               continue
           checkouts += 1
           if t["repo_id"] is None:
-                                                                                
-                                                                          
-                                                                               
-                                                 
+              # COUNTED, not folded into `checkouts`. A new source absorbed into
+              # an old total reads as "nothing changed", and the number an
+              # operator checks after this change is exactly how many checkouts
+              # had no repository to be keyed by.
               unpublished += 1
-                                                                                 
-                                                                                 
-                                                                                     
-                                                                              
-                                            
+          # depth+1 makes truncation EXACTLY detectable: asking for one more than
+          # the cap and receiving it proves history was cut. `-200` returning 200
+          # is ambiguous — a repository with exactly 200 commits looks identical to
+          # one with twenty thousand, which is how 30,674 commits went missing
+          # without a single line saying so.
           args = ["log", f"-{depth + 1}", "--no-merges",
                   "--format=%H%x1f%an%x1f%cI%x1f%s%x1e"]
           if horizon:
-                                                                                  
-                                           
+              # Ask git for the window retention keeps, rather than inserting rows
+              # the next prune will delete.
               args.insert(1, f"--since={horizon} days ago")
           log, reason = git(path, *args)
           if reason is not None:
-                                                                                 
-                                                                                
-                                                                          
+              # A fact about the run. It is NOT "this repository has no commits",
+              # and conflating the two is how an unreadable checkout reads as an
+              # idle project — which then reads as a project to archive.
               degraded.append({"source": rid, "reason": reason})
               unreadable += 1
               continue
           if not log.strip():
-                                                                              
-                                                                                
+              # A fact about the subject, and an ANSWER: git ran, and there is
+              # nothing in the window. Recorded as `quiet` rather than degraded.
               quiet.append(rid)
               continue
           records = [r for r in log.split("\x1e") if r.strip()]
@@ -278,18 +278,18 @@ def main() -> int:
               if len(parts) != 4:
                   continue
               sha, author, iso, subject = parts
-                                                                                  
-                                                                                  
-                                                                                    
-                                                                                 
-                                                                               
+              # git's %cI carries the COMMITTER'S local offset. Stored verbatim it
+              # made three spellings of one instant share a TEXT column that every
+              # ordering, window and retention cutoff compares lexicographically —
+              # `+` sorts before `-` sorts before `Z`, none of which is time. One
+              # instant, one spelling, decided at the boundary where it enters.
               iso = migrate.to_utc_z(iso) or iso
               first = owner_of_sha.setdefault(sha, rid)
               if first != rid:
-                                                                                 
-                                                                          
-                                                                                
-                                                                             
+                  # Recorded, not silently dropped. `INSERT OR IGNORE` below will
+                  # skip it and say nothing; without this line the younger
+                  # repository's history simply appears shorter than it is, with
+                  # no way to tell that from a repository that did less work.
                   if not shared or shared[-1][:2] != (first, rid):
                       shared.append((first, rid, 0))
                   shared[-1] = (first, rid, shared[-1][2] + 1)
@@ -325,16 +325,16 @@ def main() -> int:
     total = conn.execute("SELECT count(*) FROM events").fetchone()[0]
     conn.close()
     print(f"scan {scan_id}")
-                                                                            
-                                                                            
-                                                
+    # NAMED ON STDOUT TOO. The tick swallows this into a log, but the log is
+    # where an operator looks when a number moves, and "checkouts 174" hides
+    # whether the new source was reached at all.
     print(f"  of them {unpublished} unpublished checkout(s) with no repository id"
           if unpublished else "  no unpublished checkout had history to read")
     print(f"  checkouts {checkouts} | inserted {inserted} | already present {skipped} "
           f"| total {total}" + (f" | window {horizon}d" if horizon else " | NO window"))
-                                                                               
-                                                                           
-                                             
+    # BY RULE, not one line per repository. 118 policy exclusions in `degraded`
+    # made `degraded sources` a number about the estate's own policy, and a
+    # broken checkout was one line inside it.
     print(f"  excluded {excluded} repo(s) as not this estate's own work:")
     for why, rids in sorted(excluded_why.items(), key=lambda kv: -len(kv[1])):
         print(f"    {len(rids):5}  {why}")
@@ -342,8 +342,8 @@ def main() -> int:
           f"an answer, not a degradation")
     print(f"  UNREADABLE {unreadable} repo(s): git could not answer at all"
           if unreadable else "  every checkout git was asked about answered")
-                                                                                 
-                                                                          
+    # Truncation used to be the one degradation that said nothing: `git log -200`
+    # returning 200 rows looks exactly like a repository with 200 commits.
     print(f"  TRUNCATED {truncated} repo(s) at the {depth}-commit safety valve — "
           f"raise it or narrow the window" if truncated
           else f"  no repository hit the {depth}-commit safety valve")

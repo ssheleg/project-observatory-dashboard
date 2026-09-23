@@ -80,7 +80,7 @@ def copy_source(target: Path) -> None:
         selected |= set((ROOT / folder).glob('*.json'))
     for source in sorted(selected):
         if not source.is_file():
-                                                                               
+            # Optional root modules/skill docs are not needed by every release.
             if source.parent == ROOT / 'tests' or source == ROOT / 'plugins/README.md':
                 raise FileNotFoundError(str(source.relative_to(ROOT)))
             continue

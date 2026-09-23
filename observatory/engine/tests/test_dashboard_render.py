@@ -124,15 +124,15 @@ def test_the_spend_row_renders_at_all() -> None:
           health[-200:])
     check("with the day's figure beside the month's", "из них сегодня" in health,
           health[-200:])
-                                                                            
-                                                                                
-                                                                                  
-                                                                              
-                                                                        
-                                                                                
-                                                                            
-                                                                                
-                 
+    # DELIBERATELY NOT asserted: that the string `H.wallet.month` is absent.
+    # It survives in the comment explaining its removal, and here the text check
+    # is unanswerable in principle — the JavaScript lives inside a Python string
+    # literal, so `source_reader.code_only` blanks the whole block, and the JS
+    # comment ships to the page along with the code. This is the seventh
+    # assertion of that shape in one sitting, and the lesson has landed: the row
+    # RENDERING is the evidence. The absence of an old string proves nothing
+    # about behaviour, and asserting it costs a correction every time the fix is
+    # documented.
 
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the figures are prepared in Python, not derived in the browser",
