@@ -3,6 +3,17 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.2.6 — 2026-09-23
+
+### Fixed
+
+- launchd jobs keep Homebrew's `/opt/homebrew/bin`: 0.2.3's PATH filter dropped every
+  group-writable directory, and Homebrew's is user-owned and admin-writable, so `heroku` and other
+  Homebrew tools vanished from scheduled runs. Group-writable directories are kept when this user or
+  root owns them; world-writable ones are still dropped.
+- `full agent install` brings an already installed older plugin to the version the engine ships;
+  `claude plugin install` succeeds without upgrading, so 0.2.5 left 0.11.0 in place.
+
 ## 0.2.5 — 2026-09-23
 
 ### Fixed

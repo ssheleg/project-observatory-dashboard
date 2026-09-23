@@ -132,7 +132,10 @@ def install(auto_update: bool = True) -> dict:
         raise PluginError("marketplace step failed: " + (p.stderr or p.stdout).strip()[-300:])
     steps.append("marketplace updated" if current else f"marketplace added from {REPOSITORY}")
     p = run_claude("install", PLUGIN)
-    if p.returncode:
+    installed = p.returncode == 0
+    # `install` succeeds without upgrading a plugin that is already present, so an
+    # older copy is brought to the version this engine ships explicitly.
+    if not installed or installed_version() != shipped_version():
         p = run_claude("update", PLUGIN)
         if p.returncode:
             raise PluginError("plugin install failed: " + (p.stderr or p.stdout).strip()[-300:])

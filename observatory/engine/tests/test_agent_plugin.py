@@ -134,6 +134,20 @@ class AgentPluginTests(unittest.TestCase):
                                      f"plugin marketplace add {REPO}",
                                      "plugin install observatory-log@observatory-log"])
 
+    def test_an_older_installed_plugin_is_updated_to_the_shipped_version(self):
+        plugins = self.claude_home / "plugins"; plugins.mkdir()
+        (plugins / "known_marketplaces.json").write_text(json.dumps(
+            {"observatory-log": {"source": {"source": "github", "repo": REPO}}}))
+        (plugins / "installed_plugins.json").write_text(json.dumps(
+            {"plugins": {"observatory-log@observatory-log": [{"version": "0.0.1"}]}}))
+        fake = Path(self.env["CLAUDE_BIN"])
+        fake.write_text(fake.read_text().replace(
+            'if a[2] in inst["plugins"]: print("already installed", file=sys.stderr); sys.exit(1)',
+            'if a[2] in inst["plugins"]: sys.exit(0)'))
+        out = self.run_cli("agent", "install")
+        self.assertIn("plugin updated", out["steps"])
+        self.assertTrue(self.run_cli("agent", "status")["ok"])
+
     def test_reinstall_updates_instead_of_failing(self):
         self.run_cli("agent", "install")
         out = self.run_cli("agent", "install")
