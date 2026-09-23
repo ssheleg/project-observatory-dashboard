@@ -54,3 +54,10 @@ published schema identifiers still depend on GitHub's rename redirect.
 
 After this delivery, monitor user feedback about setup completion. No runtime UI
 redesign, provider expansion or schema migration is implied by this website change.
+
+
+Initial CI identified the provider-header URL edit as an inventory digest change.
+Updated that file's exported digest and byte count in SOURCE-INVENTORY.json;
+original source provenance stays unchanged. The package gate remains enforced.
+Humanization: on — humanizer plus editorial review of new landing copy; retained
+concrete mechanism and limits, no further wording changes after review (0%).
