@@ -1056,11 +1056,12 @@
     {
       "path": "tests/test_ack.py",
       "source_sha256": "cbee988e53c77a3d966b1496e88b06aa093480fb0cf404f6f0dd0ed841e51839",
-      "export_sha256": "16d23f8b5d992ee20a406e797724cdf77ead01d77dedcf788f6e0b4c5d9682cc",
-      "bytes": 6260,
+      "export_sha256": "821317b9591b85f2b26c0bedbb64e363865ef35dced0958694b5eac57a2dd496",
+      "bytes": 8011,
       "python_comments_removed": 9,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_analytics_plugins.py",
@@ -1389,11 +1390,12 @@
     {
       "path": "tools/ack.py",
       "source_sha256": "8036a156b0fedbbba14e28b9d6e98054563350e3a88326cdcf07477814224a52",
-      "export_sha256": "866a4d6c5a9fc5c115c90e3d268bd627646f61de97167e3c826fc56458804625",
-      "bytes": 5974,
+      "export_sha256": "79f4ed1adc204b8be71f2799a6cca44c4a94a649e8f0c88ea5891a3f5340f0b9",
+      "bytes": 7129,
       "python_comments_removed": 2,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tools/add_cloudflare_token.py",
@@ -1425,8 +1427,8 @@
     {
       "path": "tools/build_findings.py",
       "source_sha256": "03136ce1f366d180307f7f0c17ab41a3de82631103750f081a6d79758569e0b3",
-      "export_sha256": "62e9575b82a863511f980c3fca115c88729d0915a23f9e58d7d03f5ae973c378",
-      "bytes": 243050,
+      "export_sha256": "ada618c29c48303f0d87762d10183de4d2a8e091c489822967d518e83f6e74e6",
+      "bytes": 243998,
       "python_comments_removed": 996,
       "python_docstrings_removed": 28,
       "tool_descriptions_retained": 0,

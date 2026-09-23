@@ -37,11 +37,34 @@ def today() -> str:
     return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
+class AckStoreError(ValueError):
+    ""                                                                    
+
+
 def load_acks() -> dict:
     try:
-        return json.loads(paths.FINDING_ACKS.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        doc = json.loads(paths.FINDING_ACKS.read_text(encoding="utf-8"))
+    except FileNotFoundError:
         return {"note": "", "acks": []}
+    except (OSError, ValueError):
+        raise AckStoreError from None
+    if not isinstance(doc, dict) or not isinstance(doc.get("acks"), list):
+        raise AckStoreError
+    ids = []
+    for row in doc["acks"]:
+        if (not isinstance(row, dict) or not isinstance(row.get("id"), str)
+                or not row["id"].strip() or not isinstance(row.get("why"), str)
+                or not row["why"].strip()):
+            raise AckStoreError
+        ids.append(row["id"])
+        if row.get("until") is not None:
+            try:
+                datetime.date.fromisoformat(row["until"])
+            except (TypeError, ValueError):
+                raise AckStoreError from None
+    if len(ids) != len(set(ids)):
+        raise AckStoreError
+    return doc
 
 
 def save_acks(doc: dict) -> None:
@@ -132,14 +155,19 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--undo", metavar="ID", help="let a silenced finding speak again")
     ap.add_argument("--list", action="store_true", help="what is silenced, and why")
     a = ap.parse_args(argv[1:])
-    if a.list:
-        return cmd_list()
-    if a.undo:
-        return cmd_undo(a)
-    if not a.id:
-        ap.print_usage()
+    try:
+        if a.list:
+            return cmd_list()
+        if a.undo:
+            return cmd_undo(a)
+        if not a.id:
+            ap.print_usage()
+            return 2
+        return cmd_ack(a)
+    except AckStoreError:
+        print("Saved acknowledgements could not be read; no changes were written. Repair the file or restore a known good copy.", file=sys.stderr)
+        print(f"  {paths.FINDING_ACKS}", file=sys.stderr)
         return 2
-    return cmd_ack(a)
 
 
 if __name__ == "__main__":
