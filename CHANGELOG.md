@@ -3,6 +3,14 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.2.8 — 2026-09-23
+
+### Changed
+
+- MCP SDK 2.2.0 (`mcp`, `mcp-types`), with `requirements-full.lock` refreshed as one tested set:
+  httpx2/httpcore2 2.13.1, starlette 1.7.0. The full offline matrix, including the MCP wire and
+  contract suites, passes on the new set. The build backend may use setuptools up to 84.
+
 ## 0.2.7 — 2026-09-23
 
 ### Fixed
