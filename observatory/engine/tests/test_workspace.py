@@ -53,6 +53,23 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue(files[1].is_file(), "re-init restores a missing identity")
         self.assertNotEqual(before[1], files[1].read_bytes())
         self.assertEqual(before[0], files[0].read_bytes())
+    def test_doctor_names_enabled_switches_with_missing_sources(self):
+        self.run_cli('init')
+        self.run_cli('configure', 'integrations', 'sessions', 'true')
+        self.run_cli('configure', 'features', 'companion_remediation', 'true')
+        warnings = json.loads(self.run_cli('doctor').stdout)['coverage_warnings']
+        named = {(w.get('integration') or w.get('feature'), w['source']) for w in warnings}
+        self.assertIn(('sessions', 'sessions'), named)
+        self.assertIn(('companion_remediation', 'companion_home'), named)
+        transcripts = self.base / 'transcripts'
+        transcripts.mkdir()
+        self.run_cli('configure', 'sources', 'sessions', str(transcripts))
+        warnings = json.loads(self.run_cli('doctor').stdout)['coverage_warnings']
+        self.assertNotIn('sessions', {w['source'] for w in warnings})
+        self.run_cli('configure', 'sources', 'sessions', str(self.base / 'gone'))
+        warnings = json.loads(self.run_cli('doctor').stdout)['coverage_warnings']
+        self.assertTrue(any(w['source'] == 'sessions' and 'does not exist' in w['problem'] for w in warnings))
+
     def test_future_config_and_workspace_refused_without_mutation(self):
         self.run_cli('init')
         for relative, field, value in [('config/settings.json','schema_version',99),('workspace.json','minimum_writer','99.0.0')]:

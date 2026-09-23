@@ -1435,8 +1435,8 @@
     {
       "path": "tests/test_workspace.py",
       "source_sha256": "80e71bbefcc5361d23e3b1313518f9fa0f953130c8dd5ec108ce75de1841c6eb",
-      "export_sha256": "6f806e7a62f824dec76eaa0924edbf7db39b8008d6ec2671e87c14231c24c80f",
-      "bytes": 5089,
+      "export_sha256": "64a3ba59e0e357b0a81264c14113341167671025b6b9cf2d92e080eb4b4a7d49",
+      "bytes": 6220,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
@@ -2007,8 +2007,8 @@
     {
       "path": "workspace.py",
       "source_sha256": "40d5ac9aafad0ab2485f03b86d84a0f192103a284f27309dfc2bf798f18071ef",
-      "export_sha256": "35aec559853515423ad7a4cf32861348f5526cc0cd4c6922c2eb06a662d2a25a",
-      "bytes": 20180,
+      "export_sha256": "0189bf6984f92fe1537ab1ee3cdae1d11472d2fb5523a730060ff271759fb077",
+      "bytes": 21982,
       "python_comments_removed": 3,
       "python_docstrings_removed": 4,
       "tool_descriptions_retained": 0,
