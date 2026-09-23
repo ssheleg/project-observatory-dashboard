@@ -42,7 +42,12 @@ def _stamped(name, doc, stamps=("updated_on",)):
 _CHANGED: list[str] = []
 
 
-def pid(key): return identity.project_id(key)
+# Project ids come from the persisted identity map (docs/design/IDENTITY.md):
+# a renamed project keeps its id through a strong anchor, and an id is never
+# reused. RESOLVED is filled below, once OBS is known; pid() falls back to the
+# name-derived id only for a key the map did not see (never in a normal run).
+RESOLVED: dict = {}
+def pid(key): return RESOLVED.get(key) or identity.project_id(key)
 old_projects={p["id"]:p for p in json.load(open(INV/"projects.json"))["projects"]}
 old_repos={r["id"]:r for r in json.load(open(INV/"repositories.json"))["repositories"]}
 rel_doc=json.load(open(INV/"relations.json")); old_rel={r["id"]:r for r in rel_doc["relations"]}
@@ -60,6 +65,21 @@ have={s["id"] for s in sources}
                                                                          
                                                          
 OBS=_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+import identity_map
+_IDMAP_FILE = INV / "identity.json"
+try:
+    _idmap_prev = json.loads(_IDMAP_FILE.read_text()) if _IDMAP_FILE.is_file() else None
+except (OSError, ValueError):
+    raise SystemExit(f"{_IDMAP_FILE} is unreadable; restore it from the registry history "
+                     "rather than letting every project be re-minted")
+# A scan that could not see a project's source must not retire the project.
+_complete = not any(d.get("source") in ("wiki", "github") or str(d.get("source", "")).endswith(".json")
+                    for d in M.get("degraded", []))
+RESOLVED, _idmap, _id_changes = identity_map.resolve(
+    projs, repos, M.get("transfers_followed") or {}, identity.ID_OVERRIDE, _idmap_prev, OBS, _complete)
+for _c in _id_changes:
+    if _c["change"] in ("renamed", "retired", "returned"):
+        print(f"  identity {_c['change']}: {_c['id']}" + (f" <- key {_c['key']}" if _c.get('key') else ""))
                                                                           
                                                                                
                                                                           
@@ -351,6 +371,7 @@ if _refusal:
     raise SystemExit(1)
 
 _stamped("projects.json", {"schema_version":2,"updated_on":OBS,"projects":out_projs,"degraded":M.get("degraded",[])})
+_stamped("identity.json", _idmap, stamps=())
 _stamped("repositories.json", {"schema_version":2,"updated_on":OBS,"repositories":out_repos,"degraded":M.get("degraded",[])})
                                                                               
                                                                                

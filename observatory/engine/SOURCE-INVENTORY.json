@@ -63,8 +63,8 @@
     {
       "path": "collectors/emit_registry.py",
       "source_sha256": "ff8edc591196dd1278b0766ea8216973f5cc3951ff702b417bdb053305e8170d",
-      "export_sha256": "7583c3b775410bfe9415c3c249b35d4d9ca627c26dd3df4c9f1aef29891c3095",
-      "bytes": 45701,
+      "export_sha256": "5f8284dd173606a06cbb470ae902f41bfbbf8397db85879bf806f019661c1560",
+      "bytes": 47021,
       "python_comments_removed": 213,
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
@@ -332,7 +332,7 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "0a30cb939dbaa898b80a73e7d1540a45b41cb1a6a5aa14f11a2341bbc703c005",
+      "export_sha256": "eb9e2827c4fe2ab8f55b592885d0b40a68677153f61964fef27faaea2fa693cb",
       "bytes": 6535,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
@@ -554,8 +554,8 @@
     {
       "path": "docs/COMPATIBILITY.md",
       "source_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "export_sha256": "c15780f9588c269eb8bb4db14520d733e5957f494c49d74f927714479ecabd9b",
-      "bytes": 6434,
+      "export_sha256": "e1c241d7fa35d491d7b4693b97fa74c3c5bf772f45a82b88905cf1e25ee5e3b1",
+      "bytes": 6958,
       "upstream_modified": true
     },
     {
@@ -685,12 +685,19 @@
     {
       "path": "identity.py",
       "source_sha256": "e14c910186302d0c41540a4fbb6164176d964e5954bf7c12a265900c32af595e",
-      "export_sha256": "fd6da508562f999dc8adf624399742a74523a88f35cd4fac0bf4e016b0f5aa2d",
-      "bytes": 6471,
+      "export_sha256": "e7bdbc849948188d9d6f41834f1659ebd74ab3f1dcbc79873c63f7dbe5fe016f",
+      "bytes": 7009,
       "python_comments_removed": 7,
       "python_docstrings_removed": 9,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "identity_map.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "21f12da88b5aaf633edb87e31b1821dae55083aa4905e700d1f555f284192791",
+      "bytes": 7496
     },
     {
       "path": "leak_register.py",
@@ -1120,8 +1127,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "6c70e153ae227ff1fcf78d7a06392e894cff8933b367108bd52b6f2486db3d64",
-      "bytes": 9958,
+      "export_sha256": "4ddf330292f9830cb482a27134c1ed742bbee238adef17545967f97cea85a13f",
+      "bytes": 9993,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1261,6 +1268,13 @@
       "python_docstrings_removed": 3,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/test_identity_map.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "dc4ce1fb21cc9e5649b6f64ef03a365ca5634055cda70b1090fe092881d8a572",
+      "bytes": 6581
     },
     {
       "path": "tests/test_keyserver_boundary.py",
@@ -1605,8 +1619,8 @@
     {
       "path": "tools/build_findings.py",
       "source_sha256": "03136ce1f366d180307f7f0c17ab41a3de82631103750f081a6d79758569e0b3",
-      "export_sha256": "7c6ff1249e62ac9f413d175be3fb727fed0935569ca3423558644388f7ef0672",
-      "bytes": 244803,
+      "export_sha256": "5783ab3809d4711a6a8052163877487b3b37e7ee65c8e8cd77f315803c31fa75",
+      "bytes": 246458,
       "python_comments_removed": 996,
       "python_docstrings_removed": 28,
       "tool_descriptions_retained": 0,
@@ -2138,7 +2152,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 246,
+  "file_count": 248,
   "excluded": [
     "git-history",
     "operator-registries",

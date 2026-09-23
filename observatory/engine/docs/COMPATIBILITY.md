@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.2.9**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.0**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -60,3 +60,11 @@ External source directories and externally referenced credential stores are **re
 `migrate-local` previews categories and counts. `--apply --writers-stopped` copies into a new destination; it does not activate services or overwrite the original. Curated owner lists move into private ownership configuration. External paths and integration selection must be verified for the destination before activation. SQLite may update its own SHM bookkeeping during a read-only backup; the promise is preservation of logical source data, not byte-identical auxiliary files.
 
 The full source publication deliberately has no ancestry from a private operational Git repository. Release privacy checks examine source, fixtures, package contents and public history independently from runtime migration tests.
+
+## Registry: identity map (0.3.0)
+
+`registry/identity.json` (schema_version 1) records which merge keys and strong anchors belong to
+each project id, which ids are retired, and repositories' former names. It is written by the emit
+step. A workspace upgraded from 0.2.x gets it on the first emit with every existing id unchanged.
+An unreadable map stops the emit step instead of re-minting ids. Contract:
+[docs/design/IDENTITY.md](https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/design/IDENTITY.md).
