@@ -29,10 +29,11 @@
                                                                                
                                                                             
                                                                              
-                                                      
+                                                               
+                                                                             
                                                                           
-                                                                                
-                                                                   
+                                                                           
+                                      
 
                                                                               
                                                                                    
@@ -59,6 +60,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+import leak_register  # noqa: E402
 import paths                                            
 
 GATEWAY = paths.source_path("gateway_root", paths.HOME / "disabled/gateway")
@@ -261,7 +263,8 @@ def cmd_rotate(a) -> int:
                                                        
         die(f"nothing at {a.project}/{a.env}/{a.name} to rotate — `put` a value to "
             f"start tracking it, or, if it was rotated at its provider, settle the "
-            f"register: `vault.py settle {a.project} {a.env} {a.name} --how \"…\"`")
+            f"register: `vault.py settle {a.project} {a.env} {a.name} --how \"…\" "
+            f"--revocation-evidence \"…\" --consumer-evidence \"…\"`")
     meta = _read_meta(slot)
     value = _stdin_value()
     old = _read_private(slot).strip()
@@ -275,14 +278,12 @@ def cmd_rotate(a) -> int:
     meta.setdefault("rotations", 0)
     meta["rotations"] += 1
     _atomic_write(_meta_path(slot), json.dumps(meta, indent=1), 0o600)
-    journal("rotate", f"{a.project}/{a.env}/{a.name}", archived=archive.name)
-                                                                   
-    settled = _settle_leak(a.project, a.env, a.name)
+    journal("rotate", f"{a.project}/{a.env}/{a.name}", archived=archive.name, scope="local_slot")
+                                                                                   
     print(f"rotated {a.project}/{a.env}/{a.name}: old value archived as "
           f"{archive.name} (600); new length {len(value)}; value hidden")
-    if settled:
-        print(f"  the open leak of this secret is now settled — the register keeps "
-              f"the history")
+    print("  local replacement does not settle a leak; record settlement after "
+          "verifying revocation and consumers")
     print("  the RETIRED value still works until revoked at its provider — "
           "revoke it there, then delete the archive when you no longer need it")
     return 0
@@ -332,26 +333,20 @@ def movements(project: str | None = None) -> list[dict]:
 
 @_serialized
 def cmd_moved(a) -> int:
-    ""                                                                            
-                                                                                
+    ""                                                                           
+    _slot(a.project, a.env, a.name)
     if not a.how or len(a.how.strip()) < 12:
-        die("--how must say what moved, where, and how that is known "
-            "(e.g. 'set on Heroku app example-app, release v42') — a "
-            "movement that names no evidence cannot be judged later")
+        die("--how must describe what moved, where, and its evidence (at least 12 characters)")
+                                                                                    
+    detail = _settlement_detail(a) if a.settle else {"how": a.how.strip()}
     secret = f"{a.project}/{a.env}/{a.name}"
-    journal("moved", secret, how=a.how.strip(), at_provider=a.at or "unknown")
+    rows = _unsettled_for(secret) if a.settle else []
+    journal("moved", secret, at_provider=a.at or "unknown", **detail)
     print(f"recorded: {secret} moved at {a.at or 'an unnamed provider'}")
-    print(f"  how: {a.how.strip()[:140]}")
     if a.settle:
-        rows = _leak_rows()
-        settled_of = {r.get("of") for r in rows if r.get("event") == "settled"}
-        open_rows = [r for r in rows if r.get("event") == "leaked"
-                     and r.get("secret") == secret and r.get("id") not in settled_of]
-        for r in open_rows:
-            _append_leak({"event": "settled", "of": r["id"], "at": now(),
-                          "by": os.environ.get("USER", "unknown"), "how": a.how.strip()})
-        print(f"  settled {len(open_rows)} open leak(s) of it" if open_rows
-              else "  no open leak of it to settle")
+        _record_settlements(rows, detail)
+        print(f"  settled {len(rows)} open leak(s) with manual revocation and consumer attestations"
+              if rows else "  no open leak of it to settle")
     return 0
 
 
@@ -374,52 +369,53 @@ def _append_leak(row: dict) -> None:
     _append_private(LEAKS, json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def _settle_leak(project: str, env: str, name: str) -> bool:
-    open_rows = [r for r in _leak_rows()
-                 if r.get("secret") == f"{project}/{env}/{name}"
-                 and r.get("event") == "leaked"
-                 and not any(s.get("event") == "settled" and s.get("of") == r.get("id")
-                             for s in _leak_rows())]
-    for r in open_rows:
-        _append_leak({"event": "settled", "of": r["id"], "at": now(),
-                      "by": "rotation"})
-    return bool(open_rows)
+def _settlement_detail(a) -> dict:
+    ""                                                                            
+    if not a.how or len(a.how.strip()) < 12:
+        die("--how must describe the operation and its evidence (at least 12 characters)")
+    detail = {"verification": "manual_attestation", "how": a.how.strip()}
+    for field in ("revocation_evidence", "consumer_evidence"):
+        value = getattr(a, field, None)
+        if not isinstance(value, str) or len(value.strip()) < 12:
+            flag = "--" + field.replace("_", "-")
+            die(f"{flag} must reference the completed check (at least 12 characters); "
+                "settlement needs both issuer revocation and consumer evidence")
+        detail[field] = value.strip()
+    return detail
+
+
+def _unsettled_for(secret: str) -> list[dict]:
+    rows = _leak_rows()
+    settled_of = leak_register.settled_ids(rows)
+    return [r for r in rows if r.get("event") == "leaked"
+            and r.get("secret") == secret and r.get("id") not in settled_of]
+
+
+def _record_settlements(rows: list[dict], detail: dict) -> None:
+    for row in rows:
+        _append_leak({"event": "settled", "of": row["id"], "at": now(),
+                      "by": os.environ.get("USER", "unknown"), **detail})
 
 
 @_serialized
 def cmd_settle(a) -> int:
-    ""                                                                           
+    ""                                                                         
 
+                                                                              
+                                                                              
                                                                              
-                                                                                
-                                                                           
-                                                                             
-                                                                          
-                                                                         
-                                                            
        
-    if not a.how or len(a.how.strip()) < 12:
-        die("--how must say what was rotated, where, and how that is known "
-            "(e.g. 'heroku pg:credentials:rotate on example-app; release v42 "
-            "\"Update DATABASE by heroku-postgresql\" 2026-09-14') — a settlement "
-            "that names no evidence cannot be judged later")
+    _slot(a.project, a.env, a.name)
+    detail = _settlement_detail(a)
     secret = f"{a.project}/{a.env}/{a.name}"
-    rows = _leak_rows()
-    settled_of = {r.get("of") for r in rows if r.get("event") == "settled"}
-    open_rows = [r for r in rows if r.get("event") == "leaked"
-                 and r.get("secret") == secret and r.get("id") not in settled_of]
-    if not open_rows:
-        die(f"no open leak of {secret} — `vault.py leaks` shows the register; "
-            f"nothing to settle")
-    for r in open_rows:
-        _append_leak({"event": "settled", "of": r["id"], "at": now(),
-                      "by": os.environ.get("USER", "unknown"),
-                      "how": a.how.strip()})
-    journal("settle", secret, how=a.how.strip())
-    print(f"settled {len(open_rows)} open leak(s) of {secret}")
-    print(f"  how: {a.how.strip()[:140]}")
-    print("  the board drops `secret.leaked_unrotated` for it at the next build; the "
-          "register keeps both the sighting and this settlement")
+    rows = _unsettled_for(secret)
+    if not rows:
+        die(f"no open leak of {secret}; `vault.py leaks` shows the register")
+    _record_settlements(rows, detail)
+    journal("settle", secret, **detail)
+    print(f"settled {len(rows)} open leak(s) of {secret}")
+    print("  recorded manual revocation and consumer attestations; no provider probe was run")
+    print("  the board drops `secret.leaked_unrotated` at the next build; the register keeps the history")
     return 0
 
 
@@ -440,13 +436,13 @@ def cmd_leak(a) -> int:
     print(f"recorded: {row['id']}")
     print(f"  where: {row['where']}")
     if known:
-        print(f"  the secret stays USABLE until rotated — `tools/vault.py rotate "
-              f"{a.project} {a.env} {a.name}` settles this row")
+        print("  revoke the old version at its provider and verify consumers; "
+              "replacing a local slot leaves this row open")
     else:
         print("  note: no slot holds this name; recorded anyway — a leak of a key "
               "the store never held is still a leak")
-    print("  the observatory's board will carry `secret.leaked_unrotated` until "
-          "rotation settles it")
+    print("  the board keeps `secret.leaked_unrotated` until explicit settlement "
+          "records revocation and consumer evidence")
     return 0
 
 
@@ -459,7 +455,7 @@ def open_leaks() -> list[dict]:
                                                                           
        
     rows = _leak_rows()
-    settled_of = {r.get("of") for r in rows if r.get("event") == "settled"}
+    settled_of = leak_register.settled_ids(rows)
     return [r for r in rows if r.get("event") == "leaked"
             and r.get("id") not in settled_of]
 
@@ -467,7 +463,8 @@ def open_leaks() -> list[dict]:
 def cmd_leaks(a) -> int:
     rows = _leak_rows()
     leaks = [r for r in rows if r.get("event") == "leaked"]
-    settled_of = {r.get("of") for r in rows if r.get("event") == "settled"}
+    settled_of = leak_register.settled_ids(rows)
+    legacy = leak_register.legacy_rotation_ids(rows)
                                                                        
                                                                   
     if not leaks:
@@ -479,9 +476,12 @@ def cmd_leaks(a) -> int:
         open_n += is_open
         mark = "OPEN   " if is_open else "settled"
         print(f"  {mark} {r.get('at', '?')}  {r.get('secret', '?')}")
+        if is_open and r.get("id") in legacy:
+            print("          closed only by a local rotate (0.2.0 or earlier): revocation "
+                  "and consumers were never recorded")
         print(f"          seen: {r.get('where', '?')}")
-    print(f"\n{len(leaks)} leak(s), {open_n} still unrotated" +
-          (" — rotate them; the board carries a finding for each" if open_n else ""))
+    print(f"\n{len(leaks)} leak(s), {open_n} still open" +
+           (" — verify revocation and consumers, then record settlement" if open_n else ""))
     return 1 if open_n and a.check else 0
 
 
@@ -587,7 +587,11 @@ def main(argv: list[str]) -> int:
     p = sub.add_parser("rotate"); p.add_argument("project"); p.add_argument("env"); p.add_argument("name")
     p = sub.add_parser("leak");   p.add_argument("project"); p.add_argument("env"); p.add_argument("name"); p.add_argument("--where", required=True)
     p = sub.add_parser("settle"); p.add_argument("project"); p.add_argument("env"); p.add_argument("name"); p.add_argument("--how", required=True)
+    p.add_argument("--revocation-evidence", help="reference to verified old-version revocation; no secret values")
+    p.add_argument("--consumer-evidence", help="reference to consumer checks, or evidence that none remain; no secret values")
     p = sub.add_parser("moved");  p.add_argument("project"); p.add_argument("env"); p.add_argument("name"); p.add_argument("--how", required=True); p.add_argument("--at", help="the provider: heroku, digitalocean, cloudflare, a dashboard"); p.add_argument("--settle", action="store_true", help="also settle an open leak of it")
+    p.add_argument("--revocation-evidence", help="required with --settle: old-version revocation evidence")
+    p.add_argument("--consumer-evidence", help="required with --settle: consumer verification evidence")
     p = sub.add_parser("movements"); p.add_argument("project", nargs="?"); p.add_argument("--last", type=int)
     p = sub.add_parser("leaks");  p.add_argument("--check", action="store_true")
     p = sub.add_parser("list");   p.add_argument("project", nargs="?"); p.add_argument("env", nargs="?")

@@ -39,7 +39,7 @@ RUNTIME_DIRS = ('agent', 'collectors', 'dashboard', 'mcp', 'plugins', 'store', '
 ROOT_FILES = (
     'activity.py', 'atomic.py', 'companion_faults.py', 'configuration.py',
     'degradations.py', 'estate.py', 'identity.py', 'observatory.py', 'paths.py',
-    'private_io.py', 'proposals.py', 'store_faults.py', 'survey.py', 'workspace.py',
+    'leak_register.py', 'private_io.py', 'proposals.py', 'store_faults.py', 'survey.py', 'workspace.py',
     'workspace_upgrade.py', 'tmp.py', 'fabric-agent.json', 'fabric-contract.lock.json', 'public-profile.json',
 )
 SKILL_FILES = (

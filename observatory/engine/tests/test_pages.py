@@ -264,6 +264,16 @@ def test_the_keys_page_offers_the_doors_own_verbs() -> None:
     check("a door is derived from who the registry says reads the file",
           "doorOf" in src and "read_by" in src,
           "listing the two ids here would be a second source for one fact")
+    settle_commands = re.findall(r'toolCommand\("vault\.py", \["settle"[^\]]*\]', src)
+    check("each offered settlement command requires both evidence fields",
+          len(settle_commands) >= 1 and all(
+              "--revocation-evidence" in command and "--consumer-evidence" in command
+              for command in settle_commands), str(settle_commands))
+    settle_help = subprocess.run([PY, str(ROOT / "tools/vault.py"), "settle", "--help"],
+                                 capture_output=True, text=True, timeout=120)
+    check("the offered settlement evidence flags exist in the CLI",
+          settle_help.returncode == 0 and "--revocation-evidence" in settle_help.stdout
+          and "--consumer-evidence" in settle_help.stdout)
     verbs = {"openrouter": ("limit", "disable", "enable", "rotate", "revoke",
                             "issue", "ping", "list"),
              "cloudflare": ("ping", "list", "issue"),

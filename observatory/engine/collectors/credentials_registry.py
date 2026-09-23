@@ -37,6 +37,7 @@
 from __future__ import annotations
 import json, os, pathlib, re, stat, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import leak_register  # noqa: E402
 import paths                                                                             
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -415,8 +416,9 @@ def leaks(store: pathlib.Path) -> dict[str, dict]:
             r = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if r.get("event") == "settled" and r.get("of"):
-            settled.add(r["of"])
+        if r.get("event") == "settled":
+            if leak_register.settles(r):
+                settled.add(r["of"])
             continue
         if r.get("event") == "leaked" and r.get("secret"):
             rows[r["secret"]] = r

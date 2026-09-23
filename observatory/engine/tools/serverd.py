@@ -60,6 +60,7 @@ from urllib.parse import urlsplit
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import atomic                                                                   
+import leak_register  # noqa: E402
 import paths                                                                    
 
 PORT = int(os.environ.get("OBSERVATORY_SERVER_PORT", "47311"))
@@ -139,7 +140,8 @@ def refresh_leaks() -> dict:
                 continue
             r = json.loads(line)
             if r.get("event") == "settled":
-                settled.add(r.get("of"))
+                if leak_register.settles(r):
+                    settled.add(r.get("of"))
             elif r.get("event") == "leaked":
                 rows.append(r)
     except (OSError, ValueError):

@@ -1515,7 +1515,7 @@ __NAV__
     <button class="chip-btn" data-f="d-unmeasured" aria-pressed="false">не измерен</button>
   </div>
   <div class="seg" id="seg-creds" role="group" aria-label="Фильтры ключей" hidden>
-    <button class="chip-btn" data-f="c-leaked" aria-pressed="false">утекло, не ротировано</button>
+    <button class="chip-btn" data-f="c-leaked" aria-pressed="false">утечки не закрыты</button>
     <button class="chip-btn" data-f="c-unclaimed" aria-pressed="false">ничей</button>
     <button class="chip-btn" data-f="c-shared" aria-pressed="false">общий: 2+ проекта</button>
     <button class="chip-btn" data-f="c-norotate" aria-pressed="false">никогда не ротировался</button>
@@ -2797,7 +2797,7 @@ function credVerbs(c) {
     ];
   if (c.vault_project) {
     const slot = [c.vault_project, c.env, c.name];
-    const settle = ["закрыть утечку…", toolCommand("vault.py", ["settle", ...slot, "--how", "…"]), null];
+    const settle = ["закрыть утечку…", toolCommand("vault.py", ["settle", ...slot, "--how", "…", "--revocation-evidence", "…", "--consumer-evidence", "…"]), null];
     const rotate = ["ротировать из файла…", privateInput(toolCommand("vault.py", ["rotate", ...slot])), null];
     if (c.known_only_from_the_leak)
       return [sign, settle, ["завести слот из файла…", privateInput(toolCommand("vault.py", ["put", ...slot])), null]];
@@ -2882,7 +2882,7 @@ function renderCreds() {
       : `<span class="unlinked" title="${E(c.unclaimed_reason || "")}">ничей</span>`;
   const state = c => {
     const bits = [];
-    if (c.leaked) bits.push(chip("утёк, не ротирован", "danger"));
+    if (c.leaked) bits.push(chip("утечка не закрыта", "danger"));
     if (c.disabled) bits.push(chip("отключён", "warn"));
     if (c.kind === "leaked-untracked") bits.push(chip("в хранилище нет", "warn"));
                                                                              
@@ -2973,7 +2973,7 @@ function renderCreds() {
             : "здесь пусто"}</td></tr>`}</tbody>`;
     }).join("")}</table></div>
     <p class="dmeta">Показано ${rows.length} из ${CREDS.length} ·
-      ${leaked} утёкших и не ротированных · измерено ${E(D.creds.scanned_on || "—")} ·
+      ${leaked} незакрытых утечек · измерено ${E(D.creds.scanned_on || "—")} ·
       значений здесь нет и быть не может: метка — это то, как ключ называет сам провайдер<br>${howto};
       запись и ротация секрета проекта отсюда <b>отказаны намеренно</b> — значение идёт только через stdin</p>
     ${movementsSection()}`;

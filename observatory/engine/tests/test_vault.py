@@ -35,6 +35,11 @@ def vault(store: pathlib.Path, *args: str, stdin: str = "") -> subprocess.Comple
                           capture_output=True, text=True, timeout=120)
 
 
+def settlement_evidence() -> tuple[str, ...]:
+    return ("--revocation-evidence", "fake-provider receipt revoke-old-version-7",
+            "--consumer-evidence", "fixture consumers api and worker passed with replacement version")
+
+
 def fresh() -> pathlib.Path:
     return pathlib.Path(tmpdir.mkdtemp(prefix="observatory-vault-")).resolve() / "projects"
 
@@ -119,7 +124,7 @@ def test_inject_refuses_a_committable_env_and_writes_an_ignored_one() -> None:
           "an inject that truncates the file destroys hand-kept settings")
 
 
-def test_a_leak_needs_a_place_and_stays_open_until_rotation() -> None:
+def test_a_leak_needs_a_place_and_stays_open_after_local_rotation() -> None:
     s = fresh()
     vault(s, "put", "demo", "prod", "API_TOKEN", stdin="sk-live-zzzz")
     p = vault(s, "leak", "demo", "prod", "API_TOKEN", "--where", "log")
@@ -130,19 +135,27 @@ def test_a_leak_needs_a_place_and_stays_open_until_rotation() -> None:
               "--where", "committed in demo repo at abc123, file config.py")
     check("a leak with a place is recorded", p.returncode == 0 and "recorded" in p.stdout,
           p.stdout[:150])
+    check("leak command requires external revocation", "settles this row" not in p.stdout
+          and "verify consumers" in p.stdout, p.stdout[:160])
     p = vault(s, "leaks", "--check")
     check("`leaks --check` exits non-zero while one is open", p.returncode == 1
           and "OPEN" in p.stdout, p.stdout[:200])
     reg = json.loads((s / "leaks.jsonl").read_text(encoding="utf-8").splitlines()[0])
     check("the register holds names and places, never values",
           "sk-live-zzzz" not in json.dumps(reg), str(reg)[:150])
-    vault(s, "rotate", "demo", "prod", "API_TOKEN", stdin="sk-live-NEW")
+    check("the leak hint does not promise settlement by local rotation",
+          "settles this row" not in p.stdout)
+    before = (s / "leaks.jsonl").read_bytes()
+    put = vault(s, "put", "demo", "prod", "API_TOKEN", "--force", stdin="synthetic-replacement-before-rotate")
+    check("forced local put leaves the leak register unchanged",
+          put.returncode == 0 and before == (s / "leaks.jsonl").read_bytes())
+    rotated = vault(s, "rotate", "demo", "prod", "API_TOKEN", stdin="sk-live-NEW")
     p = vault(s, "leaks", "--check")
-    check("rotation settles the leak", p.returncode == 0 and "0 still unrotated" in p.stdout,
+    check("local rotation leaves the leak open", p.returncode == 1 and "OPEN" in p.stdout,
           p.stdout[:200])
-    lines = (s / "leaks.jsonl").read_text(encoding="utf-8").splitlines()
-    check("the register is append-only — the leak row is still there",
-          len(lines) == 2 and '"settled"' in lines[1], str(lines))
+    check("local rotation does not write a settlement", before == (s / "leaks.jsonl").read_bytes())
+    check("local rotation never claims a settled leak", "now settled" not in rotated.stdout,
+          rotated.stdout[:200])
 
 
 def test_a_leak_of_a_key_the_store_never_held_is_still_recorded() -> None:
@@ -164,11 +177,11 @@ def test_a_leak_rotated_at_the_provider_is_settled_by_hand_with_evidence() -> No
     check("a settlement with no real evidence is refused", p.returncode != 0
           and "evidence" in (p.stdout + p.stderr), (p.stdout + p.stderr)[-160:])
     p = vault(store, "settle", "example-app", "prod", "DATABASE_URL",
-              "--how", "heroku pg:credentials:rotate on example-app; releases v1080/v1081 2026-09-14")
+              "--how", "heroku pg:credentials:rotate on example-app; releases v1080/v1081 2026-09-14", *settlement_evidence())
     check("with evidence it settles", p.returncode == 0 and "settled 1 open leak" in p.stdout, p.stdout[-200:] + p.stderr[-100:])
     p = vault(store, "leaks")
-    check("the register shows it settled, not open", "OPEN" not in p.stdout and "0 still unrotated" in p.stdout, p.stdout[-200:])
-    p = vault(store, "settle", "example-app", "prod", "DATABASE_URL", "--how", "the same evidence again, long enough")
+    check("the register shows it settled, not open", "OPEN" not in p.stdout and "0 still open" in p.stdout, p.stdout[-200:])
+    p = vault(store, "settle", "example-app", "prod", "DATABASE_URL", "--how", "the same evidence again, long enough", *settlement_evidence())
     check("settling twice says there is nothing open", p.returncode != 0 and "no open leak" in (p.stdout + p.stderr))
 
 
@@ -179,7 +192,7 @@ def test_every_movement_lands_in_the_journal_and_hand_moves_are_recordable() -> 
     vault(store, "put", "alpha", "prod", "API_TOKEN", stdin="value-one")
     vault(store, "rotate", "alpha", "prod", "API_TOKEN", stdin="value-two")
     vault(store, "leak", "alpha", "prod", "API_TOKEN", "--where", "a log line in CI")
-    vault(store, "settle", "alpha", "prod", "API_TOKEN", "--how", "rotated above, archive kept, 2026-09-14")
+    vault(store, "settle", "alpha", "prod", "API_TOKEN", "--how", "synthetic replacement with retained archive", *settlement_evidence())
     p = vault(store, "moved", "beta", "prod", "DB_PASSWORD", "--how", "x")
     check("a hand move with no evidence is refused", p.returncode != 0 and "evidence" in (p.stdout + p.stderr))
     p = vault(store, "moved", "beta", "prod", "DB_PASSWORD", "--at", "digitalocean",
@@ -218,6 +231,16 @@ def test_the_board_carries_an_open_leak_and_drops_a_settled_one() -> None:
         spec = importlib.util.spec_from_file_location("bf_v2", ROOT / "tools/build_findings.py")
         bf2 = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(bf2)
+        got = [f for f in bf2.collect() if f["type"] == "secret.leaked_unrotated"]
+        check("the board keeps a locally replaced leak open", len(got) == 1, str(got)[:150])
+        if got:
+            check("the board requires revocation and consumer evidence",
+                  "--revocation-evidence" in got[0]["action"]
+                  and "--consumer-evidence" in got[0]["action"]
+                  and "either settles" not in got[0]["action"], got[0]["action"])
+        settled = vault(s, "settle", "demo", "prod", "API_TOKEN",
+                        "--how", "synthetic provider and consumer checks", *settlement_evidence())
+        check("explicit settlement succeeds", settled.returncode == 0, settled.stderr)
         got = [f for f in bf2.collect() if f["type"] == "secret.leaked_unrotated"]
         check("a settled leak raises nothing", not got, str(got)[:150])
     finally:
@@ -279,6 +302,96 @@ def test_an_old_retired_archive_is_reported() -> None:
           and "dead-value" not in json.dumps(got), str(got)[:200])
 
 
+def test_manual_settlement_requires_two_independent_attestations() -> None:
+    store = fresh()
+    vault(store, "leak", "demo", "prod", "API_TOKEN", "--where", "synthetic CI log exposure")
+    original = (store / "leaks.jsonl").read_bytes()
+    moves = (store / "movements.jsonl").read_bytes()
+    attempts = [(), ("--revocation-evidence", "provider revoked old version"),
+                ("--consumer-evidence", "both fixture consumers checked"),
+                ("--revocation-evidence", "   ", "--consumer-evidence", "both consumers checked"),
+                ("--revocation-evidence", "provider revoked old version", "--consumer-evidence", "…")]
+    for command in ("settle", "moved"):
+        for flags in attempts:
+            extra = ("--settle",) if command == "moved" else ()
+            p = vault(store, command, "demo", "prod", "API_TOKEN", "--how",
+                      "a local replacement alone proves no containment", *extra, *flags)
+            check(f"{command} refuses incomplete settlement evidence {len(flags)}",
+                  p.returncode != 0, p.stdout)
+            check(f"{command} refusal leaves both journals unchanged",
+                  original == (store / "leaks.jsonl").read_bytes()
+                  and moves == (store / "movements.jsonl").read_bytes())
+    p = vault(store, "settle", "demo", "prod", "API_TOKEN", "--how",
+              "fake-provider and consumer receipt references", *settlement_evidence())
+    check("two explicit attestations permit manual settlement", p.returncode == 0, p.stderr)
+    rows = [json.loads(line) for line in (store / "leaks.jsonl").read_text().splitlines()]
+    last = rows[-1]
+    check("settlement distinguishes manual evidence from a provider probe",
+          last.get("event") == "settled" and last.get("verification") == "manual_attestation")
+    check("settlement keeps revocation and consumer receipts separate",
+          last.get("revocation_evidence") == settlement_evidence()[1]
+          and last.get("consumer_evidence") == settlement_evidence()[3])
+    audit = json.loads((store / "movements.jsonl").read_text().splitlines()[-1])
+    check("settlement audit contains both evidence references",
+          audit.get("revocation_evidence") == last.get("revocation_evidence")
+          and audit.get("consumer_evidence") == last.get("consumer_evidence")
+          and audit.get("verification") == "manual_attestation")
+
+
+def test_moved_settlement_and_legacy_readers_preserve_scope() -> None:
+    import importlib.util
+    store = fresh()
+    for project in ("demo", "other"):
+        vault(store, "leak", project, "prod", "API_TOKEN", "--where", "synthetic CI log exposure")
+                                                                                    
+    with (store / "leaks.jsonl").open("a") as f:
+        f.write(json.dumps({"event": "leaked", "id": "old-1", "secret": "legacy/prod/KEY"}) + "\n")
+        f.write(json.dumps({"event": "settled", "of": "old-1", "by": "rotation"}) + "\n")
+        f.write(json.dumps({"event": "leaked", "id": "old-2", "secret": "manual/prod/KEY"}) + "\n")
+        f.write(json.dumps({"event": "settled", "of": "old-2", "by": "someone",
+                            "how": "rotated at the provider by hand, before 0.2.1"}) + "\n")
+    before = (store / "leaks.jsonl").read_bytes()
+    p = vault(store, "moved", "demo", "prod", "API_TOKEN", "--settle", "--at", "fake-provider",
+              "--how", "synthetic provider replacement and checks", *settlement_evidence())
+    check("moved can settle with both attestations", p.returncode == 0, p.stderr)
+    body = (store / "leaks.jsonl").read_bytes()
+    check("historical rows are preserved byte for byte", body.startswith(before))
+    for filename, name in (("collectors/credentials_registry.py", "creds_pb001"),
+                           ("tools/serverd.py", "server_pb001"), ("tools/vault.py", "vault_pb001")):
+        prior = os.environ.get("OBSERVATORY_VAULT_DIR")
+        os.environ["OBSERVATORY_VAULT_DIR"] = str(store)
+        try:
+            spec = importlib.util.spec_from_file_location(name, ROOT / filename)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            if name == "creds_pb001":
+                slots = set(module.leaks(store))
+            elif name == "server_pb001":
+                slots = {r["secret"] for r in module.refresh_leaks()["open_secrets"]}
+            else:
+                slots = {r["secret"] for r in module.open_leaks()}
+            check(f"{name} reopens a leak that only a pre-0.2.1 local rotate closed",
+                  slots == {"other/prod/API_TOKEN", "legacy/prod/KEY"}, str(slots))
+        finally:
+            if prior is None: os.environ.pop("OBSERVATORY_VAULT_DIR", None)
+            else: os.environ["OBSERVATORY_VAULT_DIR"] = prior
+    p = vault(store, "leaks")
+    check("`leaks` names a leak closed only by a pre-0.2.1 local rotate",
+          "closed only by a local rotate" in p.stdout and "manual/prod/KEY" in p.stdout, p.stdout[-400:])
+    sys.path.insert(0, str(ROOT))
+    import leak_register
+    check("the shared rule: legacy rotation does not settle, manual and attested rows do",
+          not leak_register.settles({"event": "settled", "of": "x", "by": "rotation"})
+          and leak_register.settles({"event": "settled", "of": "x", "by": "rotation",
+                                     "verification": "manual_attestation"})
+          and leak_register.settles({"event": "settled", "of": "x", "how": "by hand"})
+          and not leak_register.settles({"event": "settled", "by": "someone"}))
+    moved = json.loads((store / "movements.jsonl").read_text().splitlines()[-1])
+    check("moved journal records settlement evidence too",
+          moved.get("verification") == "manual_attestation"
+          and moved.get("revocation_evidence") == settlement_evidence()[1]
+          and moved.get("consumer_evidence") == settlement_evidence()[3])
+
+
 def test_the_mandatory_rules_ship_as_a_skill() -> None:
     ""                                                                         
     skill = ROOT / "skill/plugins/observatory-log/skills/handling-secrets/SKILL.md"
@@ -305,13 +418,15 @@ if __name__ == "__main__":
                test_put_list_rotate_and_the_archive,
                test_the_vocabulary_is_enforced,
                test_inject_refuses_a_committable_env_and_writes_an_ignored_one,
-               test_a_leak_needs_a_place_and_stays_open_until_rotation,
+               test_a_leak_needs_a_place_and_stays_open_after_local_rotation,
                test_a_leak_of_a_key_the_store_never_held_is_still_recorded,
                test_the_board_carries_an_open_leak_and_drops_a_settled_one,
                test_an_unreadable_register_is_reported_not_read_as_empty,
                test_an_old_retired_archive_is_reported,
                test_the_mandatory_rules_ship_as_a_skill,
                test_a_leak_rotated_at_the_provider_is_settled_by_hand_with_evidence,
+               test_manual_settlement_requires_two_independent_attestations,
+               test_moved_settlement_and_legacy_readers_preserve_scope,
                test_every_movement_lands_in_the_journal_and_hand_moves_are_recordable):
         fn()
     print()
