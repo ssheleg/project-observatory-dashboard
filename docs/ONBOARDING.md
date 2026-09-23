@@ -59,6 +59,12 @@ it does not replace an existing installation. Configuration belongs in
 `project-observatory full-path` prints the immutable engine directory, useful
 for connecting scripts, hooks and MCP.
 
+`full doctor` also reports whether the scheduled tick is alive (`tick.verdict`). A tick that was
+killed mid-run, for example by a restart, is `interrupted`. When no tick has finished for six hours
+the verdict is `stale`, and when one has held the lock for longer than that it is `running-long`.
+The dashboard server's `/health` and every MCP answer's `degraded` list say the same. Its findings
+cannot: they are built by the tick itself, so a dead tick leaves the last report looking current.
+
 The old 0.1 commands remain available without `full`. They use their previous
 workspace format and previous default home. Do not combine the two formats.
 `OBSERVATORY_FULL_HOME`, when set, selects the full launcher home ahead of
@@ -140,11 +146,16 @@ Rotation changes the local slot; provider revocation is a separate action.
 With `companion_remediation` enabled, each tick replaces known values in the memory companion's
 stores with `[REDACTED:<name>]`, after taking a backup of each store it changes. The first pass reads
 every row; later ticks read only rows added since, per table, and record where they stopped in
-`state/scrub-watermark.json`. That file identifies the value set by an HMAC under the workspace's
+`store/scrub-watermark.json`. That file identifies the value set by an HMAC under the workspace's
 salt, so it holds nothing a value could be recovered from. A complete pass runs again when the set of
 known values changes, a week after the last complete pass, when a table was emptied or recreated, or
 on `tools/scrub_companion.py --full`. A row edited in place between complete passes is caught by the
 weekly pass, not sooner.
+
+The leak scan reads the companion's database the same way: transcripts from their last offset, the
+database from its last rowid per table (in `store/raw/leak-scan-state.json`), with the same reasons
+for a complete pass. So a sighting is reported once, by the tick that first reads it, and stays on
+record in the leak register until it is settled. `tools/scan_leaks.py --full` reads everything again.
 
 ## Connect an agent
 

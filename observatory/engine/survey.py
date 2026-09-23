@@ -432,6 +432,14 @@ def survey(scope: dict | None = None, include_external: bool = False,
     # answer is not wrong — it is OLDER than it looks, and a caller comparing
     # two surveys would see repositories appear and disappear with nothing to
     # explain it.
+    # PB-132: the registry may be older than it looks when the tick died or stopped.
+    try:
+        import configuration
+        import tick_health
+        degraded.extend(tick_health.degraded(paths.STATE, paths.SCRATCH,
+                                             scheduler_enabled=configuration.enabled("scheduler", "features")))
+    except Exception as exc:
+        degraded.append({"source": "tick", "reason": f"health unreadable: {type(exc).__name__}"})
     for d in _collector_degradation("gh/_degraded.json"):
         degraded.append({"source": d.get("source", "github"),
                          "reason": f"{d.get('reason', 'the listing failed')} — the "
