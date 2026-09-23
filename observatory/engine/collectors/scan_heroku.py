@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-""                                                                            
+"""Ask Heroku what is actually running, and what it costs to leave it running.
 
-                                                                                    
-                                                                         
-                                                                               
-                                                                              
-                                                                            
-                                                                                
-                                                                             
-      
+WHY. The registry knows what a project IS (repositories, folders, commits) and
+nothing about where it is HOSTED. A crashed dyno, an application Heroku has
+suspended, or an application whose whole content is a database nobody deploys
+to are all facts about projects this repository already watches, and none of
+them can reach a finding rule unless a collector records them.
 
-                                                                              
-                                                                                 
-                                                                           
-                                                                               
-                                                                        
-                                                                             
-                                              
+WHAT IT DOES NOT DO. It never decides which project an application belongs to.
+It records what Heroku says (the GitHub repository the Deploy tab is wired to,
+and the application's own name) and `collectors/merge.py` ties that to a
+project through a repository or a folder the registry ALREADY owns. Inferring a
+project from an application's name is a guess the repository rules forbid, and
+it is often wrong: an application's name need not match the repository it
+deploys from.
 
-                                                                              
-                                                                                
-                                                                          
+CREDENTIALS. The token comes from `heroku auth:token` at run time and is never
+written anywhere: not to the raw file, not to the registry, not to a log. The
+CLI already holds the operator's session; this borrows it for one process.
 
-                                                                              
-                                                                                
-                                                                             
-                                                                                
-                                                                               
-                                                                           
-       
+DEGRADATION. Four things can go wrong and each is NAMED rather than swallowed:
+the CLI is absent, the CLI is not logged in, the API refuses, or one application
+answers 403 because Heroku SUSPENDED it. The last one is the reason this file
+does not treat an error as an empty list: a suspended application returns 403
+on `/dynos`, and reading that as "no dynos" turns "Heroku turned this off" into
+"scaled but never started", which is a different diagnosis with a different
+remedy.
 
-                                                           
-   
+    scan_heroku.py store/raw/heroku.json [--only <app> ...]
+"""
 from __future__ import annotations
 import concurrent.futures as cf
 import json
@@ -50,9 +47,9 @@ API = "https://api.heroku.com"
 KOLKRABBI = "https://kolkrabbi.heroku.com"
 WORKERS = 10
 TIMEOUT = 60
-                                                                              
-                                                                              
-                                                                              
+#: Deep enough to walk past a run of config releases and find the last one
+#: that moved code. A shallow window misreads an application whose newest
+#: releases are all add-on or config changes as never deployed.
 RELEASE_WINDOW = 200
 
 #: On-demand list price per dyno per month. NOT an invoice: Heroku bills per
@@ -64,9 +61,9 @@ DYNO_PRICE = {"Eco": 5, "Basic": 7, "Standard-1X": 25, "Standard-2X": 50,
               "Performance-M": 250, "Performance-L": 500, "Performance-L-RAM": 500,
               "Performance-XL": 750, "Performance-2XL": 1500}
 
-                                                                                
-                                                                            
-                                                       
+#: A release description that moved code. Everything else Heroku calls a release
+#: too: `Set X config vars`, `Enable Logplex`, `Attach DATABASE`, and the
+#: releases the add-on services write for themselves.
 CODE_RELEASE = ("Deploy ", "Deployed ", "Promote ", "Rollback ")
 
 #: `https://git.heroku.com/<app>.git` in a checkout's `.git/config`. Both the
@@ -101,12 +98,12 @@ def _headers(tok: str, accept: str) -> dict:
 
 def get(url: str, tok: str, *, accept: str = "application/vnd.heroku+json; version=3",
         extra: dict | None = None):
-    ""                                                                     
+    """One request. Returns the decoded body, or a dict naming the failure.
 
-                                                                          
-                                                                                
-                                            
-       
+    A failure is a VALUE here rather than an exception because a suspended
+    application is a legitimate answer to `/dynos` and the caller has to be able
+    to tell it apart from a network problem.
+    """
     head = _headers(tok, accept)
     if extra:
         head.update(extra)
@@ -169,12 +166,12 @@ def config_trail(rels: list) -> list[dict]:
 
 
 def paged(path: str, tok: str) -> list | dict:
-    ""                                                   
+    """`GET` a collection to the end of its `Next-Range`.
 
-                                                                             
-                                                                           
-                                                    
-       
+    Heroku pages with a `Range` header and answers 206 with `Next-Range` when
+    more remains. A collector that reads page one and stops reports a small
+    estate, which looks exactly like a small estate.
+    """
     out, rng = [], None
     while True:
         head = _headers(tok, "application/vnd.heroku+json; version=3")
@@ -195,14 +192,13 @@ def paged(path: str, tok: str) -> list | dict:
 
 
 def owned_addons(addons: list, app_name: str) -> tuple[list, list]:
-    ""                                                               
+    """Split what this application PAYS FOR from what it merely uses.
 
-                                                                        
-                                                                            
-                                                                               
-                                                                               
-                                
-       
+    `/apps/<id>/addons` returns add-ons attached from other applications
+    alongside owned ones. Summing the list whole counts a shared database once
+    per application that uses it, inflating the estate's cost and making an
+    application look as if it pays for a database it does not own.
+    """
     own, attached = [], []
     for a in addons:
         row = {"name": a.get("name"),
@@ -273,12 +269,12 @@ def scan_app(app: dict, tok: str) -> dict:
     row["last_release"] = ({"version": rels[0]["version"], "at": rels[0]["created_at"],
                             "desc": (rels[0].get("description") or "")[:120]}
                            if rels else None)
-                                                                               
-                                                                             
-                                                                              
-                                                                              
-                                                                               
-                                           
+    # THE CONFIG TRAIL, names only. Heroku describes a config change as
+    # "Set A, B config vars" and a Postgres credential rotation as an update
+    # of DATABASE by the add-on: variable NAMES in both, never values.
+    # Kept so the board can say "a change touching DATABASE happened after the
+    # leak; if that was the rotation, settle it" instead of carrying a critical
+    # for a rotation that already happened.
     row["config_releases"] = config_trail(rels)
     row["last_deploy"] = ({"version": code["version"], "at": code["created_at"],
                            "desc": (code.get("description") or "")[:120],
@@ -307,28 +303,26 @@ def scan_app(app: dict, tok: str) -> dict:
 
 
 def local_checkouts() -> tuple[dict[str, list[str]], list[str]]:
-    ""                                                                        
+    """Which folders on this machine carry a git remote pointing at which app.
 
-                                                                                 
-                                                                              
-                                                                           
-                                                                              
-                                                                    
+    `collectors/scan_remotes.py` records ONE remote per repository (the one it
+    asks whether the clone is current), so it does not see a
+    `git.heroku.com/<app>.git` remote held beside it. That remote is a fact
+    about deployment, not about sync, which is why it is read here rather than
+    added to a collector that exists to answer a different question.
 
-                                                                                
-                                                                               
-                                                                              
-                                                  
-       
+    Returned as app -> folders, PLURAL, and the plural is the point: two folders
+    can carry a remote for the same application, and the first one found is not
+    reliably the live source.
+    """
     found: dict[str, list[str]] = {}
     seen: list[str] = []
     root = paths.DATA
     if not root.is_dir():
         return found, seen
-                                                                          
-                                                                           
-                                                                              
-                                               
+    # THREE LEVELS, and the third is not padding: an application can deploy
+    # from a repository nested two folders inside a project whose only remote
+    # is Heroku's. Two levels would report it as having no checkout at all.
     for cfg in (sorted(root.glob("*/.git/config")) + sorted(root.glob("*/*/.git/config"))
                 + sorted(root.glob("*/*/*/.git/config"))):
         try:

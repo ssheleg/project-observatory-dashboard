@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-""                                                                           
+"""How many DIRECT dependencies each project declares, as a metric over time.
 
-                                                                               
-                                                                                 
-                                                                              
-                                                                            
-                                                                            
-                      
+The second plugin, and it exists to answer a question the registry structurally
+cannot. The registry says what a project IS — where it lives, who owns it, what
+it publishes. It says nothing about how much of the project is somebody else's
+code, and that number is the one that predicts a security advisory, a broken
+build after an ecosystem change, and the cost of picking the project back up
+after six months away.
 
-                                                                               
-                                                                                    
-                                                                                
-                                                                          
+**Direct only, never transitive.** A lockfile's transitive closure measures the
+ecosystem's own habits — one direct dependency can drag in hundreds — and it
+changes when a maintainer three levels away publishes a patch. What the operator
+DECIDED is the direct set, and a change in it is a decision somebody made.
 
-                                                                                
-                                                                                
-                                                                           
-                         
+**No network, no lockfile, no install.** It reads the manifests already on disk.
+A format it cannot parse is reported to stderr and left out of the number rather
+than counted as zero: a project with an unreadable `pyproject.toml` has not
+declared no dependencies.
 
-                                                               
-                                                                             
-                                                                          
-                                             
-   
+The formats in `PARSERS` are the ones found in practice; another one would be a
+change to this file alone.
+"""
 from __future__ import annotations
 import json, pathlib, re, sys, tomllib
 from datetime import datetime, timezone
@@ -40,12 +38,12 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "vendor", "Pods", "target"
 
 
 def npm(text: str) -> set[str]:
-    ""                                                                         
+    """`dependencies` and `peerDependencies` — what the package needs to RUN.
 
-                                                                           
-                                                                            
-                                
-       
+    `devDependencies` is deliberately excluded: a linter is not part of the
+    project's surface area, and counting it makes a project with good tooling
+    look heavier than a careless one.
+    """
     doc = json.loads(text)
     out: set[str] = set()
     for key in ("dependencies", "peerDependencies"):
@@ -141,9 +139,9 @@ def manifests(root: pathlib.Path) -> list[pathlib.Path]:
 
 
 def count(folder: pathlib.Path) -> tuple[set[str], list[str]]:
-    ""                                                                         
-                                                                             
-                
+    """(distinct dependency names, problems). Names are namespaced by ecosystem
+    so `requests` in Python and `requests` in npm are two dependencies, which
+    they are."""
     names: set[str] = set()
     problems: list[str] = []
     for f in manifests(folder):

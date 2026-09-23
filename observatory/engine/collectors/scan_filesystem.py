@@ -4,24 +4,23 @@ The BASE collector: `merge.py` starts from this file, and `scan_remotes.py` and
 `scan_bitbucket.py` derive what to probe from it. Everything downstream inherits
 whatever this one gets wrong.
 
-                                                                       
-                                                                                
-                                                                               
-                                                                            
-                                                                                 
-                                                                               
-                                                                     
-                                                                               
-                                                                                
-                          
+**What it could not read, it now says.** `sh()` returned `""` for three
+different facts (a git command that exited non-zero, one that timed out at 25
+seconds, and one that raised), so a repository whose remote could not be read
+was indistinguishable from one that has no remote. Downstream that becomes a
+`local:` project: `merge.nwo("")` is None, the repository is never matched to its
+listing, and the estate gains a folder-anchored project where a real repository
+belongs. Some folders legitimately have no remote, and there was no way to tell
+them from a failure. It is the same class of fault the domain probe and the
+transfer check had already fixed.
 
-                                                                        
-                                                                                
-                                                                              
-                                                                                
-                                                                      
-                                                                         
-                                                                
+**And the exclusions were applied one layer too late.** `merge.py` reads
+`folder_exclusions.json` to decide what is not a project; this scan read nothing
+and walked everything, so a container of agent worktrees, excluded by name, had
+tens of thousands of files counted on every tick to produce a number the merge
+then discarded, and that one folder dominated the scan's run time. The
+exclusions are now read here, from the same file, and a skipped folder is
+REPORTED as skipped with its reason rather than silently absent.
 
     scan_filesystem.py store/raw/local.json
 """
@@ -170,23 +169,22 @@ def homepage(p: Path):
                 for m in set(DOMAIN_RX.findall(t.lower()))-{"example.com"}:
                     hits.append((wr,m))
             except Exception: pass
-                                                                             
-                                                                                
-                                                                                  
-                                                                           
-                                                                
+    # URL-SHAPED CONFIG, local first. A site URL variable in a checkout's
+    # own env file is the project naming its public host, and it sits on THIS
+    # machine: the operator's first-priority evidence. Only values that are
+    # plain http(s) URLs with no `@` are read (a DATABASE_URL carries a
+    # password); everything else in the file is never looked at.
     for envf in sorted(p.glob(".env*")):
         if not envf.is_file() or envf.name.endswith((".bak", ".swp")):
             continue
         try:
             for line in envf.read_text(encoding="utf-8", errors="replace").splitlines():
-                                                                                        
-                                                                                
-                                                                              
-                                                                              
-                                                                              
-                                                                               
-                              
+                # SELF-REFERENTIAL NAMES ONLY. A vendor's API URL in a checkout
+                # says the project CONSUMES that host, not that it owns it, and
+                # most such hits are model APIs and payment providers. What
+                # names the project's own public surface is the small family of
+                # site, base, domain and origin names matched below, with their
+                # framework-prefixed twins.
                 m = re.match(r"\s*(?:export\s+)?((?:NEXT_PUBLIC_|VITE_|REACT_APP_|NUXT_PUBLIC_)?"
                              r"(?:APP|SITE|PUBLIC|BASE|WEB|FRONTEND|CANONICAL|PRODUCTION|NEXTAUTH)?_?"
                              r"(?:URL|DOMAIN|HOST|ORIGIN))\s*=\s*[\"']?(https?://[^\s\"'#]+)", line)
@@ -231,23 +229,21 @@ degraded=[]
 skipped=[]
 EXCLUDED_PREFIXES, EXCLUDED_NAMES = exclusions()
 
-                                                                              
-                                                                                
-                                                                            
-                                  
- 
-                                                                              
-                                                                              
- 
-                                                                               
-                                                                                 
-                                                                           
-                                                                               
-                                                                          
-                                                                      
- 
-                                                                              
-                                     
+# A PREFLIGHT, and the reason for it. With `git` off PATH every git folder
+# answers nothing, so `merge.nwo("")` is None for all of them and each becomes a
+# folder-anchored project. Running the merge against exactly that file showed
+# the damage: many more projects, fewer repositories, and roughly ten times the
+# local-folder anchors.
+#
+# The emitter would then have written all of it into the canonical registry and
+# `commit_registry` would have committed it, because nothing anywhere compares an
+# emit against the one before it. So a missing `git` is ONE fact about this
+# machine, not a claim about every folder in the estate: the scan writes nothing
+# and the last good `local.json` survives. The domain probe follows the same rule
+# for a missing `dig`, which would otherwise declare every domain dead.
+#
+# Only when there is something to lose: an estate with no git folder at all is
+# legitimately scannable without git.
 _probe, _why = sh(["git", "--version"])
 if _why:
     _git_folders = [e for e in os.listdir(DATA)
@@ -276,12 +272,11 @@ for entry in sorted(os.listdir(DATA)):
     real = str(p.resolve())
     dotgit = p/".git"
     git = dotgit.exists()
-                                                                  
-                                                                              
-                                                                              
-                                                                                    
-                                                                               
-                                                          
+    # A WORKTREE is not a project. `.git` is a FILE there, holding
+    # `gitdir: <repo>/.git/worktrees/<name>`, and the checkout it points at is
+    # already in the registry. Agents create worktrees under the estate root, and
+    # without this the estate would grow by however many an agent happens to
+    # have open, each one an invented project with its parent's whole history.
     worktree_of = ""
     if git and dotgit.is_file():
         try:
@@ -294,13 +289,12 @@ for entry in sorted(os.listdir(DATA)):
     rec = {"folder": entry, "path": str(p), "real_path": real, "symlink": is_link, "is_git": git,
            "worktree_of": worktree_of,
            "kinds": detect(p), "readme": first_para(p), "homepage_hits": homepage(p)}
-                                                                          
-                                                                              
-                                                                               
-                                                                               
-                                                                                  
-                                                                               
-                 
+    # THE PROJECT'S OWN DECLARATION OF ITS PARTS. `.gitmodules` names, per
+    # module, the path inside this tree and the repository it comes from: a
+    # MEASURED composition fact, stronger than a wiki mention. When nothing read
+    # it, a project made of several submodules reached the registry as whatever
+    # a stale note named, while its modules stood beside it as phantom
+    # standalone projects.
     gm = p / ".gitmodules"
     if git and gm.is_file():
         subs, cur = [], {}
@@ -341,17 +335,16 @@ for entry in sorted(os.listdir(DATA)):
             rec[field] = out
             if not why:
                 continue
-                                                                            
-                                                                              
-                                                                                  
-                                                                                  
-                                                                        
-                                                                        
-                                                                             
-                                                       
-                                                                          
-                                                                                
-                                                                           
+            # SOME FAILURES ARE ANSWERS, and telling them apart is the whole
+            # point of splitting the return value. `git remote get-url origin`
+            # exits 2 with "No such remote" for a repository that has none, and
+            # a repository with no commits has no HEAD to resolve. Recording
+            # those as degradations would put a permanent warning in front of
+            # the operator for a tree that is exactly as intended, which is how
+            # a findings list becomes noise nobody reads.
+            # THE ENGLISH IS GUARANTEED, not assumed: `sh` pins `LC_ALL=C`
+            # (see `GIT_ENV`). Without that pin a localised git turns this into
+            # a permanent degradation for every repository without a remote.
             if field == "remote" and "No such remote" in why:
                 rec["no_origin"] = True
                 continue

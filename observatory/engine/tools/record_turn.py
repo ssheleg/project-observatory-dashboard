@@ -29,23 +29,22 @@ OWNER = "agent:claude-code"
 MAX_SUBJECTS = 8
 
 
-                                                                                
-                                                                                 
-                                                                              
-                                                     
+#: Reasons that are ANSWERS about the work rather than failures of the recorder.
+#: Everything else in `reason` is a fault, and a fault must not be silent: the
+#: same distinction drawn for collectors, applied to the one component that
+#: runs in every session of every project.
 NOT_A_FAULT = (
     "not a git repository",
     "not in the registry",
     "nothing changed",
     "unchanged since the last turn",
     "no session id",
-                                                                              
-                                                                                
-                                                                              
-                                                                           
-                                                                               
-                                                                             
-                                                          
+    # THE RULE WORKING, not the recorder failing. `estate.py` exists to answer
+    # "what counts as this estate's OWN work" in one place, and declining a turn
+    # inside a third-party clone is that answer: "somebody else's history".
+    # Missing from this list, it made every such turn a fault: a session inside
+    # a checked-out external project raised `companion.not_recording`, and a
+    # durable line was appended for every one of those turns as well.
     "project ownership is",
 )
 

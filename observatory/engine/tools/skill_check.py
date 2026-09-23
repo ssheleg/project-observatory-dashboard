@@ -13,13 +13,13 @@ agent runs this tool with the version printed in the SKILL.md it actually read.
 
 WHAT IT DOES with that claim:
 
-                                                                             
-                                               
-                                                                 
-                                                               
-                                                                               
-                                                                                 
-                                                     
+  * compares it against the SHIPPED version (this checkout's SKILL.md, the
+    source the installed plugin is built from);
+  * prints OK, or STALE with the exact remedy (update + restart);
+  * records the sighting in `skill-sessions.json` under the raw store, so
+    `tools/build_findings.py` can raise `skill.stale_session` while any session
+    is known to be working from old text: the operator sees drift on the board
+    instead of discovering it in a rule followed the old way.
 
 BACKWARD COMPATIBILITY POLICY, enforced by wording here and versioning there:
 the tools a skill names (`vault.py`, `install_key.py`) keep old invocation

@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""What production is configured with — the comparison, and what never leaves it.
 
-                                                                               
-                                                                                
-                                                                              
-                    
+THE DANGEROUS PART IS NOT THE COMPARISON, it is the fetch: Heroku's config-vars
+endpoint has no names-only form, so every production secret of every application
+passes through one process. Everything here exists to keep that transit honest:
 
-                                                                                  
-                                                                                
-                                                                              
-                                                                              
-                                                              
-                                                                                
-                                                                          
-                          
-                                                                         
-                                                                              
-                           
+  * the fingerprint is the SAME derivation `collectors/scan_env.py` uses — if it
+    ever drifts, every verdict silently becomes `differs` and the page reports a
+    healthy estate; the same sentence is true of the SALT, which is selectable
+    and can be minted again, so each scan names its salt and a comparison
+    across two names is refused rather than answered;
+  * the registry document carries no fingerprint and no value, only the verdict,
+    because `registry/` is in git and a salted fingerprint is a lookup the
+    moment the salt leaks;
+  * `differs` produces NO finding. A production value that differs from a
+    laptop's is the design; hundreds of rows saying so would be the last time
+    anybody read the board.
 
-                                                                           
-                                                                             
-                                                                   
-   
+Values used here are COMPOSED rather than written: `tools/check_secrets.py`
+reports a secret-shaped literal as a finding and cannot tell a fixture from a
+live credential, which is the right rule and the reason for `_k()`.
+"""
 from __future__ import annotations
 import importlib.util
 import json
@@ -80,12 +79,12 @@ def load(rel: str, name: str):
 
 
 def _minted_state() -> tuple[pathlib.Path, str]:
-    ""                                                                   
+    """A scratch STATE with its own salt, and the name that salt derives.
 
-                                                                            
-                                                                         
-                                                    
-       
+    Hermetic on purpose: a test that read the operator's own salt would pass or
+    fail by ambient state, and the thing under test here is precisely what
+    happens when there are two salts.
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-state-"))
     d.chmod(0o700)
     code = ("import sys, importlib.util;"
@@ -218,11 +217,11 @@ def test_differing_is_not_a_finding_and_sharing_is_one() -> None:
 
 
 def test_a_secret_that_exists_only_at_the_provider_is_counted_not_copied() -> None:
-    ""                                                                      
-                                                                    
-                                                                          
-                                                                            
-                                         
+    """Production configuration is not backed up by copying its values here —
+    holding them is forbidden. So the backup is measured instead: a
+    secret-class variable nothing on this machine fingerprints to is one a
+    lost application loses — a count with the worst application first, and
+    the vault, by name, as the remedy."""
     rf = load("tools/remote_findings.py", "remote_findings")
     doc = {"apps": [
         {"app": "a", "compared_with": ["/x/a"], "error": None, "retired_in_use": [], "counts": {},
@@ -289,9 +288,9 @@ def test_the_scan_is_gated_to_once_a_day() -> None:
     out = d / "remote-env.json"
     out.write_text(json.dumps({"scanned_at": __import__("datetime").datetime.now(
         __import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                                                           
-                                                                              
-                                      
+        # Stamped with the salt this run will read: the age gate is what is
+        # under test, and a scan from another salt is refused for a different
+        # reason entirely.
         "fingerprint_namespace": ns,
         "apps": [], "retired": [], "degraded": []}), encoding="utf-8")
     before = out.read_text(encoding="utf-8")
@@ -365,11 +364,12 @@ def _sides(remote_ns, local_ns):
 
 
 def test_two_salts_never_produce_a_measured_verdict() -> None:
-    ""                                                            
+    """A new salt beside an old cache.
 
-                                                                               
-                                                                              
-       
+    `differs` is the ORDINARY verdict here, so an estate whose salt changed and
+    an estate in perfect health would render identically. Both must stop being
+    said: the comparison is withheld and the reason is named.
+    """
     rr = load("collectors/remote_registry.py", "remote_registry")
     for label, remote_ns, local_ns, state in (
             ("two different salts", "fp1:aaaaaaaaaaaaaaaa", "fp1:bbbbbbbbbbbbbbbb", "mismatched"),

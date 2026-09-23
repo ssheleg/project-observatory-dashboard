@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                      
+"""The read layer: `estate.survey` and the two narrower reads behind it.
 
-                                                                          
-                                           
-                                                                              
-                                 
-   
+Deterministic. No model participates, so the same scope over the same scan
+returns the same answer. Output conforms to
+fabric/schemas/capability-output.schema.json — the probes check that, rather
+than this docstring promising it.
+"""
 from __future__ import annotations
 import json, os, re, sqlite3
 from datetime import datetime, timezone
@@ -64,18 +64,15 @@ def _marks(items) -> str:
 
 
 def ids_for_project(project_id: str) -> list[str]:
-    ""                                                             
+    """Every id under which this project's history may be recorded.
 
-                                                                                     
-                                                                                
-                                                                           
-                                                                                
-                                                                                 
-                                            
+    A project's id is derived from its PUBLICATION STATE — `project:local-<folder>`
+    while it has no remote, `project:<owner>-<name>` after — so publishing one
+    renames it and detaches every row already keyed to the old id.
 
-                                                                              
-                                                                         
-       
+    Resolved rather than rewritten: the ledger is authored and append-only, so
+    the reader follows the rename and the record stays as it was written.
+    """
     try:
         projects = _load("projects.json")["projects"]
         for p in projects:
@@ -100,16 +97,16 @@ def _identity_warnings(projects: list[dict], project_id: str | None = None) -> l
 
 
 def _tier_vocabulary() -> list[dict]:
-    ""                                                                       
+    """The tiers a host must be able to ORDER and colour, in threshold order.
 
-                                                                               
-                                                                             
-                                                                               
-                                                                                
-                                                                              
-                                                                          
-                       
-       
+    A tier string on its own is half an answer: nothing outside this repository
+    knows whether `cooling` is better or worse than `dormant`. The vocabulary
+    cannot be an enum in the published schema either — the thresholds live in
+    `collectors/activity_tiers.json` so the operator can move them, and a host
+    that hardcoded the list would break the day a tier is added. So the survey
+    ships the vocabulary beside the answers, once per call rather than per
+    project.
+    """
     out = [{"id": t["id"], "maxDays": t.get("max_days"), "means": t.get("means", "")}
            for t in activity.tiers()]
     cfg = activity.config()
@@ -119,25 +116,21 @@ def _tier_vocabulary() -> list[dict]:
 
 
 def _recent_activity(conn, renamed_to: dict[str, str], days: int) -> dict[str, dict]:
-    ""                                                                    
+    """How much moved in every project, in ONE query for the whole estate.
 
-                                                                        
-                                                                                 
-                                                                                 
-                                                     
+    **Why the survey needs this.** Without a quantitative field a host could list
+    projects but never order them by how much work happened: the weekly series
+    lives in `project.detail`, which is one call per project.
 
-                                                                             
-                                                                                
-                                                                                
-                                                                         
-                                                                               
-                                                   
+    **NULL is excluded and COUNTED, never summed as zero.** SQL's `SUM` skips
+    nulls and `COUNT(*) - COUNT(sessions)` reports how many it skipped, which is
+    the same rule `project_detail` applies in Python: a week computed before the
+    session columns existed cannot say "no sessions", only "not measured".
 
-                                                                                
-                                                                              
-                                                                                
-                                                       
-       
+    **The rename is followed.** A project's id changes when it is published, and
+    rows written before that stay keyed to the old one. Grouping in SQL and
+    merging the renames here keeps one project's history whole.
+    """
     out: dict[str, dict] = {}
     for r in conn.execute(
             "SELECT project_id, COUNT(*) AS weeks, SUM(commits) AS commits,"
@@ -157,24 +150,19 @@ def _recent_activity(conn, renamed_to: dict[str, str], days: int) -> dict[str, d
 
 
 def _estate_work(conn, since: str, known: set[str] | None = None) -> dict:
-    ""                                                                              
+    """What the ESTATE did over one span — including the figure nobody can add up.
 
-                                                                               
-                                                                            
-                                                                   
-                                                                              
-                                                                             
-                                                                           
+    `workedDays` is a set size folded per (project, week). Across weeks it adds
+    up, because different weeks hold different days. Across PROJECTS it does
+    not: a Tuesday two projects were both worked on is one Tuesday. Summing the
+    column across projects can yield more days than the window contains, and
+    the result would look authoritative.
 
-                                                                             
-                                                                                
-                                                                              
-
-                                                                              
-                                                                               
-                                                                                
-                                                             
-       
+    So the answer is given rather than warned about. The summable figures come
+    from the rollup, so a host can add the rows up and get the same number; the
+    day count is a DISTINCT count over the events of the same span, which is the
+    one place the question can be answered without the error.
+    """
     out: dict[str, int] = {}
     row = conn.execute(
         "SELECT SUM(commits) c, COUNT(DISTINCT CASE WHEN commits > 0"
@@ -188,14 +176,12 @@ def _estate_work(conn, since: str, known: set[str] | None = None) -> dict:
         " WHERE kind = 'commit' AND occurred_at >= ?", (since,)).fetchone()
     if day is not None:
         out["workedDays"] = day["d"] or 0
-                                                                             
-                                                                                  
-                                                                              
-                                                                          
-                                                                                
-                                                                              
-                                                                                
-                                                        
+    # THE PART THAT DOES NOT RECONCILE, named rather than left to be noticed.
+    # The rollup outlives its source by design — that is what the freeze rule is
+    # for — so a project the registry no longer holds still has history, and
+    # counting the estate's work without it would hide work that happened.
+    # Defined against the REGISTRY rather than the page, so it stays meaningful
+    # when a host pages through the projects.
     if known is not None:
         rows = conn.execute(
             "SELECT project_id, SUM(commits) c FROM project_week"
@@ -242,29 +228,26 @@ def _project_view(p: dict, repos: dict, members: dict) -> dict:
 def survey(scope: dict | None = None, include_external: bool = False,
            as_of_scan_id: str | None = None, conn: sqlite3.Connection | None = None,
            limit: int | None = None, cursor: str | None = None) -> dict:
-    ""                                                        
+    """Survey a scope. `limit`/`cursor` page the project list.
 
-                                                                            
-                                                                                  
-                                                                           
-                                       
+    **Why paging exists.** An estate survey grows with the number of projects,
+    and a host that wants to render ONE project should not have to swallow the
+    whole estate first just to learn the ids.
 
-                                                                                
-                                                                               
-                                                                          
-                                                                              
-                                                                                 
-                                                                             
-               
+    **`limit` has no default, deliberately.** A default page size would truncate
+    every existing caller's answer silently, and the answer must declare what it
+    left out. So a caller without `limit` gets everything, and a caller with one
+    gets `nextCursor` beside a `counts` that still reports the WHOLE scope —
+    `len(projects) < counts["projects"]` plus a cursor is unambiguous, where a
+    shrunken count would misstate the scope.
 
-                                                                             
-                                                                               
-                                                                                
-                                                                                 
-                                                                         
-                                                                            
-                                                                             
-       
+    **The cursor is the last id of the page, and a pin does not make the walk
+    reproducible.** Ordering is by project id, which is stable, so a walk loses
+    and repeats nothing WITHIN one registry. But a project appearing between two
+    calls shifts the walk whether or not `as_of_scan_id` is passed: the answer is
+    built from the registry on disk, which each tick rewrites, and the pin does
+    not filter anything.
+    """
     scope = scope or {"kind": "estate"}
     kind = scope.get("kind", "estate")
     projects, repos, members = _index()
@@ -281,27 +264,20 @@ def survey(scope: dict | None = None, include_external: bool = False,
     scan_id = "registry-only"
     if conn is not None:
         latest = store_db.latest_scan(conn)
-                                                                                  
-                                                                               
-                                                                              
-                                                                                
-                                                                                 
-                                                                                
-                                                                                  
-                                                                             
-                          
-         
-                                                                               
-                                                                               
-                                                                               
-                                                                              
-                                                                               
-              
-         
-                                                                                 
-                                                                                
-                                                                    
-                                                                    
+        # THE PIN IS RECORDED, NOT HONOURED — and saying so is the whole of this
+        # branch. The answer is built from `_index()`, the registry on disk, so
+        # `as_of_scan_id` cannot select an older state of the estate; pinning to
+        # an old scan would otherwise return today's counts under an old label.
+        #
+        # So `scanId` means one thing: the scan this answer REFLECTS. Every
+        # deviation goes to `degraded`, where this file already puts everything
+        # a caller could otherwise read wrongly. Answering today's estate under
+        # yesterday's stamp is the one outcome a caller could not detect.
+        #
+        # Honouring the pin for real would need a map from a scan to the registry
+        # version it saw: the registry is versioned in git, but nothing maps a
+        # scan to its commit, and `scans.counts_json` holds each collector's own
+        # receipt, not the estate's counts.
         if as_of_scan_id and as_of_scan_id != latest:
             row = conn.execute("SELECT id FROM scans WHERE id = ?", (as_of_scan_id,)).fetchone()
             if row is None:
@@ -328,10 +304,9 @@ def survey(scope: dict | None = None, include_external: bool = False,
     if not include_external:
         selected = [p for p in selected if p["ownership"] != "external"]
 
-                                                                             
-                                                                         
-                                                                            
-                                                                       
+    # Ordered before paging: a cursor over an unordered list is a cursor over
+    # nothing. `id` is the stable key, and sorting it here also makes the
+    # unpaged answer deterministic, as anything committed must be.
     selected = sorted(selected, key=lambda p: p["id"])
     total_projects = len(selected)
     page = selected
@@ -497,25 +472,21 @@ LIVE_LEDGER_WHERE = " t.memory_id IS NULL"
 
 def project_detail(project_id: str, timeline_limit: int = 10,
                    weeks: int = 26, notes_limit: int = 10) -> dict:
-    ""                                                                         
+    """One project, as much as is known about it, each section degrading alone.
 
-                                                                               
-                                                                                  
-                                                                         
-                                                                               
-                                                                                
-                                                                             
-                                                                         
-                              
+    Beyond identity (description, ownership, lifecycle, membership rules and
+    repositories), the answer carries the activity series, the plugin
+    measurement, the project's own findings and the conclusions the observatory
+    has drawn about it — data about ONE project, in a shape something else can
+    render.
 
-                                                                               
-                                                                               
-                        
-       
-                                                                              
-                                                                             
-                                                                            
-                         
+    Each section carries its own degradation rather than one flag for the whole
+    answer: a store that will not open must not make the registry's half of the
+    truth disappear too.
+    """
+    # `value`, not `id` — the scope's own vocabulary. A scope missing its
+    # selector would make every project come back "unknown", which is why
+    # `_scope_error` exists on the wire.
     result = survey({"kind": "project", "value": project_id}, include_external=True)
     if not result["projects"]:
         return {"error": "unknown project", "projectId": project_id,
@@ -660,19 +631,19 @@ def project_detail(project_id: str, timeline_limit: int = 10,
 
 
 def credentials(project_id: str) -> dict:
-    ""                                                                         
+    """What a project can authenticate with, by NAME, and how to use one blind.
 
-                                                                           
-                                                                              
-                                                                          
-                                                                            
-                                                 
+    NO VALUE CAN REACH THIS FUNCTION'S ANSWER, because no value reaches the
+    documents it reads: `registry/env-inventory.json` holds names and classes,
+    and the vault is listed by directory rather than opened. That is not a
+    promise this function keeps by being careful — it is a property of its
+    inputs, which is the only kind worth stating.
 
-                                                                               
-                                                                                
-                                                                            
-                                                                
-       
+    `use` is the point. An agent that needs a key does not need to READ it, and
+    reading one "to check" is how values end up in session transcripts. The
+    command in the answer places the value in a child's environment and strips
+    it from everything that child prints.
+    """
     slug = project_id.split(":", 1)[1] if project_id.startswith("project:") else project_id
     out: dict = {"projectId": f"project:{slug}", "project": slug,
                  "env": [], "vault": [], "degraded": []}
@@ -796,36 +767,34 @@ def timeline(project_id: str, since: str | None = None, limit: int = 100) -> dic
 
 
 def fts_query(query: str) -> str:
-    ""                                                                        
+    """The caller's words as an FTS5 expression that cannot be a syntax error.
 
-                                                                          
-                                                                            
-                                                                            
-                                 
+    FTS5's `MATCH` takes a query LANGUAGE rather than text, so passing a
+    question straight in breaks on ordinary input and destroys the lexical
+    half, the one whose entire purpose is to answer when the other cannot:
 
-                                                           
-                                                           
-                                                 
-                                                           
-                                                             
-                                                   
+        "don't"                 fts5: syntax error near "'"
+        "a - b"                 no such column: b
+        "store/raw"             fts5: syntax error near "/"
+        "foo(bar)"              fts5: syntax error near "foo"
+        '"unbalanced'           unterminated string
 
-                                                                               
-                                                                             
-                                                                                    
-                                                                       
+    `no such column` is the sharpest of them: FTS5 reads a bare word as a column
+    name, so the index's own columns would be addressable from a user's
+    question. Nothing is injectable — the value is parameterised — but the
+    query language would be exposed, and an apostrophe would return nothing.
 
-                                                                               
-                                                                          
-                                                                             
-                                                                              
-                           
+    Every term becomes a quoted PHRASE, with embedded quotes doubled, joined by
+    `OR`. `OR` rather than the implicit `AND`: bm25 already ranks a record
+    matching more terms higher, so `OR` plus `rank` behaves like `AND` at the
+    top of the list without the cliff where one unusual word makes a five-word
+    question match nothing.
 
-                                                                                 
-                                                                                  
-                                                                               
-                                                         
-       
+    A caller who wants FTS5's operators — `NEAR`, a column filter, a prefix `*`
+    — is deliberately not served: the tool's own description promises "a lexical
+    match", not an expression language, and an interface where ordinary text is
+    a syntax error is the wrong trade in both directions.
+    """
     terms = [t for t in re.findall(r"[\w'-]+", query, flags=re.UNICODE) if t]
     if not terms:
         # Not a query FTS5 can answer, and not an error either: the caller asked
@@ -836,34 +805,29 @@ def fts_query(query: str) -> str:
     return " OR ".join('"' + t.replace('"', '""') + '"' for t in terms)
 
 
-                                                                              
-                                                                            
-                                                                                    
-                                                                            
-                                                                                 
-                                                                               
-                                                                
-  
-                                                                               
-                                                                                
-                                                                                    
-                                                                              
-                             
+#: How many candidates each retrieval arm fetches, INDEPENDENT of the caller's
+#: page size. Scaling the fetch with `limit` would make `total` — which exists
+#: to say how much was left — change with the page, a silent cap in disguise.
+#:
+#: A fixed window is still a cap, and that is the point: it is stated, the same
+#: for every caller, and `truncated` is honest relative to it. The vector arm is
+#: inherently top-k — every embedded row is a neighbour at some distance — so no
+#: uncapped "true total" exists across both arms.
 RETRIEVAL_WIDTH = 300
 
 
 def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
-    ""                                                                           
+    """Recall over the narrative: by similarity where possible, lexically always.
 
-                                                                            
-                                                             
+    Two rules the contract makes non-negotiable, and both are visible in the
+    result rather than described in a docstring nobody reads:
 
-                                                                               
-                                                                         
-                                                                          
-                                                                               
-                                                             
-       
+    * **Conflicting records come back together.** A `contested` hit sits beside
+      the `supported` one it disagrees with, and nothing here ranks them.
+      Collapsing a disagreement is how a memory becomes confidently wrong.
+    * **Absence is not proof of absence.** The `degraded` list names every path
+      that could not run, and the note says so in the answer.
+    """
     import sys as _sys, pathlib as _pathlib
     _sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent / "agent"))
     from store import indexer
@@ -881,16 +845,14 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
             try:
                 import providers
                 from sqlite_vec import serialize_float32
-                                                                                
-                                                                                 
-                                                                      
-                                                                          
-                                                                                 
-                 
-                                                                          
-                                                                                
-                                                                                
-                                                    
+                # THE CEILING APPLIES HERE TOO. `embed()` charges the wallet, and
+                # this path is reachable by any MCP client, so the budget is
+                # CHECKED before spending, exactly as the agent checks its own.
+                #
+                # A reached guardrail is a DEGRADATION, not a refusal: the
+                # lexical half still answers, and `degraded` says why similarity
+                # was skipped — which is the shape the contract requires of an
+                # answer that could not be complete.
                 stop = providers.check_budget()
                 if stop:
                     raise RuntimeError(f"spend guardrail reached — {stop}")
@@ -969,21 +931,17 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
                         "conflictsWith": json.loads(row["conflicts_with_json"] or "[]")})
             if row["state"] == "contested":
                 contested.append(mid)
-                                                                            
-                                                                
-                                                                         
-                                                                               
-                                                                             
-                                                                              
-                                                                                   
-                                                                 
-         
-                                                                               
-                                                                            
-                                                                              
-                                                                           
-                                                                                      
-                                                        
+        # RECIPROCAL RANK FUSION, because a vector distance and a bm25 rank are
+        # not comparable. Sorting on them together would put a perfect lexical
+        # match below every weak semantic one, and bm25 ranks are NEGATIVE, so a
+        # hit with no rank defaulting to 0 would sort after every real one.
+        #
+        # RRF needs no shared scale: each half contributes 1/(k + position) for
+        # the records it returned, and a record missing from one list simply
+        # contributes nothing from it. `k = 60` is the constant from the paper
+        # the method comes from; the value matters little here because both
+        # lists are at most `RETRIEVAL_WIDTH` long, and it is written down rather than
+        # tuned so nobody reads a fitted number into it.
         RRF_K = 60
         fused: dict[tuple[str, int], float] = {}
         for ordered in (vector_order, lexical_order):
@@ -993,11 +951,9 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
             h["score"] = round(fused.get((h["memoryId"], h["revision"]), 0.0), 8)
         out.sort(key=lambda h: -h["score"])
         return {"query": query, "projectId": project_id, "count": len(out[:limit]),
-                                                                                
-                                                                                
-                                                                            
-                                                                              
-                                                                             
+                # THE SCOPE WITHIN THE RETRIEVAL WINDOW, not the page — and not a
+                # function of it. `count` is the page size; `total` says how much
+                # the window held, so a caller can tell what was left out.
                 "total": len(out), "truncated": len(out) > limit,
                 "results": out[:limit], "contested": contested, "degraded": degraded,
                 "note": ("conflicting records are returned together and are not ranked; "

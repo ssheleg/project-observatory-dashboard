@@ -103,17 +103,12 @@ def branch_forms(path, branch: str) -> list[str]:
 def check_session(row) -> tuple[bool | None, str]:
     """Did the work this row describes survive? Ask git, not the row.
 
-                                                                                
-                                                                                
-                                                              
-                                                                                
-                                                                                 
-                                                                                
-                                                                            
-                                                                               
-                                                                                
-                               
-
+    **Three outcomes, not two.** `True` a witness confirms, `False` a witness
+    CONTRADICTS, `None` nothing could be asked. A pushed branch whose LOCAL copy
+    was deleted afterwards still exists as its remote-tracking ref, with every
+    commit, date, author and message intact; but `merge-base --is-ancestor`
+    fails to resolve the bare name and exits non-zero, and reading any non-zero
+    exit as "the branch moved away" reports real, pushed work as lost.
     Two outcomes collapsed into one, and it cost data: the row stays `proposed`
     and retention erases it at ninety days, so four records of real, pushed work
     were queued for deletion because a branch was tidied up. The same conflation

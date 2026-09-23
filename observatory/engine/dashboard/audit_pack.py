@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-""                                                                               
+"""Check the built dashboard against the SHELEG Workbench pack's rules that are never waived.
 
-                                                                          
-                                                                              
-                                                                               
-                                  
+Written as a tool because a check done by hand produces false positives, and
+they teach one lesson: **a checker must know the difference between the thing
+and what the thing is talking about.**
 
-                                                                              
-                                                                        
-                                                                          
-                                                                                 
-                                                                                
-                                                              
+* A `prefers-color-scheme` inside a COMMENT of the copied token layer is not a
+  second theme source. Comments are stripped before the CSS is examined.
+* An emoji inside the DATA block can be a repository description quoted
+  faithfully from upstream. The pack bans emoji in product-UI chrome; editing a
+  measurement to satisfy a style rule would be the worse defect. Only the
+  chrome is examined.
 
-                                   
-   
+Exits non-zero on a real violation.
+"""
 from __future__ import annotations
 import pathlib, re, sys
 

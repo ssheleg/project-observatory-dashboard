@@ -5,18 +5,18 @@
     use_secret.py run <project> <NAME>[,<NAME>…] -- <command…>
     use_secret.py where <project> <NAME>             which slot it would resolve
 
-                                                                           
-                                                                                 
-                                                                             
-                                                                                 
-                                                                              
-                                                      
+WHY THIS EXISTS. The secrets rule already says an agent works with NAMES after
+an inject — and without this file there was no way to HONOUR that for a one-off
+command. An agent that needs an API key for one `curl` reads the `.env`, and
+from that moment the value is in a transcript that outlives the key. That is
+how credentials actually leak: echoed by a database client's error, or quoted
+by an HTTP library's traceback.
 
 So: the value is resolved here, placed in the child's environment, and **removed
 from everything the child prints**. The agent says the name, sees the name, and
 the transcript carries the name.
 
-                                                                         
+    tools/use_secret.py run <project> DATABASE_URL -- psql -c 'select 1'
 
 WHAT THIS DEFENDS AGAINST, stated honestly because the boundary matters: an
 ACCIDENT. A traceback quoting the connection string, a debug line echoing the

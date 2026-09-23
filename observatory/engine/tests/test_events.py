@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-""                                                                         
+"""What the event collector records, and what it must SAY when it does not.
 
-                                                      
+Two defects, one shape: a bound that binds in silence.
 
-                                                                              
-                                                                                 
-                                                                             
-                                                                              
-                                                                      
+A fixed `git log -N` depth silently drops every commit past N: `git log -200`
+returning 200 rows looks exactly like a repository that has 200 commits, so a
+store can hold a fraction of the commits inside its retention window with
+nothing anywhere saying so. Truncation must be detectable and reported.
 
-                                                                         
-                                                                               
-                                                                                
-                                                                            
-                     
-   
+And a collector that records every repository, while the companion plugin's
+recorder refuses anything but the estate's own work, lets `external` projects
+dominate the counts. A "which project is most active" answer built on that
+names somebody else's tool.
+"""
 from __future__ import annotations
 import pathlib, sqlite3, subprocess, sys, tempfile
 
@@ -43,19 +41,17 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def test_one_rule_two_readers() -> None:
-    ""                                                                            
+    """The collector and the plugin's recorder must not disagree about the estate.
 
-                                                                                
-                                                                                
-                                                                                
-                                                                            
-                                                                              
-                                                      
+    Comparing `estate.RECORDED_OWNERSHIP` against a literal spelled out here,
+    and then checking only that the STRING "RECORDED_OWNERSHIP" appears in the
+    recorder, cannot detect the disagreement this test is named for: a
+    recorder that kept its own inverted copy of the set would pass both.
 
-                                                                                  
-                                                                                
-                                                             
-       
+    So the comparison is between two real objects, and there is no literal —
+    re-spelling a set's contents in its own test asserts that somebody typed the
+    same thing twice, not that one rule reaches both readers.
+    """
     recorder = (ROOT / "tools/record_turn.py").read_text(encoding="utf-8")
     collector = (ROOT / "collectors/scan_events.py").read_text(encoding="utf-8")
     check("the collector asks estate.py", "estate.records_events" in collector)

@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """Sign a credential: what it is for, who answers for it, how it is known.
 
-                                                                              
-                                                                            
-                                             
+    sign_credential.py set <credential-id> --purpose "..." --evidence "..." \\
+                       [--owner "..."] [--rotation-days N] [--tag t --tag t]
+    sign_credential.py show [<credential-id>]
 
-                                                                          
-                                                                                  
-                                                                               
-                                                                              
-                                                                              
-                                                                       
+Why a tool and not a file. `collectors/credential_annotations.json` is the
+operator's half of the credential picture, the half no scan can measure, and a
+file whose only editor is a text editor stays empty: the scenario then has no
+surface at all. This is the one writer, and the page and the keyserver both
+call `write()` rather than assembling JSON of their own.
 
 WHAT IS REFUSED, AND WHY EACH REFUSAL IS LOAD-BEARING.
 

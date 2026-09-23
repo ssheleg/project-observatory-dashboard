@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-""                                          
+"""Project Observatory — stdio MCP server.
 
-                                                                          
-                                                                                 
-                                                                              
+Protocol revision: 2026-07-28 (written down here and in fabric-agent.json; the
+`mcp` SDK 2.x declares it as LATEST_PROTOCOL_VERSION — 1.x tops out at an older
+revision and cannot satisfy the manifest, which pins the revision as a schema
+`const`).
 
-                                                                              
-                                                                               
-                                                                                
-               
+2026-07-28 is stateless and discovers through `server/discover` rather than an
+`initialize` handshake; `sampling`, `roots` and `logging` are deprecated in it.
+None of that is reconstructed here — the SDK owns the wire, and this file owns
+the tools.
 
-                                                                                
-                                                          
-                                                               
-                                                                              
-                                                                               
-                                                                
+Seven tools read. Two write, and they write only PROPOSALS: `observatory_record`
+appends to the append-only ledger in state `proposed`, and
+`observatory_propose` queues a registry change without touching
+`registry/*.json`. Neither can approve its own proposal, and neither invents a
+caller identity — `owner` is required and has no default, because the gateway
+owns identity and a memory kernel that manufactures it has none.
 
-                                                                              
-                                                                   
-                                                                           
-                         
-   
+The shebang points at the project venv on purpose: the declared tenancy is one
+operator on one machine, and the manifest's `executableRef` names this file
+directly. Run `./observatory.py setup` on a fresh clone to create it.
+"""
 from __future__ import annotations
 import asyncio, json, re, sqlite3, sys, pathlib
 from typing import Annotated, Any, Literal
@@ -105,26 +105,27 @@ CALLER_ID = re.compile(r"^(agent|service):[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
 
 
 def _owner_error(owner: str) -> dict[str, Any] | None:
-    ""                                                                       
+    """The wire cannot authenticate, so it cannot carry the operator's claim.
 
-                                                                             
-                                                                                  
-                                                                           
-                                                                             
-                                                                         
-                                                                          
-                                                                                
-                                                                  
+    stdio MCP has no channel identity — whoever spawned this process IS the
+    caller — and a free-form `owner` string would let any client type
+    `operator` and buy three privileges: permanent exemption from retention
+    (`owner_exempt` in the retention config), immunity from supersession by any
+    other writer, and no confidence discount. Meanwhile `tools/review.py`
+    demands a TERMINAL before it will write as the operator, on the stated
+    grounds that minting that from a script would let anything with shell access
+    forge it. Two doors to one authority must not have opposite standards, so
+    only `agent:` and `service:` identities are accepted here.
 
-                                                                           
-                                                                          
-                                                                           
-                                                                             
-                                                                              
-                                                                             
-                                                                            
-                     
-       
+    **What this is not.** It is not a security perimeter: any local process
+    running as this user can write the SQLite file directly and bypass the
+    ledger entirely. It is a CORRECTNESS boundary — an agent, including a
+    well-behaved one, must not be able to mint the human's authority, because
+    the distinction between "an agent proposed this" and "a person decided it"
+    is what the entire review queue rests on. The realistic failure is not an
+    attacker but a model reasoning "I will record this as the operator so it
+    does not expire".
+    """
     if CALLER_ID.match(owner or ""):
         return None
     return {"error": "owner refused",
@@ -169,27 +170,22 @@ def observatory_status(
                                         "nothing, but a project appearing mid-walk still "
                                         "shifts it — no parameter freezes the estate.")] = None,
 ) -> dict[str, Any]:
-    "Survey a scope: every project in it, with repositories, sites, stack and last activity." 
+    """Survey a scope: every project in it, with repositories, sites, stack and last activity.
 
-                                                                               
-                                                                                   
-                                                                          
-                                               
+    This is the `estate.survey` capability declared in fabric-agent.json. It is
+    deterministic — no model participates — so the same scope over one registry
+    returns the same answer. Over TWO registries it does not, and the tick
+    rewrites the registry regularly.
 
-                                                                              
-                                                                            
-                                                                        
-                                                                                 
-                                                                          
-                                                        
-                                                                              
-                                                                           
-                                                                                 
-                                                                           
-                                                                               
-                                                                              
-                                                                       
-       
+    `asOfScanId` is spelled exactly as the input schema declares it (the snake
+    case spelling is accepted as an alias), because a host that compiles the
+    schema and constructs the call must not send a name this tool ignores. The
+    pin is RECORDED, not honoured: the answer is built from the current registry,
+    which is not versioned per scan, so `survey.py` names an unhonoured pin in
+    `degraded`. Exposing the parameter is still right — a host that compiles the
+    input schema will construct the call, and it must get a truthful answer
+    rather than a silent one.
+    """
     bad = _scope_error(kind, value)
     if bad:
         return bad
@@ -210,21 +206,20 @@ def observatory_project(
     timelineLimit: Annotated[int, Field(validation_alias=AliasChoices("timelineLimit", "timeline_limit"), ge=0, le=200,
                               description="How many recent commits to include. 0 omits them.")] = 10,
 ) -> dict[str, Any]:
-    "One project: identity, activity, measurements, conclusions, findings." 
+    """One project: identity, activity, measurements, conclusions, findings.
 
-                                                                                  
-                                                                                   
-                                                                              
-                                                                                
-                                                                           
-                                                                            
+    Not identity alone — description, ownership, lifecycle, membership rules and
+    repositories — because a host asked to render "this project" also needs its
+    activity series, plugin measurements, the project's own findings and the
+    conclusions the observatory has drawn about it. All four are in the store
+    and on the dashboard, so the wire carries them too.
 
-                                                                      
-                                                                             
-                                                                            
-                                                                              
-                                                        
-       
+    `survey.project_detail` is the single place that assembles it, and
+    `project.detail` is its own capability with its own published schema: the
+    shape of this answer is not the shape of a survey, and declaring one schema
+    for both would make the tools fail validation against the contract their
+    own capability publishes.
+    """
     return survey_mod.project_detail(projectId, timeline_limit=timelineLimit)
 
 
@@ -233,24 +228,24 @@ def observatory_credentials(
     projectId: Annotated[str, Field(validation_alias=AliasChoices("projectId", "project_id", "project"),
                                     description="A 'project:<slug>' id, or the bare slug")],
 ) -> dict[str, Any]:
-    "Which credentials a project holds, BY NAME — and how to USE one without seeing it." 
+    """Which credentials a project holds, BY NAME — and how to USE one without seeing it.
 
-                                                                        
-                                                                                
-                                                                             
-                                                                               
-                                                                                
-                                                                          
-                   
+    THIS TOOL CANNOT RETURN A VALUE, and that is its point rather than a
+    limitation. An agent that needs a project's key does not need to read it: it
+    needs to know the key exists, what it is called, and how to put it into a
+    command. So this answers the first two, and `use` in the result answers the
+    third — `tools/use_secret.py run <project> <NAME> -- <command>` places the
+    value in that command's environment and removes it from everything the
+    agent itself can see.
 
-                                                                                
-                                                                         
+    Reading a `.env` "to check" a value is how credentials end up in session
+    transcripts. A transcript outlives the key it quotes.
 
-                                                                              
-                                                                               
-                                                                                
-                    
-       
+    `shared_with` is measured rather than declared: two projects carry it when
+    their values are equal, which is what "what breaks if I rotate this" means.
+    `available_in` is the opposite — a slot empty here whose name holds a live
+    value elsewhere.
+    """
     return survey_mod.credentials(projectId)
 
 
@@ -273,12 +268,12 @@ def observatory_search(
     project_id: Annotated[str | None, Field(description="Limit to one 'project:<slug>'")] = None,
     limit: Annotated[int, Field(ge=1, le=50)] = 10,
 ) -> dict[str, Any]:
-    "Recall over recorded narrative — the one read where similarity is the right question." 
+    """Recall over recorded narrative — the one read where similarity is the right question.
 
-                                                                                
-                                                                                 
-                                       
-       
+    Conflicting records are returned **together** and unranked. `degraded` names
+    every retrieval path that could not run, because absence from a result is not
+    proof that a record does not exist.
+    """
     return survey_mod.search(query, project_id=project_id, limit=limit)
 
 
@@ -290,20 +285,20 @@ def observatory_recall(
                       Field(description="Continue after this point, from a previous "
                                         "answer's `nextCursor`.")] = None,
 ) -> dict[str, Any]:
-    "Current ledger records — what has been recorded about projects, and why." 
+    """Current ledger records — what has been recorded about projects, and why.
 
-                                                                               
-                                                                              
-                                                                       
-       
-                                                                               
-                                                                                  
-                                                                            
-                                                                            
-                                                                               
-                                                                          
-                                                                                
-                                                         
+    Conflicting records are returned **together**: a `contested` record appears
+    beside the `supported` one it disagrees with, and nothing here ranks them.
+    Absence from this result is not proof that a record does not exist.
+    """
+    # A `degraded` list, because this server's own `instructions` tell a client
+    # that a MISSING one is a bug: "an empty list asserts full coverage… Treat a
+    # missing `degraded` field as a bug rather than as full coverage." Every
+    # read tool carries one, and this one — the tool whose docstring says
+    # "absence here is not proof of absence" — above all.
+    # And an unreadable store must be a typed answer, not a raise: a raise
+    # becomes UnexpectedToolError on the wire, which tells the caller the server
+    # broke rather than that something could not be read.
     degraded: list[dict[str, str]] = []
     try:
         conn = store_db.connect()
@@ -324,11 +319,11 @@ def observatory_recall(
     finally:
         conn.close()
     contested = [r["memory_id"] for r in rows if r["state"] == "contested"]
-                                                                        
-                                                                                 
-                                                                                
-                                                                            
-                                                                    
+    # `total` is the SCOPE, `count` this page. Reporting only the page size
+    # would tell the caller the size of its own page, not the size of what it
+    # knows — a silent cap, in the tool a caller asks "what do you know".
+    # `nextCursor` is keyed on `(created_at, memory_id)` because `created_at`
+    # alone is not unique at second resolution.
     out = {"projectId": projectId, "count": len(rows), "total": total,
            "records": rows, "contested": contested,
            "note": "conflicting records are returned together and are not ranked; "
@@ -372,16 +367,16 @@ def observatory_findings(
                                     Field(description="Include findings the operator has "
                                                       "silenced in finding_acks.json.")] = False,
 ) -> dict[str, Any]:
-    "What in this estate needs a person: expiring domains, dark sites, clones that exist nowhere else." 
+    """What in this estate needs a person: expiring domains, dark sites, clones that exist nowhere else.
 
-                                                                                
-                                                                                  
-                                                  
+    Read-only and derived: findings are REBUILT from the typed registry on every
+    run, so one whose cause is gone disappears rather than lingering. Each carries
+    evidence, a proposed action, and `first_seen`.
 
-                                                                            
-                                                                               
-                                                                         
-       
+    NOT part of a declared Fabric capability. `estate.survey` answers what a
+    project IS; this answers what is wrong with it, and folding the second into
+    the first would make a survey's shape depend on the machine's health.
+    """
     f = paths.REGISTRY / "findings.json"
     if not f.is_file():
         return {"findings": [], "counts": {},
@@ -440,12 +435,12 @@ def observatory_record(
     evidence: Annotated[list[dict[str, Any]] | None,
                         Field(description="Resolvable references: commit shas, file paths, URIs")] = None,
 ) -> dict[str, Any]:
-    "Append a note to the ledger, in state `proposed`." 
+    """Append a note to the ledger, in state `proposed`.
 
-                                                                            
-                                                                                
-                    
-       
+    It cannot be written as anything else: an automated writer proposes, and
+    something else promotes. `owner` is required — this server does not invent
+    caller identity.
+    """
     bad = _owner_error(owner)
     if bad:
         return bad
@@ -456,11 +451,11 @@ def observatory_record(
                         memory_id=memoryId, expected_revision=expectedRevision,
                         evidence=evidence or [], function="episodic", scope="project",
                         state="proposed",
-                                                                          
-                                                                                 
-                                                                            
-                                                                              
-                                                                              
+                        # 0.5 unconditionally. An operator-owned write would
+                        # warrant no discount, but `_owner_error` above refuses
+                        # that claim, so a branch for it could never be reached —
+                        # and a condition whose true side is unreachable is dead
+                        # data that misleads the next reader.
                         confidence=0.5)
     except Exception as exc:
         return _write_error(exc)
@@ -480,12 +475,12 @@ def observatory_propose(
     evidence: Annotated[list[dict[str, Any]] | None,
                         Field(description="What justifies it. A patch with no evidence is a guess.")] = None,
 ) -> dict[str, Any]:
-    "Propose a change to the typed registry. It does NOT change the registry." 
+    """Propose a change to the typed registry. It does NOT change the registry.
 
-                                                                                
-                                                                                
-                                                     
-       
+    The registry is written by collectors and by the operator. This queues a row
+    awaiting a decision, because a writer that could edit the fact base directly
+    would poison it one plausible sentence at a time.
+    """
     bad = _owner_error(owner)
     if bad:
         return bad

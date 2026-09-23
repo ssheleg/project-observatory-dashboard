@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-""                                                                        
+"""The canonical write path: append only, guarded by compare-and-swap, operator protected.
 
-                                                                               
+Three rules the rest of the system leans on:
 
-                                                                             
-                                                                     
-                                                                               
-                                                                              
-                                                                              
-                                                                              
-                 
-                                                                             
-                                                                            
-                                                                              
-                  
-   
+1. **Revisions are immutable.** A change of content OR of state appends a new
+   revision that supersedes the prior one. Nothing rewrites a row, so
+   `contested` and `stale` are recoverable history rather than a lost argument.
+2. **The owner guard is structural.** It is applied on every write, not passed
+   as a parameter — an optional guard with a default of `operator` lets an
+   unnamed writer claim the highest authority simply by saying nothing.
+3. **No index write without a committed revision.** The ledger append and its
+   outbox row are one transaction; indexers consume the outbox idempotently.
+   SQLite and a vector index cannot share a transaction, so the outbox is what
+   keeps the two consistent: an index can lag the ledger, never lead it.
+"""
 from __future__ import annotations
 import json, sqlite3, sys, pathlib, uuid
 from datetime import datetime, timezone
@@ -119,26 +118,26 @@ def _check_owner(prior: sqlite3.Row | None, writer: str) -> None:
 
 
 def _commit_revision(conn: sqlite3.Connection, row: dict) -> int:
-    ""                                                                              
+    """The one place a revision reaches disk — ledger and outbox, one transaction.
 
-                                                                         
-                                                                              
-                                                                             
-                                                                   
-                                                                           
+    Extracted so that `append` and `corroborate` can each carry their OWN
+    complete set of guards instead of one of them passing a flag that switches
+    the other's off. A guard that can be disabled at a call site is a known
+    failure shape (see `owner_exempt_note` in the retention defaults); the two
+    callers share the write and nothing else.
 
-                                                                            
-                                                                                 
-                                                                                
-                                                               
-                                                                                
-                                                                       
-                                                                                 
-                                                                               
-                                                                             
-                                                                       
-                                                                                
-       
+    **AN ERASED RECORD TAKES NO FURTHER REVISIONS**, and the guard sits here
+    because it must hold for every path — `append`, `transition`, `corroborate`
+    — rather than in whichever caller remembers it. Every read is record-wide:
+    `live()`, `survey.search`'s hydration, `review.py`'s queue,
+    `build_findings.py` and `retention.ledger_candidates` all join tombstones on
+    `memory_id` alone. So a revision appended to a tombstoned record is
+    invisible to every reader the moment it is written — the writer believes it
+    recorded something and nothing did. It would also put the text back into an
+    index that had just been purged of it. Refusing loudly is strictly better
+    than accepting silently; a new conclusion about the same subject is a new
+    record.
+    """
     tomb = conn.execute("SELECT revision FROM tombstones WHERE memory_id = ?"
                         " ORDER BY revision LIMIT 1", (row["memory_id"],)).fetchone()
     if tomb is not None:
@@ -205,11 +204,11 @@ def append(
     provenance: list[dict] | None = None,
     evidence: list[dict] | None = None,
 ) -> dict:
-    ""                                                                           
+    """Append a revision. Returns the accepted revision and a consistency cursor.
 
-                                                                          
-                                                                                
-       
+    A new record omits `memory_id`. A correction supplies it together with
+    `expected_revision`; a mismatch raises RevisionConflict rather than winning.
+    """
     if function not in FUNCTIONS:
         raise LedgerError(f"unknown function {function!r}; expected one of {FUNCTIONS}")
     if scope not in SCOPES:
@@ -308,35 +307,34 @@ def transition(conn: sqlite3.Connection, memory_id: str, *, to_state: str,
 
 def corroborate(conn: sqlite3.Connection, memory_id: str, *, by: str, check: dict,
                 expected_revision: int) -> dict:
-    ""                                                                     
+    """Promote `proposed` to `observed` on an INDEPENDENT mechanical check.
 
-                                                                        
-                                                                          
-                                                                                 
-                                                                                
-                                                                                
-                                                         
+    The design promises two ways out of `proposed`: the operator approves, or a
+    second, independent scan corroborates it. Nothing else promotes anything.
+    Without this function only the first was reachable, and rows could sit
+    unreviewed until retention erased them. Erasure by timeout is not review;
+    it is the estate quietly forgetting what it observed.
 
-                                                                          
-                                   
+    This is deliberately NOT `transition` with a different argument. Three
+    guards make it a different act:
 
-                                                                               
-                                                                              
-                                                                         
-                   
-                                                                                
-                                                                               
-                                                                           
-                                         
-                                                                         
-                                                                               
-                                                                             
-                  
+    * **The claim stays its author's.** `owner` is carried forward unchanged. A
+      corroboration is a second witness, not a transfer of authorship, and the
+      corroborator is recorded in `provenance` where a reader can see who
+      checked what.
+    * **Nobody corroborates themselves.** `by` must differ from the row's owner.
+      This is the exact inverse of `_check_owner`, which stops an agent editing
+      another's row; here the danger is an agent promoting its own, and one
+      guard cannot serve both directions.
+    * **The operator may not use this path.** An operator's approval is a
+      decision and belongs in `review`, where it is recorded as one. Routing it
+      through a function named `corroborate` would launder a judgement into a
+      measurement.
 
-                                                                          
-                                                                               
-                           
-       
+    `check` is the evidence and is required: what was verified, and how. A
+    promotion whose justification is not written down is indistinguishable from
+    a bug six months later.
+    """
     prior = current(conn, memory_id)
     if prior is None:
         raise LedgerError(f"{memory_id} does not exist")
@@ -382,30 +380,30 @@ def corroborate(conn: sqlite3.Connection, memory_id: str, *, by: str, check: dic
 
 def tombstone(conn: sqlite3.Connection, memory_id: str, *, reason: str,
               approved_by: str) -> dict:
-    ""                                                                  
+    """Record an erasure. The ledger rows stay; retention never DELETEs.
 
-                                                                          
-                                                                                
-                                                                               
-                                                                                
-                                                                          
-                                                                              
-                                                            
+    **The unit is the RECORD, one tombstone row per revision.** It used to
+    tombstone the CURRENT revision alone, and every read is record-wide — this
+    function's own `live()` below, `survey.search`'s hydration, `review.py` and
+    `build_findings.py` all `LEFT JOIN tombstones ON t.memory_id = l.memory_id`.
+    So one tombstone already hid the whole record from every reader, while
+    `retention.purge_projections` deleted index rows for that one revision and
+    attested `status: purged, tombstoned_rows_remaining: 0`.
 
-                                                                             
-                                                                                 
-                                                                          
-                                                                            
-                                                                                
-                                                         
+    On a multi-revision record that left an earlier revision's statement as a
+    live row in `search_notes` — never deleted, so no page was freed and the
+    VACUUM had nothing to zero. Nothing leaked to a caller, because hydration
+    drops the record by memory_id; the text simply stayed in the file.
+    Single-revision records, which is most of them, made the two units coincide
+    and hid it.
 
-                                                                         
-                                                                            
-                                                              
+    Writing the trail per revision fixes both halves at once: the purge's
+    per-revision loop now covers every revision, and the trail names exactly
+    which revisions were erased rather than only the last one.
 
-                                                                                
-                                                                       
-       
+    Completion is still the caller's job: the derived projections must be purged
+    and each backend must attest the purge before this is claimed done.
+    """
     row = current(conn, memory_id)
     if row is None:
         raise LedgerError(f"{memory_id} does not exist")
@@ -427,13 +425,13 @@ def tombstone(conn: sqlite3.Connection, memory_id: str, *, reason: str,
 def live_count(conn: sqlite3.Connection, project_id: str | None = None,
                states: tuple[str, ...] = ("supported", "contested", "observed",
                                           "proposed")) -> int:
-    ""                                                           
+    """How many live records the scope holds, ignoring any limit.
 
-                                                                                 
-                                                                                
-                                                                              
-                                                                 
-       
+    A reader that returns fifty of a hundred and thirteen and reports `count: 50`
+    has told the caller the size of its own page, not the size of what it knows.
+    Readers that page (such as the MCP server's recall tool) report this total
+    beside the page, so a cap is never silent.
+    """
     sql = ("SELECT count(*) FROM ledger l JOIN (SELECT memory_id, MAX(revision) r"
            " FROM ledger GROUP BY memory_id) m ON l.memory_id = m.memory_id"
            " AND l.revision = m.r LEFT JOIN tombstones t"
@@ -450,13 +448,13 @@ def live_count(conn: sqlite3.Connection, project_id: str | None = None,
 def live(conn: sqlite3.Connection, project_id: str | None = None,
          states: tuple[str, ...] = ("supported", "contested", "observed", "proposed"),
          limit: int = 100, cursor: str | None = None) -> list[dict]:
-    ""                                                
+    """Current revisions, tombstoned records excluded.
 
-                                                                               
-                                                                         
-                                                                             
-                                                                        
-       
+    Conflicting records are returned TOGETHER: a `contested` row appears beside
+    the `supported` one it disagrees with, and nothing here ranks them. A
+    retrieval that quietly picks a winner is how a memory becomes confidently
+    wrong (contract: "ranking MUST NOT silently collapse disagreement").
+    """
     sql = ("SELECT l.* FROM ledger l JOIN (SELECT memory_id, MAX(revision) r FROM ledger"
            " GROUP BY memory_id) m ON l.memory_id = m.memory_id AND l.revision = m.r"
            " LEFT JOIN tombstones t ON t.memory_id = l.memory_id"
@@ -489,12 +487,12 @@ def live_cursor(row: dict) -> str:
 
 def proposals_add(conn: sqlite3.Connection, *, target_id: str, patch: dict,
                   evidence: list[dict], owner: str) -> dict:
-    ""                                                             
+    """Propose a registry change. It NEVER touches registry/*.json.
 
-                                                                              
-                                                                             
-                                                                                 
-       
+    The registry is written by collectors and by the operator. A proposal is a
+    row waiting for a decision, which is the whole point: an agent that could
+    edit the fact base directly would poison it one plausible sentence at a time.
+    """
     if not owner or not owner.strip():
         raise OwnerRequired("a proposal must declare its owner")
     pid = f"prop:{uuid.uuid4().hex[:16]}"

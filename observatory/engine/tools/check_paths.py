@@ -74,12 +74,10 @@ RULES: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r'home\(\)\s*/\s*"DATA"'), "paths.DATA",
      "the estate root; a machine that keeps its projects elsewhere is the case "
      "the resolver exists for"),
-                                                                                   
-                                                                                 
-                                                                                
-                                                                                 
-                                                                        
-                 
+    # A QUOTED HOME-RELATIVE PROJECTS PATH IS NOT A PATH RULE. Tried as one, it
+    # fired only on PROSE — a finding's detail naming the folder a project lost,
+    # an assertion about that detail's words. A rule that fires on the text a
+    # human reads teaches its exemptions and then teaches nothing.
     (re.compile(r'/\s*"registry"\s*/\s*"_raw"'), "paths.RAW",
      "the registrar exports the validator compares against"),
     # NOT a path rule, and it is here because this is the file the gate already

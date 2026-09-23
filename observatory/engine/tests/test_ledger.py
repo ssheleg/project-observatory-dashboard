@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""The write path's invariants. Each one is a rule something else already paid for.
 
-                                                        
-   
+Runs against a throwaway database, never the live store.
+"""
 from __future__ import annotations
 import pathlib, sqlite3, sys, tempfile
 
@@ -40,14 +40,12 @@ def raises(exc, fn, *a, **kw):
 
 
 def supported(conn, statement: str, **kw):
-    ""                                                              
+    """A `supported` row, reached the only way there is: by walking.
 
-                                                                               
-                                                                          
-                                                                              
-                                                                               
-                     
-       
+    The operator may not create a record from nothing, so a fixture cannot mint
+    one with `owner="operator", state="supported"`. It proposes, then promotes,
+    which is the path real rows take anyway.
+    """
     r = conn and L.append(conn, owner="agent:observer", statement=statement,
                           state="proposed", confidence=0.5, **kw)
     r = L.transition(conn, r["memoryId"], to_state="observed", owner="agent:observer",
@@ -57,10 +55,7 @@ def supported(conn, statement: str, **kw):
 
 
 def test_owner_required() -> None:
-    ""                                                                    
-
-            
-       
+    """An unnamed writer must be refused, never defaulted to the operator."""
     conn = fresh()
     ok, why = raises(L.OwnerRequired, L.append, conn, owner="", statement="x")
     check("T7 an empty owner is refused, not defaulted", ok, why)
@@ -70,12 +65,12 @@ def test_owner_required() -> None:
 
 def test_operator_rows_are_sacred() -> None:
     conn = fresh()
-                                                                           
-                                                                          
-                                                                              
-                                                                              
-                                                                                
-                                                                
+    # Built the way an operator row ARISES: an agent proposes, the operator
+    # promotes, and the new revision is theirs. A brand-new operator-owned
+    # record is refused: the operator's authority applies to records that
+    # already exist, and minting one from nothing would be a forgery any MCP
+    # client could perform by typing the word. What this test checks, that such
+    # a row is sacred once it exists, does not depend on how it was made.
     seed = L.append(conn, owner="agent:observer", statement="the paywall ships on Friday",
                     function="semantic", state="proposed", confidence=0.5)
     r = L.transition(conn, seed["memoryId"], to_state="observed", owner=L.OPERATOR,
@@ -176,10 +171,7 @@ def test_outbox_is_transactional() -> None:
 
 
 def test_tombstone_keeps_the_row() -> None:
-    ""                                                                
-
-            
-       
+    """An erasure leaves a tombstone; the row itself is never deleted."""
     conn = fresh()
     r = L.append(conn, owner="agent:a", statement="to be erased")
     L.tombstone(conn, r["memoryId"], reason="retention: 90d", approved_by="operator")
@@ -192,10 +184,7 @@ def test_tombstone_keeps_the_row() -> None:
 
 
 def test_conflicts_return_together() -> None:
-    ""                                                                  
-
-             
-       
+    """Two supported records that disagree come back together, unranked."""
     conn = fresh()
     a = supported(conn, "the build is green", project_id="project:x", function="semantic")
     b = supported(conn, "the build is red", project_id="project:x", function="semantic",

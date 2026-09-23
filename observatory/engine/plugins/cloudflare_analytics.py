@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
-""                                                                   
+"""Cloudflare zone traffic, one full UTC day, attributed to projects.
 
-                                                                              
-                                                                               
-                                                                            
+Reads an API token from the secrets store (never argv, never env echoes), asks
+the GraphQL Analytics API for yesterday's `httpRequests1dGroups` per zone, maps
+each zone to a project through `plugins/hostmap.py`, and prints metric rows.
 
-                                                                         
-                                                                              
-                                                                           
-                                                                             
-                                                                    
+THE TOKEN IS ITS OWN FILE, deliberately separate from any Access service token
+stored beside it: an Access token opens doors, an analytics token reads
+numbers, and one file per capability is what lets either be rotated without
+touching the other. Create a token in the Cloudflare dashboard with exactly two
+permissions — Zone:Read, Analytics:Read — then:
 
-                                             
+    pbpaste | ./tools/add_cloudflare_token.py
 
-                                                                          
-                                                                                
-                                                                           
-                            
+which verifies the token before it touches the disk and files it under the
+account Cloudflare itself names — repeat once per account. Until the first one
+lands the manifest's `requires` keeps this plugin `waiting`, a state on the
+board rather than a failure.
 
-                                                                         
-                                                                        
-                                                                           
-                                                                           
-                                                                              
-   
+SANITISED ERRORS. An HTTP library's exception can print the request headers,
+and an Authorization header built from a secret file then lands in a log or a
+transcript as a recorded leak. Every HTTP error here is re-raised with the URL
+and status only; headers never reach a message.
+"""
 from __future__ import annotations
 import datetime
 import json

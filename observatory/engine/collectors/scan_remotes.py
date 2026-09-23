@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Ask every remote whether the local checkout is still current — no credential.
 
-                                                                       
-                                                                             
-                                                                              
-                                                                            
-                                                
-                                                                             
-                                                                                
-                                                                               
-                                                                                
+WHY THIS IS NOT A FORGE-SPECIFIC COLLECTOR. It was first reached for to fill
+in repositories whose forge metadata is empty because no API token exists. But
+the useful half of what SSH gives belongs to no single forge: across every
+repository with a local clone, NONE recorded whether that clone had fallen
+behind its remote. `local` held the checked-out branch, the commit count, the
+last local commit and the uncommitted-file count — every one of them a fact
+about the copy, none about the original. Building this under one forge's
+collector would have hidden a machine-wide gap inside one forge's ticket.
 
 WHAT IT COSTS AND WHAT IT REFUSES TO DO. One `git ls-remote` per repository,
 run concurrently. It **never fetches**: a fetch would write objects into the

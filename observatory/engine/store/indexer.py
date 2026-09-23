@@ -54,21 +54,20 @@ def load_vec(conn: sqlite3.Connection) -> bool:
 
 
 def ensure_vec_table(conn: sqlite3.Connection, dims: int) -> None:
-                                                                                  
-                                                                                 
-                                                                                 
-                                                                            
-                                                                   
-                                                                               
-     
-                                                                              
-                                                                                 
-                                                                                
-                                                           
-     
-                                                                             
-                                                                                
-                                        
+    # `memory_id` is a metadata column, NOT a partition key, and the difference is
+    # hundreds of megabytes. vec0 reserves a chunk of 1024 vectors per
+    # PARTITION, so keying on memory_id gave every single memory its own
+    # 1024 × {dims} × 4 bytes — megabytes apiece for the one or two revisions it
+    # actually holds, until the vector chunks table dwarfed the data in it.
+    #
+    # It bought nothing. A partition key prunes a search to one partition, and
+    # nothing here searches within a single memory — similarity runs across all
+    # of them, and memory_id is used only to DELETE a superseded revision, which
+    # a metadata column filters just as well at this scale.
+    #
+    # It also cost more than space. On a nearly full volume, the write that has
+    # to succeed is the one extending a huge allocation, and a store can be left
+    # corrupt mid-write.
     conn.execute(
         f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_notes USING vec0("
         f"memory_id TEXT, revision INTEGER, embedding float[{dims}])")
@@ -213,19 +212,18 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
         try:
             w, c, tok, vectors_ok = index_batch(conn, batch, have_vec, cfg["dims"])
         except sqlite3.Error as exc:
-                                                                   
-                                                                             
-                                                                               
-                                                               
-                                                                           
-                                                                            
-                                                                        
-             
-                                                                         
-                                                                                
-                                                                             
-                                                                            
-                           
+            # RECORD, THEN RE-RAISE. A failure here (for example
+            # `vtable constructor failed: search_notes`) used to exit the step
+            # with nothing captured but a message in the tick log, while
+            # `integrity_check` answered `ok` minutes later. `store_faults`
+            # writes free space, WAL size, holder count and the sqlite error
+            # CODE, none of which survives to a later investigation otherwise.
+            #
+            # Swallowing it would be worse than the crash: `file is not a
+            # database` means the file really is broken, and a step that carries
+            # on keeps a corrupt store in service. `tick.step_failed` already
+            # reports a stopped step, so the crash was never the gap — the
+            # evidence was.
             store_faults.record("index", exc)
             raise
         total_written += w; total_cost += c; total_tokens += tok

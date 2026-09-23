@@ -6,10 +6,10 @@ only thing that reads one is `compute_deltas.fingerprints_kept()`. Kept by the
 90-day horizon that covers the rest of `observations`, they reach roughly
 **177 MB** at 48 ticks a day — eight times the whole store as it stands.
 
-                                                                           
-                                                                           
-                                                                             
-                                                                        
+Deleting them is not losing the registry's history. The tick commits
+`registry/*.json` on every run, and a commit there changes a few dozen lines
+against the full state a fingerprint holds per tick. Git holds that history with
+diff, blame and revert; the store was holding a redundant copy nobody read.
 
 The second defect lived in the same function. `observed_at` is second-resolution
 and the tiebreak was `id DESC` over a RANDOM hex id, so two snapshots inside one

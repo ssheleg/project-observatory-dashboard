@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-""                                                                              
+"""Render the project dashboard from the typed inventory. Standard library only.
 
-                                                             
-                                                                                          
-   
+Reads registry/{projects,repositories,relations,domains}.json and writes a
+self-contained HTML page that opens over file:// with no server.
+"""
 from __future__ import annotations
 import html, json, os, re, sys
 from datetime import datetime, timedelta, timezone
@@ -45,15 +45,14 @@ AT_RISK_SYNC = ("ahead", "local-only-branch", "unpushed-and-remote-moved",
 
 
 def at_risk_total(repos: dict) -> dict:
-    ""                                                               
+    """One tile: how many commits across all checkouts are on no remote.
 
-                                                                           
-                                                                             
-                                                                                  
-                                                                          
-                                                                             
-                                                                            
-       
+    Three outcomes, and the middle one is the reason this is a function. No
+    at-risk checkout means there is nothing to say. At-risk checkouts that all
+    carry a count give their sum. At-risk checkouts with NO count mean the
+    remotes probe has not measured them yet, and printing `0` there would be a
+    reassurance about work nobody has looked at.
+    """
     risky = [r for r in repos.values()
              if (r.get("local") or {}).get("sync") in AT_RISK_SYNC]
     if not risky:
@@ -75,23 +74,23 @@ def at_risk_total(repos: dict) -> dict:
 
 
 def work_stats() -> dict:
-    ""                                           
+    """What HAPPENED across all projects, as tiles.
 
-                                                                                   
-                                                                                                  
-                                                                   
+    The other tiles count what exists — projects, repositories, sites, notes —
+    and none of them counts work, although the store holds every commit event
+    and watching where the work went is part of this system's purpose.
 
-                                                                           
-                                                                              
-                                                                             
-                                                                           
-                       
+    COUNTED FROM `events`, never by summing a rollup column. `active_days`,
+    `authors` and `worked_days` are set sizes folded at write time, and adding
+    them across projects would count one Tuesday once per project. A distinct
+    count over the event rows is the one place the question can be answered
+    without that error.
 
-                                                                                  
-                                                                               
-                                                                               
-                                       
-       
+    ABSENT, NOT ZERO, without a store. A fresh clone has none — it is gitignored
+    — and `0 commits` where the truth is "there is no store" would be an
+    inversion of the facts. So an unreadable store yields `{}` and the tiles
+    simply do not appear.
+    """
     import sqlite3
     if not paths.DB.exists():
         return {}
@@ -134,18 +133,18 @@ def work_stats() -> dict:
 
 
 def _queue(conn, limit: int = 12) -> list[dict]:
-    ""                                                                 
+    """The newest proposals awaiting a human, newest first.
 
-                                                                             
-                                                                               
-                                                                              
-                              
-       
-                                                                               
-                                                                             
-                                                                              
-                                                                              
-                                                               
+    Newest rather than oldest, deliberately: the oldest are closest to expiry
+    and saying so as a NUMBER is `ledger.review_backlog`'s job. What a person
+    scanning the page wants is what the agent has just concluded, which is the
+    half a count cannot carry.
+    """
+    # THE CURRENT REVISION ONLY, and the join is not decoration: counting every
+    # `proposed` ROW overcounts against the health panel's `proposed`, because
+    # a superseded revision keeps its state. Two numbers for "waiting" on one
+    # page is worse than one number that is harder to compute — so this uses
+    # the panel's own definition, character for character.
     CURRENT = ("ledger l JOIN (SELECT memory_id, MAX(revision) r FROM ledger"
                " GROUP BY memory_id) m ON m.memory_id = l.memory_id"
                " AND m.r = l.revision WHERE l.state = 'proposed'")
@@ -159,14 +158,14 @@ def _queue(conn, limit: int = 12) -> list[dict]:
 
 
 def _digest(conn) -> dict:
-    ""                                                                       
-                                                                            
-                                                                          
-                                                                        
-                                                                              
-                                                                             
-                                                                            
-       
+    """The review queue in one line: how many rows wait, of which kinds, and
+    what retention erases first — the same arithmetic `tools/review.py digest`
+    prints, read here so the health page can say it above the rows instead of
+    leaving the operator to count. Retention's horizon is the store's own
+    (`retention.json → ledger.proposed_days`, 90 when unstated); the exempt
+    owners are `review.py`'s to know, so this counts every waiting row and
+    says "erases" of the ones whose day has come, not of the exempt.
+    """
     CURRENT = ("ledger l JOIN (SELECT memory_id, MAX(revision) r FROM ledger"
                " GROUP BY memory_id) m ON m.memory_id = l.memory_id"
                " AND m.r = l.revision WHERE l.state = 'proposed'")
@@ -196,19 +195,18 @@ def _digest(conn) -> dict:
 
 
 def from_store() -> dict:
-    ""                                              
+    """What the STORE knows, or an honest emptiness.
 
-                                                           
-                                                                                 
-                                                                              
-                               
-                                                                                
-                                                                           
+    Without this the page would read `registry/*.json` and nothing else, and
+    the events, weekly rollups, plugin measurements, the wallet and the
+    provider health would all be invisible on the one screen that exists to
+    show them. The registry says what EXISTS; only the store says what
+    HAPPENED.
 
-                                                                         
-                                                                                  
-                                                                           
-       
+    It degrades rather than failing: a fresh clone has no store — it is
+    gitignored — and a dashboard that cannot be built without one would make
+    the gate unrunnable there.
+    """
     import sqlite3
     out = {"weeks": {}, "metrics": {}, "timeline": {}, "notes": {},
        "health": {}, "degraded": "", "queue": []}
@@ -410,21 +408,19 @@ def from_store() -> dict:
             except (json.JSONDecodeError, OSError):
                 pass
 
-                                                                              
-                                                                               
-                                                                                
-                                                                           
-                                                                              
-                                                                            
-                                                                      
-                                       
-     
-                                                                                 
-                                                                          
-                                                                                  
-                                                                            
-                                                                              
-                                                                
+    # PREPARED HERE, because the page must not read a field the file does not
+    # have. `store/wallet.json` keeps per-month and per-day maps with no scalar
+    # "this month" field, so a page testing for one would find it false on
+    # every render and the spend row would never appear. A branch whose true
+    # side is unreachable is found only by EXECUTING the page, not by checking
+    # the data behind it — so the scalars are computed once, here.
+    #
+    # And it is THIS PROJECT's own spend, from its own journal, labelled as
+    # such. A provider-side counter can measure a key shared with other
+    # consumers, and showing that number here would report somebody else's
+    # spending as this installation's. The date arithmetic stays in Python: a
+    # browser deriving "which month is it" is a second place for the answer to
+    # be wrong.
     w = out["health"].get("wallet") or {}
     if w:
         today = datetime.now(timezone.utc)
@@ -449,38 +445,32 @@ FINDINGS_ON_PAGE = 8
 
 
 def _findings_panel(FINDINGS: dict) -> dict:
-    ""                                                         
+    """The findings the page carries, grouped so none is omitted.
 
-                                                                      
-                                                                               
-                                                                              
+    The header prints the counts, so a list shorter than the count beside it
+    would tell the reader two different things without saying which was the
+    whole.
 
-                                                                                
-                                                                                
-                                                                               
-                                                                          
+    The arithmetic happens HERE because both filters are known here: `counts`
+    in `registry/findings.json` already excludes acknowledged findings, and so
+    does the list below, so the two agree exactly. Recomputing a total in the
+    page's script would duplicate what the payload already holds.
 
-                                                                             
-                                                                                  
-                                                                              
-                                                                                
-                                                                     
-                                                                            
-                                                                
+    **Every open row is carried.** Rows are kept in the builder's own order —
+    severity, then deadline, then id — and each type's rows beyond
+    `FINDINGS_ON_PAGE` are marked `folded`, so the page shows them under a
+    per-type control that names their count instead of dropping them.
 
-                                                                   
-                                                                    
-                                                                 
-                                                                               
-                                                                                
-               
-       
-                                                                             
-                                                                          
-                                                                         
-                                                                           
-                                                                               
-                                                                   
+    The findings surface is the ONLY one a row of severity `info` reaches: the
+    notifier sends `critical` and `warning` by default, and the review digest
+    is about the ledger's queue rather than the board. So an info row cut from
+    this page would reach nobody at all.
+    """
+    # NO OMISSION. A cap that dropped rows of a kind already shown, however
+    # honestly it counted them, still left rows the operator could not reach
+    # and so could not act on. Every open row is CARRIED; what a type has
+    # beyond `FINDINGS_ON_PAGE` rows is FOLDED under a per-type control that
+    # names its count, so the page grows by disclosure and never by omission.
     open_ = [f for f in FINDINGS["findings"] if not f.get("acked")]
     per_type: dict[str, int] = {}
     items = []
@@ -522,12 +512,12 @@ def build():
     # every gate run, so the page inherits that guarantee rather than restating it.
     _cd = paths.REGISTRY / "credentials.json"
     CREDS = json.loads(_cd.read_text(encoding="utf-8")) if _cd.is_file() else None
-                                                                               
-                                                                          
-                                                                                
-                                                                           
-                                                                               
-                                                                          
+    # WHICH KEYS A PROJECT USES, for its panel. The credential document is
+    # heavy and rides only on the keys page; this is the small inverse of its
+    # `used_by` edges — a name, its kind, where it sits and the anchor of its
+    # row — so the project panel can answer "what does this authenticate with"
+    # and hand the reader to the keys page by row. Names and places only, as
+    # everywhere: the document never held a value to leak.
     KEYS: dict[str, list] = {}
     for _c in (CREDS or {}).get("credentials") or []:
         _slug = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(_c.get("id", "")).replace("credential:", "", 1))
@@ -542,10 +532,10 @@ def build():
             })
     for _pid in KEYS:
         KEYS[_pid].sort(key=lambda k: (k["kind"] or "", (k["name"] or "").lower()))
-                                                                               
-                                                                             
-                                                                            
-                                                                            
+    # THE MOVEMENTS JOURNAL, for the keys page — read by the same module the
+    # board's `secret.moved_unrecorded` finding reads it with, so the page and
+    # the finding cannot disagree. The journal sits beside the leak register in
+    # the vault's store; names, dates and places, never a value.
     if CREDS is not None:
         sys.path.insert(0, str(ROOT / "tools"))
         import movements as _movements
@@ -575,17 +565,16 @@ def build():
     # out, which is a bad trade for a file opened locally.
     _ed = paths.REGISTRY / "env-inventory.json"
     ENVD = json.loads(_ed.read_text(encoding="utf-8")) if _ed.is_file() else None
-                                                                                      
-                                                                          
-                                                                                  
-                                                                               
-                                                                                                   
-                                                                                  
-                                                          
-                                                                              
-                                                                           
-                                                                            
-                                                 
+    # THE KEYS A PROJECT HOLDS IN ITS OWN `.env` FILES join the panel's key
+    # list too. The credential document knows the vault, the machine store and
+    # the shared secrets directory — not the variables sitting in a checkout,
+    # which is where most of a project's keys actually are, so without this a
+    # panel could claim no credential is linked when that is false.
+    # Names, file, class and git state — the value never leaves the file. Each
+    # row links to its own env row (`#e-<file>:<NAME>`).
+    # `project` in the inventory is the FOLDER name, joined to the project id
+    # through the same folder index the credential collector uses — a match by
+    # project name alone would miss a project whose folder is named differently.
     _folder_pid = {f: p["id"] for p in pdoc["projects"] for f in (p.get("local_folders") or [])}
     _name_pid = {p["name"]: p["id"] for p in pdoc["projects"]}
     for _f in (ENVD or {}).get("files") or []:
@@ -604,12 +593,12 @@ def build():
     for _pid in KEYS:
         KEYS[_pid].sort(key=lambda k: (k["kind"] or "", (k["name"] or "").lower()))
 
-                                                                         
-                                                                             
-                                                                 
-                                                                                
-                                                                               
-                                                          
+    # WHAT PRODUCTION HOLDS, as the four verdicts and never a value. Two pages
+    # read it: the Heroku row says how its configuration compares in one line,
+    # and the ENV row says it per variable.
+    # WHAT GOOGLE SEES. The whole inventory goes to its own page; the
+    # per-project summary rides everywhere, because "how many people came" is a
+    # fact about a project and belongs beside the project.
     _gf = paths.REGISTRY / "google-properties.json"
     GOOGLE = json.loads(_gf.read_text(encoding="utf-8")) if _gf.is_file() else None
     TRAFFIC = {}
@@ -904,11 +893,8 @@ TEMPLATE = r"""<!doctype html>
 })();
 </script>
 <style>
-                                                        
-                                                                              
-                                                                     
-                                                      
-                                                   
+/* DESIGN TOKENS. Every colour, radius, size and duration below is a variable,
+ * so the dark theme only has to redefine values, never rules. */
 :root {
   --bg: #f7f8fa;
   --panel: #ffffff;
@@ -917,10 +903,8 @@ TEMPLATE = r"""<!doctype html>
   --muted: #5b6472;
   --border: #e6e9ef;
   --border-strong: #d7dce4;
-                                                                                        
-                                                                                    
-                                                                                          
-                               
+/* The accent pair: a strong colour for links and focus, a weak tint for
+ * selected and targeted rows. */
   --accent: #2f6feb;
   --accent-weak: #eaf0fe;
   --accent-ink: #ffffff;                                              
@@ -944,19 +928,15 @@ TEMPLATE = r"""<!doctype html>
   --font-ui: -apple-system, "SF Pro", "Segoe UI", sans-serif;
   --font-data: ui-monospace, "SF Mono", Menlo, monospace;
 
-                                                                               
-                                                                             
-                                                                                
-                                                                            
-                                                                             
-                                 
+/* TYPE SCALE. Five sizes and no more; a new element takes one of these
+ * rather than inventing a sixth. */
   --t-chip: 11px;                  
   --t-label: 12px;                                     
   --t-body: 13px;                                        
   --t-section: 20px;                       
   --t-page: 28px;                 
 
-                                                      
+/* SPACING, on a 4px grid. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -991,9 +971,7 @@ TEMPLATE = r"""<!doctype html>
   --info-weak: #1b2740;
 }
 
-                                                                            
-                                                                            
-                                               
+/* Reduced motion: hover transitions collapse to instant. */
 
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -1001,7 +979,7 @@ TEMPLATE = r"""<!doctype html>
   }
 }
 
-                                                                              
+/* BASE */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -1013,7 +991,7 @@ a:hover { text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-control); }
 .mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
 
-                                                                              
+/* HEADER */
 header {
   padding: var(--space-5) var(--space-5) var(--space-4);
   background: var(--panel); border-bottom: 1px solid var(--border);
@@ -1021,7 +999,7 @@ header {
 h1 { margin: 0 0 var(--space-1); font: 700 var(--t-page)/1.2 var(--font-ui); letter-spacing: -.01em; }
 .sub { color: var(--muted); max-width: 74ch; }
 
-                                                                             
+/* TILES and the review queue rows */
 .tiles { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .tile {
   border: 1px solid var(--border); border-radius: var(--r-card);
@@ -1032,9 +1010,7 @@ h1 { margin: 0 0 var(--space-1); font: 700 var(--t-page)/1.2 var(--font-ui); let
   font-size: var(--t-body); }
 .qrow:last-child { border-bottom: 0; }
 .qrow .qacts { margin-top: var(--space-2); display: flex; gap: var(--space-2); }
-                                                                             
-                                                                          
-                            
+/* Filter bar above a list: type selector, free-text query, shown count. */
 .verbs { display: flex; flex-wrap: wrap; gap: 4px; }
 .fbar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center;
   margin: var(--space-2) 0 var(--space-3); }
@@ -1052,23 +1028,20 @@ h1 { margin: 0 0 var(--space-1); font: 700 var(--t-page)/1.2 var(--font-ui); let
   margin: var(--space-3) var(--space-5) 0; }
 .filters b { color: var(--ink); font-weight: 600; }
 tr:target > td { background: var(--accent-weak); }
-                                                                               
-                                                                   
+/* A folded group shows its first row and hides the rest behind a toggle. */
 tbody.grp.folded tr + tr { display: none; }
 .grp-fold { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   cursor: pointer; text-align: left; width: 100%; }
 .grp-fold::before { content: "▸ "; color: var(--muted); }
 .grp-fold[aria-expanded="true"]::before { content: "▾ "; }
-                                                                             
-                                                                          
+/* Sortable column headers: the header is a button, the arrow follows
+ * aria-sort. */
 th[data-sort] .sort { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   cursor: pointer; text-align: inherit; }
 th[data-sort] .sort:hover, th[data-sort] .sort:focus-visible { text-decoration: underline; }
 th[aria-sort="ascending"] .sort::after { content: " ▴"; color: var(--muted); }
 th[aria-sort="descending"] .sort::after { content: " ▾"; color: var(--muted); }
-                                                                             
-                                                                         
-                                                                   
+/* Long identifiers in cells wrap anywhere rather than widening the table. */
 td .mono { overflow-wrap: anywhere; }
 .qrow .qm { color: var(--muted); font-family: var(--font-data); font-size: var(--t-chip); }
 .tile.more-tiles { cursor: pointer; border-style: dashed; font: inherit; text-align: left;
@@ -1079,7 +1052,7 @@ td .mono { overflow-wrap: anywhere; }
 .tile span { color: var(--muted); font-size: var(--t-label);
   text-transform: uppercase; letter-spacing: .1em; }
 
-                                                                              
+/* FINDINGS */
 #findings { margin: var(--space-4) var(--space-5) 0; }
 .fh { display: flex; align-items: baseline; gap: var(--space-3);
   font: 600 var(--t-label) var(--font-ui); text-transform: uppercase;
@@ -1096,30 +1069,21 @@ td .mono { overflow-wrap: anywhere; }
   white-space: nowrap; }
 .f .act { font-size: var(--t-chip); color: var(--muted); font-style: italic; }
 .tier { font-size: var(--t-chip); color: var(--muted); }
-                                                                               
+/* Lower-severity findings hide while the list is folded. */
 .flist.folded .f.finfo, .flist.folded .f.fwarning { display: none; }
 button.fold { margin: var(--space-2) 0 0 var(--space-3); }
-                                                                                
-                                                                             
-                                                                               
-                                                                              
-                                
+/* Deltas: a rise is a warning colour, a fall is calm. */
 .delta { font-family: var(--font-data); }
 .delta.up { color: var(--warn); }
 .delta.down { color: var(--ok); }
 .spark { display: flex; align-items: center; gap: 4px; color: var(--muted);
          font-size: var(--t-chip); font-family: var(--font-data); }
 .spark svg { display: block; }
-                                                                            
-                                                                         
-                                                                         
+/* The sessions line of a sparkline is drawn fainter than commits. */
 .spark-sess { opacity: 0.6; }
 .panel { padding: 16px; margin-bottom: 12px; }
 
-                                                                             
-                                                                              
-                                                                              
-                                                      
+/* TABS */
 .tabs { display: flex; gap: var(--space-2); align-items: flex-end;
   border-bottom: 1px solid var(--border); margin: var(--space-4) 0 0; }
 .tab { appearance: none; border: 1px solid transparent; border-bottom: 0;
@@ -1133,19 +1097,8 @@ button.fold { margin: var(--space-2) 0 0 var(--space-3); }
 .tab .n { font-family: var(--font-data); font-variant-numeric: tabular-nums;
   color: var(--muted); margin-left: var(--space-1); }
 .seg[hidden] { display: none; }
-                                                                              
-                                                                              
-                      
-                                                                               
-                                                                             
-                                                                            
-                                                                             
-                                                                                   
+/* STATUS DOT: a coloured marker beside a state word. */
 .st { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-                                                                    
-                                                                            
-                                                                               
-                                                 
 .st > * { white-space: normal; }
 .st i { width: 8px; height: 8px; border-radius: var(--r-pill); flex: none; }
 .st-running i { background: var(--ok); }
@@ -1166,7 +1119,7 @@ button.fold { margin: var(--space-2) 0 0 var(--space-3); }
 .hrow b { font-family: var(--font-data); color: var(--ink); font-weight: 400; }
 @media (max-width: 1100px) { #findings { margin: var(--space-4) var(--space-3) 0; } }
 
-                                                                              
+/* CONTROLS: the sticky search and filter bar. */
 .controls {
   position: sticky; top: var(--topbar, 0px); z-index: 20;
   display: flex; flex-wrap: wrap; gap: var(--space-2);
@@ -1179,11 +1132,8 @@ input[type=search], select {
   border-radius: var(--r-control); padding: 6px var(--space-2);
 }
 input[type=search] { flex: 1; min-width: 240px; }
-                                                                 
 .seg { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-                                                                                
-                                                                               
-                                             
+/* View switch: pill buttons, pressed state is the active one. */
 .view { display: flex; gap: var(--space-1); margin: var(--space-2) var(--space-5) 0; justify-content: flex-end; }
 .chip-btn {
   font: 400 var(--t-chip) var(--font-data); color: var(--muted);
@@ -1198,10 +1148,8 @@ input[type=search] { flex: 1; min-width: 240px; }
   background: var(--accent-weak); border-color: var(--accent); color: var(--ink);
 }
 
-                                                                            
-                                                                       
-                                                                               
-                                                                                  
+/* A value shown on request: monospace, selectable in one click, wrapping
+ * anywhere. */
 code.val {
   display: block; font: 400 var(--t-chip) var(--font-data);
   color: var(--ink); background: var(--danger-weak, var(--panel-2));
@@ -1210,9 +1158,7 @@ code.val {
   word-break: break-all; user-select: all;
 }
 
-                                                                              
-                                                                              
-                                             
+/* Transient confirmation toast at the bottom of the viewport. */
 .toast {
   position: fixed; left: 50%; bottom: var(--space-5, 24px);
   transform: translateX(-50%); z-index: 40;
@@ -1223,29 +1169,17 @@ code.val {
 
 main { padding: 0 var(--space-5) var(--space-6); }
 
-                                                                             
-                                                                            
-                                                                           
-                                                                            
-                                                                         
-                                           
+/* MAIN */
 
-                                                      
-                                                                          
-                                                                          
-                                                                       
-                                                               
+/* CARD: the panel that holds a table. */
 .card { background: var(--panel); border: 1px solid var(--border);
   border-radius: var(--r-card); margin-top: var(--space-4); }
-                                                                         
 
-                                                                   
+/* TABLE */
 table { border-collapse: separate; border-spacing: 0; width: 100%;
   table-layout: fixed; }
-                                                                            
-                                                                             
-                                                                            
-                                                                           
+/* Fixed layout with explicit column widths, so a long cell cannot push the
+ * other columns around. */
 col.c-name { width: 11%; } col.c-site { width:  8%; }
 col.c-dir  { width:  9%; } col.c-repo { width: 16%; }
 col.c-desc { width: 12%; } col.c-stack{ width:  8%; }
@@ -1262,7 +1196,7 @@ thead th {
 thead th:first-child { border-top-left-radius: var(--r-card); }
 thead th:last-child  { border-top-right-radius: var(--r-card); }
 
-                                                        
+/* Group header rows */
 tbody.grp th {
   text-align: left; padding: var(--space-3) var(--space-3) var(--space-2);
   font: 600 var(--t-label) var(--font-ui);
@@ -1282,17 +1216,12 @@ tbody tr { transition: background var(--dur-hover) var(--motion-ease); }
 tbody tr:hover { background: var(--panel-2); }
 td.num { text-align: right; font-family: var(--font-data);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
-                                                                            
-                                                                               
-                                                                          
-                                                                             
-                                                                       
+/* Numeric cells align right and do not wrap; their captions may. */
 td.num .tier, td.num .anchor { white-space: normal; }
 
 .name { font-weight: 600; overflow-wrap: anywhere; }
 .nwo, .folder { overflow-wrap: anywhere; }
-                                                                             
-                                                              
+/* The "more" control that unfolds a long list inside a cell. */
 .more {
   font: 400 var(--t-chip) var(--font-data); color: var(--muted);
   background: transparent; border: 1px dashed var(--border-strong);
@@ -1307,16 +1236,13 @@ td.num .tier, td.num .anchor { white-space: normal; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .none { color: var(--muted); opacity: .55; }
 
-                                                                              
+/* CHIPS */
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
   font: 400 var(--t-chip) var(--font-data); color: var(--ink);
   background: var(--panel); border: 1px solid var(--border-strong);
   border-radius: var(--r-pill); padding: 1px 8px; margin: 1px 3px 1px 0;
-                                                                             
-                                                                             
-                                                                           
-                                        
+  /* A chip may wrap its own text rather than overflow its cell. */
   white-space: normal;
 }
 .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
@@ -1327,12 +1253,11 @@ td.num .tier, td.num .anchor { white-space: normal; }
 .chip.danger { background: var(--danger-weak); border-color: var(--danger); }
 .chip.danger .dot { background: var(--danger); }
 
-                                                                              
+/* REPOSITORIES inside a row */
 .repos { display: flex; flex-direction: column; gap: 3px; }
 .repo { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
 .repo .nwo { font-family: var(--font-data); font-size: var(--t-chip); }
-                                                                               
-                                                                            
+/* A superseded repository is shown struck through and faded. */
 .repo.sub { opacity: .62; }
 .repo.sub .nwo { text-decoration: line-through; text-decoration-thickness: 1px; }
 .rule {
@@ -1340,17 +1265,11 @@ td.num .tier, td.num .anchor { white-space: normal; }
   padding-left: var(--space-3); border-left: 1px solid var(--border);
   margin-left: 2px; max-width: 60ch;
 }
-                                                                              
-                                                                                  
+/* Site links: monospace, one per line, wrapping anywhere. */
 .sites a { font-family: var(--font-data); font-size: var(--t-chip); display: block;
   overflow-wrap: anywhere; }
-                                                                               
-                                                                           
-                                                                               
-                                                                         
-                                                                           
-                                                                          
-                                     
+/* TOP BAR: brand, page links and the theme switch, sticky above
+ * everything else. */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap;
   align-items: center; gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-5); background: var(--panel);
@@ -1380,18 +1299,12 @@ body[data-page="creds"] .controls, body[data-page="creds"] #seg-creds,
 body[data-page="env"] .controls, body[data-page="env"] #seg-env,
 body[data-page="mcp"] .controls, body[data-page="mcp"] #seg-mcp,
 body[data-page="traffic"] .controls, body[data-page="traffic"] #seg-traffic { display: flex; }
-                                                                             
-                                                                             
-                                                                             
-                                                         
+/* SPLIT PAGES. Each page shows only its own controls and sections; the
+ * rules below hide what belongs to another page. */
 body[data-page]:not([data-page="index"]):not([data-page="findings"]) #findings { display: none; }
 body[data-page]:not([data-page="index"]):not([data-page="health"]) #tiles,
 body[data-page]:not([data-page="index"]):not([data-page="health"]) #more-tiles { display: none; }
-                                                                              
-                                                                               
-                                                                                
-                                                                                
-                                                             
+/* Health-only and projects-only sections. */
 body[data-page]:not([data-page="health"]) #observer,
 body[data-page]:not([data-page="health"]) #queue-s { display: none; }
 body[data-page]:not([data-page="projects"]) #reading,
@@ -1399,12 +1312,8 @@ body[data-page]:not([data-page="projects"]) #dups-s { display: none; }
 body[data-page="index"] #out, body[data-page="findings"] #out, body[data-page="health"] #out,
 body[data-page="index"] #panel, body[data-page="findings"] #panel, body[data-page="health"] #panel { display: none; }
 body[data-page="findings"] .flist.folded .finfo, body[data-page="findings"] .flist.folded .fwarning { display: block; }
-                                                                            
-                                                                          
-                                                                              
-                                                                               
-                                                                             
-                                                                           
+/* The index page puts the inventory tiles first and the work tiles after
+ * them. */
 body[data-page="index"] header { display: flex; flex-direction: column; }
 body[data-page="index"] header > #tiles { order: 1; }
 body[data-page="index"] header > #work-h, body[data-page="index"] header > #work { order: 2; }
@@ -1428,7 +1337,8 @@ footer h3 { margin: 0 0 var(--space-1); font: 600 var(--t-label) var(--font-ui);
 footer ul { margin: 0 0 var(--space-3); padding-left: var(--space-4); }
 .empty { padding: var(--space-6); text-align: center; color: var(--muted); }
 
-                                                                              
+/* NARROW SCREENS: a table row becomes a stacked card, each cell labelled
+ * from its data-label attribute. */
 @media (max-width: 1100px) {
   table, tbody, tr, td, tbody.grp th { display: block; width: 100%; }
   thead { display: none; }
@@ -1575,9 +1485,8 @@ __CARDS__
 </footer>
 
 <script>
-                                                                           
-                                                                             
-                                                                               
+// THE DATA. `__DATA__` is replaced by the builder with the JSON payload; the
+// runtime block carries the paths commands on this page are built from.
 const PAGE = "__PAGE__";
 const TABLE_PAGES = ["projects", "domains", "heroku", "creds", "env", "mcp", "traffic"];
 const D = __DATA__;
@@ -1595,32 +1504,9 @@ const cliCommand = (...args) => engineCommand("observatory.py", args);
 const privateInput = command => command + " < " + shellArg("/absolute/path/to/private-input");
 
 // __SHARED_BELOW__ — the split pages keep everything above this line inline
-                                                                            
-                                                                               
-                                                                        
-                                                                              
-                                       
-  
-                                                                             
-                                                                            
-                                                                           
-                                                       
-                                                                         
-                                                                             
-                                                                              
-                                                                            
-                                                                     
-  
-                                                                              
-                                                                             
-                                                                         
-  
-                                                                        
-                                                                              
-                                                                    
-                                                                                
-                                                                                
-                   
+// Everything below is shared by every page and may move to a separate
+// script file. The rows are normalised first, so that every renderer can
+// assume the list fields exist rather than guarding each access.
 for (const r of D.rows || []) {
   r.folders = r.folders || [];
   r.stack = r.stack || [];
@@ -1630,11 +1516,9 @@ for (const r of D.rows || []) {
 const E = s => String(s == null ? "" : s).replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-                                                                                
-                                                                                
-                                                                          
-                                                                              
-                                                                           
+// THE THEME SWITCH. The choice is applied before first paint in the head;
+// this keeps the buttons in step with it and follows the system setting
+// while the mode is "system".
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
 const THEME_KEY = "observatory.theme";
 function themeMode() {
@@ -1653,8 +1537,7 @@ document.querySelectorAll(".theme button[data-mode]").forEach(b => b.addEventLis
   try { localStorage.setItem(THEME_KEY, b.dataset.mode); } catch (e) {}
   applyTheme(b.dataset.mode);
 }));
-                                                                         
-                                                                                   
+// `/` focuses the search box, unless the reader is already typing.
 document.addEventListener("keydown", ev => {
   if (ev.key !== "/" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const tag = (ev.target && ev.target.tagName || "").toLowerCase();
@@ -1663,21 +1546,16 @@ document.addEventListener("keydown", ev => {
   if (q && q.offsetParent) { ev.preventDefault(); q.focus(); q.select(); }
 });
 
-                                                                            
-                                                                            
-                                                                              
-                                                                            
+// Two timestamps, each labelled: when the estate was last MEASURED, and when
+// the registry's content last changed.
 document.getElementById("upd").textContent = D.measured
   ? D.measured.replace("T", " ").replace("Z", " UTC")
   : "не измерено";
 const cs = document.getElementById("content-stamp");
 if (cs) cs.textContent = D.updated || "—";
 const S = D.stats;
-                                                                             
-                                                                           
-                                                                               
-                                                                            
-                                                                             
+// INVENTORY TILES. The primary set is always visible; the rest sit behind a
+// "more" control so the header stays short.
 const TILES_PRIMARY = [
   ["проектов", S.projects], ["репозиториев", S.repositories],
   ["приложений Heroku", S.heroku_apps], ["не работает", S.heroku_down],
@@ -1690,25 +1568,16 @@ const TILES_REST = [
   ["архивных проектов", S.archived], ["архивных репо", S.archived_repos],
   ["неактивных репо", S.inactive_repos], ["доменов без проекта", S.domains_no_row],
   ["Heroku без проекта", S.heroku_unlinked],
-                                                                              
-                                                                              
-                                                                               
-                                                                             
-            
+  // Local state of the working copies, and the credential counts.
   ["грязных рабочих копий", S.dirty], ["ключей в реестре", S.creds],
   ["ключей утекло", S.creds_leaked], ["ключей без проекта", S.creds_unclaimed],
 ];
-                                                                           
-                                                                         
-                                                                             
-                                                                 
+// DRIFT: projects declared active whose measured activity says dormant or
+// cold — a claim and a measurement that disagree.
 const DRIFT = D.rows.filter(r => r.lifecycle === "active"
                             && (r.tier === "dormant" || r.tier === "cold")).length;
-                                                                            
-                                                                              
-                                                                           
-                                                                              
-                                                                               
+// WORK TILES: what happened, over the rolling windows the builder computes.
+// A key absent from the stats (no store) is simply not shown.
 const WORK_KEYS = ["коммитов за 7 дн", "проектов в работе, 7 дн",
                    "коммитов за 28 дн", "проектов в работе, 28 дн",
                    "коммитов ни на одном remote"];
@@ -1718,19 +1587,16 @@ const tileHTML = ts => ts.map(([k, v]) =>
 {
   const host = document.getElementById("work");
   const top = S["больше всего работы, 28 дн"];
-                                                                             
-                                                                         
-                               
+  // The busiest project is a NAME, so it is a link to that project rather
+  // than a number in a tile.
   if (host) host.innerHTML = TILES_WORK.length
     ? tileHTML(TILES_WORK) + (top
         ? `<a class="tile name" href="projects.html#project:${E(top)}"><b>${E(top)}</b>` +
           `<span>больше всего работы, 28 дн</span></a>` : "")
     : '<div class="tile"><b>—</b><span>хранилища нет, движение не измерено</span></div>';
 }
-                                                                             
-                                                                            
-                                                                         
-                                
+  // An empty registry says how to fill it, instead of showing a row of zeros
+  // that would read as "measured, and nothing there".
 document.getElementById("tiles").innerHTML = !D.rows.length
   ? `<div class="tile empty-estate"><b>—</b><span>реестр пуст: ни одного проекта ещё не измерено —
        <button class="chip-btn" type="button" data-copy="${E(cliCommand("local"))}" title="скопировать команду">${E(cliCommand("local"))}</button>
@@ -1752,10 +1618,8 @@ if (MORE_TILES) MORE_TILES.onclick = e => {
 };
 
 
-                                                                              
-                                                                                
-                                                                                
-                                                                         
+// OBSERVER HEALTH: what the observatory knows about itself, row by row. A
+// missing field is left out rather than shown as zero.
 const H = D.health || {};
 const hb = [];
 if (D.store_degraded) hb.push(["хранилище", D.store_degraded]);
@@ -1763,8 +1627,8 @@ if (H.last_scan) hb.push(["последний скан", H.last_scan.replace("T"
 if (H.events != null) hb.push(["событий", H.events.toLocaleString("ru")]);
 if (H.weeks != null) hb.push(["недельных срезов", H.weeks.toLocaleString("ru")]);
 if (H.metrics != null) hb.push(["измерений плагинов", H.metrics.toLocaleString("ru")]);
-                                                                         
-                                                                                
+// The local server, from its heartbeat: not running, alive, or silent — three
+// states, spelled apart.
 if (H.server_age_s != null) {
   if (H.server_age_s === -1) hb.push(["локальный сервер", "не запущен"]);
   else if (H.server_age_s < 90) {
@@ -1775,10 +1639,8 @@ if (H.server_age_s != null) {
       hb.push(["remote под риском", `${H.server_at_risk} чекаут(ов) с работой только на этом диске`]);
   } else hb.push(["локальный сервер", `МОЛЧИТ ${Math.floor(H.server_age_s / 60)} мин — store/logs/serverd.err`]);
 }
-                                                                              
-                                                                              
-                                                                              
-                                                           
+// When the server is down or silent, the row carries the command that
+// starts or inspects it, ready to copy.
 const SERVERD_FIX = {
   down: ["наблюдатель не запущен — запустить в терминале", toolCommand("serverd.py", ["--run"])],
   silent: ["наблюдатель молчит — проверить", toolCommand("serverd.py", ["--status"])],
@@ -1789,25 +1651,14 @@ if (H.registry_proposals) hb.push(["правок реестра предложе
 if (H.projection_lag) hb.push(["не проиндексировано выводов",
   `${H.projection_lag}, старейший от ${(H.projection_oldest || "").slice(0, 10)}`]);
 if (H.degraded_sources) hb.push(["источников деградировало", H.degraded_sources]);
-                                                                              
-                                                                               
-                                                                                
-                       
+// This project's own spend, prepared by the builder from its own journal —
+// the page does no date arithmetic of its own.
 if (H.spend_month != null)
   hb.push(["потрачено этим проектом за месяц",
            `${(+H.spend_month).toFixed(4)} ${E(H.spend_denomination || "")}`]);
 if (H.spend_today != null)
   hb.push(["из них сегодня", `${(+H.spend_today).toFixed(4)}`]);
-                                                                              
-                                                                           
-                                                                               
-                                                                             
-                                                                            
-                                                                              
-                                                                                 
-                                                                              
-                                                                             
-                   
+// Models the provider-health file holds in quarantine, named up to three.
 {
   const q = Object.keys(H.provider || {});
   if (q.length)
@@ -1829,25 +1680,19 @@ document.getElementById("dups").innerHTML = D.dups.map(g =>
   `<li class="mono">${g.map(E).join("  ·  ")}</li>`).join("")
   || '<li class="none">нет</li>';
 
-                                                                            
-                                                                                
-                                                                              
-                                                                               
-                                                     
+// TABS AND FILTERS. One table area, one selector and one chip group per tab;
+// the current tab decides which of them apply.
 let tab = "projects";
 
 const sel = document.getElementById("owner");
-                                                                               
-                                                                            
-                                        
+// The selector's meaning changes with the tab: owner, team, registrar,
+// section, project, agent or account.
 const SEL_BY_TAB = {
   projects: ["все владельцы", "Владелец", () => D.owners],
   heroku:   ["все команды", "Команда",
              () => [...new Set(((D.heroku && D.heroku.apps) || []).map(a => a.team))].sort()],
   domains:  ["все регистраторы", "Регистратор",
              () => [...new Set((D.domains || []).map(d => d.registrar).filter(Boolean))].sort()],
-                                                                               
-                                                                            
   creds:    ["все разделы", "Раздел",
              () => CRED_SECTIONS.map(s => s[1])],
   env:      ["все проекты", "Проект",
@@ -1865,10 +1710,8 @@ function fillOwners() {
 }
 fillOwners();
 
-                                                                            
-                                                                        
-                                                                               
-                                                                                
+// Active filter chips, kept per tab, so switching tabs never carries one
+// tab's filters into another.
 const activeBy = { projects: new Set(), heroku: new Set(), domains: new Set(),
                    creds: new Set(), env: new Set(), mcp: new Set(),
                    traffic: new Set() };
@@ -1879,15 +1722,10 @@ document.querySelectorAll(".chip-btn[data-f]").forEach(c => c.onclick = () => {
   on ? active.delete(c.dataset.f) : active.add(c.dataset.f);
   render();
 });
-                                                                             
-                                                                               
-                                                                              
-                                                                             
-                                       
+// Filters can arrive in the URL (`?f=drift`), so a tile can link to an
+// already-filtered view; such a chip is marked as switched on by a link.
 {
   const wanted = new Set(new URLSearchParams(location.search || "").getAll("f"));
-                                                                            
-                                                                               
   document.querySelectorAll(".chip-btn[data-f]").forEach(c => {
     if (!wanted.has(c.dataset.f)) return;
     c.setAttribute("aria-pressed", "true");
@@ -1902,10 +1740,8 @@ const DOMS = D.domains || [];
 const LIVE_BY_HOST = h => { const d = DOMS.find(x => x.name === h); return d ? d.live : null; };
 const CREDS = (D.creds && D.creds.credentials) || [];
 const ENVF = (D.env && D.env.files) || [];
-                                                                             
-                                                                              
-                                                                              
-                         
+// One row per variable, flattened from the env files, with the file's own
+// facts carried on every row.
 const ENVV = ENVF.flatMap(f => f.variables.map(v => ({
   path: f.path, project: f.project, kind: f.kind, git: f.git, mode: f.mode,
   modified_on: f.modified_on, name: v.name, cls: v["class"],
@@ -1921,16 +1757,12 @@ function selectTab(next) {
     if (tb) tb.setAttribute("aria-selected", String(tab === t));
     if (sg) sg.hidden = tab !== t;
   }
-                                                                              
-                                                                            
+  // The rules view switch belongs to the projects tab only.
   const vw = document.getElementById("view-projects");
   if (vw) vw.hidden = tab !== "projects";
   fillOwners();
   render();
 }
-                                                                           
-                                                                       
-                                                              
 for (const t of ["projects", "heroku", "domains", "creds", "env", "mcp"]) {
   const tb = document.getElementById("tab-" + t);
   if (tb) tb.onclick = () => selectTab(t);
@@ -1941,8 +1773,7 @@ sel.onchange = render;
 const hay = r => [r.name, r.description, r.owner, r.last, r.folders.join(" "),
   r.stack.join(" "), r.sites.map(s => s.host).join(" "),
 
-                                                                            
-                                   
+  // Heroku app names are searchable from the project row.
   (r.heroku || []).map(h => h.name).join(" "),
   r.repos.map(x => x.nwo + " " + x.path).join(" ")].join(" ").toLowerCase();
 
@@ -1954,16 +1785,12 @@ function keep(r, q, owner) {
   if (active.has("nonote") && r.note) return false;
   if (active.has("folder") && !r.folders.length) return false;
   if (active.has("dirty") && !r.repos.some(x => x.dirty)) return false;
-                                                                             
-                                                                    
   if (active.has("dead") &&
       !r.sites.some(s => s.live && !s.live.resolves)) return false;
   if (active.has("unsynced") &&
       !r.repos.some(x => x.sync && x.sync !== "current")) return false;
   if (active.has("owned") && r.ownership !== "owned") return false;
-                                                                              
-                                                                            
-                        
+  // Drift: declared active, measured dormant or cold.
   if (active.has("drift") &&
       !(r.lifecycle === "active" && (r.tier === "dormant" || r.tier === "cold"))) return false;
   if (active.has("heroku") && !(r.heroku || []).length) return false;
@@ -1971,9 +1798,7 @@ function keep(r, q, owner) {
   return true;
 }
 
-                                                                              
-                                                                               
-                                                           
+// HEROKU FILTERS. "Stale" means no deploy in a year.
 const YEAR_AGO = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
 const hayApp = a => [a.name, a.team, a.state, a.stack, a.region, a.github || "",
   a.project ? (PROJ_NAME.get(a.project) || a.project) : "",
@@ -1985,15 +1810,12 @@ function keepApp(a, q, team) {
   if (team && a.team !== team) return false;
   if (active.has("noproject") && a.project) return false;
   if (active.has("nofolder") && (a.local_folders || []).length) return false;
-                                                                              
-                                                                               
+  // No repository means neither a linked GitHub repo nor a project.
   if (active.has("norepo") && (a.github || a.project)) return false;
   if (active.has("down") &&
       !(a.state === "down" || a.state === "suspended" || (a.crashed || []).length)) return false;
   if (active.has("waste") && a.state !== "resources-only") return false;
-                                                                               
-                                                                              
-                                               
+  // `resources-only`: add-ons are billed while no dyno runs.
   if (active.has("stale") && !(a.last_deploy_on && a.last_deploy_on < YEAR_AGO)) return false;
   if (active.has("oldstack") && !a.stack_superseded) return false;
   return true;
@@ -2003,9 +1825,8 @@ const chip = (text, kind) =>
   `<span class="chip${kind ? " " + kind : ""}"><span class="dot"></span>${E(text)}</span>`;
 
 function repoLine(x, rules) {
-                                                                                
-                                                                               
-                                                            
+  // A superseded, placeholder or moved repository is rendered faded and
+  // struck through, and names its successor.
   const sub = ["superseded", "placeholder", "moved"].includes(x.status);
   const bits = [];
   if (x.visibility === "public") bits.push(chip("public"));
@@ -2013,8 +1834,7 @@ function repoLine(x, rules) {
   if (x.fork) bits.push(chip("форк"));
   if (x.host === "bitbucket") bits.push(chip("bitbucket"));
   if (x.dirty) bits.push(chip(x.dirty + " несохр.", "danger"));
-                                                                               
-                                                                          
+  // Sync states that put work at risk are danger; merely behind is a warning.
   const SYNC = {
     "behind":             ["отстаёт", "warn"],
     "stale":              ["отстаёт", "warn"],
@@ -2027,7 +1847,7 @@ function repoLine(x, rules) {
     "unknown":            ["состояние неизвестно", "warn"],
   };
   if (SYNC[x.sync]) {
-                                                                            
+    // The chip carries what is at stake: the unpushed count when measured.
     const [label, tone] = SYNC[x.sync];
     bits.push(chip(label + stakeText(x), tone));
   }
@@ -2038,8 +1858,7 @@ function repoLine(x, rules) {
   if (x.status === "placeholder") bits.push(chip("пустой", "warn"));
   if (x.status === "moved") bits.push(chip("переехал → " + x.movedTo, "warn"));
   const rule = rules.find(s => s.startsWith(x.nwo + ":"));
-                                                                              
-                                                                            
+  // The linking rule is shown only while the rules view is switched on.
   return `<div class="item"><div class="repo${sub ? " sub" : ""}">` +
     `<a class="nwo" href="${E(x.url)}" target="_blank" rel="noopener">${E(x.nwo)}</a>` +
     bits.join("") + `</div>` +
@@ -2048,25 +1867,14 @@ function repoLine(x, rules) {
 }
 
 const NONE = '<span class="none">—</span>';
-                                                                               
-                                                          
+// Activity tiers, in the reader's language.
 const TIER_RU = {active: "активен", cooling: "остывает", dormant: "спит",
                  cold: "холодный", unknown: "дата неизвестна"};
 
-                                                                                
-                                                                                 
-                                                                      
-  
-                                                                              
-                                                                               
-                                                                                
-                                                                              
-                                                                               
-                                    
-  
-                                                                                
-                                                                          
-                                                             
+// SPARKLINE: weekly commits as a solid line and sessions as a dashed one,
+// on one shared scale. Weeks whose sessions were never measured are left out
+// of the dashed line rather than drawn as zero, so "no work" and "not
+// measured" stay apart.
 function spark(weeks) {
   if (!weeks || !weeks.length) return "";
   const vals = weeks.map(w => w.c);
@@ -2092,11 +1900,7 @@ function spark(weeks) {
     `</div>`;
 }
 
-                                                                            
-                                                                                
-                                   
-                                                                              
-                                                                   
+// Russian plural forms: one, few, many.
 function plural(n, one, few, many) {
   const a = Math.abs(n) % 100, b = a % 10;
   if (a > 10 && a < 20) return many;
@@ -2106,23 +1910,16 @@ function plural(n, one, few, many) {
 
 function metrics(list) {
   if (!list || !list.length) return "";
-                                                                                
-                                                                             
-                                                                               
-                                
-    
-                                                                                 
-                                                                              
-                                 
+  // PLUGIN METRICS. The caption comes from the plugin's manifest and falls
+  // back to the metric name; the unit is printed only when there is no
+  // caption to carry it.
   return list.map(m => {
     const cap = (m.l || m.n || "").trim();
     const val = m.u === "bytes" ? bytes(m.v)
               : (m.l ? `${(+m.v).toLocaleString("ru")}`
                      : `${(+m.v).toLocaleString("ru")} ${E(m.u || "")}`.trim());
-                                                                              
-                                                                                
-                                                                            
-                                                   
+    // The change since the previous sample, when retention kept one. A
+    // series with a single sample shows no delta at all, not "+0".
     let d = "";
     if (m.p != null && +m.p !== +m.v) {
       const up = +m.v > +m.p, diff = Math.abs(+m.v - +m.p);
@@ -2136,16 +1933,12 @@ function metrics(list) {
   }).join("");
 }
 
-                                                                          
-                                                                              
-                                                                           
-                                                                              
-                                                                               
+// WHAT IS AT STAKE in a checkout: the count of commits on no remote and the
+// date of the newest, when the probe could count them.
 function stakeText(x) {
   if (typeof x.unpushed === "number" && x.unpushed > 0)
     return ` · ${x.unpushed}` + (x.unpushedOn ? ` от ${x.unpushedOn}` : "");
-                                                                    
-                                                                  
+  // Measured and found to hold nothing a remote lacks.
   if (x.nothing_exclusive) return " · ничего исключительного";
   return "";
 }
@@ -2159,9 +1952,8 @@ function bytes(n) {
 
 function row(r) {
   const siteChip = s => {
-                                                                              
-                                                                                
-                                                           
+    // Liveness chip: unmeasured, not resolving, or an HTTP error; a healthy
+    // site gets no chip at all.
     if (!s.live) return chip("не измерено");
     if (!s.live.resolves) return chip("не резолвится", "danger");
     if (s.live.http >= 400 || s.live.http === 0) return chip("HTTP " + s.live.http, "warn");
@@ -2185,10 +1977,8 @@ function row(r) {
   const stack = r.stack.slice(0, 3).map(s => chip(s)).join("") +
     (r.stack.length > 3 ? chip("+" + (r.stack.length - 3)) : "");
   const note = r.note ? chip(r.wiki_notes + " зам.", "ok") : NONE;
-                                                                                
-                                                                               
-                                                                           
-                                                        
+  // A project's Heroku apps, each with its state dot, the rule that linked
+  // it and its monthly cost.
   const host = (r.heroku || []).length
     ? (r.heroku || []).map(h =>
         `<div class="st st-${E(h.state)}" title="${E(h.rule)}"><i></i>` +
@@ -2196,10 +1986,8 @@ function row(r) {
         (h.cost ? `<span class="anchor"> $${Math.round(h.cost)}</span>` : "") +
         `</div>`).join("")
     : NONE;
-                                                                          
-                                                                           
-                                                                        
-                                                                           
+  // An empty cell carries class `e`, so the narrow layout can hide it
+  // instead of printing a label with nothing under it.
   const td = (label, html, cls) =>
     `<td data-label="${label}"${cls || html === NONE ? ` class="${
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
@@ -2218,9 +2006,6 @@ function row(r) {
         spark(r.weeks) + metrics(r.metrics), "num")}
     ${td("Heroku", host)}
     ${                                                                       
-                                                                            
-                                                                              
-                                                                                 
                             ""}
     ${td("Польз./30 дн", (() => {
       const tr = (D.traffic || {})[r.id];
@@ -2234,10 +2019,8 @@ function row(r) {
     ${td("Вики", note)}</tr>`;
 }
 
-                                                                            
-                                                                                 
-                                                                         
-                                                      
+// THE PROJECT PANEL: everything known about one project, opened from its row
+// by the URL hash.
 function detail(id) {
   const r = D.rows.find(x => x.id === id);
   const box = document.getElementById("panel");
@@ -2245,8 +2028,7 @@ function detail(id) {
   const list = (items, empty, fn) => items && items.length
     ? `<ul class="dlist">${items.map(fn).join("")}</ul>`
     : `<p class="none">${empty}</p>`;
-                                                                              
-                                                                             
+  // Without a store, the store-backed sections say so instead of "none".
   const gone = D.store_degraded
     ? `<p class="none">${E(D.store_degraded)}</p>` : "";
   box.innerHTML = `
@@ -2258,9 +2040,6 @@ function detail(id) {
       · последняя активность ${E(r.last) || "—"}</p>
     <h3>Из чего состоит</h3>
     ${                                                                          
-                                                                                
-                                                                             
-                                                                    
       list(r.repos, "репозиториев нет", x => `<li class="mono">${E(x.nwo)}</li>`)}
     ${list(r.folders, "локальных папок нет", f => `<li class="mono">${E(f)}</li>`)}
     ${list(r.sites, "сайтов не заявлено", s => `<li class="mono">${E(s.host)}` +
@@ -2280,8 +2059,6 @@ function detail(id) {
       n => `<li><span class="mono">${E(n.at)}</span> ${E(n.text)}
             <span class="none">${E(n.state)}${n.conf != null ? ", уверенность " + n.conf : ""}</span></li>`)}
     ${                                                                       
-                                                                                
-                                                                            
                                                           ""}
     <h3>Аналитика</h3>
     ${(() => {
@@ -2302,20 +2079,15 @@ function detail(id) {
     })()}
     <h3>Ключи</h3>
     ${(() => {
-                                                                               
-                                                                               
-                                                                             
-                                                                                
+      // Names, kinds and places only — the payload holds no value to show.
       const ks = (D.keys || {})[r.id] || [];
       if (!ks.length) return `<p class="none">ни один кред в реестре не привязан к этому проекту — ` +
         `ничьи перечислены на <a href="creds.html">странице ключей</a></p>`;
       const KIND_RU = {"llm-api-key": "ключ LLM", "machine-secret": "машинный секрет",
                        "project-secret": "слот хранилища", "project-secret-file": "файл рядом с кодом",
                        "leaked-untracked": "известен по утечке", "env-file": "в .env проекта"};
-                                                                                
-                                                                               
-                                                                             
-                                                                             
+      // A key file tracked by git is danger; one merely not ignored is a
+      // warning.
       const GIT_RU = {tracked: chip("файл в git", "danger"), loose: chip("не в .gitignore", "warn"), ignored: "", "no-repo": ""};
       return `<ul class="dlist">` + ks.map(k =>
         `<li><a class="mono" href="${E(k.href || ("creds.html#c-" + k.slug))}">${E(k.name || "")}</a>` +
@@ -2339,10 +2111,7 @@ function detail(id) {
   box.hidden = false;
   document.getElementById("dclose").onclick = () => { location.hash = ""; };
   box.scrollIntoView({block: "start"});
-                                                                              
-                                                                              
-                                                                           
-                                                                       
+  // Focus moves into the panel, so a keyboard reader lands on what opened.
   const closeBtn = document.getElementById("dclose");
   if (closeBtn && closeBtn.focus) closeBtn.focus();
 }
@@ -2351,9 +2120,8 @@ let PANEL_OPENER = null;
 document.addEventListener("click", ev => {
   const a = ev.target && ev.target.closest && ev.target.closest('a.plink[href^="#project:"]');
   if (!a) return;
-                                                                              
-                                                                          
-                                                                              
+  // On another page the project panel lives on the projects page, so the
+  // link navigates there with the same hash.
   if (PAGE && PAGE !== "projects") {
     ev.preventDefault();
     location.href = "projects.html" + a.getAttribute("href");
@@ -2365,12 +2133,9 @@ document.addEventListener("hashchange", () => {
   if (!location.hash && PANEL_OPENER && PANEL_OPENER.focus) { PANEL_OPENER.focus(); PANEL_OPENER = null; }
 });
 function fromHash() {
-                                                                              
-                                                                     
+  // The hash names either a tab or a project.
   const raw = typeof location !== "undefined" ? (location.hash || "") : "";
   const id = decodeURIComponent(raw.replace(/^#/, ""));
-                                                                              
-                                                                    
   if (["projects", "heroku", "domains", "creds", "env"].includes(id)) {
     detail("");
     if (id !== tab) selectTab(id);
@@ -2381,14 +2146,10 @@ function fromHash() {
 addEventListener("hashchange", fromHash);
 addEventListener("keydown", e => { if (e.key === "Escape" && location.hash) location.hash = ""; });
 
-                                                                              
-                                                                              
-                                                                              
-                                                                             
-                                                                               
-                                                                               
-                                                                          
-                                                        
+// WHAT NARROWS THE VIEW, stated beside the count. A table showing fewer rows
+// than exist must say by what: the pressed chips of this tab (and which came
+// from a link), the selector and the search text. `narrowing()` reads only
+// the chips inside `.seg`, so a view switch is never counted as a filter.
 function narrowing() {
   const seg = document.getElementById("seg-" + tab);
   const chips = seg ? [...seg.querySelectorAll('.chip-btn[data-f][aria-pressed="true"]')]
@@ -2409,11 +2170,9 @@ function filterLine(shown, total, unit) {
   return `<div class="filters" role="status">Показано <b>${shown}</b> из ${total}${unit ? " " + unit : ""}` +
     (what ? ` · ${what} · <button class="chip-btn" type="button" data-clear>сбросить</button>` : "") + `</div>`;
 }
-                                                                                
-                                                                             
-                                                                           
-                                                                            
-                            
+// GROUP FOLDING. Groups start folded, and open by themselves as soon as
+// anything narrows the view — a search hit hidden inside a folded group would
+// read as "not found".
 function foldOpen(defaultOpen) {
   const n = narrowing();
   return !!(defaultOpen || n.q || n.chips.length || n.sel);
@@ -2421,17 +2180,13 @@ function foldOpen(defaultOpen) {
 function grpHead(colspan, inner, open) {
   return `<tr><th colspan="${colspan}" scope="colgroup"><button class="grp-fold" type="button" aria-expanded="${open ? "true" : "false"}">${inner}</button></th></tr>`;
 }
-                                                                                
-                                                                            
-                                                                              
-                                                                                
-                                                                
+// A hash naming a row reveals it: its folded group opens and the row
+// scrolls into view. Finding and project hashes are handled elsewhere.
 let REVEALED = "";
 function revealHash() {
   const raw = typeof location !== "undefined" ? (location.hash || "") : "";
   if (!raw || raw.startsWith("#f-") || raw.startsWith("#project:")) return;
-                                                                              
-                                                                            
+  // Once per hash, so a re-render does not keep scrolling the reader back.
   if (raw === REVEALED) return;
   const id = decodeURIComponent(raw.slice(1));
   let target = document.getElementById(id);
@@ -2449,12 +2204,9 @@ function revealHash() {
   REVEALED = raw;
 }
 addEventListener("hashchange", () => { REVEALED = ""; revealHash(); });
-                                                                              
-                                                                             
-                                                                             
-                                                                               
-                                                                              
-                                                                     
+// COLUMN SORTING. A header click cycles ascending, descending, none. The
+// choice is kept per page for the session only, and empty values always sort
+// last whichever the direction.
 const SORT = (() => {
   try { return JSON.parse(sessionStorage.getItem("observatory.sort." + PAGE) || "{}") || {}; }
   catch (e) { return {}; }
@@ -2493,7 +2245,7 @@ const dateOr = s => (s ? String(s) : null);
 const numOr = n => (typeof n === "number" ? n : (n == null || n === "" ? null : Number(n)));
 function nothingFound(total, note) {
   const what = narrowingText(narrowing());
-                                                                       
+  // An empty result says whether a filter caused it or the registry is empty.
   if (!what) return `<p class="empty">${total ? "Ничего не найдено" : "Здесь пусто — в реестре нет ни одной строки этого вида"}${note ? ". " + note : ""}</p>`;
   return `<p class="empty">Ничего не найдено с этим сужением — ${what}. ` +
     `<button class="chip-btn" type="button" data-clear>сбросить</button>${note ? "<br>" + note : ""}</p>`;
@@ -2516,8 +2268,7 @@ function render() {
 }
 function drawTab() {
   if (PAGE && !TABLE_PAGES.includes(PAGE)) return;                                             
-                                                                              
-                                                                           
+  // Tab counters are refreshed on every render.
   const setN = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setN("n-projects", D.rows.length);
   setN("n-mcp", D.mcp ? (D.mcp.totals || {}).distinct_servers || 0 : "—");
@@ -2552,33 +2303,20 @@ function drawTab() {
       ${rs.map(row).join("")}</tbody>`).join("")}</table></div>`;
 }
 
-                                                                             
-                                                                               
-                                                           
-                                                                              
-                                                                                 
+// ACTIONS. The page is read-only when opened as a file. Served by the local
+// server, it carries a session token and can call that server's API; each
+// action is then a button, and the same action is always available as a
+// command to copy.
 
-                                                                              
-                                                                                
-                                                               
-                                                                                
-                                                                            
-                                                                              
-                                           
+// The token comes from a meta tag the server writes into the page it serves;
+// a page opened from disk has none.
 const TOKEN = (document.querySelector('meta[name="observatory-token"]') || {}).content;
-                                                                                  
-                                                                                 
-                                                                                 
-                                                                            
+// LIVE only over http(s) with a token: every other way of opening the page
+// stays copy-only.
 const LIVE = typeof location !== "undefined"
   && String(location.protocol || "").startsWith("http") && !!TOKEN;
 
-                                                                             
-                                                                              
-                                                                             
-                                                                                 
-                                                                                 
-                                              
+// A short confirmation at the bottom of the screen, gone after four seconds.
 function toast(text) {
   const el = document.getElementById("toast");
   if (!el) return;
@@ -2588,10 +2326,8 @@ function toast(text) {
   toast._t = setTimeout(() => { el.hidden = true; }, 4000);
 }
 
-                                                                             
-                                                                             
-                                                                              
-                                                           
+// Copy to the clipboard, with a textarea fallback where the async clipboard
+// API is unavailable or refused (a file:// page, an older browser).
 async function copyText(text) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2612,24 +2348,17 @@ async function copyText(text) {
   return ok;
 }
 
-                                                                               
-                                                                            
-                                                                 
+// Any element with `data-copy` copies its command on click.
 document.addEventListener("click", ev => {
   const btn = ev.target && ev.target.closest && ev.target.closest("[data-copy]");
   if (!btn) return;
-                                                                                
-                                                                             
+  // The toast names what was copied, shortened to one line.
   const what = String(btn.dataset.copy || "").replace(/\s+/g, " ").slice(0, 48);
   copyText(btn.dataset.copy).then(ok =>
     toast(ok ? `скопировано: ${what}${btn.dataset.copy.length > 48 ? "…" : ""}`
              : "буфер недоступен — скопируйте из подсказки"));
 });
-                                                                             
-                                                                                
-                                                                          
-                                                                               
-                                                           
+// Credential action buttons, handled in one place.
 document.addEventListener("click", ev => {
   const btn = ev.target && ev.target.closest && ev.target.closest("[data-act][data-cred]");
   if (!btn || btn.disabled) return;
@@ -2641,10 +2370,8 @@ document.addEventListener("click", ev => {
 async function call(action, body) {
   const r = await fetch("/api/" + action, {
     method: "POST",
-                                                                                
-                                                                          
-                                                                            
-                                                  
+    // The token authorises the call; the caller header names which page made
+    // it, for the server's own journal.
     headers: {"Content-Type": "application/json", "X-Observatory-Token": TOKEN,
               "X-Observatory-Caller": "page:" + (document.body.dataset.page || "index")},
     body: JSON.stringify(body),
@@ -2654,9 +2381,8 @@ async function call(action, body) {
   return d;
 }
 
-                                                                            
-                                                                             
-                                      
+// One credential action: confirm what cannot be undone, ask for what the
+// action needs, call the server, and report the outcome.
 function credAction(btn, c) {
   const act = btn.dataset.act;
   const ask = act === "revoke"
@@ -2671,8 +2397,7 @@ function credAction(btn, c) {
             ? `Отключить ${c.name || c.label}? Он перестанет тратить до «включить».`
             : null;
   if ((act === "revoke" || act === "rotate-key" || act === "disable") && !confirm(ask)) return;
-                                                                      
-                                                                         
+  // Keys managed by name use `name`; the rest are addressed by label.
   let body = ["disable", "enable", "rotate-key"].includes(act)
     ? {name: c.name || c.label} : {label: c.label};
   if (act === "limit") {
@@ -2680,10 +2405,8 @@ function credAction(btn, c) {
     if (v === null) return;
     body = {label: c.label, limit: Number(v), limit_reset: "monthly"};
   }
-                                                                             
-                                                                               
-                                                                              
-                                    
+  // SIGNING: a purpose and the evidence for it are required; the owner is
+  // optional.
   if (act === "annotate") {
     const purpose = prompt(`Для чего нужен ${c.name || c.label}? Одной фразой:`, "");
     if (!purpose || !purpose.trim()) return;
@@ -2693,11 +2416,9 @@ function credAction(btn, c) {
     body = {id: c.id, purpose: purpose.trim(), evidence: evidence.trim(),
             owner: owner.trim()};
   }
-                                                                             
-                                                                             
-                                                                              
-                                                                             
-                                                                       
+  // MINTING a new key: its name at the provider, a monthly ceiling and
+  // where it is delivered. The value is delivered by the server and never
+  // reaches this page.
   if (act === "mint") {
     const name = prompt("Имя ключа у провайдера (его увидит только леджер):", "");
     if (!name || !name.trim()) return;
@@ -2708,10 +2429,7 @@ function credAction(btn, c) {
     if (!dest || !dest.trim()) return;
     body = {name: name.trim(), limit: Number(limit), destination: dest.trim()};
   }
-                                                                            
-                                                                              
-                                                                            
-                       
+  // RECORDING A LEAK: where the value was seen, in one line.
   if (act === "leak") {
     const where = prompt(ask, "");
     if (!where || !where.trim()) return;
@@ -2729,10 +2447,8 @@ function credAction(btn, c) {
                   toast(String(e.message).slice(0, 120)); });
 }
 
-                                                                               
-                                                                               
-                                                                              
-                           
+// A finding's subject becomes a link to the row it is about, on the page
+// that holds that kind of row.
 function subjectHref(subject) {
   const m = /^([a-z]+):(.+)$/.exec(String(subject || ""));
   if (!m) return null;
@@ -2742,37 +2458,25 @@ function subjectHref(subject) {
   if (kind === "credential") return ["creds.html#c-" + rest.replace(/[^A-Za-z0-9_.-]+/g, "-"), rest];
   if (kind === "project") return ["projects.html#project:" + rest, rest];
 
-                                                                                
-                                                                           
+  // Env and MCP anchors use the same slug their rows are rendered with.
   if (kind === "env") return ["env.html#e-" + anchorSlug(rest), rest];
   if (kind === "mcp") return ["mcp.html#m-" + anchorSlug(rest), rest];
   return null;
 }
-                                                                               
-                                                                               
-                                                                          
+// The one slug rule shared by row ids and the links to them.
 function anchorSlug(s) { return String(s).replace(/[^A-Za-z0-9_.:/-]+/g, "-"); }
 
-                                                                              
-                                                                              
-                                                                                
-                                                               
+// Credentials read by a provider tool have a "door": the tool that can
+// issue, list and revoke them.
 const doorOf = c => {
   const m = /^tools\/(openrouter|cloudflare)\.py$/.exec(c.read_by || "");
   return m ? m[1] : null;
 };
 
-                                                                             
-                                                                                   
-                                                                               
-                                        
-
-                                                                             
-                                                                            
-                                                                        
-                                                                               
-                                                                            
-                       
+// THE VERBS OF A CREDENTIAL: label, command, and the live action when the
+// server can perform it (null means copy-only). Every verb is a command a
+// reader can run in a terminal, so the page never becomes the only way to
+// act. Placeholders in capitals are for the reader to fill in.
 const ISSUE_CMD = {
   openrouter: toolCommand("openrouter.py", ["issue", "--name", "KEY_NAME", "--limit", "AMOUNT", "--to", "vault:PROJECT/prod/NAME"]),
   cloudflare: toolCommand("cloudflare.py", ["issue", "--account", "ACCOUNT_ID", "--preset", "analytics"]),
@@ -2842,8 +2546,7 @@ function keepCred(c, q, section) {
     return false;
   if (active.has("c-leaked") && !c.leaked) return false;
   if (active.has("c-unclaimed") && (c.used_by || []).length) return false;
-                                                                                 
-                                                 
+  // Shared: used by two or more projects, so a rotation touches all of them.
   if (active.has("c-shared") && (c.used_by || []).length < 2) return false;
   if (active.has("c-norotate") && c.rotated_on) return false;
   if (active.has("c-disabled") && !c.disabled) return false;
@@ -2874,9 +2577,7 @@ function renderCreds() {
         `<a class="plink" href="#${E(p)}">${E(p.split(":")[1])}</a>`).join(", ") +
       ((c.used_by || []).length > 1
         ? `<div class="tier">${chip("общий · ротация затронет всех", "warn")}</div>` : "")
-                                                                             
-                                                                               
-                                                                            
+    // No project uses it: name the tool that reads it, or say it is nobody's.
     : c.read_by
       ? `<span class="mono">${E(c.read_by)}</span><div class="anchor">читает его</div>`
       : `<span class="unlinked" title="${E(c.unclaimed_reason || "")}">ничей</span>`;
@@ -2885,15 +2586,13 @@ function renderCreds() {
     if (c.leaked) bits.push(chip("утечка не закрыта", "danger"));
     if (c.disabled) bits.push(chip("отключён", "warn"));
     if (c.kind === "leaked-untracked") bits.push(chip("в хранилище нет", "warn"));
-                                                                             
+    // A key file sitting in a checkout: its git state and file mode matter.
     if (c.git === "tracked") bits.push(chip("в git", "danger"));
     if (c.git === "loose") bits.push(chip("не игнорируется", "warn"));
     if (c.kind === "project-secret-file" && String(c.mode).slice(-2) !== "00")
       bits.push(chip(`права ${E(c.mode)}`, "warn"));
     if (!bits.length) bits.push(chip("в порядке", "ok"));
-                                                                                
-                                                                            
-                                             
+    // Where a leaked value was seen, shortened, with the whole text on hover.
     const w = String(c.leaked_where || "");
     return bits.join(" ") + (c.leaked && w
       ? `<div class="anchor" title="${E(w)}">${E(w.slice(0, 110))}${w.length > 110 ? "…" : ""}</div>`
@@ -2906,16 +2605,12 @@ function renderCreds() {
   const row = c => `<tr id="c-${E(String(c.id).replace(/^credential:/, "").replace(/[^A-Za-z0-9_.-]+/g, "-"))}">
     <td data-label="Учётные данные"><div class="name">${E(c.name || c.id)}</div>
       ${                                                                   
-                                                                                 
-                                                                             
-                                                                                 
                                                                             ""}
       <div class="anchor mono" title="${E(c.id)}">${E(c.label
         || [c.vault_project, c.env].filter(Boolean).join("/") || c.id)}</div>
       ${c.provider ? `<div class="anchor">${E(c.provider)}${c.serves ? " · " + E(c.serves) : ""}</div>` : ""}
       ${c.identity ? `<div class="anchor mono">${E(c.identity)}</div>` : ""}
       ${                                                                        
-                                                                         
                                                                      ""}
       ${c.signature && c.signature.purpose
         ? `<div class="tier">${E(c.signature.purpose)}</div>` +
@@ -2928,14 +2623,11 @@ function renderCreds() {
     ${cell("Проекты", who(c))}
     ${cell("Ротация", c.rotated_on
       ? E(c.rotated_on) + `<div class="anchor">×${c.rotations || 1}</div>`
-                                                                        
-                                                                                
-                                                 
+      // Never rotated: show when it was issued, or since when it has sat
+      // here, before admitting "never".
       : c.created_on
         ? `<span class="mono">выпущен ${E(c.created_on)}</span>`
         : c.installed_on
-                                                                              
-                                                                        
           ? `<span class="mono">лежит с ${E(c.installed_on)}</span>`
           : `<span class="unlinked">никогда</span>`)}
     ${cell("Действие", `<div class="verbs">` + credVerbs(c).map(([label, cmd, act]) =>
@@ -2950,10 +2642,8 @@ function renderCreds() {
     : `кнопки отдают команду в буфер — страница открыта из файла и ничего выполнить не может;` +
       ` перед импортом замените /absolute/path/to/private-input путём к приватному файлу со значением;` +
       ` запустите <span class="mono">${E(toolCommand("keyserver.py"))}</span>, чтобы они действовали`;
-                                                             
-                                                                                
-                                                                             
-                                                                  
+  // Grouped by section, in a fixed order, and every section is shown even
+  // when empty — an empty section is a fact, not a missing one.
   out.innerHTML = filterLine(rows.length, CREDS.length, "записей") + `<div class="card"><table>
     <colgroup><col style="width:23%"><col style="width:24%"><col style="width:10%">
       <col style="width:16%"><col style="width:11%"><col style="width:16%"></colgroup>
@@ -2961,10 +2651,6 @@ function renderCreds() {
       <th>Проекты</th><th>Ротация</th><th>Действие</th></tr></thead>
     ${CRED_SECTIONS.map(([key, title, says]) => {
       const cs = groups.get(key) || [];
-                                                                             
-                                                                     
-                                                                              
-                                                  
       return `<tbody class="grp">
       ${grpHead(6, `${E(title)} <span class="n">${cs.length}</span><div class="anchor">${E(says)}</div>`, true)}
       ${cs.length ? cs.map(row).join("")
@@ -2979,15 +2665,10 @@ function renderCreds() {
     ${movementsSection()}`;
 }
 
-                                                                           
-                                                                       
-                                                                           
-                                                                             
-                                                                             
-                                                                              
-                                                                           
-                                                                              
-                                                                                
+// KEY MOVEMENTS. The journal records every time a value was put, rotated,
+// moved or revoked. Beside it, the production configuration changes that
+// have no journal row, each with the command that records it — the rule is
+// that whoever moved a key records the movement in the same step.
 function movementsSection() {
   const mv = (D.creds && D.creds.movements) || [];
   const un = (D.creds && D.creds.unrecorded) || [];
@@ -3019,17 +2700,9 @@ function movementsSection() {
       : `<p class="none">журнал движений пуст</p>`}`;
 }
 
-                                                                             
-                                                                               
-                                                                                
-                                                              
-
-                                                                             
-                                                                             
-                                                                         
-                                                                               
-                                                                               
-                                                                         
+// THE ENV PAGE: one row per variable in the projects' env files, by name,
+// class and git state. Values never reach the payload; a value is shown only
+// on request from the local server, and only for a short time.
 
 const CLS_RU = {secret: "секрет", config: "конфиг",
                 placeholder: "заглушка", empty: "пусто"};
@@ -3038,11 +2711,9 @@ const CLS_KIND = {secret: "warn", config: "", placeholder: "", empty: ""};
 const hayEnv = e => [e.name, e.path, e.project, e.cls,
   e.shared.join(" "), e.available.join(" ")].join(" ").toLowerCase();
 
-                                                                           
-                                                                                
-                                                                               
-                                                                                
-                                                 
+// By default only secrets are shown, plus any variable whose value exists
+// in another project; the two extra chips widen the view to config, empty
+// values and templates.
 function keepEnv(e, q, project) {
   if (q && !hayEnv(e).includes(q)) return false;
   if (project && e.project !== project) return false;
@@ -3057,14 +2728,11 @@ function keepEnv(e, q, project) {
 
 const envKey = e => e.path + " " + e.name;
 
-                                                                         
-                                             
+// The rows currently on screen, by key, for the action buttons to find.
 let ENV_ON_SCREEN = new Map();
 
-                                                                         
-                                                                                
-                                                                               
-                   
+// REVEAL: ask the local server for one value, then either copy it or show
+// it for thirty seconds before it is hidden again.
 function envReveal(btn, e, show) {
   const cell = btn.closest("td");
   btn.disabled = true;
@@ -3099,9 +2767,8 @@ function envActions(e) {
       '" data-show="1">показать</button> <button class="chip-btn" type="button" data-env="' +
       E(envKey(e)) + '">копировать</button>';
   }
-                                                                            
-                                                                               
-                                                                             
+  // Opened from a file: nothing can be revealed, so the button copies the
+  // command that locates the value in a terminal.
   const project = e.project || (String(e.path || "").includes("/") ? String(e.path).split("/")[0] : "");
   if (!project || !e.name) return '<span class="unlinked">проект или имя не определены</span>';
   return '<button class="chip-btn" type="button" data-copy="' +
@@ -3182,10 +2849,7 @@ function renderEnv() {
     '<td data-label="Что это">' + state(e) + '</td>' +
     '<td data-label="Связи">' + links(e) + '</td>' +
     '<td data-label="Изменён" class="num"><span class="mono">' + E(e.modified_on) + '</span></td>' +
-                                                                             
-                                                                               
-                                                                         
-                  
+    // Production: how the deployed configuration compares for this name.
     '<td data-label="Прод">' + (() => {
       const m = REMOTE_BY_FOLDER.get(e.project);
       if (!D.remote) return '<span class="anchor">не сканировалось</span>';
@@ -3213,22 +2877,10 @@ function renderEnv() {
     '<thead><tr>' + sortTh("Переменная", "name") + '<th>Что это</th><th>Связи</th>' + sortTh("Изменён", "modified") +
     '<th>Прод</th><th>Значение</th></tr></thead>' +
     [...groups].map(([p, es]) => {
-                                                                             
-                                                                               
-                                                                                
-                                                                            
-                                                                                
-                              
-
-                                                                            
-                                                                           
-                                                                               
-                                                                                
-                                                    
-                                                                                 
-                                                                               
-                                                                              
-                                                
+      // One group per project, folded by default because the list is long.
+      // A group opens by itself when anything narrows the view, or when it
+      // holds a secret tracked by git — that one must never sit behind a
+      // fold. The header counts variables and secrets, and names the alarm.
       const alarming = es.filter(e => e.cls === "secret" && e.git === "tracked");
       const open = !!q || !!sel.value || active.size > 0 || alarming.length > 0;
       const secrets = es.filter(e => e.cls === "secret").length;
@@ -3251,10 +2903,8 @@ function renderEnv() {
     'солёным отпечатком, а соль лежит вне git и не покидает машину.</p>';
 }
 
-                                                                             
-                                                                             
-                                                                            
-               
+// DOMAINS: the registrar's list joined with the Cloudflare zones, with
+// measured liveness and expiry.
 const DAY = 864e5;
 const daysUntil = iso => iso ? Math.round((Date.parse(iso) - Date.now()) / DAY) : null;
 const hayDom = d => [d.name, d.registrar || "", d.status || "",
@@ -3264,9 +2914,8 @@ function keepDom(d, q, registrar) {
   if (q && !hayDom(d).includes(q)) return false;
   if (registrar && d.registrar !== registrar) return false;
   if (active.has("d-noproject") && (d.projects || []).length) return false;
-                                                                              
-                                                                              
-                                         
+  // Liveness filters: not resolving, not measured, or answering with an
+  // HTTP error.
   if (active.has("d-dark") && !(d.live && d.live.resolves === false)) return false;
   if (active.has("d-unmeasured") && d.live) return false;
   if (active.has("d-http") && !(d.live && d.live.resolves && (d.live.http >= 400 || d.live.http === 0))) return false;
@@ -3275,9 +2924,8 @@ function keepDom(d, q, registrar) {
   return true;
 }
 
-                                                                             
-                                                                                
-                                                                   
+// MCP SERVERS, as each agent declares them: where the key sits and whether
+// the server answered the last probe.
 function renderMcp() {
   const out = document.getElementById("out");
   if (!D.mcp) {
@@ -3319,13 +2967,9 @@ function renderMcp() {
       скан ${E(D.mcp.scanned_on || "—")}</p>`;
 }
 
-                                                                             
-                                                                               
-                                                                            
-                                                                           
-                                                                               
-                                                                             
-                                     
+// ANALYTICS PROPERTIES, grouped by account, each linked to a project by a
+// named rule. An unclaimed property is not a defect by itself — it may belong
+// to someone else — but it has a row, so the decision can be made.
 const TRAFFIC_STANDING = { linked: ["привязан", "ok"], outside: ["вне эстейта", ""],
                            unclaimed: ["ничей", "warn"] };
 const RULE_RU = { declared: "объявлено оператором", "declared-host": "хост из файла",
@@ -3403,10 +3047,8 @@ function renderTraffic() {
 function renderDomains() {
   const out = document.getElementById("out");
   const q = document.getElementById("q").value.trim().toLowerCase();
-                                                                       
-                                                                              
-                                                                          
-                                                                           
+  // The registrar list and the Cloudflare zones are joined by name; a zone
+  // no registrar lists still gets a row, marked as known from Cloudflare.
   const zoneBy = new Map((D.zones || []).map(z => [z.name, z]));
   const rows0 = DOMS.map(d => ({ ...d, zone: zoneBy.get(d.name) || null, source: zoneBy.has(d.name) ? "both" : "registrar" }));
   (D.zones || []).forEach(z => { if (!DOMS.some(d => d.name === z.name))
@@ -3439,8 +3081,7 @@ function renderDomains() {
   const liveCell = d => {
     if (!d.live) return chip("не измерен");
     if (d.live.resolves === false) return chip("не резолвится", "danger");
-                                                                               
-                                                                               
+  // Resolving but not answering is its own state, not an HTTP error.
     if (!d.live.http) return chip("резолвится, не отвечает", "warn");
     if (d.live.http >= 400) return chip("HTTP " + d.live.http, "warn");
     return chip("HTTP " + d.live.http, "ok");
@@ -3470,9 +3111,6 @@ function renderDomains() {
     ${cell("Cloudflare", cfCell(d))}
     ${cell("Продукт", prodCell(d))}
     ${                                                                       
-                                                                              
-                                                                              
-                                                                                
                                                                                ""}
     ${cell("Куда смотреть", `<div class="verbs">` +
       `<a class="chip-btn" href="https://rdap.org/domain/${E(d.name)}"
@@ -3497,10 +3135,8 @@ function renderDomains() {
 const STATE_RU = { running: "работает", down: "упало", suspended: "приостановлено",
                    "resources-only": "только ресурсы", idle: "пусто" };
 
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+// PRODUCTION CONFIGURATION, compared with the local checkouts, indexed by app
+// and by folder. Only verdicts arrive here, never a value.
 const REMOTE_BY_APP = new Map(((D.remote && D.remote.apps) || []).map(a => [a.app, a]));
 const REMOTE_BY_FOLDER = new Map();
 for (const a of (D.remote && D.remote.apps) || [])
@@ -3528,8 +3164,7 @@ const VERDICT_RU = {
 function renderHeroku() {
   const out = document.getElementById("out");
   if (!D.heroku) {
-                                                                               
-                                                                    
+    // Never scanned is said as such, with the command that scans.
     out.innerHTML = `<p class="empty">Heroku не сканировался — ` +
       `<span class="mono">${E(cliCommand("heroku"))}</span></p>`;
     return;
@@ -3550,17 +3185,14 @@ function renderHeroku() {
       `<div class="st">${chip(`${E(f.type)}×${f.qty}`)}<span class="mono">${E(f.size)}</span></div>`).join("");
     const crashed = (a.crashed || []).length
       ? `<div class="tier">${chip("crashed: " + E(a.crashed.join(", ")), "danger")}</div>` : "";
-                                                                          
-                                                                              
-                                                                         
+    // Add-ons with their plan and monthly price.
     const planName = p => String(p || "").replace(/^heroku-/, "").replace(":", " ");
     const addons = (a.addons || []).length
       ? (a.addons || []).map(x => `<div class="st"><span>${E(planName(x.plan))}</span>` +
           (x.cents ? `<span class="mono">$${x.cents / 100}</span>` : "") + `</div>`).join("")
       : NONE;
-                                                                              
-                                                                              
-                                  
+    // An add-on attached from another app is shared, so changing it touches
+    // that app too.
     const shared = (a.addons_attached || []).length
       ? `<div class="tier">${chip("общая с " + E(a.addons_attached.map(x => x.owner).join(", ")), "warn")}</div>` : "";
     const sha = a.deployed_commit && a.deployed_commit.sha
@@ -3568,9 +3200,8 @@ function renderHeroku() {
     const deploy = a.last_deploy_on
       ? E(a.last_deploy_on) + sha + (a.last_deploy_on < YEAR_AGO ? `<div class="tier">${chip("больше года", "warn")}</div>` : "")
       : `<span class="unlinked">${a.never_deployed ? "кода не было" : "не найден"}</span>`;
-                                                                                 
-                                                                             
-                      
+    // Why an app has no project: its source is outside, its folder is
+    // unclaimed, or its source is unknown.
     const WHY_RU = { "external-repo": "источник вне нашего GitHub",
                      "folder-unclaimed": "папку не claim'ит ни один проект",
                      "no-source": "источник неизвестен" };
@@ -3597,9 +3228,6 @@ function renderHeroku() {
       ${cell("Проект", project)}
       ${cell("Папка", folders)}
       ${                                                                       
-                                                                            
-                                                                          
-                                                                            
                                                                             ""}
       ${cell("Прод-конфиг", (() => {
         const r = REMOTE_BY_APP.get(a.name);
@@ -3640,9 +3268,8 @@ function renderHeroku() {
       цена по прайс-листу on-demand, не по счёту</p>`;
 }
 
-                                                                            
-                                                                            
-                                                                           
+// A long repository list inside a cell folds after three; the button
+// toggles it.
 document.getElementById("out").addEventListener("click", e => {
   const b = e.target.closest(".more");
   if (!b) return;
@@ -3651,24 +3278,20 @@ document.getElementById("out").addEventListener("click", e => {
   b.textContent = folded ? `+${list.children.length - 3} ещё` : "свернуть";
 });
 
-                                                                            
-                                                                                 
+// STICKY HEADERS. The table header sticks below the top bar and the
+// controls, whose heights change with wrapping, so both are measured.
 const bar = document.querySelector(".controls");
 const topbar = document.getElementById("topbar");
 const stick = () => {
-                                                                          
-                                                                            
+  // Both offsets are CSS variables, set from the measured heights.
   const top = topbar ? topbar.offsetHeight : 0;
   document.documentElement.style.setProperty("--topbar", top + "px");
   document.documentElement.style.setProperty("--stick", (top + bar.offsetHeight) + "px");
 };
 new ResizeObserver(stick).observe(bar);
 if (topbar) new ResizeObserver(stick).observe(topbar);
-                                                                              
-                                                                             
-                                                                            
-                                                                               
-               
+// THE REVIEW QUEUE, read-only: the newest proposals, each with the commands
+// that accept or reject it. The decision itself is taken in a terminal.
 (function renderQueue() {
   const host = document.getElementById("queue"), head = document.getElementById("queue-h");
   const q = D.queue || [];
@@ -3678,25 +3301,17 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       ? E(D.store_degraded) : "ничего не предложено — очередь пуста"}</p>`;
     return;
   }
-                                                                               
-                                                             
+  // The header says how many are shown of how many wait in total.
   const total = (D.health && D.health.proposed) || q.length;
   head.textContent = `Ждёт решения человека — ${q.length} из ${total}`;
-                                                                         
-                                                                       
-                                                                            
+  // One line above the rows: what waits, of which kinds, and what
+  // retention erases first.
   const dg = D.digest || null;
   const digestLine = dg ? `<p class="dmeta" id="queue-digest">${dg.waiting} ждёт: ` +
     Object.entries(dg.by_kind || {}).map(([k, n]) => `${n} ${E(k)}`).join(", ") +
     ` · ретеншен стирает предложение через ${dg.horizon_days} дн` +
     (dg.erases_within_7d ? ` — <b>${dg.erases_within_7d}</b> уйдёт до ${E(dg.first_erase_on || "")}` : " — на этой неделе ничего не уйдёт") +
     ` · <button class="chip-btn" type="button" data-copy="${E(toolCommand("review.py", ["digest"]))}" title="скопировать команду">digest в терминале</button></p>` : "";
-                                                                             
-                                                                               
-                                                                                
-                                                                             
-                                                                              
-                                                    
   host.innerHTML = digestLine + q.map(r => {
     const ok = toolCommand("review.py", ["promote", r.id, "--why", ""]);
     const no = toolCommand("review.py", ["reject", r.id, "--why", ""]);
@@ -3719,8 +3334,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
 (function renderFindings() {
   const F = D.findings, host = document.getElementById("findings");
   if (!F) {
-                                                                               
-                                             
+    // Never built is said as such, with the command that builds it.
     host.innerHTML = `<div class="fh">находки <span class="when">не строились — ` +
       `${E(cliCommand("findings"))}</span></div>`;
     return;
@@ -3735,39 +3349,14 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
                info: ["к сведению", ""] };
   host.innerHTML = `<div class="fh">находки <span class="when">${c.critical} критично · ` +
     `${c.warning} внимание · ${c.info} к сведению` +
-                                                                                
-                                                                                
-                                                           
-                                                                                
-                                                                              
-                                                                            
-                                                                                
+    // Silenced findings are counted in the header too, so what was
+    // acknowledged away is never invisible.
     `${(F.silenced || []).length ? ` · ${F.silenced.length} заглушено` : ""}` +
-                                                                             
-                                                                             
-                                                                             
-                                                                             
-                                            
     `${F.elsewhere ? ` · <a href="findings.html">подробности и ещё ${F.elsewhere} — на странице находок</a>` : ""}` +
     ` · без изменений с ${when}</span></div>` +
-                                                                           
-                                                                                
-                                                                           
-                                                                                 
-                                                                                
-                                                                               
-                                                                               
-                                                         
-                                                                                
-                                                                              
-                                                                               
-                                                                            
-                                                
-                                                                               
-                                                                               
-                                                                             
-                                                                          
-                                                                     
+    // The findings page gets its own filter bar: severity chips, a type
+    // selector with per-type counts, and a search box. Elsewhere, anything
+    // below critical sits behind one "show more" control.
     (PAGE === "findings"
       ? `<div class="fbar" role="group" aria-label="Сужение находок">` +
         ["critical", "warning", "info"].map(s => `<button class="chip-btn" type="button" data-sev="${s}" aria-pressed="false">${RU[s][0]} <span class="n">${c[s] || 0}</span></button>`).join("") +
@@ -3784,16 +3373,10 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       : "") +
     `<div class="flist folded">` + F.items.map(f => {
       const [word, kind] = RU[f.severity] || [f.severity, ""];
-                                                                           
-                                                                                
-               
-                                                                              
-                                                                        
-                                                                                  
+      // Acknowledging is done in a terminal; the button copies that command.
       const cmd = toolCommand("ack.py", [f.id, "--why", ""]);
       const foldCls = f.folded ? ` ftype-folded` : "";
-                                                                             
-                                                                             
+      // Each row has a stable anchor, so a link can point at one finding.
       const fid = "f-" + String(f.id).replace(/[^A-Za-z0-9_.:-]+/g, "-");
       const subj = subjectHref(f.subject);
       return `<div class="f${f.severity === "critical" ? "" : " f" + f.severity}${foldCls}" id="${E(fid)}" data-type="${E(f.type)}" data-sev="${E(f.severity)}">${chip(word, kind)}` +
@@ -3806,11 +3389,12 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         `<span class="act">${E(f.action)}` +
         ` <button class="chip-btn ack" type="button" data-cmd="${E(cmd)}" title="скопировать команду заглушения">заглушить</button></span></div>`;
     }).join("") +
-                                                                         
+    // Per-type controls unfold the rows beyond each type's first few.
     Object.entries(F.folded_by_type || {}).map(([type, n]) =>
       `<button class="more fold ftype" type="button" data-type="${E(type)}" aria-expanded="false">ещё ${n} ${plural(n, "строка", "строки", "строк")} типа ${E(type)}</button>`).join("") +
     `</div>` +
-                                                      
+    // Silenced findings are listed with who silenced them, when and why,
+    // and the command that brings each back.
     ((F.silenced || []).length ? `<details class="silenced"><summary>заглушено ${F.silenced.length} — ` +
       `на странице и в счётчиках их нет; здесь видно, кто, когда и почему</summary>` +
       F.silenced.map(s => `<div class="f fsilenced">${chip("заглушено")}<span class="t">${E(s.title)}</span>` +
@@ -3818,10 +3402,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         `${s.acked.until ? `, до ${E(s.acked.until)}` : ""}</span>` +
         `<span class="act"><button class="chip-btn ack" type="button" data-cmd="${E(toolCommand("ack.py", ["--undo", s.id]))}">вернуть</button></span></div>`).join("") +
       `</details>` : "");
-                                                                             
-                                                                             
-                                                                            
-                                                                           
+  // Copy buttons for acknowledge and undo, and per-type unfolding.
   host.querySelectorAll("button.ack").forEach(b => b.addEventListener("click", () => {
     const cmd = b.getAttribute("data-cmd"), label = b.textContent;
     copyText(cmd).then(ok => {
@@ -3851,7 +3432,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         r.classList.toggle("fhide", !ok);
         if (ok) shown++;
       });
-                                                                              
+      // While anything narrows the list, per-type folding is set aside.
       host.querySelectorAll("button.ftype").forEach(b => { b.hidden = !!(sevOn.size || type || q); });
       if (sevOn.size || type || q) host.querySelectorAll(".f.ftype-folded").forEach(r => r.classList.add("ftype-open"));
       const what = [];
@@ -3881,7 +3462,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       bar.querySelector(".ftype").value = ""; bar.querySelector(".fq").value = "";
       apply();
     });
-                                                                      
+    // A finding named in the URL hash is unfolded and scrolled into view.
     const reveal = () => {
       const target = location.hash && location.hash.startsWith("#f-") && document.getElementById(location.hash.slice(1));
       if (target) { target.classList.add("ftype-open"); target.scrollIntoView({block: "center"}); }
@@ -3900,8 +3481,8 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
 })();
 
 if (PAGE) {
-                                                                               
-                                                                         
+  // A split page: mark the body with its name, so the CSS shows only this
+  // page's parts, and turn the tab buttons into links between pages.
   const bodyEl = document.body || document.documentElement;
   if (bodyEl && bodyEl.setAttribute) bodyEl.setAttribute("data-page", PAGE);
   if (TABLE_PAGES.includes(PAGE)) { tab = PAGE; active = activeBy[tab] || new Set(); }
@@ -3912,13 +3493,13 @@ if (PAGE) {
     const s = document.getElementById("seg-" + t);
     if (s) s.hidden = t !== tab;
   }
-                                                                         
+  // The selector is filled for this page's tab.
   if (typeof fillOwners === "function" && TABLE_PAGES.includes(PAGE)
       && typeof SEL_BY_TAB !== "undefined" && SEL_BY_TAB[tab]) fillOwners();
 }
 stick();
 render();
-                                                                   
+// Finally, open whatever the URL hash names.
 fromHash();
 </script>
 </body>

@@ -152,9 +152,9 @@ def main():
         # permanently unattributable.
         if not (c.get("used_by") or []) and not c.get("unclaimed_reason"):
             errors.append(f"unclaimed credential says nothing about why: {c['id']}")
-                                                                                     
-                                                                                 
-                                           
+        # THE ONE RULE THIS DOCUMENT EXISTS TO KEEP. A label is a truncated key
+        # with an ellipsis in the middle; anything longer that starts the same way
+        # is a key, and a key here would be a credential committed to git.
         for k,v in c.items():
             if isinstance(v,str) and v.startswith("sk-") and "..." not in v and len(v)>24:
                 errors.append(f"credential record carries something key-shaped: {c['id']}.{k}")
@@ -229,14 +229,14 @@ def main():
             target,bad=resolve_ref(cp)
             if bad: errors.append(bad)
             elif not target.exists(): errors.append(f"missing canonical page: {cp}")
-                                                                                 
-                                                                               
-                                                                            
-     
-                                                                               
-                                                                              
-                                                                                
-                                                         
+    # The activity tier is DERIVED, so it is re-derived here rather than trusted.
+    # A tier that can be typed is a tier that can disagree with the date beside
+    # it, and a reader would have no way to tell which of the two was wrong.
+    #
+    # A one-day tolerance, because the tier depends on today: a project sitting
+    # exactly on a boundary legitimately changes tier between an emit at 23:59
+    # and a validation at 00:01. Failing on that would be the gate going red for
+    # a non-defect.
     import datetime as _dt
     valid_tiers = set(activity.tier_ids())
     today = _dt.date.today()

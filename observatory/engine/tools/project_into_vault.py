@@ -59,10 +59,10 @@ def main() -> int:
                                                  "could be merged into it"})
             print(f"skip (not an object): {name}", file=sys.stderr)
             continue
-                                                                             
-                                                                       
-                                                                              
-                                                      
+        # ATOMIC, because the destination is ANOTHER repository that the wiki
+        # skills read. A direct `write_text` that dies mid-write leaves
+        # truncated JSON there, and `atomic.write_json` exists in this project
+        # for exactly that.
         atomic.write_json(dest / name, {**HEADER, **doc})
         written += 1
     snap_src, snap_dest = paths.REGISTRY / "snapshots", dest / "snapshots"

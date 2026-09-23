@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """Ask DNS and RDAP what is actually true of every domain the registry names.
 
-                                                                            
-                                                                                  
-                                                                                
-                                                                             
-                                                                          
-                    
+WHY. `registry/domains.json` marks domains `ownership: owned`, and every field in
+it can be a transcription of documents from one day — a registrar CSV export, a
+table pasted from the DNS provider. Nothing had ever been measured. A domain that
+expired, was transferred, or was put on registrar hold would go on reading
+`owned` forever, and most of them carry `auto_renew: false`.
 
-                                                                            
-                                                                                
-                                                                             
-                                                                               
-                        
+That is not a one-domain problem, though that is how it gets found: a domain
+can turn out to be registered at a registrar nobody listed — and, far more
+usefully, be on `client hold` and resolve nowhere, while the registry presents
+it as a project's homepage.
 
 WHAT IT DOES NOT DO. It never overwrites what the operator transcribed. Measured
 facts land in `live` and `rdap`; where they disagree with the transcription the
@@ -144,11 +142,12 @@ def rdap(name: str, attempt: int = 0) -> tuple[dict, str]:
     except OSError as e:
         return {}, f"RDAP unreachable for {name}: {e}"
 
-                                                                                
-                                                                               
-                                                                                
-                                                                              
-                                                                   
+    # WHICH name this record describes. Without it, a domain under a multi-label
+    # public suffix silently inherits the suffix's facts: a lookup for a name
+    # under a suffix like `xx.com` can return the registrar and expiry of the
+    # suffix itself, which are true statements about the suffix and about
+    # nothing else. Recording `about` lets the emitter refuse a comparison
+    # rather than make a false one.
     out: dict = {"about": (d.get("ldhName") or name).lower(), "statuses": d.get("status") or []}
     for ev in d.get("events") or []:
         act = (ev.get("eventAction") or "").replace(" ", "_")
@@ -159,22 +158,21 @@ def rdap(name: str, attempt: int = 0) -> tuple[dict, str]:
             for row in (ent.get("vcardArray") or [None, []])[1]:
                 if row and row[0] == "fn":
                     out["registrar"] = row[3]
-                                                                    
-     
-                                                                             
-                                                                                
-                                                                         
-                                                                            
-                                                                                
-                                                                             
-                                                                            
-               
-     
-                                                                                
-                                                                                
-                                                                                
-                                                                           
-                                                            
+    # WHICH FOREIGN KEYS WERE NOT THERE, named on the record itself.
+    #
+    # Every field above is `d.get(...) or <default>`, so an absent key and an
+    # empty value produce the same answer — and one of those answers carries a
+    # CRITICAL finding. `statuses` decides `domain.hold`: if RDAP renamed
+    # `status`, every record would read `[]`, `any("hold" in s for s in [])`
+    # would be False for every domain, and the only signal that a domain is on
+    # registrar hold would vanish with no degradation anywhere, because the
+    # fetch itself succeeded. `expiration` decides `domain.expiring` the same
+    # way.
+    #
+    # In practice an empty `statuses` or a missing `expiration` is rare, so an
+    # empty one is more likely a key that could not be read than a real state.
+    # RFC 9083 makes `status` optional, so a TLD may legitimately omit it; then
+    # this list says so for that domain, which is true rather than alarmist.
     unread = [k for k, present in (("status", bool(d.get("status"))),
                                    ("expiration", bool(out.get("expiration"))),
                                    ("registrar", bool(out.get("registrar"))))

@@ -21,13 +21,13 @@ have to re-derive it:
   remainder belongs to another consumer. The synthetic fixture distinguishes
   the shared key total from this project's journal.
 
-                                                                                
-                                                                                
-                                                                                  
-                                                                             
-                                                                          
-                                                                              
-                                                                                
+**What was wrong is small and exactly the class this repository keeps closing.**
+`charge()` pruned the spend journal with three literals — `[-500:]`, `[:-60]`,
+`[:-12]` — while `store/retention.json`, the file that holds every other horizon
+in the project, declared two of them (`wallet_events`, `wallet_days`) and was
+read by NOTHING. The numbers agreed by coincidence: editing the config did
+nothing, and editing the code made the config a lie. The third, twelve months,
+was declared nowhere at all. A horizon lives in the config and the code reads it.
 
 **A correction to my own first reading**, recorded because the class repeats: I
 reported `wallet_days` as "enforced nowhere". It was enforced — by the literal
@@ -184,8 +184,8 @@ def test_the_run_report_carries_the_loss() -> None:
 # ─────────── measured and found sound ──────────────────────────────────
 
 def test_the_health_mark_expires() -> None:
-    ""                                                                        
-                                                    
+    """Recorded as a check so nobody has to investigate it again: a model marked bad by
+    one outage must not leave the chain for ever."""
     pr = providers()
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-health-"))
     real = pr.HEALTH

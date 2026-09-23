@@ -13,13 +13,13 @@ never returned. The volume reads 100% full, and the run before that one died wit
 `no space left on device` before the shell could write its own working file. A
 gate that cannot run twice is not a gate.
 
-                                                                           
-                                                                              
-                                                                             
-                                                                                 
-                                                                                   
-                                                                                 
-                                    
+`atexit` rather than a context manager, deliberately: the suites hold their
+directories across several assertions inside one function and sometimes across
+functions, so a `with` block would force every call site to be restructured, a
+bigger change than the defect itself. `atexit` runs on a normal exit AND on
+`SystemExit`, which is how every suite here ends, including the failing path. That
+path matters most, because a failing suite is exactly the one somebody runs
+again and again.
 
 It does NOT run on SIGKILL, and that is stated rather than hidden: a killed run
 leaves its directory, and `tools/check_paths.py` cannot help with that. The

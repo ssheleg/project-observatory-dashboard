@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""What the credential inventory owes the operator, on the board rather than a tab.
 
-                                                                              
-                                                                             
-                                                                     
+A TAB ANSWERS A QUESTION SOMEBODY ASKED. These arrive at somebody who did not:
+a key whose cap is a lifetime rather than a month dies one day for no visible
+reason, and an account nothing claims is one nobody will dare rotate.
 
-                                                                                  
-                                                                             
-                                                                        
-                                                                        
+`secret.leaked_unrotated` is NOT here: `tools/build_findings.py` already raises
+it from the leak register, and two rules over one subject is how a board gets
+two rows that mean one thing. This file adds what the register cannot see,
+because it reads the register's neighbours instead:
 
-                                                                             
-                                                                             
-                                                                            
-                                                                              
-                                                                             
-                                    
-                                                                           
-                                                                           
-                                                          
-                                                                               
-                                                                             
-                                                                         
-                                                              
+`credential.lifetime_cap`   a limit with no reset. The key works until the
+                            total is reached and then stops, long after anyone
+                            remembers setting it.
+`credential.unclaimed`      nothing says which projects use it. Aggregated:
+                            the remedy is one curation pass, not one decision
+                            per row.
+`credential.untracked`      known only because it leaked: the estate has no
+                            record of the credential itself, so rotating it
+                            cannot be verified afterwards.
+`credential.shared_rotation` one credential, several projects. Not a defect but
+                            a fact with a consequence, and the consequence is
+                            that rotating it breaks every project at once
+                            unless they are deployed together.
 
-                                                                         
-                       
-   
+NO TIMESTAMP INSIDE A FINDING: every date quoted is a date the registry
+already holds, so the same inputs always produce the same rows.
+"""
 from __future__ import annotations
 
 #: Listed by name up to this many, as everywhere else on this board.
@@ -135,14 +135,14 @@ def shared_rotation(creds: list[dict]) -> list[dict]:
 
 
 def unsigned(creds: list[dict]) -> list[dict]:
-    ""                                                                
+    """A credential nobody has said what it is FOR.
 
-                                                                               
-                                                                                
-                                                                          
-                                                                                  
-                                                                
-       
+    ONE AGGREGATE ROW, because the remedy is one sentence for every one of them
+    and a row per credential would repeat it. What the row carries instead is
+    the count and the worst class: a credential with no purpose cannot be
+    retired, cannot be delegated, and cannot be judged when it leaks. "Is this
+    still needed" has no answer, so it is kept forever.
+    """
     bare = sorted(c["id"] for c in creds if not (c.get("signature") or {}).get("purpose"))
     if not bare:
         return []
@@ -161,13 +161,13 @@ def unsigned(creds: list[dict]) -> list[dict]:
 
 
 def rotation_due(creds: list[dict], today: str) -> list[dict]:
-    ""                                                            
+    """Only where a rotation policy was ASKED FOR.
 
-                                                                          
-                                                                           
-                                                                            
-                                                                    
-       
+    A global age policy would put every key on the board on the day it was
+    introduced, and a board that opens with rows nobody chose is a board nobody
+    reads. `rotation_days` is opt-in per credential, set in the signature, so
+    the row exists because somebody decided it should.
+    """
     import datetime
     out = []
     for c in creds:
@@ -201,19 +201,17 @@ def rotation_due(creds: list[dict], today: str) -> list[dict]:
 
 
 def project_file_exposed(creds: list[dict]) -> list[dict]:
-    ""                                                                       
+    """A key file beside the code that git tracks, or that everyone can read.
 
-                                                                               
-                                                                              
-                                                                                
-                                                                               
-                                                                            
+    Service-account keys, signing keys and wallet seeds kept as files next to a
+    project are invisible to an inventory of `.env` files. This rule exists so
+    such a file is caught the day it lands rather than the day it leaks.
 
-                                                                         
-                                                                                
-                                                                           
-                                                                             
-       
+    TRACKED IS CRITICAL AND UNIGNORED IS A WARNING, the same two verdicts
+    `env.tracked_in_git` and `env.unignored` already carry for `.env` files, for
+    the same reason: history is not a place you delete from, and a file one
+    `git add -A` away from it looks identical to a safe one in every listing.
+    """
     files = [c for c in creds if c.get("kind") == "project-secret-file"]
     if not files:
         return []
@@ -284,15 +282,14 @@ def findings(doc: dict | None) -> list[dict]:
 
 
 def register_unreadable(broken: list[dict]) -> list[dict]:
-    ""                                                                        
+    """A curated register that exists and would not read: one row per file.
 
-                                                                             
-                                                                               
-                                                                                 
-                                                                             
-                                                                           
-                                  
-       
+    Reading such a file as empty would be the opposite of the truth: for the
+    annotations register every signature would vanish and `credential.unsigned`
+    would light on every row; for the owners register every curated membership
+    would vanish and `credential.unclaimed` would count them. A register that
+    cannot be read is reported, never read as empty.
+    """
     out = []
     for b in broken:
         out.append({

@@ -7,10 +7,10 @@ FILE, because properties are numeric ids that no registry host can be derived
 from. Copy `plugins/config/ga4_properties.example.json` to
 `plugins/config/ga4_properties.json`:
 
-                    
-                                                                       
-                                                                            
-      
+    {"properties": [
+        {"property": "properties/<PROPERTY_ID>", "host": "example.com"},
+        {"property": "properties/<OTHER_PROPERTY_ID>", "project": "project:example-app"}
+    ]}
 
 `host` goes through `plugins/hostmap.py` (ownership follows the registry);
 `project` pins it outright for a property whose site the registry does not

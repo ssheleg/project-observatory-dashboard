@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Five numbers on a project's row, three of them unreadable without a mouse.
 
-                                                                    
+Take a typical project whose row renders:
 
     70 packages · 92 МБ · 2.6 ГБ · 8 days · 6 tags
 

@@ -1,37 +1,35 @@
 #!/usr/bin/env python3
-""                                                                         
+"""What an agent should know about the project it just opened, in one line.
 
-                                                                                                    
-                                                    
+    tools/session_start.py                 # hook payload on stdin ({"cwd": ..., "session_id": ...})
+    tools/session_start.py --cwd <dir>     # by hand
 
-                                                                              
-                                                                              
-                                                                               
-                                                                       
-                                                                            
-                                                              
+The harness tells the agent at the moment it matters. The observatory knows
+each project's keys by name, its open findings and its last activity; without
+this, an agent opening the project learns none of it, and either reads `.env`
+by hand (which is how values leak into transcripts) or works in a folder the
+registry has never joined.
 
-                                                                          
-                                                                           
-                                                                              
-                                                                          
-                                                                            
-                                                                           
-                                                                        
-                                            
+The rule this obeys: a session-start hook must not compete with the operator's
+own instructions. An injector that prints pages of doctrine at every start
+crowds them out, so this prints AT MOST ONE LINE, and only when it is
+actionable. A folder that is not a git repository, the observatory's own
+checkout, an unreadable registry: silence, exit 0. It never blocks a session
+and never raises; a failure goes to `hooks.jsonl` under the state logs with its
+reason, which is how a silent hook is told apart from a broken one.
 
-             
+What it prints:
 
-                                                                           
-                                                                                                
-                                                                   
-                                                                                             
-                                                                             
-                                                                          
-                                                                              
-                                                                          
-                                                                           
-   
+  known project     "observatory: <name> · N critical / M warning · keys by
+                    name: K (registry, .env) · last activity · use_secret.py
+                    names <name> · a link to the project's board entry"
+  unknown folder    a line saying the folder is not in the registry, and a row
+                    in `sessions-seen.jsonl` (cwd, remote, when), so a folder
+                    an agent works in and the registry never joined becomes a
+                    measured fact instead of a memory. A folder under the
+                    configured projects root is picked up by the next scan; a
+                    folder elsewhere is named as unobserved rather than pretended.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -128,9 +126,9 @@ def resolve(top: pathlib.Path, remote: str) -> dict | None:
 def state_line(p: dict) -> str:
     pid, name = p["id"], p.get("name") or p["id"]
     f = load("findings.json").get("findings") or []
-                                                                          
-                                                                                
-                                                                   
+    # A finding names its subject by project id, by name, or by FOLDER (a
+    # vault slot or an env file path carries the folder), so all three spell
+    # "this project" here; the board's own subjects are the source.
     folders = [fo for fo in (p.get("local_folders") or []) if fo]
     def _mine(subj: str) -> bool:
         return (subj == pid or pid in subj or subj.endswith(":" + name) or f":{name}/" in subj

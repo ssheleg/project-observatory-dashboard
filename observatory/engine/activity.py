@@ -73,9 +73,9 @@ def days_since(last_activity_on: str | None, *, today: date | None = None) -> in
 
 
 def tier_of(last_activity_on: str | None, *, today: date | None = None) -> str:
-    ""                                                                       
-                                                                                 
-                                                                        
+    """The tier a date falls in. Pure, recomputable, and never sticky: the
+    validator derives it again and fails on a value typed by hand, because a tier
+    that can be typed is a tier that can disagree with the date beside it."""
     age = days_since(last_activity_on, today=today)
     if age is None:
         return unknown_id()

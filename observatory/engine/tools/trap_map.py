@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """Which trap is guarded by which test — derived, never typed.
 
-                                                                              
-                                                                            
-                                                                         
-                                                
+`docs/knowledge-pack.md` is this repository's registry of recorded failures: a
+trap is a defect that happened, and each row promises a planted fixture that
+would have caught it. The promise was kept by hand, and the hand-written half
+drifted several ways at once:
 
-                                                                                
-                                                                  
-                                                                       
-                                                                
-                                                                 
-                                                                      
-                                                      
+* some traps never reached the "what is checked where" table at all;
+* others existed only as tests, declared in no row;
+* the summary sentence claimed a count that no longer matched what was guarded;
+* the table's file names went stale as guards moved between test files;
+* and one row still instructed a fixture the system now deliberately REFUSES,
+  because a later decision inverted it.
 
-                                                                            
-                                                                           
-                                                                          
+None of that is carelessness. A table of dozens of rows maintained by hand
+beside code that moves daily is a promise nobody can keep, which is why the
+mapping is now DERIVED: a guard declares its own trap in its docstring:
 
     def test_a_frozen_clock_still_yields_distinct_ids() -> None:
         \"\"\"Trap: T12 — the whole defect is two runs inside one second.\"\"\"
@@ -24,14 +23,13 @@
 — and this tool reads the declarations, compares them with the traps the pack
 declares, and writes the table between the two markers in the document.
 
-                                                                               
-                                                                       
-                                                                         
-                                                                            
-                                                                             
-                                                                             
-                                                                             
-               
+**What the derivation proves, and what it does not.** It proves ATTRIBUTION
+(every trap has a named guard, every guard names a declared trap) and
+REACHABILITY: the guard's file is run by a gate step, and the function is
+dispatched from its suite's `__main__` rather than defined and forgotten. It
+does NOT prove EFFICACY. A guard that can no longer fire passes every check
+here. Efficacy is established the way it always is in this repository: by
+watching the check reject a planted defect.
 
     tools/trap_map.py            the mapping, and what is unguarded
     tools/trap_map.py --check    exit non-zero on any drift

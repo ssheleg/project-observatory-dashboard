@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-""                                                                            
+"""Revoke an OpenRouter API key by its visible tail, using a provisioning key.
 
-                                                                      
-                                                                       
+    openrouter.ai/settings/provisioning-keys  ->  create one  ->  copy
+    pbpaste | tools/revoke_key.py --tail f8d
 
-                                                                            
-                                                                           
-                                                                               
-                                                                                
-                
+WHY THIS EXISTS. A key cannot revoke itself: `DELETE /api/v1/key` answers 404 and
+`/api/v1/keys` answers 401 to anything that is not a provisioning key. So a leaked
+key cannot be revoked from the machine it leaked on unless a provisioning key is
+present.
 
-                                                                                
-                                                                        
-                                                                               
-                                                                               
-                                                         
+The provisioning key is read from STDIN, never argv: argv lands in shell history
+and in the process list. It is stored in the secret store as
+`openrouter-provisioning` with mode 600, and a file readable by group or world is
+REFUSED rather than used. No key value is ever printed, only its length, its
+last four characters, and the label the provider reports.
+"""
    
 from __future__ import annotations
 import argparse, json, os, pathlib, stat, sys, urllib.error, urllib.request

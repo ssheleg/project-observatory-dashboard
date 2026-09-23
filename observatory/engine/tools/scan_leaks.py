@@ -1,47 +1,47 @@
 #!/usr/bin/env python3
-""                                                            
+"""Look for the estate's own secrets where they do not belong.
 
-                                                                             
-                                                                              
-                                                                               
+    scan_leaks.py                 incremental: only bytes nobody has read yet
+    scan_leaks.py --full          forget the offsets and read everything again
+    scan_leaks.py --days N        how far back a transcript counts (default 14)
 
-                                                                            
-                                                                                   
-                                                                                 
-                                                                              
-                                                                               
-                                                                               
-                                                                           
-                                                                             
+WHY. `tools/check_secrets.py` asks "does this tracked file contain something
+SHAPED like a credential" — a good question with a known weakness: it cannot tell
+this estate's live key from a plausible-looking string, so it is tuned not to cry
+wolf and it only reads the tracked tree. This asks the other question, the one
+that actually goes wrong in practice: **is a value we hold sitting somewhere
+it should not be.** The typical leak is a value echoed into an agent session
+transcript by a database client error or an HTTP library traceback — and
+nothing else on the machine would notice it.
 
-                                                                                 
-                         
+WHAT IT KNOWS. Every value the estate holds, gathered at the start of the run and
+dropped at the end of it:
 
-                                                                             
-                                       
-                                                                        
-                                                                  
+  env secrets   the `secret`-class variables `store/raw/env.json` lists, read
+                back out of their files
+  vault slots   `<vault dir>/<project>/<env>/<NAME>` (`OBSERVATORY_VAULT_DIR`)
+  destinations  the files an OpenRouter key is installed into (`DESTINATIONS`)
 
-                                                                                
-                                                                                 
-                                                                                  
-                                                                           
-                                                                                
-                                                                                 
-                                                        
+READING THE VAULT DIRECTLY IS THE ONE EXCEPTION TO `handling-secrets`, and it is
+deliberate: that rule addresses AGENTS, whose transcripts are the hazard. This is
+a tool — it holds the values in memory for one pass, matches, and reports a NAME
+and a FILE. It never prints a value, never writes one, and never quotes the
+surrounding line, because a leak report that quotes the leak is a second copy of
+it. You cannot detect the leak of a value you have no copy of; the alternative to
+this exception is not a safer scanner, it is no scanner.
 
-                                                                                 
-                                                                       
-                                                                                
-                                                                          
-                                                         
+WHAT IT READS. Agent session transcripts — gigabytes over a few weeks on a busy
+machine, which is why this is incremental: a JSONL transcript is append-only, so
+a remembered offset makes the steady-state cost the size of what was said since
+the last tick. Plus this project's own logs, its built page, its tracked tree,
+and the session companion's SQLite store.
 
-                                                                          
-                                                                                
-                                                                         
-                                                                                
-                                          
-   
+WHAT IT DOES NOT DO. It does not write `leaks.jsonl`. That register is the
+operator's debt ledger and a false entry there is expensive to withdraw — so a
+hit leaves as a `secret.seen_outside_its_home` finding carrying the exact
+`tools/vault.py leak` command, and a person or an agent confirms it. The scanner
+is allowed to be noisy; the ledger is not.
+"""
 from __future__ import annotations
 import argparse
 import json
@@ -75,19 +75,19 @@ MIN_LEN = 12
 
 
 def searchable(value: str) -> bool:
-    ""                                                          
+    """Is a match on this value EVIDENCE, or just a coincidence?
 
-                                                                               
-                                                                               
-                                                                            
-                                                                                 
-                                                                                
+    `scan_env.classify` calls a variable a secret when its NAME says so and the
+    value is not obviously a word — which is right for an inventory and wrong
+    here. A session-name variable can pass that test while its value is a short
+    identifier that appears in ordinary text, and a scan built on it would
+    report thousands of "leaks" in one transcript.
 
-                                                                                 
-                                                                                
-                                                                                 
-                                                  
-       
+    So the leak hunt uses the stricter, NAME-BLIND test: a known issuer prefix, a
+    URL carrying credentials, or real randomness. A value that fails it is named
+    in `skipped` rather than dropped quietly — it is still a secret, it is just
+    not one a text match can prove anything about.
+    """
     import scan_env
     return len(value) >= MIN_LEN and scan_env.looks_secret(value)
 
@@ -218,15 +218,15 @@ def targets(days: int) -> tuple[list[pathlib.Path], list[dict]]:
 
 def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str]
                 ) -> tuple[dict[tuple[str, str], int], str | None]:
-    ""                                                                      
-                                                                              
+    """Occurrences by (secret name, `table.column`) across every text column
+    of a SQLite store, read-only — and the reason when it could not be read.
 
-                                                                              
-                                                                               
-                                                                                
-                                                                            
-                                                                            
-       
+    A session companion's store holds session summaries, which is exactly the
+    shape a leak takes, and a text scan of a SQLite file reads page headers and
+    misses the rows — so the store is read as a database instead of being named
+    as unread. Rows are read per table in pages of 500 so a store of hundreds of
+    megabytes does not sit in memory.
+    """
     hits: dict[tuple[str, str], int] = {}
     if not db.is_file():
         return hits, None
@@ -360,9 +360,9 @@ def main(argv: list[str]) -> int:
         for name, n in found.items():
             hits[(name, key)] = hits.get((name, key), 0) + n
 
-                                                                           
-                                                                                
-                                                                                
+    # THE COMPANION'S STORE, read as a database rather than named as unread.
+    # Whole every time — SQLite has no offset to resume from and the store is
+    # rewritten in place — so it is not part of `read_bytes`.
     mem = paths.COMPANION_DB
     mem_hits, mem_problem = scan_sqlite(mem, pattern, by_value)
     for (name, where_in), n in mem_hits.items():

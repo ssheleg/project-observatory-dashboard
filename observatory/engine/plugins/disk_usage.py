@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-""                                                                         
+"""How many bytes each project's working tree costs, as a metric over time.
 
-                                                                            
-                                                                               
-                                                               
+The reference plugin. It exists to be copied, so it does the smallest honest
+thing: walk each project's local folders, skip what is machine-generated, print
+one JSON row per project on stdout, and write nothing anywhere.
 
-                                                                             
-                                                                         
-                                                                          
-                                                                                
-                                                                                
-        
-   
+`.git` is excluded on purpose. A repository's history is not what the working
+tree costs, it does not shrink when files are deleted, and a project that
+rewrote its history would look as though it had freed space it never used.
+`node_modules`, `.venv` and their kin are excluded for the opposite reason: they
+are reinstallable, so counting them measures the package manager rather than the
+project. What they cost is reported separately, as `disk.reclaimable_bytes`.
+"""
 from __future__ import annotations
 import json, os, pathlib, sys
 from datetime import datetime, timezone
@@ -58,19 +58,16 @@ def walk_all(folders, seen: set[str]) -> int:
 
 
 def worktrees_of(project_id: str, relations: list, repos: dict) -> list[str]:
-    ""                                                 
+    """The EXTRA checkouts of a project's repositories.
 
-                                                                               
-                                                                               
-                                                             
-                                                                   
-
-                                                                              
-                                                                                 
-                                                                              
-                                                                             
-                                             
-       
+    `collectors/merge.py` already records them — a worktree never displaces a
+    real checkout, and the ones it demotes land in `local.extra_clones`. Reading
+    only `projects[].local_folders`, the PRIMARY checkout, would miss them, and
+    a project with many worktrees can hold far more on disk than its primary
+    checkout — so the footprint would under-report exactly where it matters, and
+    `host.disk_low`'s "largest working trees" would name everything except the
+    largest.
+    """
     mine = {r["to"] for r in relations
             if r["type"] == "implemented_by" and r["from"] == project_id}
     out: list[str] = []
@@ -93,25 +90,24 @@ def subtree_bytes(root: str) -> int:
 
 
 def reclaimable_bytes(root: pathlib.Path) -> int:
-    ""                                                                                
+    """Bytes inside the directories `tree_bytes` prunes — what a reinstall restores.
 
-                                                                              
-                                                                            
-                                                             
-                                                                                    
-                                                                             
-                                                                                 
-                                                                               
-                                                                           
-               
+    **The question the footprint metric cannot answer.** `disk.bytes` excludes
+    `node_modules`, `.venv`, `build` and their kin, correctly: counting them
+    measures the package manager rather than the project. But
+    `host.disk_low` — the critical finding that says the volume is nearly full —
+    reads that metric to name who is responsible, and the footprint can account
+    for a small fraction of what the project folders occupy while most of the
+    rest is reclaimable. The finding would be asking "why is my disk full" while
+    reading the answer to "what does this project cost".
 
-                                                                                
-                                                                   
+    So this is its own metric, with its own meaning: what can be deleted and got
+    back by reinstalling.
 
-                                                                           
-                                                                                
-                                                                           
-       
+    It descends into each pruned directory rather than counting only the files
+    directly inside it: `node_modules` is deeply nested, and a shallow count
+    measures the instrument instead of the disk.
+    """
     total = 0
     for dirpath, dirnames, _filenames in os.walk(root, onerror=lambda _e: None):
         for d in [d for d in dirnames if d in SKIP]:

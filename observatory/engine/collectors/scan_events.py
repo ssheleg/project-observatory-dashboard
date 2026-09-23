@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-""                                                               
+"""Read commits out of every local checkout into the event store.
 
-                                                                             
-                                                                               
-                                   
-   
+Deterministic and idempotent: an event is keyed by (kind, ref), so running again
+over the same history inserts nothing new. That property is trap T5's shape and
+is asserted by tests/test_traps.py.
+"""
 from __future__ import annotations
 import json, sqlite3, subprocess, sys, pathlib
 from datetime import datetime, timezone
@@ -24,13 +24,13 @@ DEFAULT_DEPTH = 10000
 
 
 def retention_horizon_days() -> int | None:
-    ""                                                               
+    """The same horizon retention prunes by, read from the same file.
 
-                                                                              
-                                                                              
-                                                                            
-                                                                             
-       
+    Without this the two fight: the collector inserted every commit within its
+    depth regardless of age and retention deleted everything past a year, so a
+    live tick reported a large `deleted` count and the next one inserted the
+    same events again, run after run.
+    """
     try:
         return int(json.loads(
             (paths.STORE / "retention.json").read_text(encoding="utf-8"))["events_days"])
@@ -43,23 +43,21 @@ def now() -> str:
 
 
 def git(repo: pathlib.Path, *args: str) -> tuple[str, str | None]:
-    ""                                                                              
+    """`(stdout, reason)`: the three-outcome shape, and here it prevents a crash.
 
-                                                                                
-                                                                               
-                                                                         
-                                                                                 
-                                                                                
-                                                                             
-                                                                                 
-                                                                               
-                                                                            
+    This returned `""` on any non-zero exit, and NEITHER a timeout nor a missing
+    binary was caught: `subprocess.run(timeout=60)` raises `TimeoutExpired` and
+    an absent `git` raises `FileNotFoundError`, so ONE slow or unreadable
+    checkout aborted the whole collector: every repository after it unscanned,
+    the `scans` row left with no `finished_at`, and the only record a log nobody
+    reads on a schedule. With well over a hundred repositories on a volume that
+    can fill up, this is not hypothetical.
 
-                                                                                
-                                                                             
-                                                                               
-                                                             
-       
+    And the reason matters as much as the crash. "No commits in the window" is a
+    fact about the SUBJECT; "git could not run" is a fact about the RUN. Both
+    arrived as an empty string and were reported as "git log returned nothing",
+    which reads as the first. A fault must not be silent, and here it no longer is.
+    """
     try:
         proc = subprocess.run(["git", "-C", str(repo), *args],
                               capture_output=True, text=True, timeout=60)
@@ -76,15 +74,15 @@ def git(repo: pathlib.Path, *args: str) -> tuple[str, str | None]:
 
 
 def finish(conn, scan_id: str, *, degraded: list[dict], **counts) -> None:
-    ""                                                                          
-                    
+    """Close the scan row. One writer, called from the success path AND from the
+    `finally` below.
 
-                                                                             
-                                                                                    
-                                                                               
-                                                                                
-                              
-       
+    A scan with no `finished_at` is a broken segment of the spine every delta
+    hangs from (`deltas.from_scan` and `to_scan` are foreign keys into it), and
+    `scans` is the one table retention never prunes, so it stays broken. Before
+    `git()` learned to catch a timeout, one unreadable checkout produced exactly
+    that row and nothing else.
+    """
     try:
         conn.execute("UPDATE scans SET finished_at = ?, counts_json = ?,"
                      " degraded_json = ? WHERE id = ?",
@@ -97,23 +95,23 @@ def finish(conn, scan_id: str, *, degraded: list[dict], **counts) -> None:
 
 def targets(projects: list[dict], repos: dict[str, dict],
             owner_of: dict[str, str]) -> list[dict]:
-    ""                                                                  
+    """Every checkout with history to read: THE SUBJECT OF THIS LOOP.
 
-                                                                                 
-                                                                            
-                                                                              
-                                                                              
-                                                                   
+    It used to iterate `repositories.json`, and that was the defect rather than a
+    shorthand for it: a git folder with no remote has no `owner/name`, so no
+    repository row, so its history was never read at all, in a system whose
+    central question is where work happened. Such folders can hold active,
+    recent work.
 
-                                                                                 
-                                                                                 
-                                                                           
-                                                                     
+    Nothing downstream had to change to hold them, which is what says the subject
+    was wrong rather than the schema: `events.repo_id` is nullable and already
+    NULL for many rows, `store/rollup.py` groups by `project_id` and never
+    mentions `repo_id`, and neither does retention or the MCP server.
 
-                                                                                
-                                                                                  
-                                      
-       
+    A target carries its own keys so the loop never has to ask which kind it is:
+    `repo_id` is None for an unpublished folder, and that None is what reaches the
+    insert rather than an invented id.
+    """
     out: list[dict] = []
     for rid, repo in repos.items():
         local = repo.get("local")
@@ -150,18 +148,18 @@ def targets(projects: list[dict], repos: dict[str, dict],
 
 
 def by_age(t: dict) -> tuple[str, str]:
-    ""                                                       
+    """Oldest checkout first; one with no creation date last.
 
-                                                                                   
-                                                                         
-                                                                                
-                                             
+    A commit is recorded once: it is one piece of work, and giving the inherited
+    copy its own row would credit the younger repository with the elder's
+    history. Which target gets it therefore matters, and it used to be decided
+    by `sorted()`: alphabetical luck.
 
-                                                                           
-                                                                               
-                                                                               
-                                                             
-       
+    An unpublished folder has no creation date and sorts last, which is the
+    direction the missing-date default already pointed and the right one on its
+    own merits: where a published repository and an unpublished folder hold the
+    same commit, the published one is the better home for it.
+    """
     return (t.get("created_on") or "9999-12-31", t["label"])
 
 
@@ -207,12 +205,11 @@ def main() -> int:
     #: repositories and a broken checkout hid inside it. They are counted
     #: separately now and reported as `excluded`, which is what they are.
     degraded: list[dict] = []
-                                                                             
-                                                                              
-                                                                             
-                                                                   
-                                                                          
-                                 
+    #: sha -> the repository this scan attributed it to. Two repositories can
+    #: hold the same commit without either being a fork: creating a repository
+    #: from a copy of another's history does it, and GitHub records no `fork`
+    #: flag for that. It happens in practice, between repositories created weeks
+    #: apart.
     owner_of_sha: dict[str, str] = {}
     shared: list[tuple[str, str, int]] = []
     # ORDERED BY AGE, not by name. A commit is recorded once — it is one piece of

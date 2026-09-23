@@ -53,17 +53,17 @@ old_repos={r["id"]:r for r in json.load(open(INV/"repositories.json"))["reposito
 rel_doc=json.load(open(INV/"relations.json")); old_rel={r["id"]:r for r in rel_doc["relations"]}
 src_doc=json.load(open(INV/"sources.json")); sources=src_doc["sources"]
 have={s["id"] for s in sources}
-                                                                         
-                                                                          
-                                                                     
-                                                                                 
-                                                                           
-                                                                         
-                                      
- 
-                                                                            
-                                                                         
-                                                         
+# THE RUN'S OWN DATE, and it used to be a date literal. Every document below
+# carries it, the tick rewrites all of them many times a day, and
+# `docs/projects-dashboard.html` prints it as the operator's headline
+# freshness, so the one line a person reads to judge how current the estate is
+# was a constant typed once. It carried no information in either direction:
+# not when the data was minutes old, and not when the emit had stopped and the
+# data was a week old.
+#
+# `atomic.write_json_carrying` keeps the previous stamp when the rest of the
+# document is byte for byte equal, so a measured date does NOT mean a commit every
+# thirty minutes: the stamp moves when the CONTENT moves.
 OBS=_dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
 import identity_map
 _IDMAP_FILE = INV / "identity.json"
@@ -80,13 +80,13 @@ RESOLVED, _idmap, _id_changes = identity_map.resolve(
 for _c in _id_changes:
     if _c["change"] in ("renamed", "retired", "returned"):
         print(f"  identity {_c['change']}: {_c['id']}" + (f" <- key {_c['key']}" if _c.get('key') else ""))
-                                                                          
-                                                                               
-                                                                          
-                                                                              
-                                                                     
-                                                                                
-                                                      
+# Each source declares WHAT IT IS EVIDENCE FOR, in `evidence_for`, and the
+# validator turns that into an assertion: a record carrying one of those fields
+# must cite this source. Provenance used to be decoration: repositories carried
+# `local.sync` and `local.remote_head`, measured over the network by
+# `scan_remotes`, under the filesystem scan's source, whose description says it
+# reads local folders. The validator checked only that a reference RESOLVED,
+# never that it was the right one.
 NEW_SOURCES = [
     ("SRC-0007", "Filesystem scan of the configured project roots: folder list, git remotes, checked-out branch, commit counts, project-type markers, README opening paragraph, CNAME/wrangler/package.json homepage fields.", []),
     ("SRC-0008", "GitHub REST/GraphQL listing via `gh repo list` for the explicitly connected account and its accessible organizations: name, description, homepageUrl, visibility, archived, fork, language, default branch, pushedAt.", []),
@@ -149,13 +149,12 @@ for k in sorted(repos):
        # default branch". Every git repository has one. Clearing it on a run that
        # did not look would be inventing an absence.
        "default_branch":r.get("default_branch") or prev.get("default_branch",""),
-                                                                             
-                                                                       
-                                                                           
-                                                                                 
-                                                                      
-                                                                               
-                                         
+       # `description` does NOT get that treatment. Absence here can mean the
+       # description was removed at the forge, and stickiness made that
+       # unrepresentable. Descriptions the forge listing never reported, once
+       # transcribed by hand, survived only because of this fallback. They now
+       # live in collectors/repo_overrides.json, which is where a curated value
+       # belongs, and the fallback is gone.
        "description":r["description"] or "",
        "archived":r["archived"],"fork":r["fork"],"language":r["language"],
        "topics":r["topics"],"last_pushed_on":r["pushed_at"],"created_on":r["created_at"],
@@ -217,8 +216,8 @@ for k in sorted(repos):
         # repositories until this line.
         if any(e["local"].get(f) for f in ("sync", "remote_head", "remote_checked_on")):
             e["source_refs"]=sorted(set(e["source_refs"])|{"SRC-0010"})
-                                                                                
-                                                              
+    # A Bitbucket repository's default branch comes from `ls-remote` too: no API
+    # listing reports it here, as measured when the question was open.
     if e.get("default_branch") and r["host"]=="bitbucket.org":
         e["source_refs"]=sorted(set(e["source_refs"])|{"SRC-0010"})
     rov=REPO_OVERRIDES.get(k)
@@ -263,22 +262,22 @@ def add_rel(rid,typ,frm,to,refs,rule=None):
 cleared: list[str] = []
 for key in sorted(projs):
     p=projs[key]; i=pid(key); prev=old_projects.get(i,{})
-                                                                                 
-                                                                        
-                                                                                   
-                                                                             
-                                                                                 
-                                                                                
-                                                                                   
-                                                                               
-                                   
-     
-                                                                         
-                                                                          
-                                                                                 
-                                                                                  
-                                                                           
-                                
+    # NOTHING here reads `prev` for a VALUE. The emitter used to fall back to its
+    # own previous output for lifecycle, description, canonical_page and
+    # source_refs, which is trap T4 ("`or prev.get(...)` made a field impossible
+    # to clear") wearing four more coats. A value written once could never be
+    # removed by measurement: archive every repository of a project on GitHub and
+    # its `lifecycle` stays `active` for ever, because the emit reads the answer
+    # it gave last time. It also made the emit only EVENTUALLY idempotent: after
+    # the underlying data moved it needed two passes to converge, which is what
+    # made T4 go red.
+    #
+    # Measured before removal, the way T11 requires: on every project,
+    # lifecycle, description and canonical_page from measurement alone were
+    # IDENTICAL to what stickiness was carrying, so nothing was lost. What a
+    # curated value has instead is `project_overrides.json`, applied below: the
+    # mechanism created for exactly this, which stickiness quietly duplicated and
+    # undermined.
     e={"id":i,"name":p["name"],"anchor":p["anchor"],"ownership":p["ownership"],
        "owners":p["owners"],"lifecycle":"archived" if p["archived"] else "active",
        "description":p["description"] or "",
@@ -380,22 +379,17 @@ if _refusal:
 _stamped("projects.json", {"schema_version":2,"updated_on":OBS,"projects":out_projs,"degraded":M.get("degraded",[])})
 _stamped("identity.json", _idmap, stamps=())
 _stamped("repositories.json", {"schema_version":2,"updated_on":OBS,"repositories":out_repos,"degraded":M.get("degraded",[])})
-                                                                              
-                                                                               
-                                                                                 
-                                                    
-                                                                              
-                                                                          
-                                                                       
-                                                                            
-                                                                           
-                                                     
-                                                                             
-                                                                                
-                                                                        
-                                                                             
-                                                                             
-                  
+# ---- Heroku ----------------------------------------------------------------
+# The registry knew what a project IS and never where it RUNS. This is the
+# second half, and it is a SEPARATE document for the same reason domain
+# liveness is: `projects.json` is what the estate is made of, this is what a
+# provider says about it today, and folding one into the other would make a
+# provider outage look like a project changing shape.
+# TWO INPUTS, and the second is named here because the derivation that builds
+# the pipeline graph reads THIS script's source, not the module it delegates to:
+# `heroku_registry.records` opens `collectors/heroku_links.json` for the
+# hand-verified links, so this step's output depends on that file even though
+# the path never appears in a call below.
 HEROKU_SRC = paths.SCRATCH / "heroku.json"
 heroku_apps: list = []
 if HEROKU_SRC.is_file():
@@ -547,9 +541,9 @@ if GOOGLE_SRC.is_file():
           f"({_gt['users_30d_unclaimed']:,} users/30d), "
           f"{_gt['users_30d']:,} users/30d in all")
 
-                                                                      
-                                                                          
-                                                                     
+# WHAT PRODUCTION HOLDS, as verdicts. Two inputs, both gitignored: the remote
+# scan's fingerprints and the local env scan's. The document written from them
+# carries neither, only the four words.
 REMOTE_SRC = paths.SCRATCH / "remote-env.json"
 if REMOTE_SRC.is_file() and ENV_SRC.is_file():
     import remote_registry
@@ -636,12 +630,12 @@ if LIVE_SRC.is_file():
                "http_status": h.get("http", 0),
                "nameservers": h.get("nameservers", []),
                "checked_on": (h.get("checked_at") or "")[:10]}
-                                                                                  
-                                                                                 
-                                                                              
-                                                                           
-                                                                             
-                                                                           
+        # THREE OUTCOMES, and only one of them starts a clock. `h.get("resolves")`
+        # WITHOUT the default above: an absent key is "not measured", and the row
+        # defaults it to False for the reader, which would have started the
+        # clock on a malformed receipt. A probe that could not run (`None`)
+        # neither starts nor clears it: reading "could not look" as "serves
+        # nothing" once multiplied the dark domains several times over.
         _seen = h.get("resolves")
         if _seen is False:
             row["dark_first_seen"] = was_dark.get(name) or row["checked_on"]

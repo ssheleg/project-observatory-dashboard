@@ -5,11 +5,12 @@ Auth is a SERVICE ACCOUNT, not OAuth: OAuth needs a browser and a human every
 ninety days, a service account is a JSON key that signs its own JWTs — the only
 Google auth shape that survives a launchd tick. Setup, once:
 
-                                                                 
-                                                        
-                                                                                            
-                                                                            
-                                                                            
+  1. console.cloud.google.com -> create a service account, enable
+     the Search Console API, and save the account's JSON key;
+  2. copy that key into the secret store under the name `KEY_FILE` below,
+     with mode 600;
+  3. in Search Console, add the service account's email (client_email in the
+     JSON) as a USER (full or restricted) on every property worth measuring.
 
 Until step 2 the manifest keeps this plugin `waiting`. Properties the account
 can see but the registry cannot attribute are reported on stderr, unmapped —
@@ -33,11 +34,10 @@ import paths
 import google_auth                                                              
 import hostmap                                                                  
 
-                                                                              
-                                                                                
-                                                                              
-                                                                             
-                                                             
+# ITS OWN SERVICE ACCOUNT, and not GA4's. Search Console access is granted per
+# property to a specific account, GA4 access to another, and an installation may
+# well hold both, each in its own cloud project. One file per capability is what
+# lets either be rotated alone.
 KEY_FILE = paths.source_path("secret_store", paths.SECRETS) / 'google-gsc-service-account.json'
 SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 

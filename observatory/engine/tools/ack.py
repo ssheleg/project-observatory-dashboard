@@ -1,25 +1,24 @@
 #!/usr/bin/env python3
-""                                                                                  
+"""Silence a finding, on the record: one verb, and the JSON is never edited by hand.
 
-                                                                              
-                                    
-                       
+    tools/ack.py <finding-id> --why "..." [--until YYYY-MM-DD] [--by operator]
+    tools/ack.py --undo <finding-id>
+    tools/ack.py --list
 
-                                                                           
-                                                                            
-                                                                            
-                                                                             
-                                                                              
-                                                               
+Why a tool. When the only way to add an acknowledgement is to open the file,
+know the finding's exact id and type a JSON object by hand, nobody does it, so
+the board keeps showing rows the operator has already judged, and "show me
+what I silenced, and only what I silenced" has no surface at all. A verb that
+takes the id and a reason is the difference.
 
-                                                                             
-                                                                              
-                                                                               
-                                                                          
-                                                                              
-                                                                              
-                                      
-   
+What an ack is NOT. It does not fix, delete or hide the cause: the finding is
+withheld from the page and the counts while the ack stands, and the "silenced"
+section shows it with the reason, because silencing that nobody can see later
+is the silence this repository refuses. `--until` makes it speak again on a
+date; without it the ack holds for as long as the cause does. A finding whose
+id the board does not carry today is refused: an ack for a row that does not
+exist is a typo waiting to hide something else.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -38,7 +37,7 @@ def today() -> str:
 
 
 class AckStoreError(ValueError):
-    ""                                                                    
+    """The acknowledgement store is unreadable or malformed, so nothing is written over it."""
 
 
 def load_acks() -> dict:

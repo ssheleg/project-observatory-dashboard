@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """Keep more than one copy of the half of this system git cannot hold.
 
-                                                                              
-                                                                               
-                                                                         
-                                                                           
-                                                                        
-                                                                             
-                                                                            
-         
+WHY. `store/observatory.db` is gitignored and the README calls it rebuildable,
+which is true of the derived half and false of the rest: the events read out of
+commit histories, the ledger revisions the agent wrote, and the review
+decisions an operator would make against them do not come back from a fresh
+clone. Without this, the only backup is whatever snapshot somebody took by
+hand before a migration — stale, and no rotation behind it.
 
-                                                                              
-                                                                            
-                                                                             
-                                                
+HOW, and why not `cp`. SQLite's own backup API copies a database that is being
+written to; a filesystem copy of a WAL-mode file mid-write yields a database
+whose `-wal` says one thing and whose pages say another. `sqlite3.Connection.
+backup` is the supported way and it is one call.
 
 WHAT IT REFUSES TO DO. It never deletes the newest copy, and it never deletes
 anything when the new backup failed — a rotation that prunes before it proves

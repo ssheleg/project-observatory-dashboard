@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """The operator's queue: read what is proposed, and decide it.
 
-                                                                               
-                                                                         
-                                                                             
-                                                                            
-                                                                              
-                    
+WRITES REQUIRE A TERMINAL, AND THERE IS NO `--yes`. Everything this tool writes
+carries `owner="operator"`, which is the highest authority in the ledger:
+operator rows are exempt from retention and no automated writer may supersede
+them. A tool that mints that authority without a person present lets any agent
+with shell access forge it, and every structural guard in `ledger.py` is
+downstream of who the owner is.
 
 Requiring a TTY does not stop a determined process — it can allocate one — and
 that is not the claim. The claim is that approval is an ACT, and an act that can
@@ -152,9 +152,9 @@ def cmd_digest(conn, args) -> int:
     """
     import json as _json
     import sqlite3 as _sq
-                                                                           
-                                                                                   
-                                                                                
+    # READ-ONLY. `store_db.connect()` opens read-write and applies pending
+    # migrations, so a command that only reads was a writer into the store it
+    # reports on, and its own test caught it by watching the mtime.
     conn = _sq.connect(f"file:{paths.DB}?mode=ro", uri=True)
     conn.row_factory = _sq.Row
     horizon = 90
@@ -273,11 +273,10 @@ def cmd_digest(conn, args) -> int:
         label = ", ".join(f"{n} {k}" for k, n in sorted(
             klasses.items(), key=lambda kv: estate.conclusion_rank(kv[0])))
         print(f"  {len(items):3}  {pid}   ({window}; {label})")
-                                                                              
-                                                                            
-                                                                                  
-                                                                            
-                                                                        
+        # THE RECORD THAT LIFTED THE PROJECT, not merely the newest. Ranking a
+        # project by its best class and then printing a routine gist under a
+        # `structural` label hides the reason it is at the top: a project lifted
+        # by one structural note would otherwise show a routine commit count.
         newest = min(items, key=lambda r: (estate.conclusion_rank(_cls[r["memory_id"]]),
                                            -_ord(r["created_at"])))
         print(f"       {_cls[newest['memory_id']]}: {newest['gist']}")

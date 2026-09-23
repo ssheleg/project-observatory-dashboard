@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Does each trap's guard actually CATCH its trap? Measured by putting it back.
 
-                                                                               
-                                                                                
-                                                                                 
-                                                                                 
-                                                                           
-                                                              
+The trap table in the knowledge pack promises that a provider is not done until
+it has been watched rejecting every trap, yet nothing measured that promise.
+`tools/trap_map.py` establishes ATTRIBUTION — every trap has a named guard,
+reachable from the gate — and says in its own docstring that attribution is not
+efficacy: a guard whose subject has moved passes forever and reports nothing.
+That failure mode has been observed in practice, not only imagined.
 
 So this tool re-introduces each defect and watches. One mutation, one guard, two
 runs:
@@ -56,14 +56,14 @@ import tmp as tmpdir
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 
-                                                                              
-                                                                            
-                                                                            
-  
-                                                         
-                                                                               
-                                                                             
-                                                                                               
+#: One reintroduced defect per trap. `find` must occur EXACTLY ONCE in `file`
+#: — the harness checks that before applying anything, so a mutation whose
+#: anchor has moved is reported as stale rather than silently doing nothing.
+#:
+#: `subject` decides where it lands and how it is undone:
+#:   source   — a tracked file, edited in place, restored with `git checkout`
+#:   registry — a copy of `registry/`, reached through OBSERVATORY_REGISTRY
+#:   db       — a copy of the store, reached through OBSERVATORY_DB (`sql`, not find/replace)
 def _forget(work: pathlib.Path, name: str) -> None:
     """Remove every anchor a folder has, so it reaches the registry by none."""
     import json as _json
@@ -194,26 +194,22 @@ MUTATIONS: list[dict] = [
      "why": "a pipe into an interpreter that reads its program from stdin sends the "
             "secret into a parser that prints what it cannot parse"},
     {"trap": "T30", "subject": "source", "file": "collectors/emit_registry.py",
-                                                                           
-                                                                             
-                                                                           
-                      
-                                                                                 
-                                                                       
-                                                                         
-                                                                            
-            
+     # This anchor moves every time a new relation type joins the derived
+     # types, and the staleness check has reported it each time in the same
+     # gate run — the instrument naming its own blindness. A literal set that
+     # grows with the registry is a mutation site that moves with it, and the
+     # check that says "occurs 0 times" is what turns a stale mutation into a
+     # red rather than a silent pass.
      "find": 'DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of"}',
      "replace": 'DERIVED_TYPES = set()',
      "why": "an edge whose REASON vanished survives, because the emitter kept "
             "every relation it had ever written"},
-                                                                                    
-                                                                            
-                                                                            
-                                                                                 
-                                                                              
-                                                                          
-                               
+    # ── A SECOND POPULATION: the finding rules. The traps were covered while
+    # most gate assertions were not; the finding rules are the first slice of
+    # the rest, chosen because a broken rule is silent by construction — it
+    # produces no row, and no row is what a healthy estate looks like. These
+    # carry an explicit `guard` rather than a trap id: they are not traps, and
+    # giving them one would make the trap register mean two things.
     {"trap": "R-heroku.app_down", "subject": "source", "file": "tools/heroku_findings.py",
      "find": 'if a["state"] not in ("down", "suspended") and not a.get("crashed"):',
      "replace": 'if True:',
@@ -411,12 +407,12 @@ def apply(mut: dict, work: pathlib.Path | None) -> None:
         target.write_text(text.splitlines(keepends=True)[0], encoding="utf-8")
         return
     if mut.get("patch"):
-                                                                              
-                                                                                
-                                                                               
-                                                                               
-                                                                              
-                                                                                 
+        # A STRUCTURAL edit, because a textual one silently loses. Inserting a
+        # duplicate key into a JSON object is not a mutation: `json.loads` keeps
+        # the LAST occurrence, so `"fork": true` written above the record's own
+        # `"fork": false` changes nothing and the guard would be reported MISSED
+        # for a defect that was never applied. This is the same collapsed
+        # duplicate-key class that `tools/check_docs.py` checks for.
         doc = json.loads(text)
         before = json.dumps(doc, sort_keys=True)
         mut["patch"](doc)
@@ -529,12 +525,12 @@ def main(argv: list[str]) -> int:
             # the mutation's subject. Named in the registry rather than guessed,
             # and checked: a stale name is reported, never silently skipped.
             rel, fn = mut["guard"].split("::")
-                                                                               
-                                                                                
-                                                                                
-                                                                               
-                                                                              
-                                                                     
+            # A SECOND POPULATION. A mutation whose subject is not a trap — a
+            # FINDING RULE — has no entry in the trap register to be attributed
+            # through, and demanding one would mean minting fake trap ids to
+            # measure something that is not a trap. For those the entry IS the
+            # attribution, and the name is still checked: the file and the
+            # function must exist.
             if mut["trap"] not in declared:
                 path = ROOT / rel
                 ok = path.is_file() and f"def {fn}(" in path.read_text(encoding="utf-8")

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-""                                                                          
+"""The analytics plugins' pure halves, driven without a single network call.
 
-                                                                               
-                                                                             
-                                                                           
-                                                                               
-                                                                               
+Each plugin is split on purpose: fetch functions that talk to a provider, and a
+`rows_from()` that turns a payload into metric rows through the host map. The
+seam exists so THIS file can drive the whole attribution logic with planted
+payloads — the fetch half is exercised only when a credential exists, and its
+absence is the manifest's `waiting`, already covered by the runner's own suite.
 
-                                                                            
-                                                                            
-                                                                                
-                                                                              
-   
+Also held here: the error-sanitation contract. An exception that renders its
+request headers prints any Authorization header it carried, and a secret that
+reaches a transcript that way is a leak that must be rotated. Every HTTP error
+in these plugins must therefore carry a URL and a status, never headers.
+"""
 from __future__ import annotations
 import importlib.util
 import json
@@ -158,14 +158,14 @@ def test_every_http_error_is_sanitised() -> None:
 
 
 def test_the_token_exchange_needs_no_third_party_transport() -> None:
-    ""                                                                     
+    """`plugins/google_auth.py` — the documented path imports `requests`.
 
-                                                                               
-                                                                             
-                                                                              
-                                                                                
-                         
-       
+    That library is not installed in this environment, so the documented
+    transport raises `ImportError` on the first call, and under a scheduler the
+    plugin would be classified `broken` for a library nobody meant to depend
+    on. The exchange is done over urllib instead, and these are the parts that
+    need no network.
+    """
     ga = load("google_auth")
     src = (ROOT / "plugins/google_auth.py").read_text(encoding="utf-8")
     code0 = source_reader.code_only(src)
@@ -208,12 +208,12 @@ def test_the_token_exchange_needs_no_third_party_transport() -> None:
 
 
 def test_cloudflare_reads_every_account_not_the_first() -> None:
-    ""                                        
+    """Several logins, several tokens, one estate.
 
-                                                                            
-                                                                                 
-                            
-       
+    A single-token plugin measures whichever account happens to be first and
+    reports the rest as absent — which on a dashboard is indistinguishable from
+    zero traffic.
+    """
     cf = load("cloudflare_analytics")
     d = pathlib.Path(tmp.mkdtemp()) / "cloudflare-analytics.d"
     d.mkdir()
@@ -244,13 +244,13 @@ def test_cloudflare_reads_every_account_not_the_first() -> None:
 
 
 def test_the_cf_door_probes_with_the_plugins_own_query() -> None:
-    ""                                                                  
+    """`tools/cloudflare.py` — the parts the doors suite does not own.
 
-                                                                             
-                                                                                
-                                                                       
-                                                                
-       
+    The label comes from the provider; verification is the plugin's OWN query
+    (a zone-read permission alone lists zones and reads no analytics); an
+    account-owned token that 401s at the user-scoped verify endpoint is judged
+    by capability instead.
+    """
     import importlib.util
     spec = importlib.util.spec_from_file_location("cf_door", ROOT / "tools/cloudflare.py")
     m = importlib.util.module_from_spec(spec)

@@ -1,34 +1,32 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Put an OpenRouter key where its consumer will find it, without anyone seeing it.
 
-                                                                                
-                                                    
-                                                                                    
+    tools/install_key.py --for observatory < protected-key-file
+    tools/install_key.py < protected-key-file      # provisioning keys need no --for
 
-                                                                                
-                                         
+WHY THIS EXISTS. Each consumer reads its key from a different place:
 
-                                                                                 
-                                                                                 
-                                                                                 
-                                                                                   
-                                                                                  
-                                                                                  
-                                                                                 
+    observatory   the store's key file             read by the scheduled tick; a
+                                                   shell variable would shadow it,
+                                                   and a scheduler passes none
+    companion     the memory companion's .env      the only place its worker looks
+    provisioning  the secret store                 mints, limits and revokes keys;
+                                                   `tools/revoke_key.py` needs it
 
-                                                                              
-                                                                               
-                                                                              
-                                                                             
-                                                                               
-                                                        
+Telling an operator which file to edit is a chance to pick the wrong one, and a
+key pasted into a chat, an argument list or a shell history is a key that has
+to be rotated. So: the key arrives on STDIN and nowhere else, this program
+decides which kind it is by ASKING the provider rather than by looking at the
+prefix — an inference key and a provisioning key are spelled the same — and
+writes it mode 600 to the one place that consumer reads.
 
-                                                                                
-                                                              
+Nothing here ever prints a key. What it prints is the kind, the length, and
+what the provider says the key may spend.
 
-                                                                             
-                                                                               
-                      
+A provisioning key removes a class of interruption: with one on the machine,
+keys can be minted, capped and revoked from here; without one, every new key is
+a trip to the provider's console.
+"""
    
 from __future__ import annotations
 import argparse
@@ -77,12 +75,13 @@ def ask(path: str, key: str) -> tuple[int, dict]:
 
 
 def kind_of(key: str) -> tuple[str, dict]:
-    ""                                                                    
+    """"provisioning" or "inference", decided by what the provider allows.
 
-                                                                             
-                                                                           
-                                                                             
-                  
+    NOT by the prefix: both kinds share the same key prefix, so a rule on
+    the string would be a guess dressed as a check. `/api/v1/keys` is the
+    provisioning endpoint and answers 401 to an inference key; `/api/v1/key`
+    describes the key that calls it, including what it may spend.
+    """
        
     status, _ = ask("/api/v1/keys", key)
     if status == 200:

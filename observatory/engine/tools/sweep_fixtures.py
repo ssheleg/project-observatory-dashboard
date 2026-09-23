@@ -11,12 +11,12 @@ reaches its `atexit` handlers — killed by a harness timeout, by an out-of-spac
 crash, by a session ending. That is not a defect any one file carries, which is
 exactly why remembering to clean up by hand was never going to hold.
 
-                                                                           
-                                                                              
-                                                                        
-                                                                               
-                                                                             
-                                              
+**And it lied about whose fault it was.** `host.disk_low` names the largest
+holders under the projects root — measured by the `disk-usage` plugin — so a
+volume filled by this project's own litter in `$TMPDIR` reads as the operator's
+projects being too big. That misattribution is easy to act on before anyone
+counts the directories, so the sweep reports its own volume through
+`fixtures.leaked` rather than letting the disk finding carry the blame.
 
 WHAT IT WILL NOT TOUCH. Only directories matching `observatory-*` directly
 inside the temp root, and only those untouched for `--older-than` hours (six by

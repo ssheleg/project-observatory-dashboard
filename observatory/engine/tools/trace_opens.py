@@ -200,15 +200,14 @@ def declared() -> dict[str, dict[str, list[str]]]:
 def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
     """Execute one step in a CHILD, with the artefacts redirected.
 
-                                                                              
-                                                                          
-                                                                           
-                                                                        
-                                                                            
-                                                                           
-                                                                               
-                                                                           
-                                                                               
+    In a child, and the reason is a destroyed page. Running the step in this
+    interpreter would let the wrappers above apply — but `paths.py` resolves
+    every artefact at IMPORT time, and this process has usually imported it
+    already (through `tests/test_pipeline.py`, which imports `observatory`).
+    So `OBSERVATORY_DASHBOARD` would be set after the constant it controls had
+    been frozen, and tracing `dashboard` would REBUILD THE LIVE PAGE from an
+    empty temporary store. A redirect that arrives after the import is not a
+    redirect.
 
     A child imports `paths` fresh, so the redirect binds. The wrappers travel to
     it through `--child`, which installs them and then runs the script.

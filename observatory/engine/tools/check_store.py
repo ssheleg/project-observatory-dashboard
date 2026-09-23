@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """Ask SQLite whether the store is structurally sound, and record the answer.
 
-                                                                               
-                                                                           
-                                                                            
-                                                                          
-                                                                                   
-                             
+**Why this exists.** A read can fail with `database disk image is malformed` and
+the same pragma answer `ok` minutes later, so nothing about the store is wrong by
+the time anyone looks. That transient fault is reported by the code that hits
+it — it records the fault, and `events` journals the finding, so a recurrence
+leaves a series.
 
-                                                                    
-                                                                               
-                                                                              
-                                                                                 
-                           
+**This checks something else, and says so rather than borrowing that
+justification.** Real corruption — a store file with no SQLite header at all —
+is otherwise found by a read FAILING, which is to say after it has already
+broken a run and left `finding` rows pointing at the wrong cause. A periodic
+check finds a damaged store before a reader does.
 
-                                                                          
-                                          
+**The cost, measured on a store of a few tens of MiB, because the figures here
+reversed under measurement:**
 
     PRAGMA quick_check         15 / 15 / 15 ms
     PRAGMA integrity_check    204 / 89 / 87 ms      (first run cold)

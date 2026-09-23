@@ -115,10 +115,10 @@ def test_atomic_write_text_leaves_the_destination_untouched() -> None:
 
 
 def test_it_adds_no_trailing_newline_of_its_own() -> None:
-    ""                                                                          
-                                                                               
-                                                                                 
-                                             
+    """`write_json` appends one because diffs read better; its callers hand over
+    data. `write_text`'s callers hand over composed text (a rendered page, a
+    JSONL body that ends where its last record does), and a byte added there
+    would rewrite every such file on every run for no change in content."""
     import atomic
     if not hasattr(atomic, "write_text"):
         return
@@ -187,12 +187,11 @@ def test_the_spend_journal_is_atomic_now() -> None:
 def test_every_caller_of_atomic_actually_binds_the_name() -> None:
     """The check the source sweep above could not make.
 
-                                                                                 
-                                                                                
-                                                                                
-                                                                                
-                                                                                    
-                        
+    A module moved onto `atomic.write_text` without the IMPORT raises
+    `NameError` from its write path, and nothing else notices: a `--check` mode
+    that returns before the write never reaches it, and the sweep above asserts
+    only that no bare `.write_text(` remains, a property such a broken file
+    satisfies perfectly.
 
     So this reads the binding, not the call: a module that names `atomic` must
     import it. Static rather than an import of each module, because two of the
