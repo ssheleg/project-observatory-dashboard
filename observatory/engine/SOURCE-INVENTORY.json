@@ -42,6 +42,13 @@
       "upstream_modified": true
     },
     {
+      "path": "collectors/accounts.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "1d0ebae87d508e27be594a08a2540fb6b4e78e72d597fc8f68ca7e011ff4c707",
+      "bytes": 4960
+    },
+    {
       "path": "collectors/compute_deltas.py",
       "source_sha256": "e4ef28e29f61ee8e11c48d6851d043d407a75ad126a09c3cb41def4a8af6c403",
       "export_sha256": "5e9e5113829557a04e304b286b27b35c5eeffde0ee9552a9d2f1c3b0bbae92e3",
@@ -64,8 +71,8 @@
     {
       "path": "collectors/emit_registry.py",
       "source_sha256": "ff8edc591196dd1278b0766ea8216973f5cc3951ff702b417bdb053305e8170d",
-      "export_sha256": "3b19827fbcd71d67c7730c72d262a400f50aaee91bf203b95f340a1cd9c77551",
-      "bytes": 46897,
+      "export_sha256": "da4d3854384b2cf7b842a41b004975302fba7eaf290d6c6a1c33ccf266f86c76",
+      "bytes": 47971,
       "python_comments_removed": 213,
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
@@ -254,8 +261,8 @@
     {
       "path": "collectors/scan_heroku.py",
       "source_sha256": "277e3f5d4a219ef91a2167662633eed79ac37c72a46eaca130e26572ad5ee63c",
-      "export_sha256": "c997111803223803d9ada46fa9b256e3bb49fa5ca01dcec524a123e7f68b76ce",
-      "bytes": 20680,
+      "export_sha256": "d0c9837d508b1abff17c9e7b9eaabd2b7ea6d08e5f37036736638d0f78faefd1",
+      "bytes": 20992,
       "python_comments_removed": 47,
       "python_docstrings_removed": 7,
       "tool_descriptions_retained": 0,
@@ -427,8 +434,9 @@
     {
       "path": "defaults/empty-registry.json",
       "source_sha256": "dd6a3aa971b609b6b96ad6bcc43ff400dfb0ca133d848adf52bea65818438c6a",
-      "export_sha256": "dd6a3aa971b609b6b96ad6bcc43ff400dfb0ca133d848adf52bea65818438c6a",
-      "bytes": 3094
+      "export_sha256": "cd66480c05ac9b0328c27cfdde7afe63e8bd441c94176874981d81e66ddeecfb",
+      "bytes": 3365,
+      "upstream_modified": true
     },
     {
       "path": "defaults/finding_acks.json",
@@ -1134,8 +1142,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "19d0f250c8278daa161917208f28a2f22403aa833b71bc255ea2492b474637cb",
-      "bytes": 10108,
+      "export_sha256": "0036bcebd4952f812d92106daca7459a6d9540b9b8c01242200d146c5d6ce358",
+      "bytes": 10120,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1164,6 +1172,13 @@
       "upstream_modified": true,
       "export_sha256": "7837250609c24155eda3d5304a1b99000af048cd9f855f21c9641975a1a68874",
       "bytes": 2343
+    },
+    {
+      "path": "tests/test_accounts.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "5e17186646b86c89e53a41d1d16e1f42eb413ba718360d76fbb006ad8cd1cd6f",
+      "bytes": 2581
     },
     {
       "path": "tests/test_ack.py",
@@ -2146,8 +2161,8 @@
     {
       "path": "tools/trap_efficacy.py",
       "source_sha256": "36190578630e1c379ead3a473aca367ec58a41ab0f4240ae24780108063f08bc",
-      "export_sha256": "971308cbcf6c7af9a03e40a8132509298793e5dc4c9fa4b7e3e6c0bdf57ceb97",
-      "bytes": 33671,
+      "export_sha256": "9b96e753958ac3c1c3749e3e5fc4a02ab2d155e6307180e8366a0d0df963de67",
+      "bytes": 33685,
       "python_comments_removed": 81,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
@@ -2176,8 +2191,8 @@
     {
       "path": "tools/validate_registry.py",
       "source_sha256": "5210502420dcda1ff5ca5a3c090d3d9fb8f330cf38be8e1ace9710e1af2e5e74",
-      "export_sha256": "c84ed5131b34b9a608d841deef13755142788bd180a475750b9566a646660054",
-      "bytes": 23712,
+      "export_sha256": "047cba3329cc8d2f5865eda2402b30d1b0cb2edf6c92202e7928188c9417fd66",
+      "bytes": 24064,
       "python_comments_removed": 60,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -2214,7 +2229,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 255,
+  "file_count": 257,
   "excluded": [
     "git-history",
     "operator-registries",

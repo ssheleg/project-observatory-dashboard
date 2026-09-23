@@ -146,5 +146,19 @@
     "source_ref": null,
     "meaning": null,
     "domains": []
+  },
+  "accounts.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "note": "",
+    "accounts": [],
+    "unattributed": [],
+    "totals": {
+      "accounts": 0,
+      "attributed": 0,
+      "unattributed": 0
+    },
+    "degraded": [],
+    "source_refs": []
   }
 }
