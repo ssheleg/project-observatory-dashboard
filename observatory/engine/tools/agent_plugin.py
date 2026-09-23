@@ -31,7 +31,7 @@ MARKETPLACE = "observatory-log"
 PLUGIN = f"{MARKETPLACE}@{MARKETPLACE}"
 REPOSITORY = os.environ.get("OBSERVATORY_PLUGIN_REPOSITORY", "ssheleg/project-observatory-dashboard")
 SOURCE = {"source": "github", "repo": REPOSITORY}
-ENV_KEYS = ("OBSERVATORY_ROOT", "OBSERVATORY_HOME")
+ENV_KEYS = ("OBSERVATORY_ROOT", "OBSERVATORY_HOME", "OBSERVATORY_PYTHON")
 
 
 class PluginError(RuntimeError):
@@ -111,7 +111,8 @@ def shipped_version() -> str:
 
 
 def workspace_env() -> dict:
-    return {"OBSERVATORY_ROOT": str(ROOT), "OBSERVATORY_HOME": str(configuration.home())}
+    return {"OBSERVATORY_ROOT": str(ROOT), "OBSERVATORY_HOME": str(configuration.home()),
+            "OBSERVATORY_PYTHON": sys.executable}
 
 
 def install(auto_update: bool = True) -> dict:

@@ -20,7 +20,7 @@ if [ -z "$root" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
 fi
 [ -n "$root" ] || exit 0
 [ -f "$root/tools/session_start.py" ] || exit 0
-py="$root/.venv/bin/python"
+py="${OBSERVATORY_PYTHON:-$root/.venv/bin/python}"   # set by `full agent install`
 [ -x "$py" ] || py="$(command -v python3 2>/dev/null)"
 [ -n "$py" ] || exit 0
 printf '%s' "$payload" | "$py" "$root/tools/session_start.py" 2>/dev/null || true

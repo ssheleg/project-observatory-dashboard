@@ -3,6 +3,15 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+### Fixed
+
+- The scheduled tick and the plugin hooks run with the Python that installed the engine
+  (`OBSERVATORY_PYTHON`, written by `install_launchd.py` and `full agent install`). An installed
+  package has no `.venv`, so tick fell back to the first `python3` on PATH, which lacks the `[full]`
+  dependencies: the vector index reported "sqlite-vec is not loadable here". Companion plugin 0.11.1.
+
 ## 0.2.4 — 2026-09-23
 
 ### Changed

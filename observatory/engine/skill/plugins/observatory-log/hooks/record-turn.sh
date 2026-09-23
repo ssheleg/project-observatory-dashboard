@@ -48,7 +48,7 @@ fi
 [ -n "$root" ] || exit 0                       # no checkout: silent, not an error
 [ -f "$root/tools/record_turn.py" ] || exit 0  # older checkout: silent
 
-py="$root/.venv/bin/python"
+py="${OBSERVATORY_PYTHON:-$root/.venv/bin/python}"   # set by `full agent install`
 [ -x "$py" ] || py="$(command -v python3 2>/dev/null)"
 [ -n "$py" ] || exit 0                         # no interpreter: silent
 
