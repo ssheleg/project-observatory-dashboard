@@ -354,7 +354,7 @@ def record_key_usage(pu: dict) -> None:
             "note": ("What the PROVIDER says this KEY has spent — the whole account, "
                      "shared with every other tool on this machine that uses it. "
                      "This project's own spend is in store/wallet.json and is what "
-                     "its ceilings are measured against (DEC-0114)."),
+                     "its ceilings are measured against."),
         })
     except Exception:                                                             
         pass

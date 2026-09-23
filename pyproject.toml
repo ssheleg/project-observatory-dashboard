@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77,<81"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,10 +8,32 @@ version = "0.2.0"
 description = "A local observation layer for agent-operated projects"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Project Observatory contributors"}]
 dependencies = []
-classifiers = ["Programming Language :: Python :: 3", "Operating System :: POSIX", "Operating System :: MacOS"]
+keywords = ["observability", "developer-tools", "agents", "claude-code", "mcp", "dashboard", "secrets"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development",
+    "Topic :: System :: Monitoring",
+]
+
+[project.urls]
+Homepage = "https://observatory.sshlg.me/"
+Source = "https://github.com/ssheleg/project-observatory-dashboard"
+Changelog = "https://github.com/ssheleg/project-observatory-dashboard/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ssheleg/project-observatory-dashboard/issues"
+Security = "https://github.com/ssheleg/project-observatory-dashboard/security/policy"
 
 [project.scripts]
 project-observatory = "observatory.cli:main"

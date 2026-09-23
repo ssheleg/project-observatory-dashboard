@@ -570,7 +570,7 @@ IGNORED_WRITES_ALLOWED = {
         "every other runner of that file for the same reason: whoever executed a "
         "build is who can attest to it. Had only the tick recorded a verdict, "
         "the board would have called this page unverified after every gate run "
-        "— true of the record and useless to a reader (DEC-0167)",
+        "— true of the record and useless to a reader",
 }
 
                                                                               
@@ -586,35 +586,35 @@ FOREIGN_WRITES_IGNORED = {
         "written by the scheduled tick's store check, which runs early in the "
         "cycle. Same class as the lease receipt below: the tick landing mid-gate "
         "is a fact about the schedule, not about the group under test "
-        "(DEC-0134)",
+        "",
     "store/raw/tick-lease.json":
         "written by the scheduled tick on every path of its lease acquire — and "
         "the tick landing mid-gate is the SUBJECT of that receipt, not an "
         "accident: the gate holds `registry` for its whole duration, so a tick "
         "firing during a `check` stands down and records the skip. Counting that "
         "write as the group's own would make the gate report itself for the very "
-        "collision it caused (DEC-0130)",
+        "collision it caused",
     "store/raw/store-faults.jsonl":
         "appended by whatever catches a store error — the tick's `agent` and "
         "`index` steps among them. Append-only by design, so a tick landing "
-        "mid-gate adds a line the group did not write (DEC-0142)",
+        "mid-gate adds a line the group did not write",
     "store/raw/companion-faults.jsonl":
         "appended by the companion's Stop hook whenever a turn could not be "
         "recorded — in every session of every watched project, concurrently "
         "with the gate, for the same reason its receipt is exempted below. "
-        "Append-only by design (DEC-0184), so a neighbouring session losing a "
+        "Append-only by design, so a neighbouring session losing a "
         "turn mid-gate adds a line this tree did not write",
     "store/raw/record-turn.json":
         "written by the companion's Stop hook — in EVERY session of EVERY watched "
         "project on this machine, concurrently with the gate. Forty-nine Claude "
-        "processes were running when that was measured (DEC-0113), so another "
+        "processes were running when that was measured, so another "
         "session ending mid-gate changes this file and the purity verdict would "
         "report a neighbour's turn as this tree's impurity. The suites that drive "
         "the recorder redirect OBSERVATORY_SCRATCH and are checked for it "
         "separately in tests/test_gate_purity.py",
     "store/raw/serverd.json":
         "the always-on server's heartbeat receipt, rewritten every 20 seconds "
-        "for as long as launchd keeps the daemon alive (DEC-0217) — which is "
+        "for as long as launchd keeps the daemon alive — which is "
         "concurrently with any gate that outlives that interval, i.e. every "
         "gate. No step of any group starts or stops the daemon, so exempting "
         "its receipt removes no coverage; the suites that drive its refresh "

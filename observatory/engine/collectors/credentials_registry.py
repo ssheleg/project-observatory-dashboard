@@ -106,7 +106,7 @@ def from_openrouter(scan: dict) -> list[dict]:
     ""                                                                       
     out = []
     for k in scan.get("keys", []):
-        if not k.get("serves") and not (k.get("name") or "").startswith(("project-", "agentgateway")):
+        if not k.get("serves") and not (k.get("name") or "").startswith("project-"):
                                                                                  
                                                                               
                                                                             

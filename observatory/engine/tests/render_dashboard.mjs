@@ -169,7 +169,7 @@ console.log(JSON.stringify({
   // 20 KB render with no marker, and it produced a false measurement inside one
   // hour: counting rendered rows in that report said the page shows ONE finding
   // of sixty-three, where it carries forty. A silent cap in a test instrument is
-  // a wrong conclusion waiting to be drawn from it (DEC-0137).
+  // a wrong conclusion waiting to be drawn from it.
   findings: clip(written.findings, 400),
   tiles: clip(written.tiles, 200),
   listeners: listeners.length,

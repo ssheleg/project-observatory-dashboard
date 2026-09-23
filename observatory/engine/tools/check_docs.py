@@ -67,7 +67,7 @@ RETIRED_CLAIMS = [
     ("docs/ARCHITECTURE.md", "claude-mem` collector is designed and NOT built",
      "`collectors/scan_sessions.py` reads that store read-only and records one "
      "`session` event per (session, project); 57 projects carry a "
-     "`last_session_on` from it and six changed activity tier (DEC-0080)"),
+     "`last_session_on` from it and six changed activity tier"),
     ("docs/ARCHITECTURE.md", "grep -rn claude-mem` over the Python returns nothing",
      "it returns `collectors/scan_sessions.py` and the SRC-0012 declaration in "
      "`collectors/emit_registry.py`"),
@@ -99,7 +99,7 @@ PATH_ALLOWLIST = {
                             "boundary whenever it answers; gitignored",
     "store/.openrouter-key": "a secret the reader is told to create",
     "store/logs/tick.log": "written by launchd", "store/logs/tick.err": "written by launchd",
-    "store/budget.json": "named by DEC-0009, which DEC-0012 superseded",
+    "store/budget.json": "named by an early design that a later one superseded",
     "docs/projects-dashboard.html": "generated, gitignored",
                                                   
     "tools/validate_inventory.py": "removed from the vault when the registry moved here",
@@ -198,7 +198,7 @@ def ledger_failures(path: pathlib.Path, prefix: str, rel: str) -> list[str]:
     elif int(ptr.group(1)) != top + 1:
         out.append(f"{rel} says `Next free ID: {prefix}-{ptr.group(1)}` while "
                    f"{prefix}-{top:04d} already exists — it should be "
-                   f"{prefix}-{top + 1:04d}. DEC-0053 fixed this counter by hand once "
+                   f"{prefix}-{top + 1:04d}. This counter was once fixed by hand "
                    f"and it drifted again; bump it in the same edit that appends.")
 
                                                                                  

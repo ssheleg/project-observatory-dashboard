@@ -558,7 +558,7 @@ def declared_alive_measured_dead(projects: list[dict]) -> list[dict]:
                   "1 project declares it is active and has not moved"),
         "detail": (f"`lifecycle` is a declaration and `activity_tier` is a "
                    f"measurement, and for these they disagree: "
-                   f"{listed(stale, 6)}. DEC-0058 recorded fourteen of these; "
+                   f"{listed(stale, 6)}. an earlier review found fourteen of these; "
                    f"nothing has reported the number since, and a declaration "
                    f"nobody maintains stops being read at all."),
         "action": ("open docs/dashboard/projects.html?f=drift — the table comes up "
@@ -870,7 +870,7 @@ def gate_skip_findings(sites: list[dict]) -> list[dict]:
                      "`check` writes nothing — and the one skip that fired on "
                      "2026-09-08 fired because its fixture looked for a registry file "
                      "that has never existed while the validator read another, so the "
-                     "rule it guarded had never been driven (DEC-0162)."),
+                     "rule it guarded had never been driven."),
         "action": "`.venv/bin/python tools/skip_sites.py` prints every site with its "
                   "message; the convention is a `[covered: where]` marker in the skip "
                   "line — a bracketed token rather than prose, because "
@@ -2010,7 +2010,7 @@ def collect() -> list[dict]:
                           f"is inferred from it here: contact is not ownership, "
                           f"and a rule built to attribute by touched folder gave "
                           f"69 sessions of another project's work to the obsidian "
-                          f"vault the first time it was driven (DEC-0117).")
+                          f"vault the first time it was driven.")
                 action = (f"if {name!r} is that project under another spelling, add "
                           f"the mapping; if it is a different project, it belongs "
                           f"in the registry")
@@ -2271,7 +2271,9 @@ def collect() -> list[dict]:
                                                                                  
                                                                                
                                         
-    sd_plist = pathlib.Path.home() / "Library/LaunchAgents/dev.sshlg.observatory.server.plist"
+    sys.path.insert(0, str(paths.ROOT / "tools"))
+    import install_launchd
+    sd_plist = pathlib.Path.home() / "Library/LaunchAgents" / f"{install_launchd.instance_label('server')}.plist"
     sd = paths.SCRATCH / "serverd.json"
     if sd_plist.is_file():
         beat = None
@@ -2295,7 +2297,7 @@ def collect() -> list[dict]:
                            "removes the agent entirely."),
                 "action": "tools/serverd.py --status; the log is store/logs/serverd.err",
                 "evidence": ["store/raw/serverd.json",
-                             "~/Library/LaunchAgents/dev.sshlg.observatory.server.plist"]})
+                             str(sd_plist)]})
 
                                                                           
                                                                            
@@ -3794,7 +3796,7 @@ def collect() -> list[dict]:
                     + ". Nothing is lost either way — the deltas stay queued."
                 ) if key_spent else
                           "if a spend ceiling stopped it, remember the OpenRouter key is "
-                          "shared with everything else on this machine (DEC-0015): raise "
+                          "shared with everything else on this machine: raise "
                           "the ceiling in agent/models.json deliberately, give this project "
                           "its own key, or wait for the counter to reset. Nothing is lost "
                           "either way — the deltas stay queued."),

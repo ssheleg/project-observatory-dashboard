@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS ledger (
   -- 0007-drop-inert-retention-policy — a per-row policy is a flag at the call
   -- site, which this store's own retention doctrine refuses, and the exemption
   -- added on 2026-09-08 proved it: it protected rows written before it, which a
-  -- column could not (OQ-0017, DEC-0172).
+  -- column could not.
   valid_from        TEXT,                      -- real-world validity,
   valid_to          TEXT,                      -- distinct from created_at
   supersedes_json   TEXT    NOT NULL DEFAULT '[]',
@@ -211,7 +211,7 @@ CREATE TABLE IF NOT EXISTS project_week (
                                        -- widening it would make every existing row
                                        -- incomparable with every new one.
   authors      INTEGER NOT NULL,       -- distinct commit actors
-  -- WORK WITHOUT A COMMIT. `last_activity_on` learned this in DEC-0080; the
+  -- WORK WITHOUT A COMMIT. `last_activity_on` learned this the hard way; the
   -- weekly series, which is the one table that outlives its source, had not.
   -- Measured 2026-09-07: 45 (project, week) pairs held claude-mem sessions and
   -- no commit, so they produced no row at all — and the freeze rule would have
@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS project_week (
   -- NULLABLE on purpose. NULL means "this row was computed before the measure
   -- existed", which for a FROZEN row can never be completed; 0 would claim it
   -- was measured and found empty. The same distinction `resolves: None` carries
-  -- for a domain probe (DEC-0091).
+  -- for a domain probe.
   sessions     INTEGER,                -- session events in the week
   session_days INTEGER,                -- days with a session
   worked_days  INTEGER,                -- days with EITHER, as a set union: it cannot

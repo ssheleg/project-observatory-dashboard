@@ -216,8 +216,8 @@ def main() -> int:
            f"work in progress.\n\n"
            f"Automated because the alternative, left in place since 2026-09-03, was a tree "
            f"dirty within half an hour of every commit — which makes a real abandoned edit "
-           f"in the registry invisible among the generated churn (DEC-0045, and OQ-0008 for "
-           f"the same failure in the wiki).")
+           f"in the registry invisible among the generated churn; the wiki had the same "
+           f"failure.")
     code, out = git("add", "--", REGISTRY, cwd=root)
     if code != 0:
         print("Could not stage the private registry", file=sys.stderr)

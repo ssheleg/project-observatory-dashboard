@@ -119,7 +119,7 @@ def findings(journal: pathlib.Path, now: datetime.datetime | None = None) -> lis
             "title": f"{len(unnamed)} reveal(s) in {WINDOW_HOURS} hours came from a caller that did not name itself",
             "detail": (f"Subjects: {', '.join(subjects[:LISTED])}"
                        f"{' and more' if len(subjects) > LISTED else ''}. The header "
-                       f"`X-Observatory-Caller` exists since DEC-0242; a reveal without it "
+                       f"`X-Observatory-Caller` was added later; a reveal without it "
                        f"is a skill copy or a script older than that, and the journal can "
                        f"say only that it was somebody on this machine."),
             "action": "update the installed `handling-secrets` copy; the dashboard names itself already",

@@ -1,0 +1,41 @@
+name: Bug report
+description: Something Observatory does is wrong or breaks.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste credential values, private project names, paths or dashboard screenshots.
+        `project-observatory full doctor` output is safe to share: it names checks, not values.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `project-observatory --version`
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Python
+      placeholder: macOS 15, Homebrew Python 3.14
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you ran
+      description: The exact commands, with private names replaced.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: full doctor output
+      render: json

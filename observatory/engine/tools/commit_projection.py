@@ -25,8 +25,10 @@ from datetime import datetime, timezone
 import atomic
 import paths
 
-PROJECTION = "sshlg-projects-vault/inventory"
-LEASE_KEY = "sshlg-projects-vault/inventory"
+# The projection is the configured wiki's `inventory` folder, addressed relative
+# to the Git repository that holds the wiki; the lease uses the same name.
+PROJECTION = f"{paths.VAULT.name}/inventory"
+LEASE_KEY = PROJECTION
 
 
 def git(*args: str, cwd: pathlib.Path) -> tuple[int, str]:
@@ -146,7 +148,7 @@ def main() -> int:
                f"_do_not_edit, and the canonical registry is in that repository.\n\n"
                f"Committed automatically because the alternative — leaving three files dirty "
                f"every thirty minutes — makes a real abandoned edit in this directory "
-               f"invisible among the generated ones (OQ-0008).")
+               f"invisible among the generated ones.")
         git("add", "--", PROJECTION, cwd=vault)
         code, out = git("commit", "-q", "-m", msg, cwd=vault)
         print(f"committed the projection: {summary}" if code == 0

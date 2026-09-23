@@ -313,7 +313,7 @@ def survey(scope: dict | None = None, include_external: bool = False,
                                  "reason": f"scan {as_of_scan_id} is recorded, but the "
                                            f"registry is not versioned per scan, so this "
                                            f"answer carries the CURRENT estate and `scanId` "
-                                           f"names the scan it reflects (OQ-0016)"})
+                                           f"names the scan it reflects"})
         if latest:
             scan_id = latest
         else:
@@ -709,7 +709,7 @@ def credentials(project_id: str) -> dict:
 
     vault = Path(os.environ.get(
         "OBSERVATORY_VAULT_DIR",
-        Path.home() / ".config/agentgateway/secrets/projects")) / slug
+        paths.source_path("secret_store", paths.SECRETS) / "projects")) / slug
     if not vault.parent.is_dir():
         out["degraded"].append({
             "source": "vault",
