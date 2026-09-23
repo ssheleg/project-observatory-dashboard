@@ -11,7 +11,7 @@ The 200 is not access. Anonymous listing returns only PUBLIC repositories, and
 this workspace has none, so the endpoint answers and reveals nothing. That is
 worth writing down because a status code alone reads like coverage.
 
-So the sixteen repositories under `mobyrix` are known from one thing only: a
+So the repositories under one workspace are known from one thing only: a
 local clone points at them. Their default branch and whether the checkout is
 current come from `scan_remotes.py`, which needs no credential. Everything else
 — description, visibility, language, dates, and above all **repositories that
