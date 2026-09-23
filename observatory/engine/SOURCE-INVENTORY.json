@@ -1289,8 +1289,8 @@
       "path": "tests/test_project_identity.py",
       "source_sha256": null,
       "upstream_modified": true,
-      "export_sha256": "038ed812d252615f3247fa4e9500f17364902a2b36eb57d39433fa6ab7870308",
-      "bytes": 26462
+      "export_sha256": "b8f8caa820172620904050abab388313dff10ac08756646e893f2a4b1ae52e18",
+      "bytes": 26585
     },
     {
       "path": "tests/test_provenance.py",

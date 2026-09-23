@@ -51,10 +51,10 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 def test_the_naming_rule_lives_in_one_place() -> None:
     import identity as I
     importlib.reload(I)
-    check("a folder becomes a key", I.local_key("webpilot") == "local-webpilot",
-          I.local_key("webpilot"))
-    check("and an id", I.local_id("webpilot") == "project:local-webpilot",
-          I.local_id("webpilot"))
+    check("a folder becomes a key", I.local_key("sample-site") == "local-sample-site",
+          I.local_key("sample-site"))
+    check("and an id", I.local_id("sample-site") == "project:local-sample-site",
+          I.local_id("sample-site"))
     check("the slug is applied, not assumed",
           I.local_key("Some_Folder Name") == "local-some-folder-name",
           I.local_key("Some_Folder Name"))
@@ -69,10 +69,10 @@ def test_the_naming_rule_lives_in_one_place() -> None:
 def test_a_projects_former_ids_are_derived_from_its_folders() -> None:
     import identity as I
     importlib.reload(I)
-    p = {"id": "project:webpilot", "anchor": "vault-folder",
-         "local_folders": ["webpilot"]}
+    p = {"id": "project:sample-site", "anchor": "vault-folder",
+         "local_folders": ["sample-site"]}
     check("the id it would have had as a local folder is offered",
-          I.former_ids(p) == ["project:local-webpilot"], str(I.former_ids(p)))
+          I.former_ids(p) == ["project:local-sample-site"], str(I.former_ids(p)))
     many = {"id": "project:x", "anchor": "repository",
             "local_folders": ["a", "b"]}
     check("one per folder", I.former_ids(many) ==
@@ -91,19 +91,19 @@ def test_the_index_maps_old_ids_to_the_project_that_holds_them_now() -> None:
     import identity as I
     importlib.reload(I)
     projects = [
-        {"id": "project:webpilot", "anchor": "vault-folder", "local_folders": ["webpilot"]},
-        {"id": "project:local-copylot-agent", "anchor": "local-folder",
-         "local_folders": ["copylot-agent"]},
+        {"id": "project:sample-site", "anchor": "vault-folder", "local_folders": ["sample-site"]},
+        {"id": "project:local-sample-agent", "anchor": "local-folder",
+         "local_folders": ["sample-agent"]},
     ]
     idx = I.former_index(projects)
     check("the published project claims its former id",
-          idx.get("project:local-webpilot") == "project:webpilot", str(idx))
+          idx.get("project:local-sample-site") == "project:sample-site", str(idx))
     check("and the unpublished one claims nothing",
-          "project:local-copylot-agent" not in idx, str(idx))
+          "project:local-sample-agent" not in idx, str(idx))
     check("resolving an id nothing claims answers None",
           I.resolve_former("project:local-nowhere", projects) is None, "")
     check("and resolving a live id answers None too",
-          I.resolve_former("project:webpilot", projects) is None,
+          I.resolve_former("project:sample-site", projects) is None,
           "a resolver that returns the input teaches its callers nothing")
 
 
@@ -149,24 +149,24 @@ def findings_for(rows: list[tuple[str, str]], projects: list[dict]) -> list[dict
         importlib.reload(paths)
 
 
-PUBLISHED = {"id": "project:webpilot", "name": "webpilot", "anchor": "vault-folder",
+PUBLISHED = {"id": "project:sample-site", "name": "sample-site", "anchor": "vault-folder",
              "lifecycle": "active", "ownership": "owned",
-             "local_folders": ["webpilot"], "membership_rules": [],
+             "local_folders": ["sample-site"], "membership_rules": [],
              "sites": [], "stack": [], "has_vault_note": False}
 
 
 def test_a_row_that_follows_a_publication_is_not_called_an_orphan() -> None:
-    got = findings_for([("project:local-webpilot", "it was worked on")], [PUBLISHED])
+    got = findings_for([("project:local-sample-site", "it was worked on")], [PUBLISHED])
     orphan = [f for f in got if f["type"] == "memory.orphan_subject"]
     check("no orphan is reported", orphan == [],
-          "the id resolves to project:webpilot, which the registry does hold")
+          "the id resolves to project:sample-site, which the registry does hold")
     followed = [f for f in got if f["type"] == "memory.followed_rename"]
     check("the transition is reported instead", len(followed) == 1, str(got)[:220])
     if followed:
         f = followed[0]
         check("as info, since nothing is lost", f["severity"] == "info", f["severity"])
         check("naming both ids",
-              "project:local-webpilot" in f["detail"] and "project:webpilot" in f["detail"],
+              "project:local-sample-site" in f["detail"] and "project:sample-site" in f["detail"],
               f["detail"][:240])
         check("and saying the view follows it",
               "view" in f["detail"] or "resolved" in f["detail"], f["detail"][:240])
@@ -186,7 +186,7 @@ def test_a_row_nothing_claims_is_still_an_orphan() -> None:
 
 
 def test_the_two_kinds_are_counted_apart() -> None:
-    got = findings_for([("project:local-webpilot", "followed"),
+    got = findings_for([("project:local-sample-site", "followed"),
                         ("project:gone-for-good", "really gone"),
                         ("project:also-gone", "also really gone")], [PUBLISHED])
     orphan = [f for f in got if f["type"] == "memory.orphan_subject"]
@@ -199,7 +199,7 @@ def test_the_two_kinds_are_counted_apart() -> None:
 
 
 def test_a_registry_with_no_orphans_is_silent() -> None:
-    got = findings_for([("project:webpilot", "a live note")], [PUBLISHED])
+    got = findings_for([("project:sample-site", "a live note")], [PUBLISHED])
     check("nothing is raised", got == [], str(got)[:200])
 
 
@@ -221,13 +221,13 @@ def planted_store() -> tuple[pathlib.Path, dict]:
                    capture_output=True, text=True, timeout=600)
     con = sqlite3.connect(db)
                                                                              
-    for pid, ref in (("project:local-webpilot", "old-sha"),
-                     ("project:webpilot", "new-sha")):
+    for pid, ref in (("project:local-sample-site", "old-sha"),
+                     ("project:sample-site", "new-sha")):
         con.execute("INSERT INTO events (id, project_id, repo_id, kind, ref, actor,"
                     " occurred_at, payload_json) VALUES (?,?,?,?,?,?,?,?)",
                     (f"commit:{ref}", pid, None, "commit", ref, "t",
                      "2026-09-06T00:00:00Z", "{}"))
-    for i, pid in enumerate(("project:local-webpilot", "project:webpilot")):
+    for i, pid in enumerate(("project:local-sample-site", "project:sample-site")):
         con.execute(
             "INSERT INTO ledger (memory_id, revision, kind, project_id, owner,"
             " function, scope, statement, state, confidence, created_at)"
@@ -255,7 +255,7 @@ def test_the_timeline_includes_what_was_recorded_before_publication() -> None:
     try:
         import survey
         importlib.reload(survey)                                   
-        tl = survey.timeline("project:webpilot")
+        tl = survey.timeline("project:sample-site")
         refs = sorted(e["ref"] for e in tl.get("events") or [])
         check("both events are in the timeline", refs == ["new-sha", "old-sha"],
               str(refs) + " " + json.dumps(tl.get("degraded") or []))
@@ -271,15 +271,15 @@ def test_the_detail_includes_the_notes_written_before_publication() -> None:
     try:
         import survey
         importlib.reload(survey)                                   
-        det = survey.project_detail("project:webpilot")
+        det = survey.project_detail("project:sample-site")
         blob = json.dumps(det, ensure_ascii=False)
         check("the note written under the old id is present",
-              "note under project:local-webpilot" in blob, blob[:300])
+              "note under project:local-sample-site" in blob, blob[:300])
         check("and so is the new one",
-              "note under project:webpilot" in blob, blob[:300])
+              "note under project:sample-site" in blob, blob[:300])
         check("the answer still says which project it is about",
-              det.get("project", {}).get("id") == "project:webpilot"
-              or det.get("projectId") == "project:webpilot", json.dumps(det)[:200])
+              det.get("project", {}).get("id") == "project:sample-site"
+              or det.get("projectId") == "project:sample-site", json.dumps(det)[:200])
     finally:
         for k in ("OBSERVATORY_DB", "OBSERVATORY_REGISTRY", "OBSERVATORY_SCRATCH"):
             os.environ.pop(k, None)
@@ -295,12 +295,12 @@ def test_an_unpublished_project_asks_for_no_extra_ids() -> None:
     p = {"id": "project:local-solo", "anchor": "local-folder", "local_folders": ["solo"]}
     check("the id set is just the project",
           I.ids_for(p) == ["project:local-solo"], str(I.ids_for(p)))
-    pub = {"id": "project:webpilot", "anchor": "vault-folder",
-           "local_folders": ["webpilot"]}
+    pub = {"id": "project:sample-site", "anchor": "vault-folder",
+           "local_folders": ["sample-site"]}
     check('without population context only the current ID is returned',
           I.ids_for(pub) == [pub['id']])
     check("and a published one carries both",
-          I.ids_for(pub, [pub]) == ["project:webpilot", "project:local-webpilot"],
+          I.ids_for(pub, [pub]) == ["project:sample-site", "project:local-sample-site"],
           str(I.ids_for(pub, [pub])))
 
 
@@ -332,8 +332,8 @@ def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
                                                                              
                                                           
     stamp = "2026-09-07T10:00:00Z"
-    for i, (pid, actor) in enumerate((("project:local-webpilot", "ann"),
-                                      ("project:webpilot", "bob"))):
+    for i, (pid, actor) in enumerate((("project:local-sample-site", "ann"),
+                                      ("project:sample-site", "bob"))):
         con.execute("INSERT INTO events (id, project_id, repo_id, kind, ref, actor,"
                     " occurred_at, payload_json) VALUES (?,?,?,?,?,?,?,?)",
                     (f"commit:c{i}", pid, None, "commit", f"c{i}", actor, stamp, "{}"))
@@ -352,7 +352,7 @@ def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
     if not rows:
         return
     row = rows[0]
-    check("under the project's current id", row["project_id"] == "project:webpilot",
+    check("under the project's current id", row["project_id"] == "project:sample-site",
           row["project_id"])
     check("with both commits", row["commits"] == 2, str(row["commits"]))
     check("ONE active day, because it is a set size and not a sum",
@@ -386,7 +386,7 @@ def test_a_former_row_with_no_counterpart_is_kept_and_counted() -> None:
     con.execute("INSERT INTO project_week (project_id, week, week_start, commits,"
                 " active_days, authors, computed_at, frozen_at)"
                 " VALUES (?,?,?,?,?,?,?,?)",
-                ("project:local-webpilot", "2020-W01", "2019-12-30", 9, 3, 1,
+                ("project:local-sample-site", "2020-W01", "2019-12-30", 9, 3, 1,
                  "2020-01-06T00:00:00Z", "2020-01-06T00:00:00Z"))
     con.commit()
     con.close()
@@ -395,7 +395,7 @@ def test_a_former_row_with_no_counterpart_is_kept_and_counted() -> None:
     check("the rollup runs", r.returncode == 0, (r.stdout + r.stderr)[-300:])
     con = sqlite3.connect(db)
     left = con.execute("select count(*) from project_week where project_id = ?",
-                       ("project:local-webpilot",)).fetchone()[0]
+                       ("project:local-sample-site",)).fetchone()[0]
     con.close()
     check("the irreproducible row survives", left == 1, str(left))
     rep = json.loads((d / "scratch/rollup.json").read_text(encoding="utf-8"))
