@@ -39,6 +39,23 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         (source / "registry/projects.json").write_text('{"projects":[]}')
         return source
 
+    def test_home_inside_the_engine_or_its_package_is_refused(self):
+        source = Path(configuration.__file__).resolve().parent
+        with tempfile.TemporaryDirectory() as tmp:
+            link = Path(tmp).resolve() / "link"
+            link.symlink_to(source)
+            homes = [source, source / "state", link / "state"]
+            if source.parent.name == "observatory" and (source.parent / "__init__.py").is_file():
+                homes.append(source.parent / "state")  # installed or checked-out package
+            for home in homes:
+                with self.subTest(home=home), patch.dict(os.environ, {"OBSERVATORY_HOME": str(home)}):
+                    with self.assertRaises(configuration.ConfigurationError) as caught:
+                        configuration.home()
+                    self.assertIn("outside the installed code", str(caught.exception))
+            outside = Path(tmp).resolve() / "home"
+            with patch.dict(os.environ, {"OBSERVATORY_HOME": str(outside)}):
+                self.assertEqual(configuration.home(), outside)
+
     def test_initializer_rechecks_after_acquiring_lock(self):
         base = self.root / "home"
         real_lock = workspace.lock

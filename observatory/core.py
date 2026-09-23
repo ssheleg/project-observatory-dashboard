@@ -72,10 +72,39 @@ def known_slot_values(state: Path) -> list[str]:
     return values
 
 
+
+def _code_roots(here: Path) -> tuple[Path, ...]:
+    """Directories private state must never live in: the shipped code itself.
+
+    The code directory, the installed ``observatory`` package that contains it,
+    and the Git work tree of a source checkout. Data there is deleted by an
+    upgrade or uninstall, or ends up one ``git add`` away from being published.
+    """
+    roots = [here]
+    package = here if here.name == "observatory" else here.parent
+    if package.name == "observatory" and (package / "__init__.py").is_file():
+        roots.append(package)
+    for parent in (here, *here.parents):
+        if (parent / ".git").exists():
+            roots.append(parent)
+            break
+    return tuple(dict.fromkeys(roots))
+
+
+def refuse_home_inside_code(path: Path) -> Path:
+    resolved = path.expanduser().resolve()
+    for root in _code_roots(Path(__file__).resolve().parent):
+        if resolved == root or root in resolved.parents:
+            raise ObservatoryError(
+                f"Choose a private directory outside the installed code and its source checkout "
+                f"(the chosen home is inside {root}); state there is lost on upgrade or can be committed.")
+    return path
+
 def state_path(value: str | None = None) -> Path:
     # Only resolved when a command runs, never at module import.
     base = value or os.environ.get("OBSERVATORY_HOME")
-    return Path(base).expanduser().absolute() if base else Path.home() / ".local" / "share" / "project-observatory"
+    return refuse_home_inside_code(Path(base).expanduser().absolute() if base
+                                   else Path.home() / ".local" / "share" / "project-observatory")
 
 
 def private_dir(path: Path) -> None:

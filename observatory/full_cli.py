@@ -15,6 +15,11 @@ def full_home(explicit: str | None = None) -> Path:
     path = Path(value).expanduser() if value else Path.home() / ".local/share/project-observatory-full"
     if not path.is_absolute():
         raise ValueError("Full workspace path must be absolute")
+    from .core import ObservatoryError, refuse_home_inside_code
+    try:
+        refuse_home_inside_code(path)
+    except ObservatoryError as exc:
+        raise ValueError(str(exc)) from None
     return path
 
 

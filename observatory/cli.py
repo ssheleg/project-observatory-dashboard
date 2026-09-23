@@ -136,7 +136,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "full":
         from .full_cli import run
         return run(["--help"] if args.engine_help else args.arguments, args.home)
-    state = state_path(args.home)
+    try:
+        state = state_path(args.home)
+    except ObservatoryError as exc:
+        emit({"error": str(exc)})
+        return 2
     _OUTPUT_STATE = state
     try:
         if args.cmd == "init":
