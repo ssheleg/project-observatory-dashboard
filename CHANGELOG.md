@@ -3,6 +3,19 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.2.2 — 2026-09-23
+
+### Fixed
+
+- **`full migrate-local` works again for installations that have a fingerprint salt or keyserver
+  token.** 0.2.1 created fresh identities while staging the new workspace and then refused to copy
+  the originals over them, so the migration stopped (`File exists`) and nothing was written. The
+  original identities now move unchanged, and only a missing one is created, so fingerprints stay
+  comparable across the move.
+- Two processes opening a new database at the same moment no longer fail one of them with a
+  `DatabaseError`: the version check that runs before the upgrade lock ignores a file another
+  process is still creating, and the check under the lock decides.
+
 ## 0.2.1 — 2026-09-23
 
 A correctness and security release. An audit of the published 0.2.0 wheel found fixes that had been

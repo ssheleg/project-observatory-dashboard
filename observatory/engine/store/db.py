@@ -48,7 +48,13 @@ def connect(path: pathlib.Path | None = None) -> sqlite3.Connection:
     target = pathlib.Path(path or DB_PATH)
     if target.is_symlink():
         raise migrate.CompatibilityError("Database path must not be a symbolic link")
-    compatibility.preflight(target)
+    # Fast refusal of an unsupported version before waiting for the lock. A file
+    # another process is creating right now can be unreadable for a moment; the
+    # check repeated under the lock below is the one that decides.
+    try:
+        compatibility.preflight(target)
+    except sqlite3.DatabaseError:
+        pass
     target.parent.mkdir(parents=True, exist_ok=True)
     with compatibility.upgrade_lock(target):
         compatibility.preflight(target)
