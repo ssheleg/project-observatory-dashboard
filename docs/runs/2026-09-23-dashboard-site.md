@@ -61,3 +61,8 @@ Updated that file's exported digest and byte count in SOURCE-INVENTORY.json;
 original source provenance stays unchanged. The package gate remains enforced.
 Humanization: on — humanizer plus editorial review of new landing copy; retained
 concrete mechanism and limits, no further wording changes after review (0%).
+
+The new offline CommonJS test also required an explicit path in the public-source
+allowlist. Only `tools/check_site_interactions.cjs` is admitted; arbitrary `.cjs`
+files remain refused and the admitted file still receives content/privacy scans.
+A regression test verifies both boundaries. No privacy rule was disabled.

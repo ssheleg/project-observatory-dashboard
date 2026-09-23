@@ -48,6 +48,12 @@ class ReleaseBoundaryTests(unittest.TestCase):
                         'observatory/engine/.env','observatory/engine/tools/unreviewed.sh',
                         'observatory/engine/.keyserver-token'):
             self.assertFalse(privacy.allowed_path(Path(refused)),refused)
+    def test_only_reviewed_commonjs_test_is_admitted_and_content_is_scanned(self):
+        self.assertTrue(privacy.allowed_path(Path('tools/check_site_interactions.cjs')))
+        self.assertFalse(privacy.allowed_path(Path('tools/unreviewed.cjs')))
+        self.assertFalse(privacy.allowed_path(Path('site/check_site_interactions.cjs')))
+        self.put('tools/check_site_interactions.cjs', 'private-fixture-value')
+        self.assertFalse(privacy.audit(self.root, ['private-fixture-value'], False)['passed'])
     def test_current_filename_is_scanned_without_echoing_private_identifier(self):
         self.put('docs/Confidential-Fixture.md','Generic text')
         result=privacy.audit(self.root,['confidential-fixture'],False)

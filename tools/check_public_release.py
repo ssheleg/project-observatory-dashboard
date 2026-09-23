@@ -53,6 +53,9 @@ def scan_path(relative: str, deny: list[str]) -> dict[str, int]:
 def allowed_path(rel: Path) -> bool:
     if rel.as_posix() in PUBLIC_IMAGES:
         return True
+    # Reviewed offline browser-behavior test; do not admit arbitrary CommonJS files.
+    if rel.as_posix() == "tools/check_site_interactions.cjs":
+        return True
     if any(x in SKIP or x.endswith(".egg-info") for x in rel.parts):
         return False
     if rel.parts[:2] == ("observatory", "engine"):
