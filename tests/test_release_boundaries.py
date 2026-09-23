@@ -61,6 +61,20 @@ class ReleaseBoundaryTests(unittest.TestCase):
     def test_private_identifier_match_is_case_insensitive_but_not_substring(self):
         self.assertEqual(privacy.scan_text('public-Confidential-Fixture-tools',['confidential-fixture']),{})
         self.assertTrue(privacy.scan_text('CONFIDENTIAL-FIXTURE.git',['confidential-fixture']))
+    def test_public_identifiers_are_subtracted_and_private_ones_still_found(self):
+        # tools/public-identifiers.json: names published on purpose leave the private list.
+        public=sorted(privacy.public_identifiers())[0]
+        self.put('docs/a.md',f'written by {public}; and confidential-fixture')
+        deny=self.put('deny.json',json.dumps([public.upper(),'confidential-fixture']))
+        run=subprocess.run(['python3',str(ROOT/'tools/check_public_release.py'),'--root',str(self.root),
+                            '--private-denylist',str(deny)],capture_output=True,text=True)
+        report=json.loads(run.stdout)
+        self.assertEqual(report['public_identifiers_subtracted'],1)
+        self.assertEqual(report['private_denylist_entries'],1)
+        self.assertEqual([f for f in report['findings'] if f['kind']=='private-identifier'][0]['count'],1)
+    def test_a_public_identifier_without_a_reason_is_refused(self):
+        bad=self.put('ids.json',json.dumps({'identifiers':[{'token':'someone','reason':' '}]}))
+        with self.assertRaises(ValueError):privacy.public_identifiers(bad)
     def test_reviewed_image_bytes_are_bound_to_path_digest_and_size(self):
         path='site/assets/fixture.png';data=b'\x89PNG\r\n\x1a\nsynthetic-image'
         approved={path:{hashlib.sha256(data).hexdigest()}}

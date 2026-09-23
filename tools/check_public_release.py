@@ -3,6 +3,9 @@
 
 Optional --private-denylist reads a LOCAL JSON array of private identifiers.
 It must never be committed. This scanner prints categories/counts, not values.
+Names this repository publishes on purpose (the author, the author's public
+projects) are listed with a reason in tools/public-identifiers.json and are
+subtracted from the private list.
 """
 from __future__ import annotations
 
@@ -14,6 +17,18 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PUBLIC_IDENTIFIERS = ROOT / "tools" / "public-identifiers.json"
+
+
+def public_identifiers(path: Path = PUBLIC_IDENTIFIERS) -> set[str]:
+    """Lower-cased tokens published on purpose; each entry must carry a reason."""
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    out = set()
+    for entry in doc["identifiers"]:
+        if not str(entry.get("token") or "").strip() or not str(entry.get("reason") or "").strip():
+            raise ValueError("every public identifier needs a token and a reason")
+        out.add(entry["token"].strip().lower())
+    return out
 ALLOWED_TOP = {".github", ".claude-plugin", "observatory", "tests", "tools", "docs", "site"}
 ALLOWED_ROOT = {".gitignore", "LICENSE", "README.md", "SECURITY.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md", "pyproject.toml", "AGENTS.md", "requirements-full.lock"}
 SKIP = {".git", ".venv", "__pycache__", "node_modules", "build", "dist"}
@@ -201,10 +216,20 @@ def main() -> int:
         except (ValueError, OSError):
             print(json.dumps({"passed": False, "error": "Private denylist must be a readable local JSON string array."}))
             return 2
+    allowed = 0
+    if deny:
+        try:
+            public = public_identifiers()
+        except (OSError, ValueError, KeyError) as exc:
+            print(json.dumps({"passed": False, "error": f"tools/public-identifiers.json is unreadable: {type(exc).__name__}"}))
+            return 2
+        kept = [x for x in deny if x.strip().lower() not in public]
+        allowed, deny = len(deny) - len(kept), kept
     if any(ref.startswith("-") for ref in a.history_ref):
         print(json.dumps({"passed": False, "error": "--history-ref takes a ref name, not an option."}))
         return 2
     report = audit(a.root, deny, a.history, tuple(a.history_ref) or ("--all",))
+    report["public_identifiers_subtracted"] = allowed
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
 
