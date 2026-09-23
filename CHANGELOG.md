@@ -3,6 +3,15 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.7 — 2026-09-24
+
+### Added
+
+- The projects table groups each project's Heroku apps by the environment they serve, with production
+  first and the account shown on hover. An app with no known environment is shown as "окружение не
+  указано" (environment not specified), never guessed from its name. This is the last slice of
+  [docs/design/DEPLOYMENTS.md](docs/design/DEPLOYMENTS.md).
+
 ## 0.3.6 — 2026-09-24
 
 ### Added

@@ -29,7 +29,7 @@ LEGACY = (
     'runtime_identity', 'remote_env',
     'project_identity',
     'sessions',
-    'env_page', 'metric_labels',
+    'env_page', 'metric_labels', 'hosting_groups',
 )
 BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',

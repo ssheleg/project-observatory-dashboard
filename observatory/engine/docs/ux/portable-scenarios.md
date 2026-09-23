@@ -14,6 +14,7 @@ These supplement the original product scenarios. Approved scope: operator reques
 | OSS-08 | Schedule observations | Explicitly enabled job carries the chosen workspace and no secret values | One writer per workspace; existing installation jobs are not replaced silently |
 | OSS-09 | Open the credential UI locally | Correct loopback Host/Origin accepted; authenticated operation logged without secret values | Lookalike origins, DNS rebinding and malformed requests are refused before effects |
 | OSS-10 | Copy a command from the local dashboard | Absolute program paths and Python select the displayed workspace; project and secret roots can contain spaces and quotes | Arguments remain literal, including shell metacharacters; static ENV actions locate a named slot without printing its value; importing a value requires an explicitly chosen private input file |
+| OSS-11 | See what a project runs where | The projects table groups each project's apps by the environment they serve. Production comes first, and the account is shown on hover. An app no override or provider placed in an environment is shown as not specified | Never inferred from an app's name. `config/environments.json` places an app, and `tests/test_hosting_groups.py` covers the grouping |
 
 OSS-10 regression evidence: `tests/test_dashboard_portability.py` executes generated
 commands against inert synthetic tools from an unrelated working directory. Nine

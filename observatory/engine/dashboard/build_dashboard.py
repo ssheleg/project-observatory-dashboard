@@ -493,6 +493,24 @@ def _findings_panel(FINDINGS: dict) -> dict:
             "omitted": 0}
 
 
+def hosting_context(relations: list[dict]) -> tuple[dict[str, str], dict[str, str]]:
+    """({deployment id: environment name}, {resource id: account label}).
+
+    From the `serves` and `in_account` edges and the documents they point at
+    (docs/design/DEPLOYMENTS.md). A deployment with no `serves` edge has no
+    environment here, and the page shows it as not specified, never as a guess
+    (PB-130). Either document may be absent in an older registry.
+    """
+    envs = {e["id"]: e["name"] for e in (load("environments.json")["environments"]
+                                         if (INV / "environments.json").is_file() else [])}
+    labels = {a["id"]: a["label"] for a in (load("accounts.json")["accounts"]
+                                           if (INV / "accounts.json").is_file() else [])}
+    env_of = {r["from"]: envs[r["to"]] for r in relations if r["type"] == "serves" and r["to"] in envs}
+    account_of = {r["from"]: labels[r["to"]] for r in relations
+                  if r["type"] == "in_account" and r["to"] in labels}
+    return env_of, account_of
+
+
 def build():
     pdoc, rdoc = load("projects.json"), load("repositories.json")
     projects, repos = pdoc["projects"], {r["id"]: r for r in rdoc["repositories"]}
@@ -782,12 +800,14 @@ def build():
     # project — is it up, what does it cost — must be answerable without
     # leaving the row.
     if HEROKU:
+        env_of, account_of = hosting_context(relations)
         by_project = {}
         for a in HEROKU["apps"]:
             if a.get("project"):
                 by_project.setdefault(a["project"], []).append(
                     {"name": a["name"], "state": a["state"], "cost": a["monthly_cost"],
-                     "rule": a["link_rule"]})
+                     "rule": a["link_rule"], "env": env_of.get(a["id"]),
+                     "account": account_of.get(a["id"])})
         for r in rows:
             r["heroku"] = sorted(by_project.get(r["id"], []), key=lambda x: x["name"])
     else:
@@ -1736,6 +1756,26 @@ document.querySelectorAll(".chip-btn[data-f]").forEach(c => c.onclick = () => {
 }
 
 const APPS = (D.heroku && D.heroku.apps) || [];
+const ENV_ORDER = ["production", "staging", "review", "development", "test", "local"];
+const ENV_LABEL = {production: "прод", staging: "стейджинг", review: "ревью", development: "разработка",
+                   test: "тест", local: "локально"};
+function hostingGroups(apps) {
+  const rank = h => h.env ? ENV_ORDER.indexOf(h.env) : ENV_ORDER.length;
+  const groups = new Map();
+  [...apps].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+    .forEach(h => { const k = h.env || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(h); });
+  // One group needs no heading when nothing is known about environments at all.
+  const bare = groups.size === 1 && groups.has("");
+  return [...groups].map(([env, list]) =>
+    `<div class="envgroup" data-env="${E(env || "unassigned")}">` +
+    (bare ? "" : `<div class="tier">${env ? chip(ENV_LABEL[env] || env, env === "production" ? "ok" : "")
+                                         : chip("окружение не указано", "warn")}</div>`) +
+    list.map(h =>
+      `<div class="st st-${E(h.state)}" title="${E(h.rule)}${h.account ? " · аккаунт " + E(h.account) : ""}"><i></i>` +
+      `<span class="mono">${E(h.name)}</span>` +
+      (h.cost ? `<span class="anchor"> $${Math.round(h.cost)}</span>` : "") +
+      `</div>`).join("") + `</div>`).join("");
+}
 const DOMS = D.domains || [];
 const LIVE_BY_HOST = h => { const d = DOMS.find(x => x.name === h); return d ? d.live : null; };
 const CREDS = (D.creds && D.creds.credentials) || [];
@@ -1977,15 +2017,11 @@ function row(r) {
   const stack = r.stack.slice(0, 3).map(s => chip(s)).join("") +
     (r.stack.length > 3 ? chip("+" + (r.stack.length - 3)) : "");
   const note = r.note ? chip(r.wiki_notes + " зам.", "ok") : NONE;
-  // A project's Heroku apps, each with its state dot, the rule that linked
-  // it and its monthly cost.
-  const host = (r.heroku || []).length
-    ? (r.heroku || []).map(h =>
-        `<div class="st st-${E(h.state)}" title="${E(h.rule)}"><i></i>` +
-        `<span class="mono">${E(h.name)}</span>` +
-        (h.cost ? `<span class="anchor"> $${Math.round(h.cost)}</span>` : "") +
-        `</div>`).join("")
-    : NONE;
+  // A project's Heroku apps, grouped by the environment each one serves
+  // (docs/design/DEPLOYMENTS.md, PB-130): each with its state dot, the rule that
+  // linked it, its account and its monthly cost. An app no override or provider
+  // placed in an environment is grouped as not specified, never guessed.
+  const host = (r.heroku || []).length ? hostingGroups(r.heroku) : NONE;
   // An empty cell carries class `e`, so the narrow layout can hide it
   // instead of printing a label with nothing under it.
   const td = (label, html, cls) =>
