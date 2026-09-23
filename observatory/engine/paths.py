@@ -33,6 +33,38 @@ RAW = REGISTRY / "_raw"
 STORE = HOME / "store"
 SCRATCH = setting_path("OBSERVATORY_SCRATCH", STORE / "raw")
 STATE = setting_path("OBSERVATORY_STATE", STORE)
+
+
+def key_locations(name: str) -> tuple[Path, ...]:
+    """Where a local provider key may be: the selected state, then the legacy store.
+
+    One entry when `OBSERVATORY_STATE` is not redirected (the default), two when
+    it is. PB-091: keys follow the same state selection as the token and salt.
+    """
+    selected, legacy = STATE / name, STORE / name
+    return (selected,) if selected == legacy else (selected, legacy)
+
+
+def local_key(name: str) -> tuple[Path, str | None]:
+    """(the file to read, a note) for a local provider key; never reads it.
+
+    The selected state wins. A key found only in the legacy store is read with
+    a note naming where it should move; nothing is copied or moved. A key in
+    BOTH places is refused: choosing one silently could use the older key. A
+    key in neither place resolves to the selected path, so the caller's
+    "missing" message names where to install it.
+    """
+    places = key_locations(name)
+    if len(places) == 1:
+        return places[0], None
+    selected, legacy = places
+    if selected.exists() and legacy.exists():
+        raise configuration.ConfigurationError(
+            f"a key named {name} is in both {selected} (the selected state) and {legacy} "
+            f"(the legacy store); remove the one you no longer use")
+    if legacy.exists():
+        return legacy, f"read from the legacy location {legacy}; the selected state expects it at {selected}"
+    return selected, None
 DOCS = HOME / "docs"
 DASHBOARD_HTML = setting_path("OBSERVATORY_DASHBOARD", DOCS / "projects-dashboard.html")
 DASHBOARD_DIR = setting_path("OBSERVATORY_DASHBOARD_DIR", DASHBOARD_HTML.parent / "dashboard")

@@ -3,6 +3,16 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.8 — 2026-09-24
+
+### Fixed
+
+- The local OpenRouter and embedding key files followed `store/` even when `OBSERVATORY_STATE`
+  redirected the workspace's state, unlike the token and salt. They now follow the selected state.
+  A key left at the old location is still read with a note, and nothing is moved. A key in both
+  places refuses instead of choosing silently. The installer refuses while a legacy copy exists,
+  before it reads the key or asks the provider anything. Both locations are scanned for leaks.
+
 ## 0.3.7 — 2026-09-24
 
 ### Added

@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.7**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.8**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -111,3 +111,9 @@ edge without a deployment. One credential and project pair may now have more tha
 `local` edge, and one `run` edge per deployment that reads it. The gitignored
 `store/raw/remote-env.json` gains `current`, the salted fingerprints of the vault's current values.
 The registry's `remote-env.json` apps gain `vault_in_use`, which holds slot names and never a value.
+
+## Workspace state: provider key files (0.3.8)
+
+With `OBSERVATORY_STATE` unset, which is the default, key files stay at `store/.openrouter-key` and
+`store/.openai-key`, so nothing changes. With it set, they belong under the selected state, and a
+key at the old location is read with a note until you move it.

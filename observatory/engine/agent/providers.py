@@ -68,7 +68,7 @@ EMBED_KEY_ENV = "OPENAI_API_KEY"
 #: which is the whole point of having two.
 KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)
              if os.environ.get("OBSERVATORY_KEY_FILE") else
-             (paths.STORE / ".openrouter-key",
+             (paths.STATE / ".openrouter-key",
               paths.source_path("secret_store", paths.SECRETS) / 'openrouter'))
 UA = "project-observatory/0.1 (+https://github.com/ssheleg/project-observatory-dashboard)"
 
@@ -547,7 +547,7 @@ def _post(base_url: str, key: str, body: dict, timeout: int = 120) -> dict:
 EMBED_KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_EMBED_KEY_FILE"]),)
                    if os.environ.get("OBSERVATORY_EMBED_KEY_FILE") else
                    (paths.source_path("secret_store", paths.SECRETS) / 'openai',
-                    paths.STORE / ".openai-key"))
+                    paths.STATE / ".openai-key"))
 
 
 #: What a key for each provider must look like. Checked because the environment
@@ -695,9 +695,23 @@ def _read_from(env_name: str, files: tuple) -> tuple[str | None, str]:
     return None, "nowhere"
 
 
+def _with_local(files: tuple, name: str) -> tuple:
+    """`files` with the local key at `paths.STATE / name` resolved (PB-091):
+    the legacy store stands in when only it holds the key; both refuse."""
+    import configuration
+    try:
+        where, note = paths.local_key(name)
+    except configuration.ConfigurationError as exc:
+        raise Fatal(str(exc)) from None
+    if note and note not in _SHAPE_WARNED:
+        _SHAPE_WARNED.add(note)
+        print(f"  {note}", file=sys.stderr)
+    return tuple(where if f == paths.STATE / name else f for f in files)
+
+
 def read_embed_key() -> tuple[str | None, str]:
     files = ((pathlib.Path(os.environ["OBSERVATORY_EMBED_KEY_FILE"]),)
-             if os.environ.get("OBSERVATORY_EMBED_KEY_FILE") else EMBED_KEY_FILES)
+             if os.environ.get("OBSERVATORY_EMBED_KEY_FILE") else _with_local(EMBED_KEY_FILES, ".openai-key"))
     return _read_from(EMBED_KEY_ENV, files)
 
 
@@ -781,7 +795,7 @@ def embed(texts: list[str], log=print) -> dict:
 def read_key() -> tuple[str | None, str]:
     """The chat provider's key. Same discipline as every other."""
     search = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)
-              if os.environ.get("OBSERVATORY_KEY_FILE") else KEY_FILES)
+              if os.environ.get("OBSERVATORY_KEY_FILE") else _with_local(KEY_FILES, ".openrouter-key"))
     return _read_from(KEY_ENV, search)
 
 

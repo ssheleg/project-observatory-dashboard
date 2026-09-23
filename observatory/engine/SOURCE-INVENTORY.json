@@ -24,8 +24,8 @@
     {
       "path": "agent/providers.py",
       "source_sha256": "e2d88a03c47dc5985b106877fc894951b0b5972f37bed90df0a0e54dd03caaaf",
-      "export_sha256": "ff1e149f3543a7142179fd86d43c3170711b10e92554065868058e9eb99a6268",
-      "bytes": 49670,
+      "export_sha256": "59e31afc5aa1b05a75c1b5458b70f0f9756f587c5e4798c74c6e21b4fd1c9f90",
+      "bytes": 50297,
       "python_comments_removed": 168,
       "python_docstrings_removed": 24,
       "tool_descriptions_retained": 0,
@@ -288,8 +288,8 @@
     {
       "path": "collectors/scan_openrouter.py",
       "source_sha256": "255a843fbca4a16a7cc9548346ac38c039f0399cf2d485591ddcb222984e3ee2",
-      "export_sha256": "1b5fdb50ba44ae57b0659143eb18d59bbe3a75e1cfffb6fefffeb572c4167469",
-      "bytes": 10579,
+      "export_sha256": "d1ace7174e424f5a041aea9d1441b5ff4e5b5ac23ea1eaf9b4a9871459e44624",
+      "bytes": 10820,
       "python_comments_removed": 33,
       "python_docstrings_removed": 5,
       "tool_descriptions_retained": 0,
@@ -348,7 +348,7 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "5f66ac686d276e34fdf21ab4a4c4b7ab464b76d8bfc562c638fde6d725ddd5fd",
+      "export_sha256": "f4744379f7b217d2fcb761150e39ba263982e69bae0892bbce85dd43a9866bdd",
       "bytes": 6535,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
@@ -572,8 +572,8 @@
     {
       "path": "docs/COMPATIBILITY.md",
       "source_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "export_sha256": "74c2767afef155e98783d5a8d9db0d64422b257328223701d6727913d57a5d8c",
-      "bytes": 9602,
+      "export_sha256": "8215b6e9c2a54753179dc18d0dc8fae3192bc3955c4d48af219ef0bde375b5fe",
+      "bytes": 9912,
       "upstream_modified": true
     },
     {
@@ -748,8 +748,8 @@
     {
       "path": "paths.py",
       "source_sha256": "08aeba912f8605f5e050975ae92c6421a7432f35af72f5cc2a6d2dc26f3f616c",
-      "export_sha256": "cf3b5288d32f92e85b4204abedc7ade111a6c07178627fc6214ca425f1464f79",
-      "bytes": 3761,
+      "export_sha256": "43262fe9980241d5d0e54fd594a0cf3d10cb16ebf39517598d1e5ed999da1f09",
+      "bytes": 5213,
       "python_comments_removed": 0,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1150,8 +1150,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "207b43487daac07583013c1182ba286261f9736e2abea627cd761a2770d16149",
-      "bytes": 10177,
+      "export_sha256": "2d2255c8a8162d70f65c2e53820ddcaadb45edcac9cb9d1df46755f33e41ec3a",
+      "bytes": 10191,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1360,6 +1360,13 @@
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/test_local_keys.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "4651c320593c2a8d536db82434b8b27e021b19040605dea383b4b56bc50aa15c",
+      "bytes": 3874
     },
     {
       "path": "tests/test_mcp_wire.py",
@@ -1888,8 +1895,8 @@
     {
       "path": "tools/install_key.py",
       "source_sha256": "10b874fbd05dd3a50cb8da0c8a45131f2b68c3f185de581b755ef54d6f763061",
-      "export_sha256": "cdb490bed15c11b06c09f86e6f2b0031873da6de39b7f7336bd25c98224c066e",
-      "bytes": 7607,
+      "export_sha256": "d0dd609970458376ffe61f61d654c2fb10259ca256c068c7c58c544367efc9f2",
+      "bytes": 8286,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -2065,8 +2072,8 @@
     {
       "path": "tools/scan_leaks.py",
       "source_sha256": "a6dead1ccdd505ddbdb6efabe884d1cc2acc8be744930c70cf1b1223eb39bc1e",
-      "export_sha256": "df0ae4ef2630dd268ef2559b7efc2aaaaae0d3ece3d2e9d93b3af137e95456a5",
-      "bytes": 20041,
+      "export_sha256": "8bb4815eeb4fcbdedebbcaabcb65e3ee86ae20575c759ac378f9c1bd4bafb7c0",
+      "bytes": 20282,
       "python_comments_removed": 25,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
@@ -2190,8 +2197,8 @@
     {
       "path": "tools/trap_efficacy.py",
       "source_sha256": "36190578630e1c379ead3a473aca367ec58a41ab0f4240ae24780108063f08bc",
-      "export_sha256": "1c37402d7ffd544befbc7f13ad75a94ea2e22b5ae9c089dbdfc5664fc0d4a9aa",
-      "bytes": 33695,
+      "export_sha256": "d22d1076a63655e629f4538a0587a0e6ca03d58ac82fafa0f13a98c3776083ba",
+      "bytes": 33727,
       "python_comments_removed": 81,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
@@ -2258,7 +2265,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 261,
+  "file_count": 262,
   "excluded": [
     "git-history",
     "operator-registries",

@@ -163,6 +163,12 @@ database from its last rowid per table (in `store/raw/leak-scan-state.json`), wi
 for a complete pass. So a sighting is reported once, by the tick that first reads it, and stays on
 record in the leak register until it is settled. `tools/scan_leaks.py --full` reads everything again.
 
+**A local provider key** (`tools/install_key.py --for observatory`, stdin only) is kept at
+`store/.openrouter-key`, or under `OBSERVATORY_STATE` when you redirect the state. After such a
+redirect, a key left at the old `store/` location is still read, with a note saying where it
+belongs, and is never moved for you. If a key exists in both places, reading refuses and names both
+files, rather than guessing which one is current. Remove the one you no longer use.
+
 ## Connect an agent
 
 The complete MCP server uses stdio. Configure a Python executable from the
