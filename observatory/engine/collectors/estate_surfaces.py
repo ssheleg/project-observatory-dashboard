@@ -183,7 +183,7 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
     by_name = {d["name"]: d for d in domains}
     table = host_table(projects)
     boundary = _boundary()
-    # A CURATED product's domains: eSIM Plus claims esimplus.* as one thing
+    # A CURATED product's domains: one product can claim example.* as one thing
     # while no single repository is its site — the domain has an owner at the
     # product level, and saying "unclassified" there would be false.
     prod_of: dict[str, str] = {}

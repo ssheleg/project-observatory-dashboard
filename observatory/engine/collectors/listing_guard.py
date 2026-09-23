@@ -37,7 +37,7 @@ def empty_would_lose(label: str, previous_count: int, new_count: int,
     """The reason to record, or None when the empty answer costs nothing.
 
     `label` names the surface as `degraded` will name it — `github:ssheleg`,
-    `bitbucket:mobyrix` — so a host reading the list can tell WHICH surface went
+    `bitbucket:<workspace>` — so a host reading the list can tell WHICH surface went
     dark rather than merely that something did. `remedy` is the caller's own
     sentence about how a human forces the empty answer through, because only the
     caller knows what it keeps and where.
