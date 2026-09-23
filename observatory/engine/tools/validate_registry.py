@@ -223,7 +223,13 @@ def main():
     for a in accs:
         if not a["id"].startswith("account:") or "@" in a["id"]: errors.append(f"account id is not a provider id: {a['id']}")
     ai={a["id"] for a in accs}
-    endpoints=di|pi|ri|hi|ci|pri|zi|ai; types=set(rd["relation_types"])
+    envs=load("environments.json")["environments"] if (INV/"environments.json").is_file() else []
+    uniq(envs,"id","environments",errors)
+    for e in envs:
+        if e["id"]!=f"environment:{e['project']}/{e['name']}": errors.append(f"environment id is not <project>/<name>: {e['id']}")
+        if e["project"] not in pi: errors.append(f"environment names a project that does not exist: {e['id']}")
+    ei={e["id"] for e in envs}
+    endpoints=di|pi|ri|hi|ci|pri|zi|ai|ei; types=set(rd["relation_types"])
     for r in relations:
         if r["type"] not in types: errors.append(f"undefined relation type: {r['type']}")
         for side in ("from","to"):
@@ -327,7 +333,7 @@ def main():
     for relation in relations:
         if not relation.get("source_refs") or set(relation["source_refs"])-si: errors.append(f"relation has missing or unresolved sources: {relation['id']}")
         # Derived edges must say why they exist; an authored edge may explain itself in its own fields.
-        if relation["type"] in ("implemented_by", "deployed_to", "credential_used_by", "in_account") and not relation.get("rule"):
+        if relation["type"] in ("implemented_by", "deployed_to", "credential_used_by", "in_account", "serves") and not relation.get("rule"):
             errors.append(f"derived relation carries no rule: {relation['id']}")
     for source in sources:
         artifact=source.get("artifact")

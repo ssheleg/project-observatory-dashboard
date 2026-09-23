@@ -236,6 +236,18 @@ def scan_app(app: dict, tok: str) -> dict:
     # CUSTOM DOMAINS, because a zone's CNAME says `xyz.herokudns.com` and never
     # the app's name: the only way from a domain to the application serving it
     # is Heroku's own list of which hostnames it accepts for the app.
+    # THE PIPELINE STAGE is Heroku's own statement of which environment an app
+    # serves (docs/design/DEPLOYMENTS.md rule 1). 404 means the app is in no
+    # pipeline, which is an answer; any other failure is kept as an error.
+    pc = get(f"{API}/apps/{aid}/pipeline-couplings", tok)
+    if isinstance(pc, dict) and not pc.get("__error__"):
+        row["pipeline"] = {"id": (pc.get("pipeline") or {}).get("id"),
+                           "name": (pc.get("pipeline") or {}).get("name"), "stage": pc.get("stage")}
+        row["pipeline_error"] = None
+    else:
+        row["pipeline"] = None
+        row["pipeline_error"] = (None if isinstance(pc, dict) and pc.get("__error__") == "404"
+                                 else (pc.get("__error__") if isinstance(pc, dict) else "unexpected"))
     doms = get(f"{API}/apps/{aid}/domains", tok)
     row["domains"] = (sorted(d["hostname"] for d in doms
                              if isinstance(d, dict) and d.get("kind") == "custom" and d.get("hostname"))

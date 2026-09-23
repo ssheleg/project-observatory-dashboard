@@ -242,7 +242,7 @@ for k in sorted(repos):
 #: survive because it was written once. T26 pruned relations whose endpoints
 #: vanished; this is the other half — a relation whose JUSTIFICATION vanished,
 #: which is what an operator's correction produces.
-DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of", "in_account"}
+DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of", "in_account", "serves"}
 authored = [r for r in rel_doc["relations"] if r["type"] not in DERIVED_TYPES]
 stale = len(rel_doc["relations"]) - len(authored)
 if stale:
@@ -570,9 +570,28 @@ if REMOTE_SRC.is_file() and ENV_SRC.is_file():
           f"one, {_rt['differs']} differing, {_rt['remote_only']} only in production, "
           f"{_rt['retired_still_deployed']} retired and still deployed")
 
+# ---- environments (docs/design/DEPLOYMENTS.md, PB-128) --------------------
+# ONE CURATED INPUT, named for the derivation that reads this script's source:
+# `config/environments.json`, the operator's override of which environment a
+# deployment serves.
+import environments as _environments
+_env_over, _env_problems = _environments.load_overrides(paths.config_file("environments.json"))
+_env_doc, _env_edges = _environments.build(
+    heroku_apps, (_scan.get("apps") or []) if HEROKU_SRC.is_file() else [], credentials,
+    _edoc["files"] if ENV_SRC.is_file() else [], out_projs, _env_over, _env_problems, OBS)
+for e in _env_edges:
+    add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
+_stamped("environments.json", _env_doc)
+_nt = _env_doc["totals"]
+print(f"environments.json: {_nt['environments']} environment(s), {_nt['deployments_assigned']} deployment(s) "
+      f"assigned, {_nt['deployments_unassigned']} unassigned")
+for _dg in _env_doc["degraded"]:
+    print(f"  degraded environments.json: {_dg['reason']}")
+
 endpoints = ({p["id"] for p in out_projs} | {r["id"] for r in out_repos}
              | {a["id"] for a in heroku_apps} | {c["id"] for c in credentials}
              | {z["id"] for z in zone_rows} | {a["id"] for a in _acc_doc["accounts"]}
+             | {e["id"] for e in _env_doc["environments"]}
              | {pr["id"] for pr in products_doc["products"]}
              | {"domain:" + d["name"] for d in json.load(open(INV/"domains.json"))["domains"]})
 kept, dropped = [], []
@@ -601,6 +620,9 @@ rel_doc["relation_types"]["deployed_to"] = ("A project is deployed to a hosting 
 rel_doc["relation_types"]["in_account"] = ("A provider resource (a Heroku app, a Cloudflare zone) lives in a "
     "provider account. Only when the provider stated the account; registry/accounts.json lists the rest "
     "as unattributed (docs/design/DEPLOYMENTS.md).")
+rel_doc["relation_types"]["serves"] = ("A deployment serves one environment of its project. Only on an "
+    "override in config/environments.json or the provider's own statement (a Heroku pipeline stage); "
+    "registry/environments.json lists the rest as unassigned (docs/design/DEPLOYMENTS.md).")
 rel_doc["schema_version"]=2; rel_doc["updated_on"]=OBS; rel_doc["relations"]=relations
 _stamped("relations.json", rel_doc)
 src_doc["sources"]=sources

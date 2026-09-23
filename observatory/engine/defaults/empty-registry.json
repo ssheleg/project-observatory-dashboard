@@ -160,5 +160,20 @@
     },
     "degraded": [],
     "source_refs": []
+  },
+  "environments.json": {
+    "schema_version": null,
+    "updated_on": null,
+    "note": "",
+    "environments": [],
+    "unassigned": [],
+    "totals": {
+      "environments": 0,
+      "served": 0,
+      "deployments_assigned": 0,
+      "deployments_unassigned": 0
+    },
+    "degraded": [],
+    "source_refs": []
   }
 }
