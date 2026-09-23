@@ -59,6 +59,12 @@ it does not replace an existing installation. Configuration belongs in
 `project-observatory full-path` prints the immutable engine directory, useful
 for connecting scripts, hooks and MCP.
 
+**Which environment an app serves** comes from the provider (a Heroku pipeline stage) or from you:
+`config/environments.json` holds `{"deployments": {"heroku:<app>": "production"}}`. The names
+`production`, `staging`, `review`, `development`, `test` and `local` are recognised (`prod` and
+`stage` are read as their full names). An app with neither is listed as `unassigned` in
+`registry/environments.json`. Its name is never read as a hint.
+
 `full doctor` also reports whether the scheduled tick is alive (`tick.verdict`). A tick that was
 killed mid-run, for example by a restart, is `interrupted`. When no tick has finished for six hours
 the verdict is `stale`, and when one has held the lock for longer than that it is `running-long`.

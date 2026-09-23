@@ -3,6 +3,21 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.5 — 2026-09-24
+
+### Added
+
+- Environments are entities, scoped by project. `registry/environments.json` lists
+  `environment:<project>/<name>` from explicit evidence only. There are four kinds:
+  - an override in `config/environments.json`;
+  - the Heroku pipeline stage, which the scan now reads;
+  - the environment a project's vault slots are filed under;
+  - a `.env.<name>` file in its checkout.
+
+  Only the first two bind an app to an environment, as a `serves` edge that carries its rule. An app
+  with neither is `unassigned`, and its name is not taken as a hint. So two projects' production apps
+  no longer look alike. This is the second slice of [docs/design/DEPLOYMENTS.md](docs/design/DEPLOYMENTS.md).
+
 ## 0.3.4 — 2026-09-24
 
 ### Fixed
