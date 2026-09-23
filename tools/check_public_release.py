@@ -75,7 +75,7 @@ def allowed_path(rel: Path) -> bool:
                 and (rel.suffix in EXTENSIONS or str(rel) in ALLOWED_ROOT or rel.name in {"_headers", "_redirects", "robots.txt"}))
 
 
-def audit(root: Path, deny: list[str], history: bool) -> dict:
+def audit(root: Path, deny: list[str], history: bool, refs: tuple[str, ...] = ("--all",)) -> dict:
     findings = []
     files = []
     for p in sorted(root.rglob("*")):
@@ -117,7 +117,7 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                 if rel and not allowed_path(Path(rel)):
                     findings.append({"kind": "tracked-outside-public-allowlist", "count": 1})
     if history:
-        paths = subprocess.run(["git", "-C", str(root), "log", "--all", "--name-only", "--format=", "-z"], capture_output=True, text=True)
+        paths = subprocess.run(["git", "-C", str(root), "log", *refs, "--name-only", "--format=", "-z"], capture_output=True, text=True)
         if paths.returncode:
             findings.append({"kind": "historical-paths-unavailable", "count": 1})
         else:
@@ -126,7 +126,7 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                     findings.append({"kind": "history:forbidden-path", "count": 1})
                 for category, n in scan_path(rel, deny).items():
                     findings.append({"kind": "history-path:" + category, "count": n})
-        run = subprocess.run(["git", "-C", str(root), "rev-list", "--objects", "--all"], capture_output=True, text=True)
+        run = subprocess.run(["git", "-C", str(root), "rev-list", "--objects", *refs], capture_output=True, text=True)
         if run.returncode:
             findings.append({"kind": "git-history-unavailable", "count": 1})
         else:
@@ -172,7 +172,7 @@ def audit(root: Path, deny: list[str], history: bool) -> dict:
                     continue
                 for category, n in scan_text(text, deny).items():
                     findings.append({"kind": "history:" + category, "count": n})
-            messages = subprocess.run(["git", "-C", str(root), "log", "--all", "--format=%B"], capture_output=True, text=True)
+            messages = subprocess.run(["git", "-C", str(root), "log", *refs, "--format=%B"], capture_output=True, text=True)
             if messages.returncode:
                 findings.append({"kind": "commit-messages-unavailable", "count": 1})
             for category, n in scan_text(messages.stdout, deny).items():
@@ -188,6 +188,9 @@ def main() -> int:
     p.add_argument("--root", type=Path, default=ROOT)
     p.add_argument("--private-denylist", type=Path)
     p.add_argument("--history", action="store_true")
+    p.add_argument("--history-ref", action="append", default=[],
+                   help="scan only history reachable from REF (repeatable); default is every ref. "
+                        "CI passes HEAD so an unmerged branch cannot fail another pull request")
     a = p.parse_args()
     deny = []
     if a.private_denylist:
@@ -198,7 +201,10 @@ def main() -> int:
         except (ValueError, OSError):
             print(json.dumps({"passed": False, "error": "Private denylist must be a readable local JSON string array."}))
             return 2
-    report = audit(a.root, deny, a.history)
+    if any(ref.startswith("-") for ref in a.history_ref):
+        print(json.dumps({"passed": False, "error": "--history-ref takes a ref name, not an option."}))
+        return 2
+    report = audit(a.root, deny, a.history, tuple(a.history_ref) or ("--all",))
     print(json.dumps(report, indent=2))
     return 0 if report["passed"] else 1
 

@@ -73,6 +73,19 @@ class ReleaseBoundaryTests(unittest.TestCase):
             large=b'\x89PNG\r\n\x1a\n'+b'x'*(4*1024*1024)
             privacy.PUBLIC_IMAGES[path]={hashlib.sha256(large).hexdigest()}
             self.assertFalse(privacy.approved_image(path,large))
+    def test_history_ref_limits_the_scan_to_one_branch(self):
+        self.git('init','-q');self.git('checkout','-qb','main')
+        self.put('docs/ok.md','Generic text')
+        self.git('add','.');self.git('commit','-qm','Synthetic main')
+        self.git('checkout','-qb','other')
+        self.put('docs/other.md','confidential-fixture on an unmerged branch')
+        self.git('add','.');self.git('commit','-qm','Synthetic other branch')
+        self.git('checkout','-q','main')
+        every=privacy.audit(self.root,['confidential-fixture'],True)
+        self.assertIn('history:private-identifier',{i['kind'] for i in every['findings']},
+                      'by default every ref is scanned')
+        head=privacy.audit(self.root,['confidential-fixture'],True,('HEAD',))
+        self.assertTrue(head['passed'],head['findings'])
     def test_history_checks_removed_secret_and_prior_unreviewed_image(self):
         path='site/assets/fixture.png';approved=b'\x89PNG\r\n\x1a\nreviewed'
         with patch.dict(privacy.PUBLIC_IMAGES,{path:{hashlib.sha256(approved).hexdigest()}},clear=True):
