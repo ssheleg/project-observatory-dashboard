@@ -186,7 +186,10 @@ def main(argv: list[str]) -> int:
     conn.close()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     atomic.write_text(OUT, text)
-    print(f"ledger -> {OUT.relative_to(ROOT)} ({n} record(s), "
+    # The registry lives in the private workspace, not under the program: name it
+    # relative to the source only in a checkout that keeps data beside the code.
+    shown = OUT.relative_to(ROOT) if OUT.is_relative_to(ROOT) else OUT
+    print(f"ledger -> {shown} ({n} record(s), "
           f"{OUT.stat().st_size // 1024} KB)")
     return 0
 
