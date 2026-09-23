@@ -217,6 +217,10 @@ def scan_app(app: dict, tok: str) -> dict:
         "team": ((app.get("team") or {}).get("name")
                  or (app.get("organization") or {}).get("name") or "personal"),
         "owner": (app.get("owner") or {}).get("email"),
+        # The account ids the provider states (DEPLOYMENTS.md rule 3): a team's
+        # id, or for a personal app its owner's user id. Never the e-mail.
+        "team_id": ((app.get("team") or {}).get("id") or (app.get("organization") or {}).get("id")),
+        "owner_id": (app.get("owner") or {}).get("id"),
         "region": (app.get("region") or {}).get("name"),
         "stack": (app.get("stack") or {}).get("name"),
         "created_at": app.get("created_at"), "released_at": app.get("released_at"),

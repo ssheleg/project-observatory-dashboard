@@ -242,7 +242,7 @@ for k in sorted(repos):
 #: survive because it was written once. T26 pruned relations whose endpoints
 #: vanished; this is the other half — a relation whose JUSTIFICATION vanished,
 #: which is what an operator's correction produces.
-DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of"}
+DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of", "in_account"}
 authored = [r for r in rel_doc["relations"] if r["type"] not in DERIVED_TYPES]
 stale = len(rel_doc["relations"]) - len(authored)
 if stale:
@@ -476,6 +476,20 @@ if ZONES_SRC.is_file():
           f"project, {_zt['in_domain_registry']} in the domain registry, "
           + ", ".join(f"{k} {v}" for k, v in sorted(_zt['by_standing'].items())))
 
+# ---- accounts (docs/design/DEPLOYMENTS.md, PB-127) ------------------------
+import accounts as _accounts
+_acc_doc, _acc_edges = _accounts.build(
+    (_scan.get("apps") or []) if HEROKU_SRC.is_file() else [], zone_rows, OBS,
+    HEROKU_SRC.is_file(), ZONES_SRC.is_file())
+for e in _acc_edges:
+    add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
+_stamped("accounts.json", _acc_doc)
+print(f"accounts.json: {_acc_doc['totals']['accounts']} account(s), "
+      f"{_acc_doc['totals']['attributed']} resource(s) attributed, "
+      f"{_acc_doc['totals']['unattributed']} unattributed")
+for _dg in _acc_doc["degraded"]:
+    print(f"  degraded accounts.json: {_dg['reason']}")
+
 # ---- credentials ---------------------------------------------------------
 # WHAT EXISTS AND WHO MAY USE IT, never a value. `tools/vault.py` holds the
 # values; this is the estate's side of the same question, and the reason it is
@@ -558,6 +572,7 @@ if REMOTE_SRC.is_file() and ENV_SRC.is_file():
 
 endpoints = ({p["id"] for p in out_projs} | {r["id"] for r in out_repos}
              | {a["id"] for a in heroku_apps} | {c["id"] for c in credentials}
+             | {z["id"] for z in zone_rows} | {a["id"] for a in _acc_doc["accounts"]}
              | {pr["id"] for pr in products_doc["products"]}
              | {"domain:" + d["name"] for d in json.load(open(INV/"domains.json"))["domains"]})
 kept, dropped = [], []
@@ -583,6 +598,9 @@ rel_doc["relation_types"]["part_of"] = ("A project is one part of a product — 
     "suggested grouping in registry/products.json never becomes an edge.")
 rel_doc["relation_types"]["deployed_to"] = ("A project is deployed to a hosting application. "
     "The edge carries the rule that made it in registry/heroku-apps.json; a name was never enough.")
+rel_doc["relation_types"]["in_account"] = ("A provider resource (a Heroku app, a Cloudflare zone) lives in a "
+    "provider account. Only when the provider stated the account; registry/accounts.json lists the rest "
+    "as unattributed (docs/design/DEPLOYMENTS.md).")
 rel_doc["schema_version"]=2; rel_doc["updated_on"]=OBS; rel_doc["relations"]=relations
 _stamped("relations.json", rel_doc)
 src_doc["sources"]=sources
