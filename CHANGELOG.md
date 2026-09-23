@@ -3,6 +3,14 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.4 — 2026-09-24
+
+### Fixed
+
+- The dashboard server reported version 0.1.0 in `/health`, in its receipt and in its `Server` header
+  in every release. It now reports the application version, and a test refuses a second version
+  literal anywhere in the engine.
+
 ## 0.3.3 — 2026-09-24
 
 ### Added
