@@ -3020,6 +3020,29 @@ def collect() -> list[dict]:
                           "expected_revision), or accept them as history",
                 "evidence": ["store:ledger.project_id", "registry:projects.json"]})
 
+    # IDENTITY AMBIGUITIES from the persisted identity map (docs/design/IDENTITY.md):
+    # a project that shares strong anchors with two recorded projects, or that
+    # an override points at an id another project already holds, got a NEW id.
+    # Nothing was guessed; the operator decides with identity_overrides.json.
+    _idmap = paths.REGISTRY / "identity.json"
+    try:
+        _amb = json.loads(_idmap.read_text()).get("ambiguities") or [] if _idmap.is_file() else []
+    except (OSError, ValueError):
+        _amb = []
+        out.append({"type": "identity.unreadable", "subject": "registry:identity.json", "severity": "warning",
+                    "title": "the identity map could not be read",
+                    "detail": "Project ids are resolved from registry/identity.json; an unreadable map stops "
+                              "the emit step so ids are not re-minted.",
+                    "action": "restore registry/identity.json from the registry history",
+                    "evidence": ["registry:identity.json"]})
+    for a_ in _amb:
+        out.append({"type": "identity.ambiguous", "subject": f"key:{a_.get('key')}", "severity": "warning",
+                    "title": f"project key {a_.get('key')!r} could not be matched to one recorded project",
+                    "detail": f"{a_.get('reason')}: {', '.join(a_.get('candidates') or [])}. It was given a new id "
+                              "instead of borrowing another project's history.",
+                    "action": "if it is a rename, pin it in config/identity_overrides.json to the id it should keep",
+                    "evidence": ["registry:identity.json"]})
+
                                                                               
                                                                                    
                                                                           

@@ -143,6 +143,21 @@ if not isinstance(ID_OVERRIDE, dict) or not all(isinstance(k, str) and isinstanc
     raise ValueError("identity_overrides must map strings to strings")
 
 
+def _map_aliases() -> dict[str, str]:
+    """Merge key -> id from the persisted identity map (docs/design/IDENTITY.md)."""
+    f = paths.REGISTRY / "identity.json"
+    try:
+        doc = json.loads(f.read_text()) if f.is_file() else {}
+    except (OSError, ValueError):
+        return {}
+    return {k: pid for pid, e in (doc.get("projects") or {}).items() for k in e.get("keys") or []}
+
+
+KEY_TO_ID = _map_aliases()
+
+
 def project_id(key: str) -> str:
-    """A merge key -> the registry's project id."""
-    return "project:" + ID_OVERRIDE.get(key, key)
+    """A merge key -> the registry's project id: override, then the identity map, then the name."""
+    if key in ID_OVERRIDE:
+        return "project:" + ID_OVERRIDE[key]
+    return KEY_TO_ID.get(key) or "project:" + key

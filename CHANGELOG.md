@@ -3,6 +3,18 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.0 — 2026-09-23
+
+### Added
+
+- **Project ids survive renames.** `registry/identity.json` persists which names and strong anchors
+  (a repository, a repository's former name, the root commit of a local Git history, a checkout path)
+  belong to each project id. A renamed wiki folder, a transferred repository or a renamed local Git
+  folder keeps its id, so history, notes and curation stay together. Ids are never reused; a project
+  gone from a complete scan is retired, and a partial scan retires nothing. Anything ambiguous gets a
+  new id and an `identity.ambiguous` finding instead of a guess. `identity_overrides.json` still
+  wins. Upgrading changes no id. Contract: [docs/design/IDENTITY.md](docs/design/IDENTITY.md).
+
 ## 0.2.9 — 2026-09-23
 
 ### Fixed

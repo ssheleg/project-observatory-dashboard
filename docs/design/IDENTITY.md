@@ -1,8 +1,8 @@
 # Identity: how projects and repositories keep their ids
 
-Status: design for 0.3 (PB-003a). Implementation lands in `collectors/identity_map.py`, and
-`collectors/emit_registry.py` and `identity.py` read it. This document is the contract that code
-comments point to.
+Status: implemented in 0.3.0 (`observatory/engine/identity_map.py`, resolved in
+`collectors/emit_registry.py`, read by `identity.project_id`). This document is the contract that
+code comments point to.
 
 ## The problem
 
@@ -83,9 +83,16 @@ For each project in the merged model:
    matches produce a new id and an `identity.ambiguous` finding.
 4. Otherwise, a new id is minted.
 
-After all projects resolve, two projects that resolved to one id are an ambiguity: both get new
-ids and a finding. An entry no project resolved to gets `retired_on`, unless the run was degraded
+Resolution runs in two passes, so the order of keys cannot decide a match: overrides and keys the map
+already knows claim their ids first, and only then are new keys compared by anchors against the
+recorded projects nobody has claimed. If two current projects would take one id (for example an
+override pointing at an id another project holds), the first in key order keeps it, the other gets
+a new id, and both cases produce an `identity.ambiguous` finding. An entry no project resolved to gets `retired_on`, unless the run was degraded
 for the source that anchors it (a partial scan must not retire anything).
+
+`merge.py` also asks `identity.project_id` for a key while matching domain claims. For a project
+renamed in this very run it still sees the name-derived id; from the next run the map knows the key.
+The emitted registry is correct in the same run.
 
 ## Migration
 

@@ -35,7 +35,7 @@ BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',
     'workspace_scheduler', 'schema_compatibility', 'keyserver_boundary',
     'private_sources', 'public_contracts', 'vault_boundaries', 'provider_secret_boundaries', 'cli_compatibility', 'dashboard_portability',
-    'agent_plugin', 'audit_regressions',
+    'agent_plugin', 'audit_regressions', 'identity_map',
 )
 SUITES = LEGACY + BOUNDARY
 HELPERS = ('tmp.py', 'source_reader.py', 'live_estate.py',
@@ -46,7 +46,7 @@ RUNTIME_DIRS = ('agent', 'collectors', 'dashboard', 'mcp', 'plugins', 'store', '
 ROOT_FILES = (
     'activity.py', 'atomic.py', 'companion_faults.py', 'configuration.py',
     'degradations.py', 'estate.py', 'identity.py', 'observatory.py', 'paths.py',
-    'leak_register.py', 'private_io.py', 'proposals.py', 'runtime_identity.py', 'store_faults.py', 'survey.py', 'workspace.py',
+    'identity_map.py', 'leak_register.py', 'private_io.py', 'proposals.py', 'runtime_identity.py', 'store_faults.py', 'survey.py', 'workspace.py',
     'workspace_upgrade.py', 'tmp.py', 'fabric-agent.json', 'fabric-contract.lock.json', 'public-profile.json',
 )
 SKILL_FILES = (
