@@ -30,6 +30,15 @@
                                                                              
                                                                   
 
+                                                                       
+                                                                                
+                                                                              
+                                                                                  
+                                                                                
+                                                                              
+                                                                               
+                                                    
+
                                                                    
                                                                              
                                                                               
@@ -176,27 +185,65 @@ def main(argv: list[str]) -> int:
                     help=f"re-fetch even if the last scan is under {MAX_AGE_HOURS}h old")
     a = ap.parse_args(argv[1:])
     out = pathlib.Path(a.out)
-    if not a.force and out.is_file():
-        try:
-            age = hours_since(json.loads(out.read_text(encoding="utf-8")).get("scanned_at", ""))
-        except (OSError, ValueError):
-            age = None
-        if age is not None and age < MAX_AGE_HOURS:
-            print(f"remote-env: {age:.1f}h old, not re-fetched — config vars change on "
-                  f"deploys, and every fetch pulls every production secret into one "
-                  f"process. `--force` after a rotation.")
-            return 0
 
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                                                            
+                                                                            
+                                                                       
     env = _load("collectors/scan_env.py", "scan_env")
+    pepper: str | None = None
+    identity_error = ""
     try:
         pepper = env.salt()
-    except SystemExit as exc:
-        print(f"remote-env: the fingerprint salt is unusable — {exc}", file=sys.stderr)
+    except (SystemExit, env.IdentityError) as exc:
+        identity_error = str(exc)
+    here = env.namespace(pepper) if pepper else None
+
+    if not a.force and out.is_file():
+        try:
+            cached = json.loads(out.read_text(encoding="utf-8"))
+            age = hours_since(cached.get("scanned_at", ""))
+        except (OSError, ValueError):
+            cached, age = {}, None
+        if age is not None and age < MAX_AGE_HOURS:
+            theirs = cached.get("fingerprint_namespace")
+            if here is None:
+                print(f"remote-env: {age:.1f}h old, and the salt that would name its "
+                      f"fingerprints is unusable — {identity_error} The cached scan is "
+                      f"left untouched and nothing is compared against it.")
+            elif theirs == here:
+                print(f"remote-env: {age:.1f}h old, not re-fetched — config vars change on "
+                      f"deploys, and every fetch pulls every production secret into one "
+                      f"process. `--force` after a rotation.")
+            else:
+                why = ("carries no fingerprint namespace, so it was taken before one was "
+                       "recorded" if not theirs else
+                       "was taken under a different fingerprint salt")
+                print(f"remote-env: {age:.1f}h old and {why}. "
+                      "Its fingerprints cannot be compared with this machine's. "
+                      "No verdict is derived from them and the file is left as it is. "
+                      "Re-read production with `--force` when you want the comparison "
+                      "back — each run pulls every production secret into one process, "
+                      "so it stays a decision.")
+            return 0
+
+    if pepper is None:
+        print(f"remote-env: the fingerprint salt is unusable — {identity_error}",
+              file=sys.stderr)
         return 1
     rows, degraded = scan_heroku_apps(pepper)
     vault = _load("tools/vault.py", "vault_mod")
     retired = retired_values(pepper, vault.STORE)
-    doc = {"scanned_at": now(), "provider": "heroku", "apps": rows,
+    doc = {"scanned_at": now(), "provider": "heroku",
+                                                                               
+                                                                            
+                                                                              
+                                                                           
+           "fingerprint_namespace": env.namespace(pepper),
+           "apps": rows,
            "retired": retired, "degraded": degraded,
            "note": "names, classes and salted fingerprints; never a value. "
                    "This file is gitignored; registry/remote-env.json carries "

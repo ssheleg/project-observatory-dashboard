@@ -24,7 +24,7 @@
                                                                               
                                                                                
                                                                               
-                                                                           
+                                                                                               
                                                                                   
                                                                                
                                                       
@@ -32,7 +32,7 @@
                                   
    
 from __future__ import annotations
-import hashlib, math, os, pathlib, re, secrets, stat, subprocess, sys
+import hashlib, math, os, pathlib, re, stat, subprocess, sys
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -40,6 +40,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import atomic              
 import paths              
+from runtime_identity import IdentityError, load as load_identity
 
                                                                      
                                                                                    
@@ -141,30 +142,39 @@ PLAIN = re.compile(r"^(true|false|yes|no|on|off|none|null|\d+(\.\d+)?|"
                    r"localhost(:\d+)?|127\.0\.0\.1(:\d+)?|0\.0\.0\.0(:\d+)?|"
                    r"development|production|staging|test|debug|info|warn|error)$", re.I)
 
-SALT_FILE = paths.STORE / ".env-fingerprint-salt"
+SALT_FILE = paths.STATE / ".env-fingerprint-salt"
+
+                                                                                
+                                                                               
+                                                                                  
+                                                                               
+                                                                             
+                                                                           
+                                                                               
+                                                                            
+                                               
+FINGERPRINT_VERSION = "fp1"
 
 
 def salt() -> str:
-    ""                                                
+    ""                                                                         
+    return load_identity(SALT_FILE, 'env-fingerprint-salt')
 
-                                                                                 
+
+def namespace(pepper: str) -> str:
+    ""                                                                  
+
+                                                                           
                                                                                
-                                                                                   
-                    
+                                                                                
+                                                                               
+                                                                           
+                                                             
        
-    if SALT_FILE.is_file():
-        mode = stat.S_IMODE(SALT_FILE.stat().st_mode)
-        if mode & 0o077:
-            raise SystemExit(f"{SALT_FILE} is mode {oct(mode)} — group or world "
-                             f"readable. chmod 600 it; a salt anyone can read "
-                             f"makes the fingerprints it protects guessable.")
-        return SALT_FILE.read_text(encoding="utf-8").strip()
-    SALT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    value = secrets.token_hex(32)
-    fd = os.open(SALT_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(value + "\n")
-    return value
+    digest = hashlib.sha256(
+        (f"observatory-fingerprint-namespace\x00{FINGERPRINT_VERSION}\x00"
+         + pepper).encode("utf-8")).hexdigest()[:16]
+    return f"{FINGERPRINT_VERSION}:{digest}"
 
 
 def wordish(value: str) -> bool:
@@ -397,6 +407,10 @@ def scan(root: pathlib.Path) -> dict:
         "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "root": str(root),
         "max_depth": MAX_DEPTH,
+                                                                             
+                                                                              
+                                                        
+        "fingerprint_namespace": namespace(pepper),
         "files": records,
         "degraded": degraded,
     }
@@ -413,7 +427,11 @@ def main(argv: list[str]) -> int:
                                     "as none existing"}]})
         print(f"env: {paths.DATA} does not exist — nothing scanned")
         return 0
-    doc = scan(paths.DATA)
+    try:
+        doc = scan(paths.DATA)
+    except IdentityError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     atomic.write_json(out, doc)
     n_vars = sum(len(f["variables"]) for f in doc["files"])
     n_secret = sum(1 for f in doc["files"] for v in f["variables"]

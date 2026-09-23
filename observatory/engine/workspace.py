@@ -83,6 +83,7 @@ def initialize(base: Path) -> dict:
     marker = config.validate_workspace(base)
     if marker:
         config.load(base)
+        ensure_identities(base)
         return {"status": "already-initialized", "version": config.VERSION}
     if base.exists() and any(base.iterdir()):
         raise config.ConfigurationError("Non-empty unversioned directory; use migrate-local into a new home")
@@ -114,7 +115,21 @@ def initialize(base: Path) -> dict:
             "created_by": config.VERSION, "created_at": now,
             "instance_id": str(uuid.uuid4()), "registry_schema": 1,
         })
+        ensure_identities(base)
     return {"status": "initialized", "version": config.VERSION, "integrations_enabled": 0}
+
+
+def ensure_identities(base: Path) -> None:
+    """Create the keyserver token and fingerprint salt once, never replacing them.
+
+    Readers refuse a missing or invalid identity instead of minting one, so
+    initialization is the only place a new identity appears. Re-running init
+    on an existing workspace is safe: an existing valid file is kept as is.
+    """
+    import runtime_identity
+    state = Path(os.environ["OBSERVATORY_STATE"]) if os.environ.get("OBSERVATORY_STATE") else base / "store"
+    for kind, (name, _pattern, _make) in runtime_identity.KINDS.items():
+        runtime_identity.load(state / name, kind, initialize=True)
 
 
 def copy_private(source: Path, target: Path) -> int:

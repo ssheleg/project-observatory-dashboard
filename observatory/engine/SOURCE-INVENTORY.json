@@ -140,11 +140,12 @@
     {
       "path": "collectors/remote_registry.py",
       "source_sha256": "dea2b15760ca5391f2d9b27bdbd80e644b38d5b0095e46a825da8f13c252442e",
-      "export_sha256": "751893d052dbdc62832bbb18a060dbefa3be6335d16c6fb868ae7079bab54396",
-      "bytes": 6043,
+      "export_sha256": "3b7c929636e98e2a1ec22184e53d5268335b00609e9aa00e87780fc664dd3cfe",
+      "bytes": 11424,
       "python_comments_removed": 4,
       "python_docstrings_removed": 3,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "collectors/run_plugins.py",
@@ -185,11 +186,12 @@
     {
       "path": "collectors/scan_env.py",
       "source_sha256": "dc68044a2a51db2551236e66d92156ece2f9362b328feedf7dfee684c5618c9b",
-      "export_sha256": "4b507aa8babb4d9376633ad8d8ae5d5077b884ad543ee0b00d5696e221c03cbd",
-      "bytes": 19131,
+      "export_sha256": "15fb886035e24fe4dfcbffd2eb564fa31aac3a6d5bf4672768fbc3662b55fdb9",
+      "bytes": 20217,
       "python_comments_removed": 67,
       "python_docstrings_removed": 9,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "collectors/scan_events.py",
@@ -257,11 +259,12 @@
     {
       "path": "collectors/scan_remote_env.py",
       "source_sha256": "d7198c977ac36e4d4629e7228c4b3a931726e50dddde802f9c529e286ba78391",
-      "export_sha256": "497b1f2ae4f47f58493a4906c196adf594da096a071d9fb1671876f5f10faeff",
-      "bytes": 10186,
+      "export_sha256": "a6deecb05db92e6fe6ff902f4f701b9f865480d1005654ad622d358319aa8370",
+      "bytes": 13056,
       "python_comments_removed": 12,
       "python_docstrings_removed": 4,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "collectors/scan_remotes.py",
@@ -857,6 +860,13 @@
       "bytes": 43
     },
     {
+      "path": "runtime_identity.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "22ed540b65dadd559a69816e91a0ca496b6af2c4ced7c9552bff98b17cbe72ab",
+      "bytes": 4744
+    },
+    {
       "path": "skill/.claude-plugin/marketplace.json",
       "source_sha256": "68a99261f346d399ff411a8bbe6cb46d7b169e6ef030d84f7b92c41a2f797c57",
       "export_sha256": "8d1e70f66a73b217ea1db26f77600ea818bbdb7824a7b01d5173fed5bd3d9b10",
@@ -1027,8 +1037,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "3fd1438803fc50304b3c0ae0ca52dcf194fdc1ed0866a6b8b51134ec2f833279",
-      "bytes": 9587,
+      "export_sha256": "2c35d1ea792c0c9f63355ddd09b702afb31349ddb21f4a6b9d41315ffbff74d7",
+      "bytes": 9648,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1127,11 +1137,12 @@
     {
       "path": "tests/test_keyserver_boundary.py",
       "source_sha256": "2d1679c184b45707a5c31e4bb503a6fdb37d458a04706b4c469fb6e3e654a2ab",
-      "export_sha256": "13773163aae4d5bfcb63112555d0b3976f5a154c1ac1534d25c9984070855d3a",
-      "bytes": 11353,
+      "export_sha256": "1cb23462dffd016e22a787609ad629a3ff149b81073501c54782d06306d25043",
+      "bytes": 12074,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_ledger.py",
@@ -1243,6 +1254,13 @@
       "tool_descriptions_retained": 0
     },
     {
+      "path": "tests/test_remote_env.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "68fcd0e9da04d72e427d2f14ad2e113cc4a2e3a0937a59f1056a94bfaaab3d6f",
+      "bytes": 31360
+    },
+    {
       "path": "tests/test_retention.py",
       "source_sha256": "c7272d2749aa85b1ca544107e1b1820cb23da97bdb36f326eaf2d4b4330c778d",
       "export_sha256": "5e3d388534f84dfc6f58eba5570ced890bc935d32fce2c30e9b2707f83aa4b64",
@@ -1259,6 +1277,13 @@
       "python_comments_removed": 10,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0
+    },
+    {
+      "path": "tests/test_runtime_identity.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "861aa78a477bd8e1dfae621a40b4047c4ac972844cfa23c8e1182b75fb3a111e",
+      "bytes": 13980
     },
     {
       "path": "tests/test_schema_compatibility.py",
@@ -1318,11 +1343,12 @@
     {
       "path": "tests/test_workspace.py",
       "source_sha256": "80e71bbefcc5361d23e3b1313518f9fa0f953130c8dd5ec108ce75de1841c6eb",
-      "export_sha256": "5daf49db83bc34f940d447334d1100c1fa946e0ab8a7b2139a427a52d6121177",
-      "bytes": 4311,
+      "export_sha256": "6f806e7a62f824dec76eaa0924edbf7db39b8008d6ec2671e87c14231c24c80f",
+      "bytes": 5089,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_workspace_boundaries.py",
@@ -1569,11 +1595,12 @@
     {
       "path": "tools/keyserver.py",
       "source_sha256": "5dfc52b15ea31b3d4d608cf4892bc16c274bacca224dacb28ef88c53fd92c571",
-      "export_sha256": "846a63f098dda70092e9525178f7ed6fa4a0992cffcd50f1fa47a0aea5bc60bf",
-      "bytes": 31517,
+      "export_sha256": "c620e56527f82bd20312405765c7e4a506d17be5424a4f3b80c7b8ec753befa2",
+      "bytes": 30645,
       "python_comments_removed": 46,
       "python_docstrings_removed": 15,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tools/leak_findings.py",
@@ -1659,11 +1686,12 @@
     {
       "path": "tools/remote_findings.py",
       "source_sha256": "a10a917d1565c27d8aaa96c97de5f8d7c171a27b59d8e375ed9260b96584abb9",
-      "export_sha256": "a2ff6b42675c23bb3a4527479095101062ff5c61fcddfaaf6f58a713e6b89c84",
-      "bytes": 7645,
+      "export_sha256": "effcd99bf2733b71c08e8eff0f3c3ba11c7c482a4b4eb1382be238745b3ba253",
+      "bytes": 9775,
       "python_comments_removed": 10,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tools/reveal_findings.py",
@@ -1700,6 +1728,13 @@
       "python_comments_removed": 84,
       "python_docstrings_removed": 12,
       "tool_descriptions_retained": 0
+    },
+    {
+      "path": "tools/runtime_identity.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "ea52edbb49e8053fa769bfa89ecb1163c580fe5d5cbafabbd0abb6d51235a818",
+      "bytes": 1247
     },
     {
       "path": "tools/scan_leaks.py",
@@ -1857,11 +1892,12 @@
     {
       "path": "workspace.py",
       "source_sha256": "40d5ac9aafad0ab2485f03b86d84a0f192103a284f27309dfc2bf798f18071ef",
-      "export_sha256": "712e7e7d175e183182effda05c45c993b25e5d685a6370a0c8ee7b2b59d9435a",
-      "bytes": 18875,
+      "export_sha256": "8b0a9eef51b9e198daa7ec10048ed0013745b408b60c0188cf604cd61cea370d",
+      "bytes": 19582,
       "python_comments_removed": 3,
       "python_docstrings_removed": 4,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "workspace_upgrade.py",
@@ -1873,7 +1909,7 @@
       "tool_descriptions_retained": 0
     }
   ],
-  "file_count": 229,
+  "file_count": 233,
   "excluded": [
     "git-history",
     "operator-registries",

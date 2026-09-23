@@ -142,26 +142,35 @@ class KeyserverBoundaryTests(unittest.TestCase):
                 keyserver.Server((address, 0), keyserver.Handler, tok)
 
     def test_token_created_private_reused_and_symlinks_refused(self):
-        first = keyserver.token()
+        import runtime_identity
+        with self.assertRaises(runtime_identity.IdentityError):
+            keyserver.token()
+        self.assertFalse(keyserver.TOKEN_FILE.exists(), "a read must never mint a token")
+        keyserver.TOKEN_FILE.parent.mkdir(mode=0o700)
+        first = runtime_identity.load(keyserver.TOKEN_FILE, "keyserver-token", initialize=True)
         self.assertEqual(first, keyserver.token())
+        self.assertEqual(first, runtime_identity.load(keyserver.TOKEN_FILE, "keyserver-token",
+                                                      initialize=True), "init never replaces")
         self.assertEqual(keyserver.TOKEN_FILE.stat().st_mode & 0o777, 0o600)
         target = self.root / "unrelated"
         target.write_text("untouched")
         keyserver.TOKEN_FILE.unlink()
         keyserver.TOKEN_FILE.symlink_to(target)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(runtime_identity.IdentityError):
             keyserver.token()
         self.assertEqual(target.read_text(), "untouched")
 
     def test_empty_and_publicly_readable_token_files_refused(self):
-        keyserver.TOKEN_FILE.parent.mkdir()
+        import runtime_identity
+        keyserver.TOKEN_FILE.parent.mkdir(mode=0o700)
         keyserver.TOKEN_FILE.write_text("")
         keyserver.TOKEN_FILE.chmod(0o600)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(runtime_identity.IdentityError):
             keyserver.token()
-        keyserver.TOKEN_FILE.write_text(self.token)
+        self.assertEqual(keyserver.TOKEN_FILE.read_text(), "", "a refused file is left as it was")
+        keyserver.TOKEN_FILE.write_text("A" * 43)
         keyserver.TOKEN_FILE.chmod(0o644)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(runtime_identity.IdentityError):
             keyserver.token()
 
     def test_nonfinite_limits_refused_before_audit_or_provider(self):

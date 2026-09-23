@@ -16,6 +16,19 @@
                                                                                
                                                                       
 
+                                                                             
+                                                                                
+                                                                  
+                                                                               
+                                                                              
+                                                                               
+                                                                               
+                                                                             
+                                                                              
+                                                                         
+                                                                               
+                                                                   
+
                                                                            
                                                                               
                                                                                 
@@ -46,8 +59,40 @@ def _local_index(env_scan: dict, folders: list[str]) -> dict[str, dict]:
     return out
 
 
-def compare(app: dict, env_scan: dict, retired: list[dict]) -> dict:
-    ""                                                                  
+                                                                              
+                                                                    
+NAMESPACE_WHY = "fingerprint-namespace"
+
+
+def namespace_state(scan: dict, env_scan: dict) -> tuple[str, str]:
+    ""                                                                          
+
+                                                                               
+                                                                             
+                                                                               
+                                                  
+       
+    remote, local = scan.get("fingerprint_namespace"), env_scan.get("fingerprint_namespace")
+    if not remote or not local:
+        missing = " and ".join(
+            w for w, got in (("the production scan", remote), ("the local scan", local)) if not got)
+        return "absent", (f"{missing} carries no fingerprint namespace, so the salt behind "
+                          f"its fingerprints is unknown")
+    if remote != local:
+        return "mismatched", ("the two scans fingerprint under different salts, so equal "
+                              "values would not produce equal fingerprints")
+    return "matched", ""
+
+
+def compare(app: dict, env_scan: dict, retired: list[dict], *,
+            comparable: bool = True) -> dict:
+    ""                                                               
+
+                                                                              
+                                                                                
+                                                                                
+                          
+       
     folders = app.get("folders") or []
     local = _local_index(env_scan, folders) if folders else {}
     retired_by_fp: dict[str, dict] = {r["fingerprint"]: r for r in retired}
@@ -55,6 +100,7 @@ def compare(app: dict, env_scan: dict, retired: list[dict]) -> dict:
     seen = set()
     for v in app.get("vars") or []:
         name, cls = v["name"], v.get("class")
+        why = ""
         seen.add(name)
         if not folders:
                                                                                
@@ -68,12 +114,24 @@ def compare(app: dict, env_scan: dict, retired: list[dict]) -> dict:
             verdict = "not_compared"
         elif not local[name]["fingerprints"]:
             verdict = "not_compared"
+        elif not comparable:
+                                                                              
+                                                                              
+                                                                              
+            verdict, why = "not_compared", NAMESPACE_WHY
         elif v["fingerprint"] in local[name]["fingerprints"]:
             verdict = "same_as_local"
         else:
             verdict = "differs"
         rows.append({"name": name, "class": cls, "verdict": verdict,
+                     **({"why": why} if why else {}),
                      **({"empty": True} if v.get("empty") else {})})
+                                                                              
+                                                                              
+                                                                           
+                                                                               
+                                                                            
+                                                                              
         r = retired_by_fp.get(v.get("fingerprint") or "")
         if r:
             in_use.append({"name": name, "retired_on": r["retired_on"],
@@ -91,9 +149,28 @@ def compare(app: dict, env_scan: dict, retired: list[dict]) -> dict:
 
 
 def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
-    apps = [compare(a, env_scan, scan.get("retired") or []) for a in scan.get("apps") or []]
+    state, reason = namespace_state(scan, env_scan)
+    comparable = state == "matched"
+    apps = [compare(a, env_scan, scan.get("retired") or [], comparable=comparable)
+            for a in scan.get("apps") or []]
     def total(word: str) -> int:
         return sum(a["counts"].get(word, 0) for a in apps)
+                                                                          
+                                                                         
+                                                                              
+                                                                       
+                                            
+    withheld = sum(1 for a in apps for v in a["vars"] if v.get("why") == NAMESPACE_WHY)
+    degraded = list(scan.get("degraded") or [])
+    if withheld:
+        degraded.append({
+            "source": "fingerprint namespace",
+            "reason": reason,
+            "effect": (f"{withheld} production secret(s) that both sides hold are "
+                       f"reported as not compared instead of same or different; "
+                       f"re-read production with `collectors/scan_remote_env.py "
+                       f"store/raw/remote-env.json --force` and re-run `env`, then emit"),
+        })
     return {
         "schema_version": 1,
         "updated_on": obs_date,
@@ -103,7 +180,11 @@ def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
                  "the gitignored scan and never in this file, and the values "
                  "themselves exist only in the scanning process. `differs` is "
                  "the ordinary case for a production secret; `same_as_local` on "
-                 "one is not, and neither is a value the vault has retired."),
+                 "one is not, and neither is a value the vault has retired. "
+                 "`fingerprint_namespace` says whether the comparison was allowed "
+                 "to happen at all: when the two scans do not name the same salt, "
+                 "a row both sides hold reads `not_compared` with `why`, and "
+                 "`withheld` counts those rows inside the `not_compared` total."),
         "source_refs": ["SRC-0013", "SRC-0015"],
         "scanned_on": (scan.get("scanned_at") or "")[:10],
         "provider": scan.get("provider"),
@@ -117,8 +198,20 @@ def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
             "local_only": total("local_only"),
             "not_compared": total("not_compared"),
             "no_local_checkout": total("no_local_checkout"),
+            "withheld_for_namespace": withheld,
             "retired_still_deployed": sum(len(a["retired_in_use"]) for a in apps),
         },
+                                                                      
+                                                                            
+                                             
+        "fingerprint_namespace": {
+            "state": state,
+            "withheld": withheld,
+            **({"reason": reason} if state != "matched" else {}),
+            **({"action": "collectors/scan_remote_env.py store/raw/remote-env.json --force, "
+                          "then ./observatory.py env and ./observatory.py emit"}
+               if withheld else {}),
+        },
         "apps": apps,
-        "degraded": scan.get("degraded") or [],
+        "degraded": degraded,
     }

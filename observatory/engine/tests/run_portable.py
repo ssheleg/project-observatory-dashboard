@@ -26,6 +26,7 @@ LEGACY = (
     'vault', 'plugins', 'wire_contract', 'metric_series', 'analytics_plugins',
     'mcp_wire', 'wire_inputs', 'retention', 'provenance', 'events', 'fingerprints',
     'pages', 'dashboard_render', 'atomic_writers', 'ack', 'rollup',
+    'runtime_identity', 'remote_env',
 )
 BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',
@@ -39,7 +40,7 @@ RUNTIME_DIRS = ('agent', 'collectors', 'dashboard', 'mcp', 'plugins', 'store', '
 ROOT_FILES = (
     'activity.py', 'atomic.py', 'companion_faults.py', 'configuration.py',
     'degradations.py', 'estate.py', 'identity.py', 'observatory.py', 'paths.py',
-    'leak_register.py', 'private_io.py', 'proposals.py', 'store_faults.py', 'survey.py', 'workspace.py',
+    'leak_register.py', 'private_io.py', 'proposals.py', 'runtime_identity.py', 'store_faults.py', 'survey.py', 'workspace.py',
     'workspace_upgrade.py', 'tmp.py', 'fabric-agent.json', 'fabric-contract.lock.json', 'public-profile.json',
 )
 SKILL_FILES = (

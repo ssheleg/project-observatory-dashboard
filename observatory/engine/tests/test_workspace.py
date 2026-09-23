@@ -39,6 +39,20 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(before,file.read_bytes())
         self.assertEqual(json.loads(before)['extension_metadata'],{'example':True})
         self.assertEqual(file.stat().st_mode & 0o777,0o600)
+    def test_init_creates_runtime_identities_once_and_never_replaces_them(self):
+        self.run_cli('init')
+        files = [self.home / 'store' / name for name in ('.keyserver-token', '.env-fingerprint-salt')]
+        for f in files:
+            self.assertTrue(f.is_file(), f)
+            self.assertEqual(f.stat().st_mode & 0o777, 0o600)
+        before = [f.read_bytes() for f in files]
+        self.run_cli('init')
+        self.assertEqual(before, [f.read_bytes() for f in files], "re-init must keep identities")
+        files[1].unlink()
+        self.run_cli('init')
+        self.assertTrue(files[1].is_file(), "re-init restores a missing identity")
+        self.assertNotEqual(before[1], files[1].read_bytes())
+        self.assertEqual(before[0], files[0].read_bytes())
     def test_future_config_and_workspace_refused_without_mutation(self):
         self.run_cli('init')
         for relative, field, value in [('config/settings.json','schema_version',99),('workspace.json','minimum_writer','99.0.0')]:

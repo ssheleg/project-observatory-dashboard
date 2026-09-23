@@ -67,9 +67,7 @@ import json
 import os
 import pathlib
 import re
-import secrets
 import socketserver
-import stat
 import sys
 import urllib.error
 import urllib.request
@@ -81,7 +79,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "collectors"))
 import paths              
 
-TOKEN_FILE = paths.STORE / ".keyserver-token"
+import stat
+from runtime_identity import IdentityError, load as load_identity
+
+TOKEN_FILE = paths.STATE / ".keyserver-token"
                                                                                   
                                                                                 
                                                                                
@@ -166,28 +167,8 @@ def check_destination(dest: str) -> str:
 
 
 def token() -> str:
-    ""                                                                           
-    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    nofollow = getattr(os, "O_NOFOLLOW", 0)
-    try:
-        fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600)
-    except FileExistsError:
-        try:
-            fd = os.open(TOKEN_FILE, os.O_RDONLY | nofollow | os.O_NONBLOCK)
-        except OSError:
-            raise SystemExit("keyserver token must be a private regular file") from None
-        with os.fdopen(fd, "r", encoding="utf-8") as fh:
-            info = os.fstat(fh.fileno())
-            if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) & 0o077:
-                raise SystemExit("keyserver token must be a regular file at mode 600")
-            value = fh.read(4097).strip()
-            if not value or len(value) > 4096 or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
-                raise SystemExit("keyserver token file is empty or malformed")
-            return value
-    value = secrets.token_urlsafe(32)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        fh.write(value + "\n")
-    return value
+    ""                                                                                 
+    return load_identity(TOKEN_FILE, 'keyserver-token')
 
 
 def audit(action: str, subject: str, detail: dict) -> None:
@@ -647,7 +628,11 @@ def main(argv: list[str]) -> int:
         print(f"refusing to bind {a.host}: this holds a provisioning key and answers "
               f"only to this machine", file=sys.stderr)
         return 2
-    tok = token()
+    try:
+        tok = token()
+    except IdentityError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     with Server((a.host, a.port), Handler, tok) as srv:
         shown_host = f"[{a.host}]" if a.host == "::1" else a.host
         print(f"keyserver on http://{shown_host}:{srv.server_address[1]} — open it; the page carries "
