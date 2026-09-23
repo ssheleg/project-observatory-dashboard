@@ -1,0 +1,22 @@
+{
+  "source_commit": "96c85560800edbf582aa75020ca024ccadb4fd1c",
+  "deployment_id": "be77ca89-cd8d-4f48-b9c9-31ec0365613a",
+  "deployment_url": "https://be77ca89.project-observatory.pages.dev",
+  "production_url": "https://observatory.sshlg.me/",
+  "files": {
+    "404.html": "e0d4330bd64de3cedc7de417fb34f192acf827baa756344b1c457f05ea463129",
+    "_headers": "56e50933f25b6fbc3606232bb7ed691a79e6dd55c4e7e39acba28b5275a65d5a",
+    "app.js": "833a8acdf5c4ae2dcd1e3f6788d30fc53c952e9c611531f65d60d5954b55d941",
+    "assets/credential-copies-cartoon.png": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c",
+    "assets/observatory-cover.png": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+    "field-notes/index.html": "063f3131844015627071bd3f1d8f3832bc54dfd2959be24ef9a6b1c3cef683bc",
+    "index.html": "6b67a23da47b42aace0d38e7c9e7bd446bef9195638fb4f5cbd9e42c1e10a231",
+    "llms.txt": "9ff6cdacad78c435c437545d0e7624bd176865c95d90b20cdec7c90dfd8f41a6",
+    "mark.svg": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+    "robots.txt": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+    "sitemap.xml": "11f485b2fd3d214451d096f0c9218ce1a17a503e53f18a698fe91e019fe41ff3",
+    "style.css": "cff4b6ea20e1a2e176a254f0d2f5b5bab7dbe9943d5bf25c63ef39e3b04fce4a",
+    "tokens.css": "907ff4661baec97be98a1bc8ebb306342c2c29c7b8fb0ccad61c1a11ed5e01a2"
+  },
+  "stage": "success"
+}

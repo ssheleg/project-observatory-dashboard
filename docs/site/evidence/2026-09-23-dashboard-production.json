@@ -1,0 +1,88 @@
+{
+  "source_commit": "96c85560800edbf582aa75020ca024ccadb4fd1c",
+  "deployment_id": "be77ca89-cd8d-4f48-b9c9-31ec0365613a",
+  "files": [
+    {
+      "path": "404.html",
+      "status": 200,
+      "sha256": "e0d4330bd64de3cedc7de417fb34f192acf827baa756344b1c457f05ea463129",
+      "matches_source": true
+    },
+    {
+      "path": "app.js",
+      "status": 200,
+      "sha256": "833a8acdf5c4ae2dcd1e3f6788d30fc53c952e9c611531f65d60d5954b55d941",
+      "matches_source": true
+    },
+    {
+      "path": "assets/credential-copies-cartoon.png",
+      "status": 200,
+      "sha256": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c",
+      "matches_source": true
+    },
+    {
+      "path": "assets/observatory-cover.png",
+      "status": 200,
+      "sha256": "70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833",
+      "matches_source": true
+    },
+    {
+      "path": "field-notes/index.html",
+      "status": 200,
+      "sha256": "063f3131844015627071bd3f1d8f3832bc54dfd2959be24ef9a6b1c3cef683bc",
+      "matches_source": true
+    },
+    {
+      "path": "index.html",
+      "status": 200,
+      "sha256": "6b67a23da47b42aace0d38e7c9e7bd446bef9195638fb4f5cbd9e42c1e10a231",
+      "matches_source": true
+    },
+    {
+      "path": "llms.txt",
+      "status": 200,
+      "sha256": "9ff6cdacad78c435c437545d0e7624bd176865c95d90b20cdec7c90dfd8f41a6",
+      "matches_source": true
+    },
+    {
+      "path": "mark.svg",
+      "status": 200,
+      "sha256": "ae702dccf94cd3eec58b005ecad62686f704c0ca0b0ef0a5e124bc6d46e637e7",
+      "matches_source": true
+    },
+    {
+      "path": "robots.txt",
+      "status": 200,
+      "sha256": "f9acdaceb9cebe725e8126725c54b18c69baaea9108b302193b61e3b9860b7c7",
+      "matches_source": true
+    },
+    {
+      "path": "sitemap.xml",
+      "status": 200,
+      "sha256": "11f485b2fd3d214451d096f0c9218ce1a17a503e53f18a698fe91e019fe41ff3",
+      "matches_source": true
+    },
+    {
+      "path": "style.css",
+      "status": 200,
+      "sha256": "cff4b6ea20e1a2e176a254f0d2f5b5bab7dbe9943d5bf25c63ef39e3b04fce4a",
+      "matches_source": true
+    },
+    {
+      "path": "tokens.css",
+      "status": 200,
+      "sha256": "907ff4661baec97be98a1bc8ebb306342c2c29c7b8fb0ccad61c1a11ed5e01a2",
+      "matches_source": true
+    }
+  ],
+  "unknown_path": {
+    "status": 404,
+    "matches_404": true
+  },
+  "headers": {
+    "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin"
+  },
+  "passed": true
+}
