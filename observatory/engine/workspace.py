@@ -368,6 +368,13 @@ def coverage_warnings(doc: dict) -> list[dict]:
     return out
 
 
+def _tick_health(base: Path, doc: dict) -> dict:
+    import tick_health
+    store = base / "store"
+    return tick_health.health(store, store / "raw",
+                              scheduler_enabled=bool((doc.get("features") or {}).get("scheduler")))
+
+
 def doctor(base: Path) -> dict:
     runtime = require_runtime()
     config.validate_workspace(base, required=True)
@@ -379,6 +386,8 @@ def doctor(base: Path) -> dict:
             "integrations": doc.get("integrations", {}),
             "features": doc.get("features", {}),
             "coverage_warnings": coverage_warnings(doc),
+            # PB-132: a dead or interrupted tick cannot report itself.
+            "tick": _tick_health(base, doc),
             "credentials": "values are never returned", "network_calls": 0}
 
 

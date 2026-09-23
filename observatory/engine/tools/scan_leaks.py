@@ -56,8 +56,10 @@ from datetime import datetime, timezone
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "collectors"))
+sys.path.insert(0, str(ROOT / "tools"))
 import atomic              
 import paths              
+import sqlite_scan  # noqa: E402  — when a store may be read from its last mark (PB-131)
 
 STATE = paths.SCRATCH / "leak-scan-state.json"
 OUT = paths.SCRATCH / "leak-scan.json"
@@ -216,24 +218,37 @@ def targets(days: int) -> tuple[list[pathlib.Path], list[dict]]:
     return out, notes
 
 
-def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str]
-                ) -> tuple[dict[tuple[str, str], int], str | None]:
+def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str],
+                since: dict[str, int] | None = None
+                ) -> tuple[dict[tuple[str, str], int], str | None, dict[str, int], int]:
     """Occurrences by (secret name, `table.column`) across every text column
-    of a SQLite store, read-only — and the reason when it could not be read.
+    of a SQLite store, read-only; the reason when it could not be read; the
+    highest rowid read per table; and the number of rows read.
 
     A session companion's store holds session summaries, which is exactly the
     shape a leak takes, and a text scan of a SQLite file reads page headers and
     misses the rows — so the store is read as a database instead of being named
     as unread. Rows are read per table in pages of 500 so a store of hundreds of
     megabytes does not sit in memory.
+
+    `since` maps a table to the highest rowid a previous pass read; only rows
+    above it are read, the same way transcripts are read from their last
+    offset, so a sighting is reported by the pass that first reads its row
+    (tools/sqlite_scan.py decides when a pass must be complete). A page is
+    tested against every value at once and examined cell by cell only when it
+    holds one. A table that cannot be addressed by rowid is read whole on
+    every pass and gets no mark.
     """
+    since = since or {}
     hits: dict[tuple[str, str], int] = {}
+    high: dict[str, int] = {}
+    read = 0
     if not db.is_file():
-        return hits, None
+        return hits, None, high, read
     try:
         conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     except sqlite3.Error as exc:
-        return hits, f"{type(exc).__name__}: {exc}"
+        return hits, f"{type(exc).__name__}: {exc}", high, read
     try:
         tables = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
@@ -249,29 +264,46 @@ def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
             if not cols:
                 continue
             sel = ", ".join(f'"{c}"' for c in cols)
+            by_rowid = True
             try:
-                cur = conn.execute(f'SELECT {sel} FROM "{table}"')
+                floor = sqlite_scan.floor_for(conn, table, int(since.get(table, 0)))
+                cur = conn.execute(f'SELECT rowid, {sel} FROM "{table}" WHERE rowid > ? ORDER BY rowid', (floor,))
             except sqlite3.Error:
-                continue
+                by_rowid, floor = False, 0
+                try:
+                    cur = conn.execute(f'SELECT NULL, {sel} FROM "{table}"')
+                except sqlite3.Error:
+                    continue
+            top = floor
             while True:
                 rows = cur.fetchmany(500)
                 if not rows:
                     break
-                for row in rows:
-                    for col, cell in zip(cols, row):
-                        if cell is None:
+                read += len(rows)
+                if by_rowid:
+                    top = max(top, rows[-1][0])
+                blobs = [[None if c is None else (c if isinstance(c, bytes) else str(c).encode("utf-8", "surrogateescape"))
+                          for c in row[1:]] for row in rows]
+                joined = b"\0".join(b for cells in blobs for b in cells if b)
+                present = [n for n in pattern if n in joined]
+                if not present:
+                    continue
+                for cells in blobs:
+                    for col, blob in zip(cols, cells):
+                        if not blob:
                             continue
-                        blob = cell if isinstance(cell, bytes) else str(cell).encode("utf-8", "surrogateescape")
-                        for needle in pattern:
+                        for needle in present:
                             n = blob.count(needle)
                             if n:
                                 key = (by_value[needle], f"{table}.{col}")
                                 hits[key] = hits.get(key, 0) + n
+            if by_rowid:
+                high[table] = top
     except sqlite3.Error as exc:
-        return hits, f"{type(exc).__name__}: {exc}"
+        return hits, f"{type(exc).__name__}: {exc}", {}, read
     finally:
         conn.close()
-    return hits, None
+    return hits, None, high, read
 
 
 def scan_file(path: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str],
@@ -339,10 +371,13 @@ def main(argv: list[str]) -> int:
     # buffer still win by an order of magnitude. Measured, not assumed.
     pattern = sorted(by_value, key=len, reverse=True)
 
-    state = {}
-    if STATE.is_file() and not a.full:
+    state, sqlite_mark = {}, {}
+    if STATE.is_file():
         try:
-            state = json.loads(STATE.read_text(encoding="utf-8")).get("offsets", {})
+            saved = json.loads(STATE.read_text(encoding="utf-8"))
+            sqlite_mark = saved.get("sqlite") or {}
+            if not a.full:
+                state = saved.get("offsets", {})
         except ValueError:
             state = {}
 
@@ -364,14 +399,22 @@ def main(argv: list[str]) -> int:
     # Whole every time — SQLite has no offset to resume from and the store is
     # rewritten in place — so it is not part of `read_bytes`.
     mem = paths.COMPANION_DB
-    mem_hits, mem_problem = scan_sqlite(mem, pattern, by_value)
+    today = datetime.now(timezone.utc).date()
+    digest = sqlite_scan.values_digest(values)
+    full, why = sqlite_scan.plan(sqlite_mark, digest, a.full, today)
+    since = {} if full else (sqlite_mark.get("stores") or {}).get(str(mem))
+    mem_hits, mem_problem, mem_high, mem_rows = scan_sqlite(mem, pattern, by_value, since)
+    new_mark = sqlite_scan.next_mark(sqlite_mark, digest, full, today,
+                                     {} if mem_problem else {str(mem): mem_high}, not mem_problem)
     for (name, where_in), n in mem_hits.items():
         hits[(name, f"{mem}#{where_in}")] = hits.get((name, f"{mem}#{where_in}"), 0) + n
     if mem_problem:
         notes.append({"what": str(mem), "why": f"a SQLite store that would not open: {mem_problem}"})
-    companion = {"path": str(mem), "read": mem.is_file() and not mem_problem}
+    companion = {"path": str(mem), "read": mem.is_file() and not mem_problem,
+                 "mode": "full" if full else "incremental", "why": why, "rows_read": mem_rows}
 
-    atomic.write_json(STATE, {"updated_at": now, "offsets": state})
+    atomic.write_json(STATE, {"updated_at": now, "offsets": state,
+                              **({"sqlite": new_mark} if new_mark else {})})
     rows = [{"secret": name, "where": where, "occurrences": n}
             for (name, where), n in sorted(hits.items(), key=lambda kv: -kv[1])]
     atomic.write_json(OUT, {
@@ -387,7 +430,8 @@ def main(argv: list[str]) -> int:
         "degraded": [],
     })
     print(f"leaks: {len(values)} known value(s) against {len(files)} target(s), "
-          f"{read_bytes/1e6:.1f} MB read, {len(rows)} sighting(s)")
+          f"{read_bytes/1e6:.1f} MB read, {len(rows)} sighting(s); companion store "
+          f"{companion['mode']} ({why}), {mem_rows} row(s) read")
     for r in rows[:8]:
         # THE NAME AND THE FILE, never the line. A report that quotes the leak is
         # a second copy of it, in a file that is easier to read than the first.

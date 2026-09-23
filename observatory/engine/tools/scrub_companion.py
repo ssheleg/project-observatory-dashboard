@@ -46,6 +46,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "collectors"))
 import paths  # noqa: E402
+import sqlite_scan  # noqa: E402
 
 HOME = pathlib.Path(os.environ.get("CLAUDE_MEM_HOME", paths.source_path("companion_home", paths.HOME / "disabled/companion")))
 STORES = [HOME / "claude-mem.db", HOME / "chroma" / "chroma.sqlite3"]
@@ -140,8 +141,7 @@ def scan_store(db: pathlib.Path, values: dict[str, str], since: dict[str, int] |
             sel = ", ".join(f'"{c}"' for c in cols)
             floor = int(since.get(table, 0))
             try:
-                if floor and (conn.execute(f'SELECT max(rowid) FROM "{table}"').fetchone()[0] or 0) < floor:
-                    floor = 0   # the table was emptied or recreated: its old marks mean nothing
+                floor = sqlite_scan.floor_for(conn, table, floor)
                 # rowid order makes the high-water mark the last row read.
                 cur = conn.execute(f'SELECT rowid, {sel} FROM "{table}" WHERE rowid > ? ORDER BY rowid', (floor,))
             except sqlite3.Error:
@@ -216,27 +216,15 @@ def scrub_store(db: pathlib.Path, values: dict[str, str], dry: bool) -> tuple[li
     return rows, apply_todo(db, todo)
 
 
-# PB-125. A complete pass over both stores reads every row; later ticks read only
-# rows added since, per table. A complete pass is forced when the set of known
-# values changes (a new value must be looked for in old rows too), when the last
-# complete pass is older than FULL_EVERY (rows updated in place, or a reused
-# rowid, are caught there), or with --full. The set is identified by an HMAC
-# under this workspace's env-fingerprint salt: the file never holds anything a
-# value could be recovered from. No salt, no watermark: every pass is complete.
+# PB-125. When to read every row and when only new ones is decided in
+# tools/sqlite_scan.py, shared with the leak scan (PB-131). This tool keeps its
+# mark in its own file.
 WATERMARK = paths.STATE / "scrub-watermark.json"
-FULL_EVERY = datetime.timedelta(days=7)
+FULL_EVERY = sqlite_scan.FULL_EVERY
 
 
 def values_digest(values: dict[str, str]) -> str | None:
-    import hashlib
-    import hmac
-    try:
-        import scan_env
-        key = scan_env.salt().encode("ascii")
-    except Exception:
-        return None
-    material = "\n".join(sorted(f"{n}\0{v}" for v, n in values.items())).encode("utf-8", "surrogateescape")
-    return hmac.new(key, material, hashlib.sha256).hexdigest()
+    return sqlite_scan.values_digest(values)
 
 
 def load_watermark() -> dict:
@@ -260,19 +248,8 @@ def plan(values: dict[str, str], force_full: bool, today: datetime.date) -> tupl
     """(complete pass?, digest, watermark, why)."""
     digest = values_digest(values)
     mark = load_watermark()
-    if force_full:
-        return True, digest, mark, "--full"
-    if digest is None:
-        return True, None, mark, "no salt to identify the value set"
-    if mark.get("values") != digest:
-        return True, digest, mark, "the set of known values changed" if mark else "first pass"
-    try:
-        last = datetime.date.fromisoformat(mark.get("full_on") or "")
-    except ValueError:
-        return True, digest, mark, "no record of a complete pass"
-    if today - last >= FULL_EVERY:
-        return True, digest, mark, f"last complete pass {last.isoformat()}"
-    return False, digest, mark, "incremental"
+    full, why = sqlite_scan.plan(mark, digest, force_full, today)
+    return full, digest, mark, why
 
 
 def journal(entry: dict) -> None:

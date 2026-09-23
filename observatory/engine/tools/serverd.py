@@ -171,6 +171,16 @@ def refresh_skills() -> dict:
     return {"shipped": shipped, "sessions": sessions.get("sessions", {})}
 
 
+def _tick_health() -> dict:
+    try:
+        import configuration
+        import tick_health
+        return tick_health.health(paths.STATE, paths.SCRATCH,
+                                  scheduler_enabled=configuration.enabled("scheduler", "features"))
+    except Exception as exc:  # the heartbeat must not fail because this check did
+        return {"verdict": "unknown", "why": f"{type(exc).__name__}: {exc}"}
+
+
 def heartbeat() -> dict:
     lease = _read_json(paths.SCRATCH / "tick-lease.json") or {}
     tick = _read_json(paths.SCRATCH / "tick.json") or {}
@@ -182,7 +192,9 @@ def heartbeat() -> dict:
         "leaks": refresh_leaks(),
         "skills": refresh_skills(),
         "tick": {"last_finished": tick.get("finished_at"),
-                 "lease_holder": lease.get("holder")},
+                 "lease_holder": lease.get("holder"),
+                 # Alive or not, judged from outside the tick (tick_health, PB-132).
+                 "health": _tick_health()},
     }
     atomic.write_json(RECEIPT, doc)
     return doc

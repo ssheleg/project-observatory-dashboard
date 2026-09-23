@@ -3,6 +3,34 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.2 — 2026-09-24
+
+### Fixed
+
+- The leak scan read the memory companion's whole database on every tick. On a busy disk that step
+  alone took more than half an hour. It now reads rows added since its last pass, as it already did
+  for transcripts. A complete pass returns when the set of known values changes, weekly, when a table
+  is recreated, or with `--full`. The scrub and the leak scan share this rule (`tools/sqlite_scan.py`).
+- The engine's comments and docstrings are back. The source export had blanked about 8,300 lines that
+  mentioned private context. They are restored where that was safe and rewritten in neutral words
+  where it was not, so no line of spaces is left in their place. Code is unchanged: each file's AST,
+  with docstrings removed, is identical.
+- `check_public_release.py --private-denylist` is fast with a long list. It compiles the list once,
+  where before it built one pattern per value for every file and blob.
+- The 0.3.1 notes named the scrub's mark `state/scrub-watermark.json`. It is `store/scrub-watermark.json`.
+
+### Added
+
+- The tick's health, judged from outside the tick: `ok`, `running`, `running-long`, `interrupted`,
+  `stale`, `never` or `disabled`. It appears in `full doctor`, in the server's `/health` and, when
+  the data may be older than it looks, in every MCP answer's `degraded`. A tick killed by a restart
+  used to leave the previous report in place, looking current.
+- `tools/public-identifiers.json`: names this repository publishes on purpose, each with a reason.
+  The privacy check subtracts them from a maintainer's private list and refuses an entry without a
+  reason.
+- `docs/design/DEPLOYMENTS.md`: the contract for accounts, environments, deployments and credential
+  bindings (planned for 0.4).
+
 ## 0.3.1 — 2026-09-23
 
 ### Fixed
@@ -17,7 +45,7 @@ while the major version is 0, a minor release may change behaviour and says so h
 - The memory-companion scrub re-read every row of both stores on every tick, testing each cell
   against each known value in turn; on a 5 GB store that step alone ran past half an hour. It now
   screens whole pages at once and, after one complete pass, reads only rows added since
-  (`state/scrub-watermark.json`). A complete pass returns when the value set changes, weekly, when a
+  (`store/scrub-watermark.json`). A complete pass returns when the value set changes, weekly, when a
   table is recreated, or with `--full`. It also reads each store once instead of twice.
 
 ### Added

@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.1**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.2**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -77,3 +77,14 @@ An unreadable map stops the emit step instead of re-minting ids. Contract:
   held by one account keeps `zone:<name>`, so only duplicated zones change id on upgrade.
 - `heroku-apps.json` rows gain `deployed_commit` (`{sha, release, source}`), taken only from a
   release description that states a commit, never from the configured branch; `null` otherwise.
+
+## Workspace state: incremental store scans (0.3.2)
+
+`store/raw/leak-scan-state.json` gains a `sqlite` key, and `store/scrub-watermark.json` is written
+by the scrub. Both hold a per-table rowid mark and an HMAC of the value set, never a value. A
+workspace upgraded from 0.3.1 makes one complete pass and is incremental from the next tick on.
+Deleting either file only forces a complete pass.
+
+`full doctor` output gains `tick` (`verdict`, `why`, `last_started`, `last_finished`). The server's
+`/health` gains `tick.health` with the same shape. A survey's `degraded` may carry
+`{"source": "tick"}`. These are additions, and existing fields are unchanged.
