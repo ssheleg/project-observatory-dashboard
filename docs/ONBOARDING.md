@@ -127,12 +127,20 @@ in the chosen agent rather than assuming it from the product name. The optional
 `observatory-log` plugin adds Claude Code hooks; other hosts can use the CLI
 and MCP without those hooks.
 
-For a directory-sourced Claude Code installation, resolve the engine root with
-`full-path`, add its `skill` directory as a marketplace, then install
-`observatory-log@observatory-log`. Set `OBSERVATORY_ROOT` and the matching
-`OBSERVATORY_HOME` in the host environment. Restart sessions after updating a
-skill: a running session may still hold older instructions. No MCP server is
-silently inserted into agent configuration by package installation.
+For Claude Code, run `project-observatory full agent install`. It adds the
+GitHub marketplace `ssheleg/project-observatory-dashboard`, installs
+`observatory-log@observatory-log`, turns plugin auto-update on (opt out with
+`--no-auto-update`) and writes `OBSERVATORY_ROOT` and `OBSERVATORY_HOME` into
+Claude Code's user settings for the hooks. `full agent status` shows the
+installed and shipped versions and anything the hooks would miss; `full agent
+uninstall` reverses it. A directory-sourced marketplace from an earlier setup is
+replaced. Restart sessions after installing or updating: a running session may
+still hold older instructions. Installing the Python package inserts nothing
+into any agent configuration; only this explicit command does.
+
+Open the dashboard with `project-observatory full open` (local files) or
+`project-observatory full open --serve` (loopback server, needed for the keys
+page's live actions).
 
 ## Enable background or paid actions deliberately
 

@@ -33,6 +33,7 @@ BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',
     'workspace_scheduler', 'schema_compatibility', 'keyserver_boundary',
     'private_sources', 'public_contracts', 'vault_boundaries', 'provider_secret_boundaries', 'cli_compatibility', 'dashboard_portability',
+    'agent_plugin',
 )
 SUITES = LEGACY + BOUNDARY
 HELPERS = ('tmp.py', 'source_reader.py', 'live_estate.py',
@@ -48,6 +49,7 @@ ROOT_FILES = (
 SKILL_FILES = (
     'skill/plugins/observatory-log/skills/handling-secrets/SKILL.md',
     'skill/plugins/observatory-log/skills/explaining-changes/SKILL.md',
+    'skill/plugins/observatory-log/.claude-plugin/plugin.json',
 )
 NOT_RUN = (
     {'scope': 'live-provider-acceptance', 'status': 'NOT_RUN',

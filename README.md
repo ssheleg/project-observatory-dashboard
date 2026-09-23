@@ -21,7 +21,26 @@ project-observatory full local
 project-observatory full doctor
 ```
 
-Use an existing directory you own in place of `$HOME/projects`. The first run needs no provider credentials. Open `docs/dashboard/index.html` inside your private workspace. An agent can guide the setup: give it the [onboarding prompt](docs/AGENT-ONBOARDING.md), or run `project-observatory full onboard`.
+Use an existing directory you own in place of `$HOME/projects`. The first run needs no provider credentials. An agent can guide the setup: give it the [onboarding prompt](docs/AGENT-ONBOARDING.md), or run `project-observatory full onboard`.
+
+### Open the dashboard
+
+```sh
+project-observatory full open            # builds the pages if needed, opens them as local files
+project-observatory full open --serve    # serves them on 127.0.0.1:47311 (needed for the keys page's live actions)
+```
+
+`--no-browser` prints the address instead of opening it; `--rebuild` rebuilds the pages first; `--port` picks another loopback port. The pages live in `$OBSERVATORY_HOME/docs/dashboard/`, and `project-observatory full local` refreshes what they show. The server binds `127.0.0.1` only.
+
+### Connect Claude Code (plugin updates automatically)
+
+```sh
+project-observatory full agent install   # marketplace + plugin, auto-update ON, hooks pointed at this workspace
+project-observatory full agent status    # installed vs shipped version, auto-update, hook environment
+project-observatory full agent uninstall # removes the plugin and only the settings install added
+```
+
+`install` adds the `ssheleg/project-observatory-dashboard` marketplace to Claude Code, installs `observatory-log@observatory-log`, turns plugin auto-update on and sets `OBSERVATORY_ROOT`/`OBSERVATORY_HOME` in Claude Code's user settings so the hooks find your workspace. It backs up `~/.claude/settings.json` once and keeps every other setting. Pass `--no-auto-update` to keep updates manual (`claude plugin update observatory-log@observatory-log`). An earlier directory-sourced install is replaced by the GitHub one. Without the helper: `/plugin marketplace add ssheleg/project-observatory-dashboard`, then `/plugin install observatory-log@observatory-log`. Restart Claude Code sessions after any change; plugins load at session start.
 
 ## What the complete engine does
 
@@ -50,6 +69,8 @@ Values enter credential tools locally through stdin. Agents work with names, and
 Known-value scanning cannot find unknown or transformed values. A copied value in an agent transcript or local memory store does not prove a vendor breach. [Security boundaries](SECURITY.md) describe what is and is not protected.
 
 ## Updates preserve supported contracts
+
+The Python package is updated by reinstalling it (`python -m pip install -U -c requirements-full.lock '.[full]'` from an updated checkout, or the release wheel), followed by `project-observatory full upgrade`. The Claude Code plugin updates itself when auto-update is on; see `full agent status`.
 
 Application versions, workspace/config formats, database migrations, plugin API and tool schemas have separate compatibility rules. Newer unsupported state is refused. Updates preserve optional settings, back up SQLite including committed WAL data, and support restore into a separate home.
 
