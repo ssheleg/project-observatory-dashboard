@@ -47,7 +47,7 @@ def test_the_attribution_rules_are_ordered_by_evidence() -> None:
 
 
 def test_a_nested_name_belongs_to_its_FIRST_segment() -> None:
-    ""                                                                            
+    """A nested folder is work inside its FIRST segment's project, not a project of its own."""
     m = load_collector()
     projects = [{"id": "project:skills", "name": "skills",
                  "local_folders": ["example-skills"]},

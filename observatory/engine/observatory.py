@@ -394,13 +394,13 @@ NON_MUTATING = {"check"}
 #: whose change it was instead of accusing the gate of a rewrite it did not make.
 GROUP_WRITES_NOTHING_UNDER = ("registry/",)
 
-                                                                           
-                                                                                
-                                                                              
-                                                                           
-                                                                           
-                                                                                     
-                                                                          
+#: What a step needs from the MACHINE, not from the repository. The gate is
+#: machine-coupled in four places and CI is what makes that visible: the projects
+#: root is the estate this project watches, `claude` is a CLI only an operator
+#: install has, `store/observatory.db` is gitignored so a fresh clone has none,
+#: and `node` runs the page's smoke test. A step whose requirement is absent is
+#: SKIPPED with its reason — the project's own rule for a source it cannot read —
+#: never silently dropped and never failed as though the code were broken.
 NEEDS = {
     "ledger-current":   ["store"],
     "validate-plugin":  ["claude-cli"],

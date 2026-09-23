@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Commit the generated projection in the wiki, under a lease, or explain why not.
 
-                                                                           
-                                                                              
-                                                                                  
-                                         
+The tick rewrites a few files in the wiki on every run and nothing committed
+them, so the repository was dirty soon after any commit and the coordination
+tool's `finish` step reported it — correctly, because it cannot tell a
+generated refresh from an abandoned edit.
 
 Three rules keep a scheduled committer from being worse than the problem:
 
@@ -50,13 +50,12 @@ def agent_sync() -> pathlib.Path | None:
 def report(outcome: str, detail: str = "", **extra) -> None:
     """The run's outcome as a fact, on EVERY path.
 
-                                                                               
-                                                                                 
-                                                                            
-                                                                            
-                                                                             
-                                                                             
-           
+    Every refusal here returns 0 deliberately — a scheduled job must not fail
+    because the wiki is dirty — and a refusal that is only a line on stdout
+    lets the projection go uncommitted for a week because one stray file sat
+    in the wiki, while the tick's `step` sees exit 0 and nobody learns. So the
+    outcome is recorded as a fact, the same early-return shape the digest, the
+    findings, the notifications and the plugin runner already use.
 
     `last_commit` is read from the wiki itself, so a reader can tell a refusal
     that happened once from one that has been standing for days.

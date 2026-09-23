@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-""                                                                            
+"""The one door to Cloudflare credentials: stash, issue, rotate, revoke, ping.
 
-                                                                                   
-                                                                        
-                              
-                              
-                                                                             
-                                        
+    ./tools/cloudflare.py stash            # admin token on stdin, once per account
+    ./tools/cloudflare.py issue --preset analytics [--project project:x]
+    ./tools/cloudflare.py list
+    ./tools/cloudflare.py ping
+    ./tools/cloudflare.py rotate <label>   # or --leaked, for every open leak
+    ./tools/cloudflare.py revoke <label>
 
-                                                                           
-                                                                                
-                                                                                 
-                                                                            
-                                                                              
-                                                                               
-                
+THE ADMIN TOKEN IS STASHED AND NEVER HANDED OUT. It carries write access to
+everything the account has — billing, DNS, Workers, and the power to mint more
+tokens — so the plugin that reads request counters must never hold it. It lives
+in `secrets/cloudflare-admin/` at mode 600 and is read by exactly one thing:
+this program, in memory, for the length of one API exchange. Every operational
+token is ISSUED from it, narrow, and it is the narrow one that reaches a file a
+plugin reads.
 
-                                                                            
-                                                                                
-                                                                             
-                                                                                
-                                                                              
-                         
+WHY A PROGRAM AND NOT A PROCEDURE. The same reasoning the vault was built on:
+a rule that a human follows is a rule that holds until the day it is
+inconvenient. Values travel on stdin, never in argv, where the shell history,
+`ps` and an agent's transcript would all keep them. Nothing here prints a value,
+including on error — an exception message that echoes a request header is
+exactly how a credential ends up in a transcript.
 
-                                                                                  
-                                                                               
-                                                                            
-                                                                              
-                                              
+EVERY ISSUED TOKEN CARRIES ITS OWN RECORD — `<label>.meta.json` beside it, which
+holds the account, the purpose, the project it was issued for, and its rotation
+history, but never the value. That file is what makes `list`, `ping` and the
+credentials projection able to answer "what exists, what reads it, when was it
+last rotated" without anyone opening a secret.
 
-                                                                             
-                                                                            
-                                                                              
-                                           
-   
+ROTATION IS ROLLING, NOT REPLACING. Cloudflare can issue a fresh value for an
+existing token id, which keeps the token's identity, its permissions and its
+name — so a rotation after a leak changes exactly the thing that leaked, and
+nothing downstream has to learn a new name.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -94,11 +94,11 @@ def today() -> str:
 
 def _request(path: str, token: str, payload: dict | None = None,
              method: str | None = None) -> dict:
-    ""                                                          
+    """One call, with the error stripped to endpoint and status.
 
-                                                                        
-                                                                   
-       
+    Never the headers, never the body we sent: a signed credential in an
+    exception message is a leak into every log and transcript that records it.
+    """
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(
         f"{API}{path}", data=data, method=method or ("POST" if data else "GET"),
@@ -156,15 +156,15 @@ def write_secret(path: pathlib.Path, value: str) -> None:
 
 
 def discover_accounts(token: str) -> list[dict]:
-    ""                                                
+    """Every account a token can act in, by two roads.
 
-                                                                      
-                                                                                 
-                                                                       
-                                                                             
-                                                                            
-                                                                      
-       
+    `GET /accounts` lists accounts only where the token holds `Account
+    Settings: Read` — a token built for issuing (API Tokens Edit, nothing else)
+    answers it with an EMPTY list while being perfectly valid, so it would
+    appear to see no account while managing tokens in several. The second road
+    is the user's memberships, which that same token can read; the union of
+    both is the answer.
+    """
     out: dict[str, dict] = {}
     try:
         for a in _request("/accounts?per_page=50", token).get("result", []):
@@ -207,13 +207,12 @@ def cmd_stash(value: str) -> int:
               f"{len(value)} characters; a Cloudflare API token is 40)",
               file=sys.stderr)
         return 1
-                                                                          
-                                                                                
-                                                                               
-                                                                       
-                                                                               
-                                                                               
-                                         
+    # ONE TOKEN, SEVERAL ACCOUNTS. A user-scoped token with `All accounts:
+    # API Tokens Edit` sees every account its user belongs to. Every account is
+    # recorded, and each is probed for the one right that matters here: can it
+    # manage tokens. An account the token can see but cannot issue into is kept
+    # in the record as `can_issue: false`, so `issue` refuses it with a reason
+    # instead of failing at mint time.
     for a in accts:
         try:
             _request(f"/accounts/{a['id']}/tokens?per_page=1", value)
@@ -284,11 +283,11 @@ def read_meta(path: pathlib.Path) -> dict:
 
 
 def group_ids(admin: str, account_id: str, wanted: tuple[str, ...]) -> list[str]:
-    ""                                                     
+    """Ids for the named permission groups in THIS account.
 
-                                                                          
-                                                              
-       
+    By name, never by id: Cloudflare's group ids differ per account, and a
+    hardcoded one silently grants the wrong right on the second account.
+    """
     groups = _request(f"/accounts/{account_id}/tokens/permission_groups?per_page=500",
                       admin).get("result", [])
     found: dict[str, str] = {}
@@ -344,14 +343,13 @@ def mint(admin: str, account_id: str, preset: dict) -> tuple[str, str]:
 
 
 def can_read_analytics(token: str, zone_ids: list[str]) -> str:
-    ""                                                              
+    """An empty string if the token can read what the plugin reads, else why not.
 
-                                                                             
-                                                                               
-                                                                          
-                                                                               
-                                                        
-       
+    LISTING ZONES IS NOT READING ANALYTICS. `Zone:Read` alone lists every zone
+    and then the GraphQL dataset answers `zones [...] are not authorized` — a
+    token that installs cleanly and produces a source that is silently always
+    empty, which is the exact outcome this program exists to refuse.
+    """
     import cloudflare_analytics as cf
     day, _ = cf.day_bounds()
     try:
@@ -386,13 +384,13 @@ def stash_accounts(stash_label: str) -> list[dict]:
 
 
 def find_account(wanted: str | None) -> tuple[str, str, dict]:
-    ""                                                                   
+    """(stash label, admin value, account) for the account to issue into.
 
-                                                                                
-                                                                               
-                                                                              
-                                                                          
-       
+    `wanted` is the account's own slug (what `list` prints in brackets), its id,
+    or — for a stash that holds exactly one account — the stash label. With
+    several accounts reachable and none named, the refusal lists them: issuing
+    into "whichever came first" is how a token lands in the wrong account.
+    """
     catalog: list[tuple[str, dict]] = []
     for label, _p in admins():
         for a in stash_accounts(label):
@@ -584,12 +582,12 @@ def cmd_rotate(label: str | None, leaked: bool) -> int:
 
 
 def leaked_labels() -> set[str]:
-    ""                                                    
+    """Issued-token names that appear in an OPEN leak row.
 
-                                                                              
-                                                                           
-                                    
-       
+    Read through the vault's own register rather than a second copy of it: one
+    place records leaks, and a tool that keeps its own list is a second truth
+    that will disagree.
+    """
     import vault
     out: set[str] = set()
     try:

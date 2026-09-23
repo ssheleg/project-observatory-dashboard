@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
-""                                                             
+"""Inputs the schema permits and the estate has never produced.
 
-                                                                              
-                                                                                 
-                                                                               
-           
+`fabric/schemas/capability-input.schema.json` is the list of what a conforming
+host is ALLOWED to send. The fabric probes drive the shapes the estate happens to
+produce; nothing drove the rest. A sweep of the remaining surface found that most
+of it already behaves:
 
-                                                                           
-                                                                                 
-                                                               
-                                                                            
-                                                                             
-                                                                               
-                                                                             
-                                                 
-                                                                            
-                                                                 
+* An unknown project id answers `counts.projects: 0` while a REAL but empty
+  project answers `1` with zero repositories: the two are distinguishable, and
+  registries do contain projects in the second state.
+* `scope: {kind: "project"}` with no `value` is permitted by the schema (its
+  `required` lists only `kind`, and the prose says value is needed for two of
+  the three kinds). `mcp/server.py` answers a typed `error: missing value` with
+  a hint rather than raising, because raising "tells a caller that the server
+  broke rather than that the argument was wrong".
+* `limit` at 1 and at the schema's maximum of 200 both page correctly, and a
+  cursor past the end returns an empty page with no `nextCursor`.
 
-                                                                        
-                                                                                 
-                                                                         
-                                                                              
-                                                                                
-                                               
+**One input was read as something it did not say.** The cursor filter is
+`p["id"] > cursor`, so a string sorting before every id (anything not starting
+with `project:`) passes the whole list and the walk silently restarts.
+`cursor="!!! not an id !!!"` with `limit=5` returned page one again, so a host
+holding a stale or corrupted cursor would receive projects it had already walked
+with nothing to distinguish that from progress.
 
-                                                                              
-                                                                      
-                                                                                
-                                           
+Reported rather than refused, because the answer is still useful and this file
+reports everywhere else. And the check is the SHAPE, not membership: a
+well-formed cursor whose project was deleted between two pages is legitimate and
+the walk must continue after it.
+"""
    
 from __future__ import annotations
 import json
@@ -99,12 +100,11 @@ def test_a_cursor_past_the_end_is_an_empty_page_not_an_error() -> None:
 # ─────────── the scopes the schema allows ──────────────────────────────
 
 def test_an_unknown_subject_is_distinguishable_from_an_empty_one() -> None:
-    ""                                                                   
+    """The conflation this repository removes everywhere: it is NOT here.
 
-                                                                             
-                                                                             
-                                                                          
-                             
+    A project that exists and holds nothing answers with itself; an id nobody
+    has answers with nothing. Registries do hold projects with no folder and no
+    repository, so the first state is a real one."""
     import survey
     import paths
     projects = json.loads(

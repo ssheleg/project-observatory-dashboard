@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """What leaves the store, and the audit trail it leaves behind.
 
-                                                                                
-                                                                                 
-                                                                              
-                                                                               
-                                                     
+**Retention never DELETEs a ledger row.** It writes a tombstone, then purges the
+derived projections and records that the purge happened. An erasure with no audit
+trail is indistinguishable from a bug, and the opposite mistake is just as real:
+machine-written `proposed` rows accumulate on every sweep until something prunes
+them.
 
 Two guards are structural rather than configurable, because each is a rule
 something else depends on:
@@ -25,11 +25,11 @@ one thing a reader will act on, and measured 2026-09-07 rather than reasoned:
     the vector index               gone
     `registry/ledger.jsonl`        KEPT      — and that file is COMMITTED
 
-                                                                                
-                                                                              
-                                                                                
-                                                                                
-                                          
+So a tombstone makes a revision unREADable, not unRECOVERABLE. The store's bytes
+are hardened too (`secure_delete` and a VACUUM, so no freed page holds the text of
+an index copy), and that is a narrower claim than it sounds beside the word
+"erasure": the canonical row keeps its statement, the export mirrors canon, and
+git history keeps the export for ever.
 
 If text must be unrecoverable rather than unreadable, a tombstone is not the
 mechanism and this project deliberately does not have one: revisions are
@@ -304,22 +304,21 @@ def purge_projections(conn: sqlite3.Connection) -> dict:
                     f"DELETE FROM {table} WHERE memory_id = ? AND revision = ?", (mid, rev))
                 removed += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
         after = conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
-                                                                                
-                                                                  
-         
-                                                                             
-                                                                                
-                                                                       
-                                                                                  
-                                                                       
-                                                                              
-                                                                        
-         
-                                                                             
-                                                                              
-                                                                                   
-                                                                                 
-                      
+        # TWO residue counts, per revision AND per record, because the erasure's
+        # unit is the record and this loop's unit is the revision.
+        #
+        # A per-revision count alone can say `purged` over text that is still
+        # there: if only the CURRENT revision of a multi-revision record were
+        # tombstoned, an earlier revision's statement would stay a live row in
+        # the index, and no page would be freed for the VACUUM to zero. Every READ
+        # is record-wide (tombstones are joined on `memory_id` alone), so such
+        # rows would serve no reader and only hold the text.
+        #
+        # `ledger.tombstone` writes one row per revision, which makes the loop
+        # above complete. This second count is what PROVES it rather than
+        # assuming it: if a revision is ever tombstoned alone (by hand, by a
+        # migration, by a future caller) the receipt says INCOMPLETE instead of
+        # `purged`.
         left = conn.execute(
             f"SELECT count(*) FROM {table} t JOIN tombstones tb"
             f"   ON tb.memory_id = t.memory_id AND tb.revision = t.revision").fetchone()[0]

@@ -1,43 +1,37 @@
 #!/usr/bin/env python3
-""                                                                   
+"""How a project is named, in one place, because the name CHANGES.
 
-                                                              
-                                                                              
-                                                                        
-                                                                               
-                                                                              
-                                                                           
-                
+A project with no remote is anchored on its folder and carries
+`project:local-<folder>`. Give it a remote and it becomes repository-anchored:
+`project:<owner>-<name>`. The id is therefore derived from the project's
+PUBLICATION STATE, so publishing a project renames it, and every row already
+keyed to the old id is orphaned. `memory.orphan_subject` is the finding that
+names that cost: a note keyed to a subject the registry does not hold never
+appears in that project's answers.
 
-                                                         
+The stake is real: a project with a long commit history is one `git remote add`
+away from detaching all of it in a single step, in a system whose purpose is to
+keep the record of work per project.
 
-                                                                                      
-                                                                                      
-                                                                                      
+**The resolution needs no new state and asserts nothing.** The folder name is
+inside the old id, and the registry already says which project owns that folder
+now. So this module owns the naming rule, `collectors/merge.py` mints through it,
+and readers ask it which ids a project used to carry.
 
-                                                                            
-                                                                                 
-                                                        
+**Ids are compared as MINTED, never by inverting the slug.**
+`re.sub(r"[^a-z0-9.-]+", "-", ...)` maps both `a_b` and `a-b` to `a-b`, so an
+inverse would be a guess dressed as a lookup.
 
-                                                                             
-                                                                               
-                                                                                 
-                                                     
+**Two projects may claim one former id.** When more than one live project could
+have carried the same old id, the alias is ambiguous: `former_index` leaves it
+unresolved and `former_conflicts` names the candidates, rather than handing the
+history to whichever project happens to come first.
 
-                                                            
-                                                                             
-                                             
-
-                                                                              
-                                                                             
-                                                                               
-                                    
-
-                                                                                
-                                                               
-                                                                               
-                               
-   
+What this deliberately does NOT do: rewrite anything. The ledger is authored and
+append-only, and moving a record to another id is a change of SUBJECT that
+`memory.orphan_subject`'s own action leaves with a person. Readers resolve; the
+record stays as it was written.
+"""
 from __future__ import annotations
 import re
 
@@ -83,11 +77,12 @@ def former_ids(project: dict) -> list[str]:
 
 
 def ids_for(project: dict, projects: list[dict] | None = None) -> list[str]:
-    ""                                                                     
+    """Every id under which this project's history may be recorded, its own
+    first, then the former ids that resolve unambiguously to it.
 
-                                                                                
-                                                                        
-       
+    Without `projects` there is nothing to resolve against, so the answer is
+    the project's own id alone.
+    """
     if projects is None:
         return [project['id']]
     return [project['id'], *sorted(old for old, current in former_index(projects).items()
@@ -95,7 +90,7 @@ def ids_for(project: dict, projects: list[dict] | None = None) -> list[str]:
 
 
 def former_claims(projects: list[dict]) -> dict[str, set[str]]:
-    ""                                                                            
+    """Former id -> the set of live projects whose folders could have minted it."""
     claims: dict[str, set[str]] = {}
     for p in projects:
         for old in former_ids(p):
@@ -104,14 +99,14 @@ def former_claims(projects: list[dict]) -> dict[str, set[str]]:
 
 
 def former_index(projects: list[dict]) -> dict[str, str]:
-    ""                                                                            
+    """Former id -> its one owner, for ids claimed once and not live themselves."""
     live = {p['id'] for p in projects}
     return {old: next(iter(owners)) for old, owners in former_claims(projects).items()
             if len(owners) == 1 and old not in live}
 
 
 def former_conflicts(projects: list[dict]) -> dict[str, list[str]]:
-    ""                                                                       
+    """Former ids claimed by more than one project (or also live), with the candidates."""
     live = {p['id'] for p in projects}
     out = {}
     for old, owners in former_claims(projects).items():

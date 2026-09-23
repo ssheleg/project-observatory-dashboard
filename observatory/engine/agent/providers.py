@@ -45,29 +45,27 @@ KEY_USAGE = paths.STATE / "key-usage.json"
 KEY_ENV = "OPENROUTER_API_KEY"
 EMBED_KEY_ENV = "OPENAI_API_KEY"
 
-                                                                                
-                                                                                 
-                                                                            
-                              
-  
-                                                                         
-                                                                                
-                                                            
-                                                                                 
-                                                                             
-                                                                            
-                                                                              
-                                                               
-                                                                            
-                                                                                 
-                                                                              
-                                                                               
-                                                                           
-                                                                                
-                                                                            
-                                                                            
-                                                                          
-                                                  
+#: Where a key may live, in the order it is looked for. The convention is one
+#: file per secret at mode 600, read at process start, and this follows it
+#: rather than inventing another pattern.
+#:
+#: The scheduled job deliberately carries NO key in its service definition: such
+#: a file is often world-readable, and environment variables declared there
+#: would put the secret in plaintext where every process on the machine can read
+#: it.
+#: OBSERVATORY_KEY_FILE overrides the search entirely — one path, and only that
+#: path. It exists because once a shell profile exports the key, "no credential"
+#: becomes a state a test can no longer reach: clearing the environment variable
+#: simply falls through to the secret store. A degradation that cannot be tested
+#: is a degradation nobody has seen work.
+#: THE PROJECT'S OWN KEY WINS. The secret store's key is the MACHINE's shared
+#: secret — every agent on the host may reach OpenRouter through it — so if it
+#: came first, a key placed in this repository for this project alone could
+#: never be the one that got used, and the remedy an operator would reach for
+#: when the shared key hits its limit (give the observatory its own key) would
+#: be inert by construction. A specific credential beats a shared fallback; the
+#: fallback is what keeps the machine working when the specific one is absent,
+#: which is the whole point of having two.
 KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)
              if os.environ.get("OBSERVATORY_KEY_FILE") else
              (paths.STORE / ".openrouter-key",
@@ -155,12 +153,12 @@ def catalogue(refresh: bool = False) -> tuple[dict, str]:
             "price_out_per_1m": num("completion") * 1e6,
             "supported_parameters": m.get("supported_parameters") or [],
         }
-                                                                            
-                                                                                
-                                                                              
-                                                                            
-                                                                                 
-                                                                 
+    # THROUGH `atomic`, like every other writer of state this project cannot
+    # rebuild. `Path.write_text` truncates the destination before it writes, and
+    # a crash in between loses the file — for the wallet that means lost spend
+    # events. The catalogue is the cheapest of these — a refetch restores it —
+    # and it goes the same way so that no reader of this file has to remember
+    # which of them was the important one.
     atomic.write_json(CATALOGUE, {"fetched_at": iso(), "models": models})
     return models, "fetched now"
 
@@ -382,8 +380,8 @@ def wallet_state() -> dict:
         # available, so the guard no longer depends on an unrelated service
         # being reachable.
         "source": "provider" if pu else "local journal (the provider was unreachable)",
-                                                                            
-                                                                               
+        # KEPT for older readers, and it is the key's number when the provider
+        # answers. `local_today` beside it is this project's.
         "today": round(pu["daily"], 6) if pu else local_day,
         "key_today": round(pu["daily"], 6) if pu else None,
         "key_month": round(pu["monthly"], 6) if pu else None,
@@ -414,18 +412,15 @@ def check_budget(provider: str = "openrouter") -> str | None:
     and spend velocity over a rolling window. The third exists because the first
     two catch a runaway tomorrow.
 
-                                                                                 
-                                                                                 
-                                                                        
-                                                                               
-                                                                                  
-                                                                             
-                                                                                
-                                                                               
-                                                                          
-                                                                                
-                                                                                
-                
+    **`provider` is not decoration.** The provider's own counters belong to the
+    OpenRouter key. Embeddings are bought from OpenAI on a different key
+    (OpenRouter serves none), so gating them on OpenRouter's figures asks the
+    wrong meter two ways at once — another consumer of a shared OpenRouter key
+    could stop this estate's indexing, and whether it did would depend on
+    whether OpenRouter's usage endpoint answered: the same call could be refused
+    interactively and permitted inside the gate, where the provider was
+    unreachable and the state fell back to the local journal. A guard whose
+    verdict depends on the reachability of an unrelated service is not a guard.
 
     For any other provider the caps are evaluated against THIS project's own
     journal, which `charge()` records for every provider alike, and the
@@ -434,29 +429,20 @@ def check_budget(provider: str = "openrouter") -> str | None:
     "is something looping right now" — is provider-independent.
     """
     s = wallet_state()
-                                                                          
-                                                                       
-                                                                               
-                                                                              
-                              
-     
-                                               
-                                           
-                                                       
-                                                                              
-                                             
-     
-                                                                             
-                                                                             
-                                                                             
-                                                                               
-                                                                            
-                                                                                
-     
-                                                                              
-                                                                              
-                                                                                 
-                        
+    # THIS PROJECT'S OWN JOURNAL, for every provider alike. Reading the daily
+    # and monthly caps from the PROVIDER's counters measures THE KEY — which may
+    # be shared with whatever else on this machine uses the same provider. The
+    # consequence is total: a neighbour's spending trips both ceilings, and the
+    # agent, the indexer and the semantic half of `observatory_search` are all
+    # disabled while the key still has credit and this system has spent almost
+    # nothing. A ceiling must govern what the system CONTROLS; the docstring
+    # above makes this argument for embeddings and it applies unchanged to the
+    # agent.
+    #
+    # The drift a local journal could suffer is answered where it belongs: the
+    # key's own remaining limit is checked first below, is enforced by the
+    # provider, and cannot drift — so a journal that under-counts by one dead
+    # call cannot overspend past it.
     today, month = s["local_today"], s["local_month"]
     source = "this project's journal"
     own_meter = provider == "openrouter"
@@ -465,12 +451,10 @@ def check_budget(provider: str = "openrouter") -> str | None:
     # about to happen is worth more than discovering it. It is OpenRouter's key,
     # so it is skipped for anything bought elsewhere.
     if own_meter and s.get("key_remaining") is not None and s["key_remaining"] <= 0:
-                                                                                 
-                                                                               
-                                                                              
-                                                                            
-                                                                               
-                                                     
+        # ALL THREE FACTS, like the ceiling messages below. Saying only the key's
+        # number reads as though this system spent the whole limit, when its own
+        # journal may hold a tiny fraction of it. The share spent by other
+        # consumers of the same key is named so that misreading cannot happen.
         others = max(float(s["key_total"]) - float(month), 0.0)
         return (f"the limit on this KEY is spent: {s['key_total']:.4f} of "
                 f"{s['key_limit']} {s['denomination']}, resets "
@@ -478,16 +462,12 @@ def check_budget(provider: str = "openrouter") -> str | None:
                 f"this project's own journal holds {month:.4f} {s['denomination']} "
                 f"for the month, so {others:.2f} was another consumer of the same key")
     if today >= s["daily_ceiling"]:
-                                                                              
-                                                                                
-                                                                                
-                                                                            
-                                                                         
-                                                                              
-                                                                          
-                                                                              
-                                                                               
-                                                                   
+        # BOTH figures, because they can differ by orders of magnitude and the
+        # difference is the whole story. The provider's own counters measure THE
+        # KEY — and a key can be shared with whatever else on the machine uses
+        # the same provider. Reporting only the key's figure against the ceiling
+        # reads as "the observatory overspent", which can be false.
+        # The figure that DECIDED is this project's own; the key's is context.
         extra = (f"; the key itself shows {s['key_today']:.4f} today, so "
                  f"{s['key_today'] - today:.4f} of that is another consumer"
                  if s.get("key_today") is not None else "")
@@ -523,12 +503,10 @@ def charge(model_id: str, cost: float, tokens_in: int, tokens_out: int,
         "estimated": estimated,
         "upstream": round(upstream, 8) if upstream is not None else None,
         "in": tokens_in, "out": tokens_out})
-                                                                              
-                                                                             
-                                                                              
-                                                                            
-                                                                        
-                                                                           
+    # THE HORIZONS COME FROM the retention config, where every other horizon in
+    # this project lives. As literals here, while also declared there and read by
+    # nothing, the numbers would agree only by coincidence: changing the config
+    # would do nothing and changing the code would make the config a lie.
     keep = retention_config()
     w["events"] = w["events"][-int(keep.get("wallet_events", 500)):]
     for d in sorted(w["days"])[:-int(keep.get("wallet_days", 60))]:
@@ -572,16 +550,16 @@ EMBED_KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_EMBED_KEY_FILE"]),)
                     paths.STORE / ".openai-key"))
 
 
-                                                                               
-                                                                            
-                                                                            
-                                                                                
-                                                                               
+#: What a key for each provider must look like. Checked because the environment
+#: is not trustworthy: a variable meant for one provider can hold another's key,
+#: which is then sent to the wrong host and answered 401 — while the correct key
+#: sits unused in the secret store, shadowed by it. A prefix check turns that
+#: into a refusal with a name.
 KEY_SHAPES = {
     "OPENROUTER_API_KEY": ("sk-or-v1-", "OpenRouter"),
     "OPENAI_API_KEY": ("sk-", "OpenAI"),
 }
-                                                                            
+#: An OpenRouter key also starts with OpenAI's prefix, so OpenAI's check needs the negative too.
 KEY_ANTI_SHAPES = {"OPENAI_API_KEY": ("sk-or-",)}
 
 
@@ -608,10 +586,10 @@ def _shape_ok(env_name: str, value: str) -> str | None:
     return None
 
 
-                                                                           
-                                                                          
-                                                                               
-                                                
+#: Where the shape verdicts are kept for a reader that is NOT this process.
+#: `paths.STATE`, beside `key-usage.json`, because a literal under `paths.STORE`
+#: cannot be redirected, and a test writing into the live store can truncate
+#: the operator's wallet.
 def _shapes_file():
     return paths.STATE / "key-shapes.json"
 
@@ -619,11 +597,11 @@ def _shapes_file():
 def shape_report() -> list[dict]:
     """One row per key variable THIS PROCESS CAN SEE, and never its value.
 
-                                                                                
-                                                                               
-                                                                                 
-                                                                                
-                                                                   
+    A variable absent from the environment gets no row. That is the point: a row
+    saying "absent" reads as "checked and fine", and the process best placed to
+    check is not always the one that can — the scheduled tick inherits neither of
+    these variables, so a misplaced key in the operator's shell never shows up in
+    the tick's own log.
 
     Only the identifying PREFIX of a wrong value is carried. The verdict is
     unreadable without it and it is not key material; the rest, including any
@@ -1021,13 +999,13 @@ if __name__ == "__main__":
                   "variables are invisible to it — the tick is what spends)")
         else:
             print("  the scheduled tick resolves the same key")
-                                                                            
-                                                                                 
-                                                                            
-                                                                               
-                                                                               
-                                                                              
-                                                         
+        # EVERY key variable, not only the active provider's. `key_status()`
+        # reports only the key this chain resolves, so the EMBEDDING key
+        # (`OPENAI_API_KEY`) is never mentioned by it even when it holds the
+        # wrong kind of key. The receipt is what lets `tools/build_findings.py`
+        # say so on a surface: this step is deliberately outside the tick,
+        # because the tick does not inherit the shell where these variables are
+        # set.
         rows = shape_report()
         for r in rows:
             if r["verdict"] == "wrong":

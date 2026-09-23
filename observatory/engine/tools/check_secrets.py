@@ -1,51 +1,49 @@
 #!/usr/bin/env python3
-""                                                                             
+"""No credential is in the tracked tree, as an exit code rather than a doctrine.
 
-                                                                             
-                                                                             
-                                                                             
-                                                                              
-                                                                         
-               
+This repository says a great deal about how a key is handled: one per file at
+mode 600, a loose-permission file REFUSED rather than used, the launchd plist
+carrying no key, `key_status` printing a shape and never a value, and a suite
+(`tests/test_key.py`) that drives all of it. **Nothing verified that a key had
+never been committed**: no step of the gate looked.
 
-                                                                                  
-                                                                       
-                                                                               
-              
+A project audit once raised CRITICAL findings for an "openai-style key committed
+in the tree" at `tests/test_key.py`. They were FALSE POSITIVES, and saying so
+needs evidence rather than a shrug:
 
-                                                                   
-                                                                    
-                             
-                             
-                                                                             
+    the value            a fake OpenRouter-shaped key used only by that test
+    normalised entropy   0.72 of what a body that length could carry
+    a random 32-char key 0.91
+    a random 48-char key 0.89
+    used only as         an input to assertions that the key is never printed
 
-                                                                            
-                                                                  
-                                               
+So the scanner separates a fixture from a credential by ENTROPY and never by
+name: a real key called `FAKE_KEY` must still fail, which is why a
+word that describes itself lowers nothing on its own.
 
-                                                                                 
-                                                                                 
-                                                                               
-                                                                         
+**Normalised, and that is not a refinement.** The first version of this file used
+raw bits per character with a floor of 4.3, and a real AWS key sailed straight
+through, because its body is exactly sixteen characters and the maximum entropy
+of sixteen characters is log2(16) = 4.0. The floor sat above the ceiling.
 
-                                                                          
-                                                                          
-                                                                         
-                                                                               
-                                                                                
-                                                                          
-                                                                      
+**And the method has a floor of its own.** Over thousands of random draws, a
+sixteen-character AWS body's normalised entropy reaches as low as about 0.72,
+which OVERLAPS this repository's fixture at 0.72 and a `your-key-goes-here`
+placeholder at 0.74. Sixteen characters do not hold the information to separate
+them, so a structurally exact vendor shape (`EXACT_SHAPES`) is decided by its
+prefix and never measured. A false positive there costs one allowlist line with
+a reason; a false negative is a leaked credential.
 
-                                                                                  
-                                                                             
-                                                                          
-                                                                               
-                                                                               
-                                                         
+WHAT IS IN SCOPE. `git ls-files`, the tracked tree, because "committed" is what
+the claim is about. An untracked file is the operator's own working state and
+flagging it would make this the check nobody runs (trap T28). History is a
+separate, opt-in mode: it is expensive and its remedy is different. A key in
+history is rotated at its issuer, never rewritten out, because a rewrite breaks
+every clone and the credential is compromised either way.
 
-                                                                              
-                                                                        
-   
+    check_secrets.py              # the tracked tree; non-zero on a credential
+    check_secrets.py --history N  # also the last N commits' added lines
+"""
 from __future__ import annotations
 import argparse, collections, json, math, pathlib, re, subprocess, sys
 
@@ -124,12 +122,12 @@ ALLOWLIST: dict[str, str] = {
         "the fixtures that drive the scanner, including a truncated private-key "
         "header with no key material — planted so the detector can be watched "
         "detecting",
-                                                                         
-                                                                           
-                                                                            
-                                                                             
-                                                                              
-                                                                          
+    # HISTORY ONLY. An earlier commit wrote the header out in full in a planted
+    # service-account fixture whose 'key' is plainly not key material; the tree
+    # composes it at runtime now. History is never rewritten here (the reason is
+    # in main() below), so the entry has to stand while `--history` can still
+    # reach that commit, and after that it stands for nothing: a path with no
+    # literal in the tree cannot hide one behind this line.
     "tests/test_project_secrets.py":
         "a planted service-account file whose private-key header was written out "
         "once (b78147b) over a body that is plainly not key material; the tree "
@@ -153,24 +151,24 @@ def entropy(s: str) -> float:
 
 
 def normalised(s: str) -> float:
-    ""                                                                
+    """Entropy as a fraction of what a string that length could carry.
 
-                                                                              
-                                                                                  
-                
-       
+    A length-blind threshold compares a short body against something above its
+    own ceiling, which is exactly how the first version of this file let an AWS
+    key through.
+    """
     if len(s) < 2:
         return 0.0
     return entropy(s) / math.log2(len(s))
 
 
 def body_of(match: str) -> str:
-    ""                                                 
+    """The random part, with the vendor prefix removed.
 
-                                                                            
-                                                                               
-                                                                           
-       
+    The prefix is fixed text every key of that vendor carries, so leaving it in
+    lowers the entropy of every real key by diluting it with a known string;
+    the measurement has to be about the part that is supposed to be random.
+    """
     for pre in ("sk-or-v1-", "sk-proj-", "sk-ant-api03-", "sk-", "github_pat_",
                 "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "lin_api_", "AKIA", "AIza"):
         if match.startswith(pre):

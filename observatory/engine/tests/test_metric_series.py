@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 """The plugin layer had 92 measurements and no series, and nothing read them.
 
-                                                                                
-                                                                               
-                                                                           
-                                                          
+`plugins/disk-usage.json` states its own reason: the data volume was nearly
+full, and nothing in the observatory could say which projects were responsible
+or whether one was growing. Both halves were once unanswered, for two different
+reasons.
 
-                                                                           
-                                                                               
-                                                                           
-                                                                                
-                                                                          
-                                                                             
-                                                                                
-                                                                              
-                                                                               
-                                                                            
-                                   
+**There was no series.** The store held a single sample instant, and every tick
+of the following day answered `SKIP disk-usage: measured within the last 24h`.
+Correct by the rule it applied, and the rule was the wrong one: `due()` measured
+elapsed hours since the last row was RECORDED, while the plugin stamps its
+sample at midnight UTC, one per calendar day. Two clocks. The drift is
+one-directional and worse than the delay — each day's sample can only be taken
+at or after the previous day's clock time, so a late run pushes the next later
+still, and a day the machine is asleep at that hour is lost with nothing saying
+so. A cadence in whole days is a CALENDAR bucket now, because that is what a
+daily sample's own timestamp means.
 
 **And nothing read the rows.** 92 measurements, one reader: the dashboard's
 "latest value" panel. `host.disk_low` — the critical finding that says the

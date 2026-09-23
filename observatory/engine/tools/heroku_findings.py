@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Four things about Heroku that belong on the operator's queue, not on a tab.
 
-                                                                           
-                                                                                
-                                                                                
-                                                                               
-                                                               
+A TAB IS NOT A WATCHER. A dashboard tab answers a question somebody asked; a
+finding reaches somebody who did not ask. That difference is the whole reason these
+rules exist: an app whose web dyno has crashed can go on costing money for months
+while the one screen that would show it stays unopened.
 
 FOUR RULES, AND WHAT EACH ONE IS NOT.
 

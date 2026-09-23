@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                                  
+"""Two projections about what the estate OWNS and how it GROUPS: zones and products.
 
-                                                                             
-                                                                             
-                                                                               
-                                                                            
-                                                                            
+`registry/cloudflare-zones.json`: every Cloudflare zone the estate holds a
+token for, joined to the domain registry (registered where?), to the projects
+(whose surface?) and to the operator's boundary file (ruled outside? pending?).
+It is the answer to "which domains do we have and what is their status" that a
+hand-transcribed `domains.json` could only give for the domains it was told about.
 
-                                                                               
-                                                                             
-                                                                              
-                                                                        
-                                                          
+`registry/products.json`: several projects, folders and domains that are ONE
+THING to a user: a site, its admin, its app, its wiki. Curated rows come from
+`collectors/products.json` and are facts; SUGGESTED rows are derived here from
+projects that share a registrable domain and are labelled so, because an
+inference that looks like a decision gets acted on as one.
 
-                                                                          
-                                              
-   
+Both are read by the dashboard and mirrored into the wiki like every other
+projection; neither holds a value of any kind.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -74,11 +74,11 @@ def registrable(host: str, owned: set[str]) -> str | None:
 # ─────────────────────────── host -> project, ranked ─────────────────────────
 
 def host_table(projects: list[dict]) -> dict[str, tuple[str, int]]:
-    ""                                                                 
+    """host -> (project id, rank of the evidence that placed it there).
 
-                                                                          
-                                                      
-       
+    Where two projects claim one host the LOWER rank wins; a tie keeps the
+    first in project order and the zone row says both.
+    """
     table: dict[str, tuple[str, int]] = {}
     for p in projects:
         for s in p.get("sites") or []:
@@ -150,13 +150,13 @@ def zone_targets(z: dict) -> list[dict]:
 
 
 def heroku_site_hints(scan_apps: list[dict], linked_apps: list[dict]) -> dict[str, dict[str, str]]:
-    ""                                                               
+    """project id -> {host: evidence} from Heroku's own domain lists.
 
-                                                                              
-                                                                               
-                                                                             
-                                                           
-       
+    A zone's CNAME names a Heroku DNS target and never the app's name; Heroku's
+    list of the hostnames it accepts for an app is the other end of that CNAME,
+    and `heroku-apps.json` already ties the app to a project by a named rule.
+    Chained, no name is ever compared to a name.
+    """
     proj_of = {a["name"]: a["project"] for a in linked_apps if a.get("project")}
     out: dict[str, dict[str, str]] = {}
     for a in scan_apps:
@@ -289,16 +289,16 @@ def load_curated() -> tuple[dict, list[str]]:
 
 def curated_errors(products: dict, roles: list[str], project_ids: set[str]
                    ) -> tuple[list[str], list[str]]:
-    ""                                
+    """(hard errors, missing members).
 
-                                                                                    
-                                                                            
-                                                                              
-                                                                           
-                                                                                
-                                                                            
-                                                                           
-       
+    The SHAPE of the file (a bad id, no name, no why, a role outside the list)
+    is the operator's mistake and the emitter refuses it whole. A member the
+    registry does not hold TODAY is a different thing: a project gets renamed,
+    dissolved or measured out of a sandbox, and an emit that stops for that
+    stops the tick for the whole estate. A test fixture whose registry lacked
+    some curated members made the first version refuse its emit. Missing
+    members are DROPPED and RECORDED as degraded.
+    """
     bad, missing = [], []
     for pid, p in products.items():
         if not pid.startswith("product:"):
@@ -317,13 +317,13 @@ def curated_errors(products: dict, roles: list[str], project_ids: set[str]
 
 def suggested_products(projects: list[dict], domains: list[dict],
                        curated: dict) -> list[dict]:
-    ""                                                                   
+    """Projects that share a registrable domain are probably one product.
 
-                                                                       
-                                                                              
-                                                                            
-                             
-       
+    Derived, labelled `suggested`, never a fact: two repositories under one
+    domain may be one product or two teams' work. The row exists so the
+    operator can promote it into `collectors/products.json` with a word, not
+    so anyone acts on it.
+    """
     owned = {d["name"] for d in domains}
     already = {m for p in curated.values() for m in (p.get("members") or {})}
     by_apex: dict[str, dict[str, set[str]]] = {}

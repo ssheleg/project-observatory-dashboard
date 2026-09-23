@@ -1,47 +1,50 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Project secrets: one door in, one door out, and a leak is a recorded fact.
 
-                                                                             
-                                                                                         
-                                                                                            
-                                                                                            
-                                                                                            
-                                                                                             
-                                                                                             
+    tools/vault.py put <project> <env> <NAME>          # value on stdin, only
+    tools/vault.py list [project] [env]                # names and metadata, never values
+    tools/vault.py inject <project> <env> <dir>        # write <dir>/.env, only if git ignores it
+    tools/vault.py rotate <project> <env> <NAME>       # new value on stdin; old is archived
+    tools/vault.py leak <project> <env> <NAME> --where "…"   # mark leaked, MUST say where
+    tools/vault.py settle <project> <env> <NAME> --how "…"   # close a leak, with evidence
+    tools/vault.py moved <project> <env> <NAME> --how "…"    # record a movement done elsewhere
+    tools/vault.py movements [project]                 # the movement journal
+    tools/vault.py leaks                               # the register, oldest unrotated first
+    tools/vault.py backup                              # run the store's encrypted backup now
 
-                                                                               
-                                                              
-                                                                                
-                                                                                
-                                                                            
-                                                                            
-                                                                                
-                                                 
+WHERE VALUES LIVE, AND WHY NOT A NEW STORE. Values go under an existing
+credential store whose whole job is holding plaintext credentials safely — a
+directory at mode 700/600, ignored by git, and backed up as a whole by its own
+encrypted backup script. Project secrets go under it
+(`projects/<project>/<env>/<NAME>`, or `OBSERVATORY_VAULT_DIR`), so backup,
+restore and machine migration are inherited rather than rebuilt. A second store
+beside a working one is how one of them quietly stops being backed up.
 
-                                                                                  
+THE CONTRACT WITH AGENTS — the four rules the observatory skill makes mandatory:
 
-                                                                              
-                                                                               
-                           
-                                                                          
-                                                                               
-                                                                          
-                                                                               
-                                                                            
-                                                                             
-                                                               
-                                                                             
-                                                                          
-                                                                           
-                                      
+  1. A value travels only on stdin, never in argv and never in a chat message.
+     Argv lands in shell history and `ps`; a chat message lands in a transcript
+     that outlives the key.
+  2. An agent never opens the store's files. `inject` writes the project's
+     `.env` and prints VARIABLE NAMES; from then on the agent works with names.
+     The store refuses to run at all if the target .env is not gitignored.
+  3. An agent that SEES a secret value anywhere it does not belong — a log, a
+     transcript, a commit, a pasted terminal — runs `leak` with `--where`.
+     Marking is mandatory and cheap; rotation is the operator's call, but the
+     register must know first.
+  4. A leaked secret stays in the register until it is settled — `settle`, or
+     `moved --settle` — with evidence that the old value is revoked at its
+     issuer and that its consumers were checked. A local `rotate` alone does not
+     settle it: the retired value keeps working until revoked at the provider.
 
-                                                                              
-                                                                                   
-                                                                       
+METADATA IS NOT SECRET. `meta.json` beside each value (created, rotated, envs)
+and `leaks.jsonl` hold names, dates and places — never values — so the register
+can be read, listed and rendered without touching a single secret byte.
 
-                                                                                
-                                                            
-   
+Every value file is chmod 600 and every write goes through a sibling-and-rename,
+so a crash mid-write cannot leave a half-written credential.
+"""
+
 from __future__ import annotations
 import argparse
 import contextlib
@@ -256,11 +259,10 @@ def cmd_put(a) -> int:
 def cmd_rotate(a) -> int:
     slot = _slot(a.project, a.env, a.name)
     if not slot.is_file():
-                                                                             
-                                                                                   
-                                                                               
-                                                                            
-                                                       
+        # A key the vault never held can still leak, and it is rotated AT THE
+        # PROVIDER — a provider CLI, a dashboard — so there is no value to hand
+        # this command. The refusal therefore names the way to close the
+        # register instead of only saying "use put".
         die(f"nothing at {a.project}/{a.env}/{a.name} to rotate — `put` a value to "
             f"start tracking it, or, if it was rotated at its provider, settle the "
             f"register: `vault.py settle {a.project} {a.env} {a.name} --how \"…\" "
@@ -279,7 +281,8 @@ def cmd_rotate(a) -> int:
     meta["rotations"] += 1
     _atomic_write(_meta_path(slot), json.dumps(meta, indent=1), 0o600)
     journal("rotate", f"{a.project}/{a.env}/{a.name}", archived=archive.name, scope="local_slot")
-                                                                                   
+    # A local replacement is not a settlement: the retired value still works
+    # until it is revoked at its provider, so the leak register is left open.
     print(f"rotated {a.project}/{a.env}/{a.name}: old value archived as "
           f"{archive.name} (600); new length {len(value)}; value hidden")
     print("  local replacement does not settle a leak; record settlement after "
@@ -333,11 +336,12 @@ def movements(project: str | None = None) -> list[dict]:
 
 @_serialized
 def cmd_moved(a) -> int:
-    ""                                                                           
+    """Record a movement of a key done outside these tools (a provider CLI, a dashboard)."""
     _slot(a.project, a.env, a.name)
     if not a.how or len(a.how.strip()) < 12:
         die("--how must describe what moved, where, and its evidence (at least 12 characters)")
-                                                                                    
+    # `--settle` also closes the open leak rows of this slot, and then needs
+    # the same revocation and consumer evidence `settle` does.
     detail = _settlement_detail(a) if a.settle else {"how": a.how.strip()}
     secret = f"{a.project}/{a.env}/{a.name}"
     rows = _unsettled_for(secret) if a.settle else []
@@ -370,7 +374,7 @@ def _append_leak(row: dict) -> None:
 
 
 def _settlement_detail(a) -> dict:
-    ""                                                                            
+    """The settlement record, refused unless it carries revocation and consumer evidence."""
     if not a.how or len(a.how.strip()) < 12:
         die("--how must describe the operation and its evidence (at least 12 characters)")
     detail = {"verification": "manual_attestation", "how": a.how.strip()}
@@ -399,12 +403,13 @@ def _record_settlements(rows: list[dict], detail: dict) -> None:
 
 @_serialized
 def cmd_settle(a) -> int:
-    ""                                                                         
+    """Close every open leak of one slot with a manual attestation.
 
-                                                                              
-                                                                              
-                                                                             
-       
+    A leak is settled only by evidence, never as a side effect: `rotate`
+    replaces the local slot, but a key the provider still accepts is still
+    leaked. This records how the old value was revoked and how its consumers
+    were checked, in the leak register and the movement journal.
+    """
     _slot(a.project, a.env, a.name)
     detail = _settlement_detail(a)
     secret = f"{a.project}/{a.env}/{a.name}"

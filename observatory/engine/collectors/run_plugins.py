@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Run every metric plugin, and refuse what they should not have written.
 
-                                                                                
-                                                                              
-                                                                              
-                                                                           
+Before this, adding an analytics source — traffic, errors, uptime, spend — meant
+editing six core files: the step table, the merge, the emitter, the validator,
+the findings builder and the dashboard. The reason was a category error, not a
+missing abstraction: a traffic figure was being treated as a REGISTRY FACT.
 
 It is not one. The registry answers what EXISTS, is validated, lives in git and
 is rewritten whole on every emit. A measurement taken at an instant accumulates
@@ -127,15 +127,14 @@ EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 def period_start(now: datetime, every_hours: float) -> datetime:
     """The start of the bucket `now` falls in — the unit a cadence actually means.
 
-                                                                                
-                                                                          
-                                                                                 
-                                                                             
-                                                                       
-                                                                                 
-                                                                                  
-                                                                               
-                           
+    **TWO CLOCKS, and they disagreed.** `due()` once measured elapsed hours since
+    the last row was RECORDED, while `plugins/disk_usage.py` stamps its sample
+    at midnight UTC of its day — "one sample a day". A sample recorded late in
+    the evening then made every tick of the following day answer `SKIP
+    disk-usage: measured within the last 24h`. Correct by the elapsed-hours
+    rule, and the effect was that the plugin layer never produced a SERIES —
+    while the one thing that plugin exists to answer is "is a project growing",
+    which needs two points.
 
     The drift is one-directional and worse than the delay: each day's sample can
     only be taken at or after the previous day's clock time, so a late run pushes
@@ -448,12 +447,12 @@ def main() -> int:
     kinds = conn.execute("SELECT COUNT(DISTINCT metric) FROM metrics").fetchone()[0]
     report(results, installed=len(found), metric_rows=total, distinct_metrics=kinds)
     print(f"metrics: {total} row(s), {kinds} distinct metric(s)")
-                                                                                 
-                                                                               
-                                                                  
-                                                                                
-                                                                             
-                    
+    # STILL ZERO for a plugin-level fault, deliberately. The runner's contract is
+    # that one bad plugin does not stop the others, so it did its job — and a
+    # non-zero exit here would make `tick.step_failed` fire beside
+    # `plugin.failing` for one cause, which is exactly the duplication the
+    # findings were designed to avoid. The report is what carries the fault; the
+    # exit code answers whether the RUNNER worked.
     return 0
 
 

@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
-""                                                    
+"""Find wikilinks in the wiki that resolve to nothing.
 
-                                                                                 
-                                
+Three things a naive check gets wrong, and each one produced a false positive the
+first time this was run by hand:
 
-                                                                             
-                                                                              
-                                                             
-                                                                       
-                                                                              
-                                                                           
-          
-                                                                               
-                                                                                
-                                                              
+* **An anchor is not part of the path.** `[[note#Section]]` points at `note`;
+  appending `.md` to the whole string finds nothing and reports a healthy link
+  as broken. Most of the first "dangling" links were this.
+* **A link can be prose.** `use full-path [[wikilinks]]` in a README is
+  documentation about the syntax, not a link — but it parses as one. Whether
+  that is a defect is a judgement, so it is reported separately rather than
+  counted as broken.
+* **An escaped pipe is not a path.** `[[path\\|label]]` escapes the `|` because
+  the link sits inside a Markdown table, where a bare pipe breaks the cell. Read
+  naively the target becomes `path\\` and resolves to nothing.
 
-                                                                                 
-                                                                                  
-                                                            
+All three were found by this checker reporting healthy links as broken. A vault
+can show several "broken" links and actually have none — which is the more
+useful finding, and the reason this file exists rather than a one-off sweep.
 
-                                                                           
-                                                                               
-                                                                                
-   
+The archive directory is skipped by default: a dated snapshot pointing at notes
+that existed on its date is what a snapshot IS, and rewriting one destroys the
+thing it was taken for. `--include-archives` says so out loud when you want the
+count.
+"""
 from __future__ import annotations
 import argparse, collections, json, pathlib, re, sys
 from datetime import datetime, timezone
@@ -42,16 +43,15 @@ def vault_root(explicit: str | None) -> pathlib.Path:
 
 
 def basenames(root: pathlib.Path) -> dict[str, list[str]]:
-    ""                                                                       
+    """basename -> every note with it. What Obsidian resolves a bare name by.
 
-                                                                              
-                                                                          
-                                                                                  
-                                                                                
-                                                                              
-                                                                               
-                                     
-       
+    Obsidian resolves `[[deep-note]]` to `projects/x/deep-note.md` wherever it
+    lives; a checker that only tries `root/deep-note.md` reports a link the
+    ACTUAL wiki follows as "bare name — may be prose about wikilink syntax".
+    That is a false positive of the exact kind the top of this file was written
+    about, and it makes the ambiguous bucket useless — a genuine prose mention
+    and a working link land in it together.
+    """
     out: dict[str, list[str]] = {}
     for f in root.rglob("*.md"):
         out.setdefault(f.stem, []).append(str(f.relative_to(root)))
@@ -92,17 +92,17 @@ def resolve(root: pathlib.Path, target: str,
 
 
 def report(**fields) -> None:
-    ""                                                  
+    """The receipt, and the reason this file gained one.
 
-                                                                               
-                                                                                
-                                                                                 
-                                                                               
-                           
+    Nothing read this tool's output. It is not in the gate and not in the tick,
+    while `tools/commit_projection.py` writes into that same wiki on every tick
+    — so the one thing that can break a wikilink ran constantly and the checker
+    for it ran only when a person typed it. A broken link would have waited for
+    somebody to be curious.
 
-                                                                           
-                                                                              
-       
+    Written on EVERY path, an absent vault included: a stale receipt saying
+    `clean` is worse than none, because `tools/build_findings.py` believes it.
+    """
     doc = {"ran_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), **fields}
     try:
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -123,12 +123,11 @@ def main() -> int:
     a = ap.parse_args()
     root = vault_root(a.vault)
     if not root.is_dir():
-                                                                               
-                                                                                 
-                                                                                  
-                                                                            
-                                                                             
-                        
+        # COULD NOT MEASURE, not "the links are broken". This used to return 1,
+        # so on any machine but the one holding the wiki — CI, a fresh clone,
+        # another operator — the tool was red for a reason that has nothing to do
+        # with a link. The same exit code for a fact about the run and a fact
+        # about the subject also made the step unusable anywhere else.
         print(f"no wiki at {root} — nothing was checked", file=sys.stderr)
         report(outcome="vault-absent", broken=None, ambiguous=None, notes=0,
                links=0, detail=f"no directory at {root}")
@@ -138,10 +137,11 @@ def main() -> int:
     broken: dict[str, list[tuple[str, str]]] = collections.defaultdict(list)
     total_links = files = 0
     for f in sorted(root.rglob("*.md")):
-                                                                               
-                                                                               
-                                                                              
-                                  
+        # A PATH COMPONENT, not a substring. A substring test on the whole path
+        # also skips a note whose own filename happens to contain the archive
+        # directory's name, and any note under a directory whose name merely
+        # contains the word — a silent exclusion from a checker whose whole
+        # output is a count.
         if not a.include_archives and "_archives" in f.relative_to(root).parts:
             continue
         files += 1

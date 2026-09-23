@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-""                                                                  
+"""Tell someone, once, about a finding that is new or has got worse.
 
-                                                                             
-                                                                               
-                                                                          
-                                                                                
-                                                                                  
-                                                                              
-                                                                        
+THE HARD PART IS NOT SENDING, IT IS NOT SENDING AGAIN. A notice that fires every
+thirty minutes teaches the operator to ignore the channel, and then it is worth
+less than silence. Delivery is therefore recorded in the event store under
+`kind='finding.notified'` with `ref='<finding id>@<severity>'`, and the schema's
+own `events_dedup` UNIQUE(kind, ref) enforces once only: the guarantee lives in
+the database, not in this file's control flow. Encoding severity in the ref is
+what makes a rise in severity speak again while a steady finding stays quiet.
 
-                                                                                
-                                                                            
-                                                                           
-                                                                         
+CHANNEL. macOS notification centre, which needs no credential, no network and no
+external service. Sending findings to a chat or a mailbox would be publishing
+this machine's private inventory somewhere else, and that is the operator's
+decision to make explicitly, not a default for a background tick to take.
 
-                                                                                
-                                                                               
-                              
+`info` findings never notify. They carry no deadline; they belong in the
+dashboard and in `observatory_findings`, where they are read on purpose rather
+than pushed.
 
-                                                   
-   
+    notify_findings.py [--dry-run]    # `--help` lists the flag that adds info
+"""
 from __future__ import annotations
 import hashlib, json, pathlib, sqlite3, subprocess, sys
 from datetime import datetime, timezone
@@ -36,38 +36,36 @@ CLEARED = "finding.cleared"
 
 
 def episode(con: sqlite3.Connection, fid: str) -> int:
-    ""                                                                            
+    """Which occurrence of this finding we are in: the count of endings so far.
 
-                                                                             
-                                                                        
-                                                                        
-                                                                                
-                                                                  
-                                                                           
-                                                                             
-                                           
+    **Once only was once FOR EVER.** The dedup key was `<id>@<severity>`, and
+    the event store keeps it, so a finding that closed and came back was
+    announced the first time and never again. Not hypothetical: soon after the
+    channel went live, a notified finding closed within a day. Had it come
+    back, the operator would never have heard about it, and the tool whose
+    entire purpose is telling a human would have been silent BY DESIGN.
 
-                                                                              
-                                                                               
-                                                                                
-                                                  
+    So the key carries the episode: `<id>@<severity>#<k>`, where k is how many
+    times the finding has been recorded as cleared. Every part stays idempotent
+    (`UNIQUE(kind, ref)` still does the enforcing, one layer down) and the
+    audit trail grows rather than being rewritten.
 
-                                                                              
-                                                                            
-                                                                              
-                                                                          
-       
+    Retention prunes `events` by age, so a finding open past the horizon loses
+    its `notified` row AND its `cleared` rows together: it notifies once more,
+    which is the right answer for something that has been true for a year, and
+    the counter cannot drift out of step with the notifications it counts.
+    """
     return con.execute("select count(*) from events where kind = ? and ref like ?",
                        (CLEARED, f"{fid}#%")).fetchone()[0]
 
 
 def close_episodes(con: sqlite3.Connection, open_ids: set[str]) -> list[str]:
-    ""                                                                       
+    """Record an ending for every notified finding that is no longer present.
 
-                                                                             
-                                                                                
-                                                         
-       
+    Written before anything is sent, because the send decision depends on it.
+    The ref is `<id>#<k>`, so recording the k-th ending twice is ignored and the
+    counter only advances when an ending is actually new.
+    """
     notified = [r[0] for r in con.execute(
         "select ref from events where kind = ?", (KIND,))]
     #: id -> the episodes it has been notified in. An ending needs a beginning:
@@ -103,13 +101,13 @@ def close_episodes(con: sqlite3.Connection, open_ids: set[str]) -> list[str]:
 
 
 def notify(title: str, body: str) -> tuple[bool, str]:
-    ""                                                                   
+    """osascript takes AppleScript source, so a quote in a title is code.
 
-                                                                        
-                                                                          
-                                                                        
-               
-       
+    Returns (delivered, detail). The detail is what a finding needs: "it
+    failed" is not actionable, and the usual reason here is specific: a
+    launchd job is not attached to an Aqua session, so the window server
+    refuses it.
+    """
     esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
     try:
         r = subprocess.run(
@@ -195,12 +193,12 @@ def main(argv: list[str]) -> int:
         print(f"notify_findings: {len(due)} open, nothing new since the last run"
               + (f"; {len(closed)} finding(s) closed: {', '.join(closed)}" if closed else ""))
         con.close()
-                                                                            
-                                                                                 
-                                                                                
-                                                                          
-                                                                            
-                
+        # WRITTEN HERE TOO. The report used to be produced only after a send
+        # attempt, so a quiet run left the previous run's file in place, and a
+        # stale "delivered: false" would have kept the channel finding lit after
+        # the channel recovered. The same early return shape as the review
+        # digest: a writer placed after a return that the common case takes
+        # never runs in the common case.
         _report(now_z(), True, "nothing new to deliver", [])
         return 0
 

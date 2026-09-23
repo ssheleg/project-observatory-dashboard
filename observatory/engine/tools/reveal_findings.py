@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """What the keyserver's own journal owes the board.
 
-                                                                               
-                                                                           
-                                                                          
-                                                                            
-                                                                         
-                                                                         
-                                                                              
-                                                                              
-                                                                           
-                                                                          
+THE JOURNAL MUST BE READ BACK. `store/logs/keyserver.jsonl` records every
+reveal, mint, limit and revoke, and a record that exists so a question can be
+answered later is worth nothing if no rule ever asks it. A burst of reveals of a
+single variable — the same name read again every few minutes through a night —
+is either an agent loop that never keeps the value by name (the
+`handling-secrets` rule says work with NAMES after the first read) or a caller
+nobody here started; both are the operator's to tell apart, and neither reaches
+the operator through a file nothing reads.
 
 TWO RULES, BOTH ABOUT FREQUENCY, NEITHER ABOUT VALUES:
 
@@ -39,8 +37,8 @@ LISTED = 4
 
 
 def read_journal(path: pathlib.Path) -> tuple[list[dict], str | None]:
-    ""                                                                       
-                                                                    
+    """(rows, problem). A journal that cannot be read is reported, never read
+    as empty — the same rule the leak register follows."""
     if not path.is_file():
         return [], None
     try:

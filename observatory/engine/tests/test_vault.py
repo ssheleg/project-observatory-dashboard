@@ -349,7 +349,7 @@ def test_moved_settlement_and_legacy_readers_preserve_scope() -> None:
     store = fresh()
     for project in ("demo", "other"):
         vault(store, "leak", project, "prod", "API_TOKEN", "--where", "synthetic CI log exposure")
-                                                                                    
+    # Two legacy leak rows in the older shape, settled by rotation and by hand.
     with (store / "leaks.jsonl").open("a") as f:
         f.write(json.dumps({"event": "leaked", "id": "old-1", "secret": "legacy/prod/KEY"}) + "\n")
         f.write(json.dumps({"event": "settled", "of": "old-1", "by": "rotation"}) + "\n")

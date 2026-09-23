@@ -3,11 +3,10 @@
 
 Four store failures in three days left nothing to diagnose with:
 
-                                                                       
-                                                                            
-                                                                       
-                                                                       
-                                                                        
+    disk I/O error                          an agent's write
+    file is not a database                  a multi-step job
+    database disk image is malformed        an agent's write
+    disk I/O error                          an agent's write
 
 `tools/check_store.py` answers `integrity_check` = `ok` every time afterwards, so
 the only surviving trace is a message in `store/logs/tick.log`. Free space, WAL

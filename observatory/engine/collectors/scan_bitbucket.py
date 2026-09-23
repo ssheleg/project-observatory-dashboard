@@ -3,9 +3,9 @@
 
 WHAT IS AND IS NOT REACHABLE WITHOUT A CREDENTIAL, measured 2026-09-05:
 
-                                                                   
-                                                        
-                                                                                  
+    GET /2.0/repositories/<workspace>        -> HTTP 200, "size": 0
+    GET /2.0/repositories/<workspace>/<repo> -> HTTP 404
+    Authorization: Bearer <anything>         -> 401, with an OAuth realm challenge
 
 The 200 is not access. Anonymous listing returns only PUBLIC repositories, and
 this workspace has none, so the endpoint answers and reveals nothing. That is
@@ -18,9 +18,9 @@ current come from `scan_remotes.py`, which needs no credential. Everything else
 were never cloned to this machine** — needs the API, and this collector is what
 uses it the moment a credential exists.
 
-                                                                                
-                                                                                
-                         
+THE CREDENTIAL. The secret store's `bitbucket` file, mode 600 or the file is
+REFUSED rather than used. Two accepted forms, and the collector reports which
+it used, never the value:
 
     username:app_password     -> HTTP Basic  (also the shape of an API token,
                                  which Bitbucket sends as email:token)

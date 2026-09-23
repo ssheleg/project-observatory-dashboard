@@ -1,37 +1,39 @@
 #!/usr/bin/env python3
-""                                                                       
+"""What production's configuration owes the operator.
 
-                                                                                
-                                                             
+`registry/remote-env.json` holds four verdicts per variable and only one of them
+is a debt — which is the whole difficulty of this rule set:
 
-                                                                               
-                                                                              
-                                                                         
-                                                                              
+`differs` IS THE HEALTHY CASE. A production database URL that equals the one in
+a developer's checkout is the accident; one that differs is the design. A rule
+firing on `differs` would put hundreds of rows on the board for a system
+working exactly as intended, and the board would be ignored by the second day.
 
-                                                                              
+So two rules, and both are about a value being in two places it should not be:
 
-                                                                          
-                                                                                
-                                                                         
-                                                                                
-                                                                      
-                               
-                                                                             
-                                                                             
-                                                                          
-                                                                        
+`remote.same_as_local`      a production SECRET whose value also sits in a
+                            local `.env`. One aggregate row: the remedy is one
+                            sentence for every occurrence — give production its
+                            own value — and dozens of rows of one sentence is
+                            noise, not information.
+`remote.retired_still_deployed`
+                            production is still holding a value the vault has
+                            already rotated away. Critical, one row per slot,
+                            and no aggregate: each is a different key at a
+                            different provider, and the remedy names it.
 
-                                                                         
-                                                                             
-                                                                         
-                                                                            
-                                                                                
-                 
+And three about what the comparison could not see:
 
-                                                                                
-                         
-   
+`remote.unbacked`           production secrets that exist only at the provider,
+                            with no checkout or vault slot holding a copy.
+`remote.namespace_withheld` secrets both sides hold that were fingerprinted
+                            under different salts, so no verdict was derived.
+`remote.unreadable`         applications whose configuration could not be read,
+                            which is unknown rather than empty.
+
+NO TIMESTAMP INSIDE A FINDING: the only dates quoted are the ones the registry
+already carries.
+"""
 from __future__ import annotations
 
 #: Named by name up to this many, as everywhere else on this board.
@@ -96,12 +98,11 @@ def findings(doc: dict | None) -> list[dict]:
                            f"with `tools/vault.py moved` and delete the archive"),
             })
 
-                                                                                                                          
-                                                                           
-                                                                             
-                                                                           
-                                                                             
-                                                                     
+    # ── production secrets this machine holds no copy of ────────────────────
+    # Remote configuration is not backed up by copying values here — the
+    # registry holds verdicts only — so the gap is measured instead: a
+    # secret-class variable that exists only at the provider is a value a lost
+    # application loses, and the vault is where a copy belongs, by name.
     unbacked = [(a["app"], [v["name"] for v in a.get("vars") or []
                             if v.get("class") == "secret"
                             and v.get("verdict") in ("remote_only", "no_local_checkout")])
@@ -128,12 +129,11 @@ def findings(doc: dict | None) -> list[dict]:
                        "the scan can see the slot"),
         })
 
-                                                                                                                                                        
-                                                                              
-                                                                            
-                                                                            
-                                                                                  
-                                                                        
+    # ── comparisons withheld because the salts differ ──────────────────────
+    # A secret both sides hold, fingerprinted under different salts, can be
+    # neither `same` nor `differs`. Silence here would make a changed salt look
+    # like a healthy estate, so the withheld count is its own warning with the
+    # command that restores the comparison.
     ns = doc.get("fingerprint_namespace") or {}
     if ns.get("withheld"):
         out.append({

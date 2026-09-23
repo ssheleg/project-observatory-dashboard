@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Keep what only somebody else's store remembers.
 
-                                                                               
-                                                                               
-                                                                      
-                                                                                
-                                                                         
-                                                                        
+`collectors/scan_sessions.py` can say that a project existed under the projects
+root and is gone: the name matches nothing in the registry, and the paths its
+work touched name a folder that is not there. Such a project can carry many
+session summaries and observations while no trace of it survives on the disk,
+in the archive folders, or among the registry's repositories.
 
 **The problem is where that knowledge lives.** It is in claude-mem — a store this
 system opens READ-ONLY and does not own, with its own retention and its own
@@ -27,12 +26,12 @@ under the rules that already govern every automated writer:
   the `why` says why it is worth keeping at all. No guess about what happened to
   it: a fabricated cause is read as true by everything downstream.
 
-                                                                             
-                                                                                  
-                                                                                
-                                                                             
-                                                                            
-        
+**Idempotent, or it would add one record per tick.** The name → `memory_id`
+mapping lives in `cursors` — the table for "where a collector got to", which is
+the same character of state: what this writer has already written. The
+alternative was matching a marker inside `evidence_json` with LIKE, and a
+string search inside JSON is a key that breaks the first time the formatting
+changes.
 
     record_lost_projects.py              write or revise, one record per project
     record_lost_projects.py --dry-run    print what would be written

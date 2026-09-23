@@ -8,11 +8,10 @@ grounds that "a third-party clone is somebody else's history, and a `why` writte
 about it is noise the dashboard carries forever". `collectors/scan_events.py`
 applied no such rule and recorded every commit in every checkout.
 
-                                                                           
-                                                                                   
-                                                                            
-                                                                               
-            
+Measured before the rule was shared, a large share of the commits inside the
+retention window came from a handful of `external` projects — third-party
+clones kept for reference. A statistic built on that answers "where was work
+done" with the name of somebody else's project.
 
 One rule, two readers. The same shape as the retention horizon, which
 `store/retention.json` holds for both the collector and the pruner after they
@@ -20,20 +19,17 @@ spent a live tick deleting and re-inserting each other's rows (trap T25).
 """
 from __future__ import annotations
 
-                                                                     
-                                                                                
-                                                                                 
-                                  
-  
-                                                                           
-                                                                        
-                                                                                
-                                                                             
-                                                                           
-                                                                             
-                                                                                 
-                                                                                
-                                          
+#: Project ownership values whose history is the operator's own work.
+#: A project outside this set is still watched, still in the registry, and still
+#: shows its activity date — it just contributes no EVENTS, because its commits
+#: are not this estate's activity.
+#:
+#: `local-only` belongs here although it was once missing: the set was drawn
+#: against a stranger's history, and an unpublished folder is the opposite of
+#: that — the operator's own work, existing on no remote at all. Excluding it
+#: meant that local projects with real commits contributed nothing to the store
+#: even once the loop could reach them. A `local-only` folder that is not a git
+#: repository has no history to read, so the rule changes nothing for it.
 RECORDED_OWNERSHIP = frozenset({"owned", "work-bitbucket", "local-only"})
 
 
@@ -60,14 +56,14 @@ def undeclared_owner_reason(owners: list[str], repos: int, checked_out: int) -> 
     by running the collector, which is how its first version came to state a
     consequence nobody had checked.
 
-                                                                             
-                                                                               
-                                                                     
-                                                                                  
-                                                                                 
-                                                                            
-                                                                          
-                                                                         
+    That consequence is real for the class and **not for every instance**: an
+    undeclared owner whose repositories are cloned here is losing recorded work
+    every turn, because `records_events` refuses them and so does the
+    companion's recorder. One with no checkout (`local_folders: []`) has no
+    session to lose, and the effect is a classification the operator may not
+    care about. Saying the alarming half either way spends the operator's
+    attention on the case that costs nothing and teaches them to skip the case
+    that costs work.
 
     Never auto-declared: which organisations are the operator's is the
     operator's fact, and a script that minted it would make "owned" mean "seen

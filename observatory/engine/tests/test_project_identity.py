@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
 """Publishing a project detached its own history, silently.
 
-                                                                  
-                                                                                 
-                                                                               
-                                                                                
-                                                                             
-                     
+A project with no remote is anchored on its folder and gets the id
+`project:local-<folder>` (`collectors/merge.py`). Give it a remote and it becomes
+repository-anchored: `project:<owner>-<name>`. **Every row already keyed to the
+old id is then orphaned** — and `memory.orphan_subject` says exactly what that
+costs: "a note keyed to a subject the registry does not hold never appears in
+that project's view."
 
-                                                                         
-
-                                                                   
-                                                                                              
-                                                                                               
-
-                                                                                  
-                                                                             
-                                                                               
-                                    
+The stake is largest for a project an agent has been working in for a while
+without a remote: all of its measured commit events are one `git remote add`
+away from detaching in a single step — in a system whose purpose is to keep the
+record of work per project.
 
 **The resolution needs no new state and asserts nothing.** The folder name is
 inside the old id, the registry says which project owns that folder now, and
@@ -307,13 +301,12 @@ def test_an_unpublished_project_asks_for_no_extra_ids() -> None:
 # ─────────── the rollup folds instead of the reader summing ────────────
 
 def test_the_rollup_folds_a_former_id_into_the_current_one() -> None:
-    ""                                                                          
-                                                                                
-                                                                                  
-                                                                         
-                                                                               
-                                  
-       
+    """Widening the reader's query to former ids makes one ISO week arrive twice
+    for a published project — once under the former id and once under the new
+    one — so the week would be counted twice. Folding at WRITE time is what
+    makes the numbers right: `active_days`, `authors` and `worked_days` are set
+    sizes computed from the events, and two rows of those cannot be added.
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-fold-"))
     (d / "registry").mkdir()
     (d / "scratch").mkdir()

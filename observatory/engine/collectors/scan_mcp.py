@@ -117,9 +117,9 @@ def read_declarations() -> list[dict]:
     return rows
 
 
-                                                                                     
-                                                                              
-                                                                
+# `plugin:<plugin>:<server>: https://… - ✔ Connected` — the name itself holds
+# colons, so the name is everything before the first ": " (colon-space), not
+# the first colon.
 LINE = re.compile(r"^(?P<name>.+?): (?P<target>.*?) - (?P<mark>✔|✘|!) (?P<status>.+)$")
 
 

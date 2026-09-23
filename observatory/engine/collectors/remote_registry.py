@@ -1,50 +1,43 @@
 #!/usr/bin/env python3
-""                                                                        
+"""`registry/remote-env.json` — what production holds, as verdicts only.
 
-                                                                             
-                                                                           
-                                                            
+THE DIVISION OF LABOUR IS THE POINT. `scan_remote_env.py` holds the
+fingerprints and lives in `store/raw/`, which is gitignored; this module reads
+them, compares, and writes WORDS. Four of them:
 
-                                                                   
-                                                                
-                                                                   
-                                                            
+    same_as_local   production and the checkout hold the same value
+    differs         both hold the name, the values are not equal
+    remote_only     production has a variable the checkout does not
+    local_only      the checkout has one production does not
 
-                                                                              
-                                                                             
-                                                                        
-                                                                               
-                                                                      
+and a fifth that is honest rather than tidy — `not_compared`, for a variable
+both sides hold whose class is not `secret`: the local inventory fingerprints
+secrets only (two projects agreeing that `APP_ENV` is `production` is a
+coincidence of vocabulary, not a shared credential), so there is nothing to
+compare against. Printing "same" there would be a guess.
 
-                                                                             
-                                                                                
-                                                                  
-                                                                               
-                                                                              
-                                                                               
-                                                                               
-                                                                             
-                                                                              
-                                                                         
-                                                                               
-                                                                   
+Two more states exist for the same reason. `no_local_checkout` marks an app
+whose source is not on this disk, so nothing can be compared at all. And a
+secret both sides hold is also `not_compared`, with a `why`, when the two scans
+did not fingerprint under the same salt (`fingerprint_namespace`): equal values
+would not produce equal fingerprints, so any verdict would be invented.
 
-                                                                           
-                                                                              
-                                                                                
-                                                                               
-                               
-   
+`differs` IS THE ORDINARY CASE AND NOT A FINDING. A production database URL
+should not equal the one in a developer's checkout. What is worth a row is the
+opposite: `same_as_local` on a secret — production running the value that also
+sits in a local `.env` — and a value production still holds that the vault has
+already rotated away.
+"""
 from __future__ import annotations
 
 
 def _local_index(env_scan: dict, folders: list[str]) -> dict[str, dict]:
-    ""                                                                     
+    """name -> {class, fingerprints, paths} for the checkout(s) of one app.
 
-                                                                   
-                                                                          
-                                               
-       
+    Only live `.env` files: a `.env.example` holds a placeholder by
+    construction, and comparing production against a template would report
+    every application as differing from itself.
+    """
     wanted = {f.rstrip("/").rsplit("/", 1)[-1] for f in folders}
     out: dict[str, dict] = {}
     for rec in env_scan.get("files") or []:
@@ -59,19 +52,19 @@ def _local_index(env_scan: dict, folders: list[str]) -> dict[str, dict]:
     return out
 
 
-                                                                              
-                                                                    
+# The `why` a row carries when its verdict was withheld because the two scans'
+# fingerprint namespaces do not match.
 NAMESPACE_WHY = "fingerprint-namespace"
 
 
 def namespace_state(scan: dict, env_scan: dict) -> tuple[str, str]:
-    ""                                                                          
+    """Whether the two scans' fingerprints can be compared, and why not if not.
 
-                                                                               
-                                                                             
-                                                                               
-                                                  
-       
+    Returns `matched`, `mismatched` (different salts) or `absent` (a scan names
+    no namespace), with a reason for the last two. Fingerprints made under
+    different salts never match, so comparing them would report every shared
+    secret as `differs` — a confident, false answer.
+    """
     remote, local = scan.get("fingerprint_namespace"), env_scan.get("fingerprint_namespace")
     if not remote or not local:
         missing = " and ".join(
@@ -86,13 +79,12 @@ def namespace_state(scan: dict, env_scan: dict) -> tuple[str, str]:
 
 def compare(app: dict, env_scan: dict, retired: list[dict], *,
             comparable: bool = True) -> dict:
-    ""                                                               
+    """The verdict for every variable of one production app.
 
-                                                                              
-                                                                                
-                                                                                
-                          
-       
+    Each production variable gets one of the verdicts described in the module
+    docstring; variables only the checkout holds are added as `local_only`. A
+    fingerprint that matches a retired vault value is listed in `retired_in_use`.
+    """
     folders = app.get("folders") or []
     local = _local_index(env_scan, folders) if folders else {}
     retired_by_fp: dict[str, dict] = {r["fingerprint"]: r for r in retired}
@@ -115,9 +107,9 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
         elif not local[name]["fingerprints"]:
             verdict = "not_compared"
         elif not comparable:
-                                                                              
-                                                                              
-                                                                              
+            # The fingerprints were made under different (or unknown) salts, so
+            # an inequality would be meaningless and an equality impossible.
+            # Withhold the verdict and say why rather than report `differs`.
             verdict, why = "not_compared", NAMESPACE_WHY
         elif v["fingerprint"] in local[name]["fingerprints"]:
             verdict = "same_as_local"
@@ -126,12 +118,10 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
         rows.append({"name": name, "class": cls, "verdict": verdict,
                      **({"why": why} if why else {}),
                      **({"empty": True} if v.get("empty") else {})})
-                                                                              
-                                                                              
-                                                                           
-                                                                               
-                                                                            
-                                                                              
+        # A RETIRED VALUE STILL IN USE is checked for every variable, whatever
+        # its verdict: production running a value the vault has already rotated
+        # away is the most expensive thing this comparison can find, and it does
+        # not depend on whether a local checkout exists.
         r = retired_by_fp.get(v.get("fingerprint") or "")
         if r:
             in_use.append({"name": name, "retired_on": r["retired_on"],
@@ -155,11 +145,10 @@ def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
             for a in scan.get("apps") or []]
     def total(word: str) -> int:
         return sum(a["counts"].get(word, 0) for a in apps)
-                                                                          
-                                                                         
-                                                                              
-                                                                       
-                                            
+        # WITHHELD rows are counted separately. They sit inside `not_compared`,
+        # but for a different reason than a non-secret: the two sides might hold
+        # the same value and the fingerprints cannot say, so the gap is reported
+        # as degraded coverage with the command that closes it, not as a fact.
     withheld = sum(1 for a in apps for v in a["vars"] if v.get("why") == NAMESPACE_WHY)
     degraded = list(scan.get("degraded") or [])
     if withheld:
@@ -201,9 +190,9 @@ def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
             "withheld_for_namespace": withheld,
             "retired_still_deployed": sum(len(a["retired_in_use"]) for a in apps),
         },
-                                                                      
-                                                                            
-                                             
+        # Whether the comparison was allowed to happen at all, and what to run
+        # when it was not — a reader of `totals` needs this to tell a withheld
+        # comparison from a clean one.
         "fingerprint_namespace": {
             "state": state,
             "withheld": withheld,

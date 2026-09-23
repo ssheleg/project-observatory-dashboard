@@ -33,13 +33,11 @@ def fresh():
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-ret-"))
     db = d / "t.db"
     os.environ["OBSERVATORY_DB"] = str(db)
-                                                            
-                                                                                 
-                                                                        
-                                                                       
-                                                                           
-                                                                            
-                                                                             
+    # THE SCRATCH DIR TOO. `cmd_apply` writes its receipt to
+    # `paths.SCRATCH / "retention.json"`, so a fixture that redirects only the
+    # CONNECTION lets every in-process call overwrite the live receipt on each
+    # gate run. The receipt is what `erasure.not_scrubbed` reads, so a test's
+    # outcome could raise a CRITICAL finding about the operator's real store.
     (d / "scratch").mkdir(exist_ok=True)
     os.environ["OBSERVATORY_SCRATCH"] = str(d / "scratch")
     for m in _CACHED:
@@ -189,17 +187,12 @@ def test_the_purge_attests_or_reports_incomplete() -> None:
                        (r["memoryId"],)).fetchone()[0] == 0, f"apply returned {rc}")
     check("and apply reports success once nothing tombstoned remains", rc == 0, str(rc))
 
-                                                                             
-                                                                              
-                                                                            
-                                                                               
-                                                                       
-                                                                             
-                                                                               
-                                                                          
-                                                                           
-                                                                              
-                        
+    # The other half: a tombstone is on the RECORD, not the revision. Every read
+    # path joins tombstones on `memory_id` ALONE, so a new revision of a
+    # tombstoned record would be invisible to every reader the moment it was
+    # written: indexed and never served, which is exactly the text retention
+    # exists to clean. So the record takes no further revisions, and the append
+    # is refused where it happens rather than accepted and lost.
     try:
         L.append(conn, memory_id=r["memoryId"], expected_revision=1,
                  owner="agent:observer", statement="a corrected version, still live",
@@ -277,18 +270,16 @@ def test_the_collector_and_retention_share_one_horizon() -> None:
           "--since=" in src)
     check("the horizon is a single configured value", isinstance(cfg["events_days"], int),
           str(cfg.get("events_days")))
-                                                                            
-              
-     
-                                                                              
-                                                                              
-                                                                               
-                                                                               
-                                                                            
-                                                          
-     
-                                                                              
-                                                                          
+    # The property, end to end: a second prune after a fresh collect deletes
+    # nothing, because the collector respects the same horizon.
+    #
+    # AGAINST A COPY OF THE STORE, not the store. `retention.py apply` is an
+    # ERASURE that also VACUUMs the file; run with no redirect it would operate
+    # on the operator's live data on every gate run, and because the store is
+    # gitignored the churn would be invisible to `git status`.
+    #
+    # A copy keeps the property intact: the events come from git, not from the
+    # store, so a collector pointed at a copy re-reads the same checkouts.
     import shutil, subprocess
     sys.path.insert(0, str(ROOT))
     import paths

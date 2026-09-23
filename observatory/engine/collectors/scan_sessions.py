@@ -1,47 +1,44 @@
 #!/usr/bin/env python3
-""                                                      
+"""Where work was DONE, not only where it was committed.
 
-                                                                              
-                                                                             
-                                                                                  
-                                                                              
-                                                                             
-                                                                                 
-                                                                               
-                                             
+**The defect this closes.** `last_activity_on` is the max of a repository's
+GitHub `pushed_at`, its local `last_commit`, and a folder's mtime
+(`collectors/merge.py`): every source a git fact. So a project worked on
+without a commit is invisible, and `activity.py` then calls it `cooling` or
+`dormant` on that silence. The companion session store on one machine held
+thousands of session summaries across dozens of project names, and a fair share
+of the names that matched a project had sessions NEWER than the registry's last
+recorded activity.
 
-                                                                                 
-                                                                               
-                                                                            
-                                                                      
-                                                                              
-                                                                                  
-         
+**That total is not this collector's own `counts.sessions`, and the difference is
+the window.** `window_days` is 365, so the report reads fewer sessions than the
+store holds. Two right answers to "how much work", and the README names which is
+which. Projects were labelled `cooling` while work went on in them for months.
 
-                                                                          
-                                                                             
-                                                                               
-                                                                                
-                                                                       
+**It reads somebody else's store, read-only, and says so when it cannot.**
+The companion database belongs to the claude-mem plugin. This opens it
+`mode=ro`, never writes, and when it is absent or unreadable the result carries
+the reason in `degraded` rather than an empty list of sessions: an empty list
+would read as "no work happened anywhere", which is the opposite claim.
 
-                                                                          
-                                                                                
-                                                                                
-                                                                                
-                                                                            
-                                                         
+**Attribution is a declared rule, not a guess.** claude-mem stores a plain
+`project` string, derived from the working directory, not a `project:<slug>` id.
+The rules below are tried in order and the one that matched is recorded on every
+session, so a wrong attribution can be argued with. Names that match nothing are
+counted and listed in `degraded`: a sizeable share usually matches nothing, and
+that is a fact about the estate worth seeing rather than a silence.
 
-                                                                        
-                                                                            
-                                                                              
-                                                                                 
-                                                                             
-                                                                                
-                                                                         
-                         
+**Sessions are recorded for EVERY matched project, including third-party
+clones**, and that is a deliberate departure from `estate.records_events()`.
+That rule excludes a third-party clone because *"a third-party clone's commits
+are somebody else's history"*: true of a commit, whose author is external, and
+false of a session. A session in that clone happened because the operator sat
+down and worked in it. Sessions in a third-party checkout are this operator's
+attention, and "where was work done" is the question this project exists to
+answer.
 
-                                                               
-   
+    python3 collectors/scan_sessions.py store/raw/sessions.json
+"""
 from __future__ import annotations
 import json, pathlib, re, sqlite3, sys
 from datetime import datetime, timezone
@@ -67,11 +64,12 @@ def now() -> str:
 
 
 def build_index(projects: list[dict]) -> tuple[dict, dict]:
-    ""                                                                    
+    """(index, conflicts): lowercased name -> (project id, rule), and the ambiguous names.
 
-                                                                            
-                                                                              
-       
+    Each project contributes its folders, id slug, name and repositories under a
+    ranked rule; the strongest rule wins a name, and a tie between projects leaves
+    the name ambiguous rather than picking one.
+    """
     strengths = {'local folder name': 0, 'project id slug': 1, 'project name': 2,
                  'repository name': 3, 'repository checkout folder': 4}
     best: dict[str, tuple[int, str, set[str]]] = {}
@@ -118,13 +116,13 @@ def build_index(projects: list[dict]) -> tuple[dict, dict]:
 
 
 def exclusions() -> tuple[list[tuple[str, str]], dict[str, str]]:
-    ""                                                                   
+    """The curated "not a project of this estate" list: shapes and names.
 
-                                                                             
-                                                                              
-                                                                                
-                                                                                
-       
+    A name reported as unattributed work and never resolvable turns a finding
+    list into noise, and noise is how a list of real problems stops being read.
+    Every row carries WHY, so a wrong exclusion can be argued with rather than
+    discovered.
+    """
     f = paths.config_file('session_name_exclusions.json')
     if not f.is_file():
         return [], {}
@@ -149,14 +147,14 @@ def excluded(name: str, shapes: list[tuple[str, str]], names: dict[str, str]) ->
 
 
 def attribute(name: str, index: dict) -> tuple[str | None, str]:
-    ""                                               
+    """A project id and the rule, or (None, why not).
 
-                                                                                  
-                                                                               
-                                                                               
-                                                                              
-                               
-       
+    claude-mem writes a path-like name for a session started in a subdirectory:
+    `<checkout>/<folder>` for work inside that checkout. The FIRST segment is the
+    project; the last is a folder inside it, and matching on the last segment
+    would attribute a project's own subdirectory to whatever else happens to
+    share that word.
+    """
     key = (name or "").strip().lower()
     if not key:
         return None, "the session carries no project name"
@@ -171,36 +169,32 @@ def attribute(name: str, index: dict) -> tuple[str | None, str]:
     return None, f"{name!r} matches no project folder, id or name"
 
 
-                                                                             
-                                                       
-  
-                                                                           
-                                                                       
-                                                                                
-                                                                                
-               
-  
-                                                                 
-                                                                              
-                                               
-                                                        
-                                                             
-                                                                      
-                                                    
-  
-                                                                                
-                                                                           
-                                                                                
-                                                    
+#: WHY THERE IS NO PATH-BASED ATTRIBUTION, written down because it was built,
+#: driven against live data, and removed the same hour.
+#:
+#: The rule was: a name matching no project, whose work touched exactly one
+#: folder the registry holds, belongs to that project. It looked like a
+#: measurement rather than a guess about a name. It is not. Contact is not
+#: ownership, and the live data said so:
+#:
+#:   * the sessions of a LOST project were credited to a notes vault, because
+#:     that work read a reference note in it;
+#:   * a skill's sessions were credited to the family repository the work
+#:     happened to sit beside, while the registry held the skill's own project.
+#:
+#: Without the measurement, the rule would have silently given one project the
+#: sessions of another's work: the misattribution this collector exists to
+#: prevent, one source over. The classification below is evidence and stays; the
+#: decision it informs is the operator's.
 
 
 def estate_paths(*blobs: str | None) -> set[str]:
-    ""                                                             
+    """Every path under the estate root that these JSON blobs name.
 
-                                                                     
-                                                                              
-                                                                              
-       
+    claude-mem stores `files_read`/`files_edited` as JSON arrays, and
+    `group_concat` joins several rows' arrays with `|`. Anything that does not
+    parse is skipped rather than guessed at: a malformed blob is not evidence.
+    """
     out: set[str] = set()
     root = str(paths.DATA)
     for blob in blobs:
@@ -223,12 +217,12 @@ def estate_paths(*blobs: str | None) -> set[str]:
 
 
 def verdict_for(folders: set[str]) -> tuple[str, list[str]]:
-    ""                                                            
+    """What an unmatched name IS, from the paths its work touched.
 
-                                                                               
-                                                                          
-                                                       
-       
+    Three answers where the finding used to offer two, and the third is the one
+    worth raising: a project this estate had and has lost. The evidence is
+    already in the session store; nothing here guesses.
+    """
     gone = sorted(f for f in folders if not (paths.DATA / f).is_dir())
     if gone:
         return "estate-folder-gone", gone
@@ -279,20 +273,19 @@ def scan() -> dict:
                               "reason": f"the store's shape has moved ({exc}); this collector "
                                         f"reads `session_summaries(memory_session_id, project, "
                                         f"created_at, created_at_epoch)`"}]}
-                                                                              
-                                                                           
-                                                                              
-                                                                               
-                                                                                
-                                                                            
-                                                                                 
-                                                                               
-                                    
-     
-                                                                                
-                                                                                
-                                                                               
-                                    
+    # A WINDOW THAT MATCHES NOTHING IS NOT AN EMPTY ESTATE. `created_at_epoch`
+    # is claude-mem's field in claude-mem's unit, MILLISECONDS: read as seconds
+    # its values would land tens of thousands of years ahead. The cutoff above
+    # multiplies by 1000 on that basis, so a switch to seconds upstream would put
+    # every row BELOW it: the query would succeed, return nothing, and this
+    # collector would report `sessions: 0` with no degradation at all, while
+    # `activity.py` went on calling projects `cooling` and `dormant` on that
+    # silence, which is the state this file was written to prevent.
+    #
+    # The guard is structural, not a unit check: if the table holds rows and the
+    # WINDOW holds none, the filter has stopped matching whatever the reason
+    # (a renamed column, a changed unit, a clock skew). Three outcomes again, and
+    # the third is what was missing.
     if not rows:
         try:
             total = ev_total = conn.execute(
@@ -320,13 +313,13 @@ def scan() -> dict:
     # smaller change and the store is opened `mode=ro` either way.
     ev_conn = conn
 
-                                                                             
-                                                                 
-                                                                                  
-                                                                              
-                                                                             
-                                                                               
-                                               
+    # Aggregated by (session, PROJECT ID), not by (session, claude-mem name).
+    # Two names can resolve to one project (a checkout and a subfolder path
+    # inside it both mean the same project), so grouping on the name produced
+    # two rows for one fact, and the UNIQUE index then collapsed them at insert
+    # time and reported "already present". Collapsing the same fact is correct;
+    # letting the DATABASE do it made a second run and a duplicate spelling
+    # indistinguishable in the output.
     merged: dict[tuple[str, str], dict] = {}
     shapes, names = exclusions()
     skipped: dict[str, str] = {}
@@ -334,8 +327,8 @@ def scan() -> dict:
         pid, rule = attribute(r["project"], index)
         if pid is None:
             key = r['project'].strip().lower()
-                                                                              
-                                                                             
+            # A name more than one project can claim is AMBIGUOUS, not unknown:
+            # it is kept with its candidates so the operator can settle it.
             candidates = conflicts.get(key) or conflicts.get(key.split('/', 1)[0])
             if candidates and rule.startswith('ambiguous '):
                 u = unmatched.setdefault(r['project'], {'sessions': 0,
@@ -380,9 +373,9 @@ def scan() -> dict:
             "project_id": pid,
             "claude_mem_project": r["project"],
             "matched_by": rule,
-                                                                                
-                                                                                
-                                                
+            # DATE, not an instant: this lands in a committed projection through
+            # `merge.py`, and that is where the boundary sits; the store keeps
+            # the precise time on the event row.
             "started_on": (r["started"] or "")[:10],
             "ended_on": (r["ended"] or "")[:10],
             "started_at": r["started"],
@@ -390,14 +383,14 @@ def scan() -> dict:
         }
     sessions = list(merged.values())
 
-                                                                                 
-                                                                                 
-                                                                               
-                                                                         
-                                                     
-     
-                                                                                 
-                                                             
+    # THE EVIDENCE LIVES IN `observations`, NOT IN `session_summaries`. The first
+    # version of this read `session_summaries.files_read`, NULL in every row for
+    # a lost project, while `observations.files_read` named paths under the
+    # estate root. Measuring the instrument before doubting the thing is what
+    # found it.
+    #
+    # Queried once per UNMATCHED name only: the matched ones need no verdict, and
+    # `observations` can hold thousands of rows for a single name.
     for name, u in unmatched.items():
         u["paths"] = set()
         try:
@@ -456,20 +449,20 @@ def scan() -> dict:
 
 
 def to_events(out: dict) -> int:
-    ""                                                
+    """Write the sessions into `events`, idempotently.
 
-                                                                                
-                                                                             
-                                                                             
-                                                                               
-                     
+    `events` already anticipated this: its own schema comment lists the kinds as
+    `commit | session | deploy | scan | ...`, and `events_dedup` is UNIQUE on
+    `(kind, ref)`, so a session's `memory_session_id` as `ref` makes a second run
+    free. `INSERT OR IGNORE` is the same discipline `collectors/scan_events.py`
+    uses for commits.
 
-                                                                                  
-                                                                               
-                                                                                
-                                                                          
-                                                                
-       
+    `actor` is `operator`, and that word carries NO authority here: `events` is
+    a measured stream, not the ledger, and the field describes who did the work
+    rather than who may approve anything. `project_week.authors` counts distinct
+    actors for `kind='commit'` only (`store/rollup.py`), so this cannot inflate
+    a rollup; verified before writing rather than after.
+    """
     from store import db as store_db
     conn = store_db.connect()
     scan_id = store_db.scan_id("sessions", now())
@@ -484,9 +477,9 @@ def to_events(out: dict) -> int:
         print(f"  removed {stale.rowcount} session event(s) written under the old key shape")
     inserted = skipped = withdrawn = 0
     try:
-                                                                           
-                                                                               
-                                                                              
+        # Withdraw events for a (session, project) pair that is now AMBIGUOUS and
+        # no longer supported by a clean match: a name that became contested must
+        # stop crediting whichever candidate it was credited to before.
         supported = {(s['session_id'], s['project_id']) for s in out['sessions']}
         ambiguous = {(sid, pid) for row in out.get('unattributed', [])
                      if row.get('verdict') == 'ambiguous-project'
@@ -501,14 +494,13 @@ def to_events(out: dict) -> int:
             cur = conn.execute(
                 "INSERT OR IGNORE INTO events (id, project_id, repo_id, kind, ref, actor,"
                 " occurred_at, payload_json) VALUES (?,?,?,?,?,?,?,?)",
-                                                                                
-                                                                               
-                                                                               
-                                                                             
-                                                                              
-                                                                                 
-                                                                              
-                                                                              
+                # The subject is the session TIMES the project, not the session.
+                # With `ref = session_id` alone, the UNIQUE `(kind, ref)` index
+                # silently kept the first row and dropped the rest, and some
+                # sessions genuinely span several projects, because the operator
+                # moves between checkouts inside one session. Rows vanished as
+                # "already present" on the very first run, which is the silent
+                # loss shape rather than idempotency.
                 (f"session:{s['session_id']}:{s['project_id']}", s["project_id"], None,
                  "session", f"{s['session_id']}:{s['project_id']}", "operator",
                  s["started_at"] or s["started_on"],

@@ -10,10 +10,10 @@ Three gaps, all of one shape — a statement nothing honoured:
   honour — and `fabric/FABRIC-CONFORMANCE.md` rests its `idempotency: supported`
   claim on precisely that parameter.
 
-                                                                             
-                                                                                  
-                                                                                 
-                                                                 
+* **`observatory_search` spent money outside every guardrail.** It embeds the
+  query, and `providers.embed()` CHARGES the wallet, but nothing checked before
+  spending, on a tool any MCP client can call. The agent had long guarded itself
+  while the wire handed out unmetered credits beside it.
 
 * **The served `instructions` said "Read-only" and named three tools** while
   eight were served and two of them write. That string is what an LLM client
@@ -216,11 +216,11 @@ def test_search_cannot_spend_past_the_ceiling() -> None:
 
 
 def test_the_ceiling_message_does_not_blame_the_wrong_spender() -> None:
-    ""                                                                         
-                                                                        
-                                                                                 
-                                                                               
-                                                                         
+    """The message had to say "on this KEY" because the figure that DECIDED was
+    the key's. Which figure decides has since changed: this project's own
+    journal, for every provider alike. So the message must now say whose spend
+    tripped the cap, and show the key's beside it as context rather than as the
+    reason. The concern is unchanged and the wording follows the code."""
     src = (ROOT / "agent/providers.py").read_text(encoding="utf-8")
     check("the message names the spender that decided",
           "spent today by THIS project" in src,

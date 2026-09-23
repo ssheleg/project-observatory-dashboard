@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-""                                                                               
+"""The scheduled tick's coordination boundary: one identity, one key, one answer.
 
-                                                                           
-                                                                             
-                                                                               
+The tick rewrites `registry/*.json` on a fixed interval. Those are guarded
+paths, so the tick must hold a lease while writing them; otherwise it is the
+very second writer the lease exists to exclude.
 
-                                                                        
-                                                            
+Two facts about the coordination tool shape everything here:
 
-                                                                     
-                                                                            
-                                                                       
-                                                                               
-                                                                             
-                                                                               
-                                                                   
+* **A process with no session shares one identity with every other.**
+  The run id is resolved from the session id, then from an ancestor the
+  session-start hook stamped, then from a SHARED fallback entry. A scheduled
+  job reaches the fallback, so a lease taken there is re-acquired by any plain
+  shell command in this checkout and released by it too. `AGENT_SYNC_RUN_ID` is
+  the documented override and the only way the tick becomes a distinct writer.
+  Without it this helper REFUSES rather than taking a lease that separates
+  nothing.
 
-                                                                             
-                                                                               
-                                                                              
-                                                                             
-                                                                               
-                                                                              
-                                                                                
-                                                                                   
-                
-   
+* **`guard()` does not compare the lease key with the path.** It asks whether
+  the path is guarded and whether this run holds ANY lease. So two runs holding
+  two different keys may both write the registry and the tool will allow both.
+  Mutual exclusion on the registry is therefore this repository's convention,
+  not the tool's guarantee: **every writer of `registry/*.json` takes the key
+  `registry`**, and because a careless session may take a task id instead, the
+  tick also stands down when any other run holds anything at all. A skipped tick
+  costs nothing (the next one is one interval away) and a torn registry costs
+  far more.
+"""
 from __future__ import annotations
 import argparse, importlib.util, json, os, pathlib, sys, subprocess, fcntl, signal
 from datetime import datetime, timezone
@@ -121,35 +121,28 @@ GATE_IDENTITY = "observatory-gate"
 
 
 def run_identity(role: str) -> str:
-    ""                                                                       
+    """A lease identity that is unique per RUN, with the role still readable.
 
-                                                                              
-                                                                         
-                                                                         
-                                                                             
-                                                                        
-                                                                          
-                                                              
-                                                                             
-                            
+    The coordination tool derives the identity it locks on from only a short
+    alphanumeric prefix of the run id. Two processes whose ids share that
+    prefix therefore RE-ENTER one lease rather than excluding each other, and
+    one may later report a successful release over a lease it no longer holds.
 
-                                                                      
-                                                                                
-                                                                                 
-                                                                                
-                                                                              
-                                                                           
-                 
+    A constant role name is thus exactly the wrong identity for mutual
+    exclusion. Distinct roles differ inside the prefix and exclude each other
+    correctly, but two runs of the SAME role do not, and the scheduler starts
+    the next tick on its interval whether or not the previous one has finished.
+    A tick that overran its interval would have had two concurrent registry
+    writers with a lease between them that excluded nothing.
 
-                                                                      
-                                                                                 
-                                           
-       
-                                                                                 
-                                                                           
-                                                                                
-                                                                            
-                                                      
+    So the varying part goes FIRST and the role rides along behind it: a short
+    role tag plus the process id, then the role, which is unique per process
+    and still legible in the journal.
+    """
+    # The tag comes from the LAST word of the role, not the first characters of
+    # the whole string: roles sharing a common prefix would otherwise collapse
+    # into one identity, reintroducing the very failure this function exists to
+    # remove.
     tag = role.rsplit("-", 1)[-1][:2]
     return f"{tag}{os.getpid()}-{role}"
 
@@ -223,25 +216,24 @@ SKIPPED = ("stood-down", "refused")
 
 
 def record_outcome(outcome: str, *, holder: str = "", reason: str = "") -> dict:
-    ""                                                                      
+    """Leave a receipt saying whether this cycle ran, and how many have not.
 
-                                                                                  
-                                                                             
-                                                                                
-                                                                        
+    A tick that stands down correctly (because another writer holds the
+    registry) still leaves the estate on stale data while every surface looks
+    normal, and a message in the tick log is read by nothing on a schedule. The
+    receipt makes the skip visible.
 
-                                                                         
-                                                                           
-                                                                              
-                                                                               
-                                                                     
-       
-                                                                             
-                                                                        
-                                                                               
-                                                                                 
-                                                                             
-                                                          
+    `consecutive_skips` is carried in the receipt itself rather than kept
+    anywhere else: the count IS the fact a reader wants, and a counter in a
+    second place is a second thing to keep true. `last_acquired_at` survives a
+    skip for the same reason: it is what says how stale the estate is, and a
+    skip that erased it would answer "how old is this?" with silence.
+    """
+    # THE ROOT FIRST. This file runs as `python tools/tick_lease.py` from the
+    # tick's shell, so `sys.path[0]` is `tools/` and neither `paths` nor
+    # `atomic` is importable until the root is added. Importing `paths` before
+    # that raises inside `acquire()`; tests/test_tick_repo.py covers the tick
+    # still taking the lease after the gate releases it.
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
     import paths
     f = paths.SCRATCH / "tick-lease.json"

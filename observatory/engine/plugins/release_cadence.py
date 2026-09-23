@@ -7,22 +7,22 @@ and when work last happened. **Nothing said the work resulted in anything.**
 needs the other question — did this go anywhere — and for that a tag is the
 cheapest honest signal a checkout can give.
 
-                                                                              
-                                                                                                           
-                                                                                   
-                                                                           
-                                                                          
-                                                         
-                                                                                  
-                                                                     
+MEASURED BEFORE THIS WAS WRITTEN, because a metric that is a field of zeros is
+machinery without a question. On one installation roughly a third of the
+checkouts held tags and the rest held none, with a few carrying no measurement
+at all — the tagged and untagged counts need not sum to the total, and the gap
+is the honest part, because a checkout the plugin could not read is neither
+tagged nor untagged. The tagged ones were mostly packages versioned
+continuously, several of them tagged within the same week. A split like that is
+a signal; a handful out of a hundred would not have been.
 
 TWO METRICS, AND THE SECOND ONE'S ABSENCE CARRIES INFORMATION.
 
-                                                             
-                                                                                 
-                                                                           
-                                                                               
-                                                              
+    release.tags             how many tags the checkout holds
+    release.days_since_last  days since the NEWEST tag — omitted entirely where
+                             there are none, because 0 would mean "released
+                             today", the opposite of never (the same rule that
+                             omits a value rather than zeroing it elsewhere)
 
 WHY `for-each-ref` AND NOT `git log --tags`. An annotated tag carries its own
 date, and that is the release's date: the commit it points at may be far older —

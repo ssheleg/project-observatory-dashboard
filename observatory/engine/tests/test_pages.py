@@ -455,9 +455,9 @@ def test_the_findings_page_is_a_working_surface() -> None:
     check("the panel has a «Ключи» section fed by the small per-project key map",
           "<h3>Ключи</h3>" in src and '"keys": KEYS,' in src and "(D.keys || {})[r.id]" in src
           and 'href="${E(k.href || ("creds.html#c-" + k.slug))}"' in src, "")
-                                                                               
-                                                                              
-                                                   
+    # The keys a project holds in its own `.env` files are in the map too,
+    # joined by FOLDER, each linking to its ENV row; the map rides on the
+    # projects page alone so the index stays light.
     check("env-held keys join the map by folder and link to their ENV row",
           '"kind": "env-file"' in src and '"href": "env.html#e-"' in src and "_folder_pid.get(" in src, "")
     check("and the map is sliced off every page but projects",

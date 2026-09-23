@@ -11,16 +11,14 @@ DATA_RX = re.compile(r"(?:~/)?DATA/([A-Za-z0-9_.-]+)")
 
 
 def opening(text: str) -> str:
-    ""                                                                           
+    """The note's DEFINITION: front matter plus everything before the first `##`.
 
-                                                                                                   
-                                                                                 
-                                                                                  
-                                                                                             
-                                                                                  
-                                                                                
-                                          
-       
+    A `DATA/` path here says what the project IS — "the project's repository
+    lives at DATA/…". The same path further down usually says what the project
+    TALKS ABOUT: a note that mentions another folder in a list, next to words
+    like "the same stack", is naming a DIFFERENT project. Reading the whole note
+    would merge the two, and a mention is not a claim of ownership.
+    """
     body = text
     if body.startswith("---"):
         end = body.find("\n---", 3)
@@ -66,15 +64,13 @@ def summary(text):
     return clean(" ".join(out))[:400]
 
 def scan() -> list[dict]:
-    ""                                                                         
+    """The scan itself, so the rules above can be exercised without running it.
 
-                                                                              
-                                                                       
-                                                                                 
-                                                                             
-                                                                               
-                        
-       
+    Nothing runs at import: a module that walked the vault at import time and
+    then read `sys.argv[1]` could not be imported by a test at all, and a module
+    that cannot be imported can only be tested by grepping its source, which
+    proves nothing.
+    """
     global KNOWN
     KNOWN = {d["name"] for d in json.loads((paths.REGISTRY / "domains.json").read_text())["domains"]}
     rows=[]

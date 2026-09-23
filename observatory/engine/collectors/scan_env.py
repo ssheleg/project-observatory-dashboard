@@ -1,36 +1,34 @@
 #!/usr/bin/env python3
-""                                                                   
+"""Every .env on this machine, recorded as NAMES and never as values.
 
-                                                                               
-                                                                
-                                                                                
-                                                                             
-                                                                               
-                                                                                
-         
+WHY. An estate keeps credentials in more places than a vault and a provider
+account list: the largest store by far is usually the `.env` files scattered
+across project folders, and nothing else here knew they existed. Without this
+scan, "does this project already have a given token" is answered by grepping,
+and "who else breaks if I rotate this" is not answered at all.
 
-                                        
+WHAT IT RECORDS, AND WHAT IT REFUSES TO.
 
-                                                                          
-                                                                    
-                                
+  recorded   the file, its project, its mode, when it changed, whether git
+             tracks/ignores it, and every variable NAME with a class
+  refused    every value, always
 
-                                                                             
-                                                                             
-                                                                           
-                             
+CLASSIFICATION NEEDS THE VALUE AND KEEPS NONE OF IT. A name alone cannot tell
+a boolean flag from a token merely because both names mention auth, so the value is read, measured
+(length, entropy, shape) and dropped. What survives is one word — secret,
+config, placeholder or empty.
 
-                                                                          
-                                                                              
-                                                                               
-                                                                              
-                                                                                               
-                                                                                  
-                                                                               
-                                                      
+THE ONE DERIVATION THAT SURVIVES THE VALUE is a salted fingerprint, and it
+exists to answer the question curation could not: WHICH PROJECTS HOLD THE SAME
+SECRET. `collectors/credential_owners.json` asks an operator to declare that by
+hand; two files with one value are the evidence that declaration wants, and it
+costs nothing to collect. The salt is local and random, so the
+fingerprint is not a lookup against any table that exists off this machine — and
+it stays in `store/raw/env.json`, which git ignores. The REGISTRY receives only
+the conclusion: this variable is also in that project.
 
-                                  
-   
+    scan_env.py store/raw/env.json
+"""
 from __future__ import annotations
 import hashlib, math, os, pathlib, re, stat, subprocess, sys
 from collections import Counter
@@ -42,13 +40,12 @@ import atomic
 import paths              
 from runtime_identity import IdentityError, load as load_identity
 
-                                                                     
-                                                                                   
-                                                                        
-                                                                               
-                                                                           
-                                                                             
-                                                                    
+#: NO DEPTH LIMIT. A fixed depth looks sufficient and silently misses files a
+#: level or two deeper than expected, which is the one failure this repository
+#: refuses by name (`tests/test_no_silent_truncation.py`). The bound that
+#: remains is `SKIP_DIRS`, and that one is a statement about ownership rather
+#: than about cost: a dependency's `.env` is not this estate's secret. Removing
+#: the depth limit measurably costs little.
 MAX_DEPTH = None
 
 #: Directories that hold OTHER people's `.env` files. A dependency's fixture is
@@ -61,9 +58,9 @@ SKIP_DIRS = {
     ".pytest_cache", "coverage", ".cache", "tmp", ".idea", ".vscode",
 }
 
-                                                                                
-                                                                              
-                                                                
+#: A template declares what a project NEEDS; it holds no secret by construction.
+#: Recorded rather than skipped, because "this project wants a payment secret
+#: key and has none" is exactly the question the reuse view answers.
 TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".defaults")
 
 ENV_NAME = re.compile(r"^\.env(\..+)?$|^\.envrc$")
@@ -124,15 +121,14 @@ EXAMPLE_PASSWORDS = {"password", "passwd", "pass", "secret", "postgres", "mysql"
                      "localhost", "example", "changeme", "hunter2", "12345",
                      "123456", "pwd", "mypassword", "yourpassword"}
 
-                                                                      
-                                                                                 
-                                                                                
-                                        
-  
-                                                                                
-                                                                                
-                                                                                
-                                         
+#: A tokenised identifier — `gemini-2.5-flash-preview`, `us-east-1`,
+#: `postgres-primary`. Long, and its entropy is genuinely above 3.5, which is why
+#: an entropy-only `looks_secret` would call it a credential. Randomness is not
+#: length: a key has no word boundaries.
+#:
+#: SEPARATORS ALONE ARE NOT THE TEST: a dash-separated UUID is a real API key
+#: shape and has four separators. What distinguishes an identifier is a WORD — a run of letters
+#: that is not also hex.
 HEX_ONLY = re.compile(r"^[0-9a-fA-F]+$")
 
 #: An endpoint carrying no credentials is configuration, however long it is.
@@ -144,33 +140,26 @@ PLAIN = re.compile(r"^(true|false|yes|no|on|off|none|null|\d+(\.\d+)?|"
 
 SALT_FILE = paths.STATE / ".env-fingerprint-salt"
 
-                                                                                
-                                                                               
-                                                                                  
-                                                                               
-                                                                             
-                                                                           
-                                                                               
-                                                                            
-                                               
+#: The salt behind every fingerprint: random, local, owner-only, and never
+#: written anywhere a scan result goes. `FINGERPRINT_VERSION` names the scheme,
+#: so fingerprints made under a different scheme are never compared as equal.
 FINGERPRINT_VERSION = "fp1"
 
 
 def salt() -> str:
-    ""                                                                         
+    """The fingerprint salt, read from its owner-only state file; a read never creates one."""
     return load_identity(SALT_FILE, 'env-fingerprint-salt')
 
 
 def namespace(pepper: str) -> str:
-    ""                                                                  
+    """A public label for the salt, so two scans can tell whether they are comparable.
 
-                                                                           
-                                                                               
-                                                                                
-                                                                               
-                                                                           
-                                                             
-       
+    Fingerprints are only equal across scans made under the same salt. The
+    label is a one-way hash of the scheme version and the salt, so it says
+    "same salt" or "different salt" without revealing it — the salt itself is
+    what keeps a fingerprint from being a lookup against a precomputed table.
+    Consumers withhold a cross-scan comparison when the labels differ.
+    """
     digest = hashlib.sha256(
         (f"observatory-fingerprint-namespace\x00{FINGERPRINT_VERSION}\x00"
          + pepper).encode("utf-8")).hexdigest()[:16]
@@ -241,13 +230,13 @@ def classify(name: str, value: str) -> str:
     if looks_secret(v):
         return "secret"
     if PLAIN.match(v) or URL_NO_AUTH.match(v):
-                                                                
-                                                                                
-                                                                            
+        # AN ADDRESS IS NOT A CREDENTIAL, whatever it is called. A redirect
+        # URL named `..._OAUTH_REDIRECT_URL` would otherwise reach the name rule
+        # below on the `AUTH` inside `OAUTH` and be filed as a secret.
         return "config"
-                                                                                 
-                                                                                  
-                                                                       
+    # THE NAME DECIDES LAST, and only about a value whose own shape said nothing.
+    # A placeholder value under a name ending in `_KEY` matches `_KEY$`; a name
+    # cannot outvote a value that reads as a word.
     if SECRET_NAME.search(name) and len(v) >= 8 and not wordish(v):
         return "secret"
     return "config"
@@ -283,10 +272,10 @@ def parse(text: str) -> tuple[list[tuple[str, str]], int]:
                 i += 1
             value = body.split(quote, 1)[0]
         else:
-                                                                                 
-                                                                               
-                                                                               
-                                                               
+            # AN INLINE COMMENT IS NOT A VALUE. `KEY=  # what it is for` would
+            # leave the comment as the value, and an English sentence of that
+            # length has the entropy of a credential — so committed templates
+            # would be reported as holding live keys.
             value = COMMENT.sub("", rest).strip()
         out.append((name, value))
     return out, unparsed
@@ -407,9 +396,8 @@ def scan(root: pathlib.Path) -> dict:
         "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "root": str(root),
         "max_depth": MAX_DEPTH,
-                                                                             
-                                                                              
-                                                        
+        # Which salt the fingerprints below were made under, as a public label.
+        # A consumer comparing this scan with another checks it first.
         "fingerprint_namespace": namespace(pepper),
         "files": records,
         "degraded": degraded,

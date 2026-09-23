@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-""                                                               
+"""Folders agents actually opened that the registry never joined.
 
-                                                                          
-                                                                           
-                                                                         
-                                                                           
-                                                                            
-                                                                          
-                                                   
-                                                                           
-                                                                          
-                                              
+THE GAP THIS CLOSES. The registry knows a project by its folder under the
+projects root or by a repository it has scanned; an agent knows a project by
+where it was told to work. When those disagree — a checkout outside the
+projects root, a folder the tick has not reached, an organisation that exists
+only as a forge owner with no local checkout — the board showed nothing and
+the operator had to remember what the board could not.
+The SessionStart hook writes every such sighting to
+`store/raw/sessions-seen.jsonl` (cwd, remote as owner/name, session, when);
+this rule reads it back as ONE row, so the disagreement is a measured fact
+with a decision attached rather than a memory.
 
-                                                                           
-                                                                            
-                                                                           
-                                                       
-   
+WHAT IT IS NOT. Not a defect in any project: a folder outside the projects root
+is the operator's choice, and the remedy is theirs — move it under the root, or
+say it is not to be watched. One row, the folders named, worst-first by how
+many sessions opened them, over the last `DAYS` days.
+"""
 from __future__ import annotations
 import collections
 import datetime

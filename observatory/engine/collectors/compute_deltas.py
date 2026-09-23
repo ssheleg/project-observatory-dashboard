@@ -312,10 +312,10 @@ def main() -> int:
                 return 1
         if args.command == "diff":
             return cmd_diff(conn)
-                                                                           
-                                                                               
-                                                                                
-                                                                      
+        # THE CAP IS NAMED AND SO IS WHAT IT HID. `LIMIT 60` with a closing
+        # "60 shown" reads as "there are 60" — the same shape the recall and
+        # search tools already avoid. A cap is fine; a cap nobody can see is a
+        # wrong answer with a confident total.
         CAP = 60
         total = conn.execute(
             "SELECT count(*) FROM deltas WHERE consumed_at IS NULL").fetchone()[0]

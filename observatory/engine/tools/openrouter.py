@@ -1,41 +1,41 @@
 #!/usr/bin/env python3
-""                                                                             
+"""The one door to OpenRouter keys: stash, issue, rotate, revoke, limits, ping.
 
-                                                                                    
-                                                                                  
-                                                                                                        
-                                     
-                                                     
-                                                                    
-                                                                      
-                                             
+    pbpaste | ./tools/openrouter.py stash --as main      # provisioning key, labeled
+    ./tools/openrouter.py adopt --as main                # take the legacy file in
+    ./tools/openrouter.py issue --name my-agent --limit 10 --to vault:myproject/prod/OPENROUTER_API_KEY
+    ./tools/openrouter.py list | ping
+    ./tools/openrouter.py limit my-agent --set 25
+    ./tools/openrouter.py disable my-agent               # or enable
+    ./tools/openrouter.py rotate my-agent                # or --leaked
+    ./tools/openrouter.py revoke my-agent
 
-                                                                               
-                                                                                
-                                                                           
-                                                                          
-                        
+The same shape as `tools/cloudflare.py`, deliberately: one admin credential per
+account, stashed and never handed out; every working key ISSUED from it, narrow,
+delivered to a named destination; a meta record beside everything that lets
+`list` and `ping` answer "what exists, who spends it, what is its ceiling"
+without opening a value.
 
-                                                 
+Two provider differences the shape has to absorb:
 
-                                                                             
-                                                                           
-                                                                             
-                                                                           
-                                                
+* OpenRouter names no account. A Cloudflare admin token can be asked whose it
+  is; a provisioning key cannot, so `stash` REQUIRES `--as <label>`. The
+  operator labels the stash at the door, which is the only moment anyone knows
+  which dashboard it came from. Unlabeled provisioning keys are keys nobody can
+  rotate confidently afterwards.
 
-                                                                          
-                                                                               
-                                                                                 
-                                                                              
-                                                                            
-                              
+* Rotation is create-then-delete, not rolling. The provisioning API cannot
+  reissue a value for an existing key, so `rotate` creates the successor first,
+  DELIVERS it, and only then deletes the predecessor. The order matters: a
+  delete-first rotation that fails halfway leaves the consumer with a dead key
+  and nothing else, and a consumer that falls back to another provider silently
+  would hide that failure.
 
-                                                                             
-                                                                          
-                                                                              
-                           
-   
+Limits are part of issue, not an afterthought: every issued key carries a USD
+ceiling (`--limit`, default 10), `limit <name> --set` moves it, and `ping`
+reports usage against it. A key without a ceiling is an unbounded liability
+attached to a file on disk.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -236,13 +236,13 @@ def save_ledger(doc: dict) -> None:
 # ─────────────────────────── delivery ────────────────────────────────────────
 
 def deliver(value: str, to: str, *, rotate: bool = False) -> str:
-    ""                                                                      
+    """Write the key where it will be spent. Returns a human-readable place.
 
-                                                                           
-                                                                       
-                                                                              
-                                                    
-       
+    The two named destinations reuse `tools/install_key.py`'s writers (the
+    claude-mem dotenv merge lives there and nowhere else); a `vault:`
+    destination goes through the project vault, which gives the key a slot,
+    metadata and a place in the leak register.
+    """
     if to in NAMED_DESTINATIONS:
         sys.path.insert(0, str(ROOT / "tools"))
         import install_key
@@ -277,11 +277,11 @@ def find_key(admin: str, name: str) -> dict | None:
 
 def issue_key(name: str, limit: float, account: str | None, to: str,
               project: str | None) -> dict:
-    ""                                                                         
-                                                                               
-                                                                             
-                                                                                 
-       
+    """Mint, deliver, record. The ONE issuer: `tools/keyserver.py`'s HTTP
+    `mint` calls this, so a key born from a button and a key born from the
+    command line are the same key, in the same ledger, with the same ceiling.
+    Raises ValueError for a caller's mistake and RuntimeError for the provider's.
+    """
     name = slug(name)
     if not name:
         raise ValueError("the consumer's name cannot be empty")
@@ -335,11 +335,11 @@ def cmd_issue(name: str, limit: float, account: str | None, to: str,
 
 
 def resolve_issued(name_or_label: str) -> tuple[str, dict]:
-    ""                                                                                 
+    """(name, ledger row) for a ledger name or the provider's label for a key.
 
-                                                                             
-                                                 
-       
+    The dashboard speaks labels (what the provider calls a key) and the
+    ledger speaks names; both reach the same row.
+    """
     doc = ledger()
     if name_or_label in doc["issued"]:
         return name_or_label, doc["issued"][name_or_label]
@@ -395,13 +395,13 @@ def cmd_limit(name: str, set_to: float | None) -> int:
 
 
 def toggle_key(name: str, disabled: bool) -> dict:
-    ""                                                                       
+    """Stop or resume one issued key's spending, reversibly, at the provider.
 
-                                                                                        
-                                                                                       
-                                                                          
-                                                                       
-       
+    The callable half of `cmd_toggle`, so the keyserver can offer disable and
+    enable as live actions. Raises `LookupError` for a name the ledger or the
+    provider does not know and `RuntimeError` for a provider refusal; prints
+    nothing, because the caller says what happened.
+    """
     doc = ledger()
     rec = doc["issued"].get(name)
     if not rec:

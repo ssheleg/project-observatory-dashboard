@@ -2,11 +2,10 @@
 """Every movement of every key, read from the one journal that records them —
 and the provider changes no journal names.
 
-                                                                          
-                                                                              
-                                                                              
-                                                                        
-                           
+ONE READER FOR TWO SURFACES. `build_findings.py` needs the movements journal
+to raise `secret.moved_unrecorded`, and the keys page needs to show it; reading
+it inline in both places would copy the same logic into the dashboard build,
+and two readers of one file is how one of them drifts. Both call here.
 
 WHAT A MOVEMENT IS. A row in `<store>/projects/movements.jsonl` written by the
 tools (`put`, `rotate`, `moved`, a door's `issue`/`rotate`/`disable`) — plus

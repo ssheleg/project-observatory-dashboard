@@ -1,50 +1,47 @@
 #!/usr/bin/env python3
-""                                                                               
+"""What production is configured with — names, classes and salted fingerprints.
 
-                                                          
+    scan_remote_env.py store/raw/remote-env.json [--force]
 
-                                                                              
-                                                                              
-                                                                              
-                                                                               
-                                                                                
-                                                                                 
-                                                                      
+WHY. Every other inventory here answers a question about this machine. The one
+question none of them could answer is the one an operator actually asks before
+touching anything: **what is production running on, and is it the same thing I
+have locally?** A variable renamed on Heroku and never renamed in the checkout,
+a key rotated in the vault and never redeployed, a `.env` holding the same value
+production holds — none of those is visible from any file on this disk, and the
+first two are exactly the kind of drift that causes an outage.
 
-                                                                          
-                                                                               
-                                                                       
-                                                                                
-                                                                                
-                                                                             
-                                                                            
+WHAT LEAVES THIS PROCESS, AND WHAT DOES NOT. Heroku's config-vars endpoint
+answers with names AND values in one object; there is no names-only form of it.
+So the values are TRANSIT: they exist in this process long enough to be
+classified and fingerprinted, and nothing else. What is written is the NAME, the
+CLASS, and — for a secret — a fingerprint salted with the same machine-local
+salt `collectors/scan_env.py` uses, which is what makes "production holds the
+same value as this checkout" measurable without either value being recorded.
 
-                                                                              
-                                                                           
-                                                                                 
-                                                                             
-                                                                           
+The fingerprints live HERE, in `store/raw/`, which is gitignored. The registry
+document built from this file (`registry/remote-env.json`, which IS in git)
+carries only the VERDICT — same, different, only there, only here — because a
+fingerprint is a lookup against every table anybody has ever built the moment
+the salt leaks, and a registry in git is exactly where that would be found.
 
-                                                                              
-                                                                           
-                                                                             
-                                                                  
+WHY IT IS GATED TO ONCE A DAY. Each run pulls every production secret of every
+application into one process. Doing that hourly multiplies the exposure and
+learns nothing: config vars change on deploys, not on ticks. `--force` is for
+the moment after a rotation, when the answer has actually changed.
 
-                                                                       
-                                                                                
-                                                                              
-                                                                                  
-                                                                                
-                                                                              
-                                                                               
-                                                    
+THE SCAN NAMES ITS SALT. Every scan records a `fingerprint_namespace` derived
+from the salt, so a reader can tell whether two sets of fingerprints are
+comparable without either side revealing the salt. A cached scan made under a
+different salt is never compared against, however fresh it is; it is left in
+place and reported, and `--force` re-reads production under the current one.
 
-                                                                   
-                                                                             
-                                                                              
-                                                                            
-                
-   
+THE RETIRED VALUES ARE FINGERPRINTED HERE TOO, from the vault's own
+`.retired-<stamp>` archives, and for one reason: "production is still running
+the key we rotated away" is the single most expensive thing this inventory can
+find, and it cannot be found without both halves. Same salt, same file, same
+rule: fingerprints only, never a value.
+"""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -117,10 +114,10 @@ def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
             continue
         if not value:
             continue
-                                                                           
-                                                                                   
-                                                                               
-                                                                        
+        # `tools/vault.py` names the archive with a UTC timestamp whose leading
+        # ten characters are the date (`YYYY-MM-DD…`). A stamp of another shape
+        # yields no date rather than a truncated one: a partial string read as
+        # a date is worse than saying nothing.
         on = stamp[:10] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp[:10]) else ""
         out.append({"project": rel[0], "env": rel[1], "name": name,
                     "retired_on": on, "fingerprint": fingerprint(pepper, value)})
@@ -186,13 +183,12 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv[1:])
     out = pathlib.Path(a.out)
 
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                                                            
-                                                                            
-                                                                       
+    # THE SALT IS RESOLVED BEFORE THE CACHE IS CONSULTED. Whether a cached scan
+    # is still usable depends on which salt made its fingerprints: a scan taken
+    # under another salt (or before namespaces were recorded) cannot be compared
+    # with this machine's local inventory, however fresh it is. An unusable salt
+    # is not a reason to crash either — the cached file is left alone and the
+    # message says why, so the next step degrades rather than compares garbage.
     env = _load("collectors/scan_env.py", "scan_env")
     pepper: str | None = None
     identity_error = ""
@@ -238,10 +234,10 @@ def main(argv: list[str]) -> int:
     vault = _load("tools/vault.py", "vault_mod")
     retired = retired_values(pepper, vault.STORE)
     doc = {"scanned_at": now(), "provider": "heroku",
-                                                                               
-                                                                            
-                                                                              
-                                                                           
+           # The namespace names the salt these fingerprints were made under,
+           # without revealing it. The registry step compares it with the local
+           # scan's and refuses to derive verdicts when they differ, because
+           # fingerprints under different salts never match.
            "fingerprint_namespace": env.namespace(pepper),
            "apps": rows,
            "retired": retired, "degraded": degraded,

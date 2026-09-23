@@ -20,12 +20,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-                                                                            
-                                                                            
-                                                                                
-                                                                               
-                                                                              
-                                                                              
+# THE IMPORT THE ATOMIC FIX FORGOT. When the tracked writers moved onto
+# `atomic`, this one was left calling a name that was never bound, so the
+# WRITE path raised `NameError` from the moment it was "fixed" — invisible
+# because the gate's `fabric` step runs `--check`, which returns before
+# reaching it, and the test that claimed to cover the move asserted on the
+# SOURCE (no bare `.write_text(`) rather than on the behaviour.
 import atomic                                                                    
 
 MANIFEST = ROOT / "fabric-agent.json"

@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Every credential this estate holds, as typed facts, and who may use it.
 
-                                                                             
-                                                                               
-                                                                             
-                                                                                 
-                                                                                
-                                                                            
-                                                                            
-                                
+WHY A REGISTRY DOCUMENT AND NOT A SECOND VAULT. `tools/vault.py` holds VALUES
+and does it well: mode 600 in the machine's secret store, stdin only, and an
+encrypted backup on its own timer. What it cannot do is answer estate
+questions: which projects share one hosting account, what has leaked and not
+been rotated, which OpenRouter key the tick is actually spending.
+Those are facts about what EXISTS, which is what `registry/` is for, and the
+split is the same one this repository draws everywhere: values in the store,
+facts in git, never the reverse.
 
-                                                                                
-                                                                              
-                                                                             
-                                                              
+**Nothing here is a secret and the shape enforces it.** A record carries a name,
+a provider, the provider's own label (a truncated form that the provider itself
+calls the key by, not the key), a limit, a date. `tools/check_secrets.py` reads
+every tracked file including this one on every gate run.
 
-                                                                              
-                                                                          
-                                                                               
-                                                       
+MANY-TO-MANY, because one account serves several projects and one project uses
+several accounts. The edge is `credential_used_by`, from a credential to a
+project, and a credential with three projects has three edges, not one field
+with a list, so the same query answers both directions.
 
-                                    
+WHERE THE EDGE COMES FROM, in order:
 
-                                                                              
-                                                                         
-                                                                              
-                                                                                
-                                                                             
-                                                                 
+  measured   a vault slot is `projects/<project>/<env>/<NAME>`, so the project
+             is the path; an OpenRouter key's `serves` names its consumer
+  curated    `collectors/credential_owners.json`, for a SHARED account no path
+             can express, such as one DNS login used by several projects. Every
+             row carries its evidence, and a row without one is refused, which
+             is the same rule `collectors/heroku_links.json` follows
 
-                                                                              
-                                                                              
-                                                                               
-                                                       
-   
+An account nothing claims stays unclaimed and says so. Guessing which projects
+use a shared login from its name is exactly the inference AGENTS.md rule 2
+forbids, and here it would be worse than usual: the wrong answer sends somebody
+to rotate a credential several projects are quietly using.
+"""
 from __future__ import annotations
 import json, os, pathlib, re, stat, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -51,12 +51,12 @@ ANNOTATIONS = pathlib.Path(os.environ.get(
     paths.config_file('credential_annotations.json')))
 
 
-                                                                            
-                                                                            
-                                                                              
-                                                                       
-                                                                          
-                                                                            
+#: A register that EXISTS and could not be read, named for the document. The
+#: first version read such a file as empty, so a corrupt annotations file
+#: would have silently unsigned every credential and put `credential.unsigned`
+#: on the board for all of them: the same class of fault already closed for the
+#: leak register, closed here for the two curated ones. A MISSING file is still
+#: empty: not having curated anything is a state, not a fault.
 REGISTER_PROBLEMS: list[dict] = []
 
 
@@ -80,13 +80,13 @@ SLOT = 3
 
 
 def load_owners() -> list[dict]:
-    ""                                                                     
+    """Hand-curated credential -> projects, each row carrying its evidence.
 
-                                                                               
-                                                                                
-                                                                                 
-                                
-       
+    A row with no `evidence` is REFUSED rather than trusted. A shared account's
+    membership cannot be measured, so the only thing standing between a fact and
+    a guess is a human saying how they know, and an unsourced row is the guess
+    wearing a curator's clothes.
+    """
     if not OWNERS.is_file():
         return []
     try:
@@ -192,11 +192,11 @@ MACHINE_READERS = {
 
 
 def _plugin_readers() -> dict[str, str]:
-    ""                                                                  
+    """secret file name -> the plugin script that authenticates with it.
 
-                                                                               
-                               
-       
+    Read from the manifests, so a plugin that changes its credential says so in
+    one place and this follows.
+    """
     out: dict[str, str] = {}
     pdir = pathlib.Path(__file__).resolve().parents[1] / "plugins"
     for man in sorted(pdir.glob("*.json")):
@@ -284,32 +284,31 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
     return out
 
 
-                                                                             
-                                                                           
-                                                                              
-                                                                                  
-                                                                               
-                                                                             
-                                    
+#: A project keeps its own secrets beside its code, and this registry once could
+#: not see them: it read the machine store and the vault and nothing else, so a
+#: project's own `secrets/` directory (service-account keys, signing keys) was
+#: invisible to the system that exists to say what this estate holds. Both
+#: directory names, because projects spell it both ways and neither is more
+#: correct.
 PROJECT_SECRET_DIRS = ("secrets", ".secrets")
 #: Files that are the ABSENCE of a secret rather than one.
 NOT_A_SECRET = {".gitkeep", ".gitignore", ".DS_Store", "README.md", "readme.md"}
 
 
 def from_project_secrets(root: pathlib.Path | None = None) -> list[dict]:
-    ""                                                             
+    """One record per file in a project's own `secrets/` directory.
 
-                                                                                  
-                                                                             
-                                                                               
-                                                                           
-                                                    
+    MEASURED THE SAME WAY AS THE MACHINE STORE: names, modes, dates, and, for a
+    service-account JSON, the `client_email` it states about itself in the
+    clear, which is the identifier an operator grants and revokes. Nothing else
+    is read. The project is decided by CONTAINMENT, which needs no rule and
+    cannot be wrong: the file is inside that folder.
 
-                                                                      
-                                                                                
-                                                                             
-                                               
-       
+    Git state is asked per file rather than per directory, because the
+    interesting answer is per file: `secrets/.gitkeep` is tracked on purpose and
+    a service-account key beside it is ignored, and a directory-level verdict
+    would report the first and hide the second.
+    """
     import subprocess
     data = root or paths.DATA
     out: list[dict] = []
@@ -320,11 +319,10 @@ def from_project_secrets(root: pathlib.Path | None = None) -> list[dict]:
             d = proj / dirname
             if not d.is_dir():
                 continue
-                                                                                     
-                                                                               
-                                                                                  
-                                                                                     
-                                                                    
+            # THE MACHINE STORE IS NOT A PROJECT'S OWN SECRETS. The estate root
+            # may hold a symlink to the machine's secret store, so walking it
+            # here would count every machine secret a second time, roughly
+            # doubling the records. Resolved paths compare; names do not.
             try:
                 if d.resolve() == MACHINE_STORE.resolve():
                     continue
@@ -375,13 +373,13 @@ def from_project_secrets(root: pathlib.Path | None = None) -> list[dict]:
 
 
 def _machine_reason(reader: str | None) -> str | None:
-    ""                                                                      
+    """Why no project claims this: the precise answer where there is one.
 
-                                                                         
-                                                                             
-                                                                             
-                                                                      
-       
+    A machine secret belongs to the machine: the useful fact is not which
+    project owns it but which code authenticates with it, because that is who
+    breaks when it is rotated. Where the reader is unknown the generic reason
+    downstream still applies, and saying nothing here is what lets it.
+    """
     if not reader:
         return None
     return (f"a machine credential, not a project's: `{reader}` authenticates "
@@ -426,14 +424,14 @@ def leaks(store: pathlib.Path) -> dict[str, dict]:
 
 
 def from_leaks(open_leaks: dict, have: set[str]) -> list[dict]:
-    ""                                           
+    """A credential known ONLY because it leaked.
 
-                                                                           
-                                                                                
-                                                                                  
-                                                                         
-                                                                             
-       
+    A leak can be against a secret the vault does not hold: it is recorded where
+    it was SEEN (a database URL in an app's config, an access secret pasted
+    somewhere) and nobody had put it into the store. Without this the board
+    carries `secret.leaked_unrotated` for a credential the registry cannot show,
+    which is the worst of both: a debt with no subject.
+    """
     out = []
     for slot, leak in sorted(open_leaks.items()):
         cid = f"credential:vault/{slot}"
@@ -455,15 +453,15 @@ def from_leaks(open_leaks: dict, have: set[str]) -> list[dict]:
 
 
 def destination_edges(scan: dict, projects: list[dict]) -> dict[str, str]:
-    ""                                                                       
+    """destination -> project id, where the file physically lives inside one.
 
-                                                                                 
-                                                                               
-                                                         
-       
-                                                                           
-                                                                               
-                                                                        
+    Measured, not inferred: `store/.openrouter-key` sits inside the observatory's
+    own folder, so that key belongs to that project by containment, the same
+    rule the Heroku subsystem uses for a nested checkout.
+    """
+    # `paths.DATA`, not a second copy of its resolution: the estate root is
+    # redirectable for exactly the machines that keep their projects elsewhere,
+    # and a duplicate reader is a redirect that silently does not apply.
     data = paths.DATA
     folders = []
     for p in projects:
@@ -522,32 +520,31 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
         # OpenRouter key names the consumer it serves.
         if c.get("serves") and dest_owner.get(c["serves"]):
             edge(c["id"], dest_owner[c["serves"]], "destination-path", ["SRC-0014"])
-                                                                       
-                                                                                
-                                                                                 
-                                                                                     
-                                                                                
-                                                 
+        # A VAULT SLOT NAMES ITS PROJECT BY FOLDER AS OFTEN AS BY NAME.
+        # A slot under a project's folder name belongs to the project the
+        # registry may call something shorter; joined by name alone, most slots
+        # read as unowned on the keys page while the path plainly said whose
+        # they were. Folder first, name second: the same order `in_project`
+        # uses below.
         _vp = c.get("vault_project")
         _vault_owner = (by_folder.get(_vp) or by_name.get(_vp)) if _vp else None
         if c["kind"] in ("project-secret", "leaked-untracked") and _vault_owner:
             edge(c["id"], _vault_owner, "vault-path", ["SRC-0014"])
         elif c["kind"] == "project-secret" and _vp and not c.get("unclaimed_reason"):
-                                                                              
-                                                                               
-                                                                            
-                                                                             
-                                                                                
-                                                                     
+            # THE PATH NAMES SOMETHING, and the generic sentence below says it
+            # names nothing, which sent a reader to look for a missing vault
+            # path that was there all along. A slot named for an organisation
+            # rather than a product (a company's ad account token, say) matches
+            # no project here. Say which name the registry does not know.
             c["unclaimed_reason"] = (
                 f"the vault slot names {c['vault_project']!r}, which is no project in "
                 f"this registry — a credential of an organisation rather than of one "
                 f"product; the projects that use it are named in the curated file, or "
                 f"it stays an estate-level key on the record")
-                                                                              
-                                                                             
-                                                                                 
-                                                                        
+        # CONTAINMENT NEEDS NO RULE: the file is inside that project's folder.
+        # The folder is what the file is in, and the folder is not always the
+        # project's NAME, so the folder index decides and the name is only the
+        # fallback.
         if c.get("in_project"):
             pid = by_folder.get(c["in_project"]) or by_name.get(c["in_project"])
             if pid:

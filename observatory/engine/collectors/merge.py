@@ -110,18 +110,16 @@ for k,r in gh.items():
 #: module reads. See `PREVIOUS_TRANSFERS` for what that cost.
 # Preserve optional-input degradation gathered above.
 
-                                                                           
-                                                                           
-                                                                              
-                                                                
-                                                                                     
-                                                                        
-                                                                             
-                                                    
-  
-                                                                               
-                                                                             
-                                                     
+#: The transfer map the LAST run wrote, read before this one overwrites it.
+#: Without `gh` on PATH the transfer check would silently answer "not moved" for
+#: every address, and a moved repository's old address would enter the model as
+#: a repository of its own — sometimes anchoring a phantom project, always
+#: producing a spurious duplicate-name pair — with nothing reported, and the
+#: emitter would then write it into the canonical registry.
+#:
+#: So an answer that could not be re-measured falls back to the previous run's,
+#: which is the same rule `collectors/listing_guard.py` applies to a listing:
+#: older beats wrong, provided it says how old it is.
 def _previous_transfers() -> dict:
     f = SP / "model.json"
     if not f.is_file():
@@ -135,23 +133,19 @@ PREVIOUS_TRANSFERS = _previous_transfers()
 
 
 def canonical(host: str, k: str) -> tuple[str, str | None, str]:
-    ""                                                                          
+    """Follow a GitHub transfer. Returns (nwo, old_nwo_if_moved, why_unchecked).
 
-                                                                               
-                                                                            
-                                                                                
-                                                                        
-                                                                          
-                                                                                
-                                                                                 
-                                                    
+    A repository that was transferred keeps its old path working as a redirect,
+    so a local clone whose remote was never updated names an address that no
+    longer belongs to anyone. Recorded as-is it becomes a PHANTOM repository,
+    counted twice under two names. Only resolved for names the listing did not
+    return, so a tick costs a handful of calls rather than one per checkout.
 
-                                                                              
-                                                                            
-                                                                                 
-                                                                              
-            
-       
+    THREE outcomes, not two. "Not moved" and "could not ask" must not be the
+    same answer: a missing `gh`, an expired token or a 500 would otherwise all
+    read as "this address is fine". `why_unchecked` is non-empty exactly when
+    the question could not be asked, so the caller can degrade honestly.
+    """
     if host != "github":
         return k, None, ""
     if not configuration.enabled("github"):
@@ -187,10 +181,10 @@ for folder,l in local.items():
         asked = k                                                                 
         real, was, why = canonical(host, k)
         if why:
-                                                                           
-                                                                                
-                                                                               
-                                                                              
+            # The previous run's answer, or an admitted gap. Either way the
+            # address is named — and named as ASKED, not as resolved: a source
+            # that names the new address while its reason talks about the old
+            # one sends the reader to the wrong clone.
             carried = PREVIOUS_TRANSFERS.get(asked)
             if carried:
                 moved[asked] = carried
@@ -227,9 +221,9 @@ for folder,l in local.items():
                         source="bitbucket-api")
     rm=REMOTES.get(folder) or {}
     if rm.get("reachable") and not repos[k].get("default_branch"):
-                                                                                
-                                                                             
-                                                                             
+        # Costs no credential: `git ls-remote --symref` names the remote's HEAD.
+        # This gives a default branch to repositories whose host listing did not
+        # provide one, instead of assuming `master`.
         repos[k]["default_branch"]=rm.get("default_branch") or ""
     lr={"folder":folder,"path":l["path"],"symlink":l["symlink"],"kinds":l["kinds"],
         "sync":rm.get("sync") if rm.get("reachable") else ("unreachable" if rm else ""),
@@ -254,31 +248,27 @@ for folder,l in local.items():
                          ("nothing_exclusive", "nothing_exclusive")):
         if rm.get(key) is not None:
             lr[out_key] = rm[key]
-                                                                                 
-                                                                               
-                                                                             
-                                                                             
-                                         
-     
-                                                                               
-                                                                               
-                                                                                 
-                                                                             
-                                                           
-     
-                                                                             
-                                                                            
-                                                                                 
-                                  
-                                                                              
-                                                                      
-                                                                              
-                                                                                
-                                                                       
-                                                                      
-                                                                                
-                                                                              
-                                                                     
+    # THE LOCAL HALF, RECOUNTED EVERY TICK. `scan_remotes` runs on a slow cadence
+    # because `git ls-remote` costs a network round trip per repository — the
+    # right gate for the expensive question, "what does the remote have". The
+    # cheap question, "how far ahead of that sha am I NOW", is `git rev-list`
+    # inside the clone and costs nothing.
+    #
+    # Without this recount the unpushed count went stale between remote scans
+    # even when the remote sha had not moved, so recent local work was missing
+    # from the one number that says how much work exists solely on this disk,
+    # printed beside a date that reads as today.
+    #
+    # `scan_remotes.at_stake` is called rather than reimplemented: it already
+    # knows the range each at-risk state needs, and it already distinguishes
+    # measured-as-nothing from unmeasurable. A second copy here would drift.
+    # `branch_remote_sha`, NOT `remote_head`. The scanner compares against the
+    # CHECKED-OUT branch's remote sha, while `remote_head` is the remote's
+    # DEFAULT branch. Passing `remote_head` makes a checkout sitting on a
+    # feature branch count nothing in `main..HEAD` and claim "no commit here is
+    # exclusive" about a checkout that is ahead; `tests/test_at_stake.py`
+    # guards this. Read from the RAW record, which holds both shas, so the
+    # registry needs no new field.
     if lr["sync"] in scan_remotes.AT_RISK_STATES and l.get("path"):
         fresh = scan_remotes.at_stake(pathlib.Path(l["path"]), lr["sync"], "",
                                       rm.get("branch_remote_sha") or
@@ -299,17 +289,16 @@ for folder,l in local.items():
                     lr[out_key] = fresh[key]
             lr["unpushed_recounted"] = True
     lr["worktree_of"]=l.get("worktree_of","")
-                                                                      
-                                                                             
-                                                                                 
-                                                                            
-                                                                          
-                                                                              
-                                                                                 
-                                                                            
-                                                                             
-                                                                             
-                                                                                
+    # A WORKTREE never displaces a real checkout. `local.path` is what
+    # `scan_events` reads history from and what the dashboard links to, and a
+    # worktree is a temporary directory an agent deletes when it is done — left
+    # to alphabetical order, one could become a project's canonical path.
+    # DEMOTED, NOT DISCARDED. Keeping only a folder NAME would lose everything
+    # measured about the losing checkout — such as a worktree on a branch that
+    # exists on no remote — and nothing downstream could report it.
+    # `extra_clones` keeps the names because `plugins/disk_usage.py` resolves
+    # folders through it and a plugin must not change shape for a core need;
+    # the state travels beside it.
     def demoted(rec):
         return {kk: rec.get(kk) for kk in
                 ("folder","path","worktree_of","branch","sync","commits","dirty",
@@ -341,13 +330,13 @@ for folder in vault:
     for k in repos:
         if repos[k]["name"]==folder or (repos[k]["local"] and repos[k]["local"]["folder"]==folder):
             own_folder_of[k]=folder
-                                                                               
-                                                                                 
-                                                                             
-                                                                              
-                                                                              
-                                                                              
-                                                                          
+#: folder -> {nwo: submodule path}. A `.gitmodules` names, per module, the path
+#: inside the tree and the repository it comes from — MEASURED composition, and
+#: the strongest membership evidence this pass has: a wiki note can go stale,
+#: an org can hold strangers, but a submodule pin is the project itself saying
+#: "this repository is one of my parts". Without it, a project built from
+#: submodules would show only some of its repositories, with the rest standing
+#: beside it as standalone phantom projects.
 SUBMODULES = {f: {s["nwo"]: s["path"] for s in (l.get("submodules") or []) if s.get("nwo")}
               for f, l in local.items()}
 
@@ -372,12 +361,11 @@ for folder,p in projects.items():
         p["repos"].remove(k)
         p["rules"]=[r for r in p["rules"] if not r.startswith(f"{k}:")]
         print(f"  denied by the operator: {folder} does not hold {k}")
-                                                                                    
-                                                                                    
-                                                                                   
-                                                                                     
-                                                                                     
-      
+# A repository the operator has retired. It stays in the registry — it exists, and
+# a reader following a link to it must be told what it is — but it stops anchoring
+# a PROJECT. Otherwise an empty or abandoned repository would get a project row of
+# its own from the standalone-repository rule, indistinguishable at a glance from
+# real work.
 INACTIVE = {k for k, v in json.load(
     open(paths.config_file('repo_status.json')))["repositories"].items()
     if v.get("status") == "inactive"}
@@ -385,16 +373,16 @@ INACTIVE = {k for k, v in json.load(
 VER=json.load(open(paths.config_file('verified_links.json')))["links"]
 
 def apply_verified_links():
-    ""                                                                       
+    """Attach a curated link, and dissolve the standalone project it absorbs.
 
-                                                                        
-                                                                               
-                                                                              
-                                                                            
-                                                                         
-                                                                            
-                                                              
-       
+    Called TWICE on purpose. Before the leftovers pass it can only reach
+    projects anchored on a vault folder — the repository-anchored ones do not
+    exist yet. Called again after, it reaches those too, which is the only way
+    to express "repository B belongs to the project repository A anchors": a
+    docs repo, a landing page, or a published contract surface. Without the
+    second pass, such a repository would stand beside its own project as a
+    sibling forever, and no curated entry could say otherwise.
+    """
     for L in VER:
         p=projects.get(L["project"])
         if not p or L["repo"] not in repos or L["repo"] in p["repos"]: continue
@@ -416,14 +404,13 @@ for k,r in repos.items():
     if k in assigned: continue
     left[r["owner"]].append(k)
 for owner,ks in sorted(left.items()):
-                                                                                
-                                                                                
-                                                                               
-                                                                            
-                                                                           
-                                                                             
-                                                                              
-                                                   
+    # NO `or ks` FALLBACK. Writing `[k for k in ks if k not in INACTIVE] or ks`
+    # would revert an owner whose every leftover was retired to the full list —
+    # and two or more retired repositories would then form an ORGANISATION
+    # project, which is precisely what the INACTIVE set exists to prevent ("a
+    # retired repository stays in the registry but stops anchoring a project").
+    # The else-branch below already skips retired repositories one by one, so
+    # the fallback would buy nothing and cost that.
     ks = [k for k in ks if k not in INACTIVE]
     if owner not in orgs_with_project and owner in OWNED_ORGS and len(ks)>1:
         projects[owner]={"key":slug(owner),"name":owner,"anchor":"organisation",
@@ -435,17 +422,15 @@ for owner,ks in sorted(left.items()):
             projects[k]={"key":slug(k.replace("/","-")),"name":repos[k]["name"],"anchor":"repository",
                 "vault":None,"repos":[k],"rules":[f"{k}: standalone repository"],"sites":[]}
 apply_verified_links()                                                      
-                                                           
-                                                                             
-                                                                            
-                                                                           
-                                                                               
-                                                                             
-                                                                      
-                                                                              
-                                                                               
-                                                  
-                                             
+# ---------- folders that produced no repository ----------
+# NOT "folders with no git". A folder holding a .git with no remote satisfies
+# neither branch: the repository pass above needs a remote to derive an nwo,
+# and skipping every git folder here would drop it from the registry entirely —
+# still on disk, invisible, and with nothing reporting the loss.
+# The test is therefore what the folder YIELDED, not what it contains.
+#: Folders that are not projects, each with its own reason — an exclusion
+#: nobody can justify is indistinguishable from a mistake. Same shape as
+#: `collectors/session_name_exclusions.json`.
 _EXCL=json.load(open(paths.config_file('folder_exclusions.json')))
 EXCLUDED_PREFIXES=tuple(x["prefix"] for x in _EXCL["prefixes"])
 EXCLUDED_NAMES={x["name"] for x in _EXCL["names"]}
@@ -456,13 +441,11 @@ for folder,l in local.items():
             if l["is_git"] else f"{folder}: local folder, not a git repository")
     projects["local:"+folder]={"key":identity.local_key(folder),"name":folder,"anchor":"local-folder",
         "vault":None,"repos":[],"rules":[rule],"sites":[],
-                                                                              
-                                                                              
-                                                                              
-                                                                      
-                                                                           
-                                                                                 
-                                                                      
+        # THE GIT FACTS TRAVEL TOO. `mtime` alone is not enough: it is `null`
+        # for remoteless repositories the scan measured, so a project committed
+        # to today would come out `activity_tier: "unknown"` with an empty
+        # `last_activity_on`, in a system whose central question is where work
+        # happened. `last_commit` is read by the scan and must not be dropped.
         "local_only":{"folder":folder,"path":l["path"],"kinds":l["kinds"],"unpublished":l["is_git"],
                       "commits":int(l.get("commits") or 0),"branch":l.get("branch","") or "",
                       "last_commit":l.get("last_commit","") or "","dirty":int(l.get("dirty") or 0),
@@ -537,17 +520,15 @@ for p in projects.values():
     # "unknown" for the three most recently worked-on projects on this machine.
     if p.get("local_only") and p["local_only"].get("last_commit"):
         dates.append(p["local_only"]["last_commit"])
-                                                                               
-                                                                                  
-                                                                                
-                                                                         
-                                                                          
-                                                
-                                                                              
-                                                                           
-                                                                            
-                                                                               
-                                                                               
+    # A SESSION is activity. Every other date here is a git or filesystem fact,
+    # so a project worked on without a commit would read as silent — and
+    # `activity.py` would then call it `cooling` on that silence while work
+    # continued.
+    # Keyed by `p["key"]`, because a project has no `id` at this stage — the
+    # `project:<slug>` id is minted in `collectors/emit_registry.py:pid()`,
+    # which also applies ID_OVERRIDE. So the session index is re-keyed there
+    # rather than guessed here: this looks up both the plain slug and the id an
+    # override would produce, and the emitter's own map is what makes it exact.
     _sess = SESSIONS.get(f"project:{p['key']}") or SESSIONS_BY_SLUG.get(p["key"], "")
     if _sess: dates.append(_sess)
     p["last_activity"]=max(dates) if dates else ""

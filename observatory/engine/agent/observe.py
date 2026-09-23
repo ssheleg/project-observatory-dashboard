@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-""                                                                           
+"""The LLM layer. It reads deltas, writes proposals, and cannot promote them.
 
-                                                                              
-                                                                             
+Delta-driven, not poll-driven: with an empty delta table it exits having spent
+nothing, which is what makes a scheduled agent affordable on a quiet machine.
 
-                                                                                 
-                                                                          
-                                                                             
-                                 
+**Nothing here names a model or a price.** Both live behind `agent/providers.py`,
+which resolves the chain from `agent/models.json` and the numbers from the
+provider's own catalogue. A price table in source is wrong the day a provider
+changes one, and nothing notices.
 
-                                                                       
-                                                                           
-                                                                               
+**The ceiling is enforced on the write, in credits.** Three independent
+guardrails converge on one answer: a daily cap, a monthly cap, and spend
+velocity over a rolling window, because the first two catch a runaway tomorrow.
 
-                                                                   
-                                                                                 
-                                                                             
-                                                                                  
-                                                                                    
+Degradation is honest in four places, because each is a real state:
+  * no credential      -> collectors-only, deltas left unconsumed, said out loud
+  * guardrail reached  -> same, plus which guardrail and the spend behind it
+  * every model failed -> same; the chain is marked unhealthy and re-probed later
+  * one call fails     -> that project's delta stays unconsumed, the others proceed
 
-                                                                               
-                                                        
-   
+Nothing here approves anything. Every row lands `proposed` with confidence < 1;
+promotion is the operator's or a second corroboration's.
+"""
 from __future__ import annotations
 import argparse, json, os, sys, pathlib, sqlite3
 from datetime import datetime, timezone
@@ -52,17 +52,14 @@ AGENT_MAX_CONFIDENCE = 0.95
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-                                                                                
-                                                                              
-                                                                                
-                                                                                 
-                                                                                 
-                                                                             
-                                                                           
-                                                                                
-                                                                              
-                                                                                 
-                                                                       
+    # `required` lists the keys and enforces nothing else: it does not forbid
+    # an empty `why_not`, and the schema cannot express the cross-field rules
+    # its own descriptions state (an empty reason exactly when the answer is
+    # worth recording). Strict structured outputs accept a subset of JSON
+    # Schema with no `if`/`then`, so those rules live in the runtime loop: an
+    # answer that contradicts itself is counted `malformed` and its deltas stay
+    # unconsumed, and a decline with no reason is counted `unreasoned` in
+    # `store/raw/agent.json`.
     "required": ["worth_recording", "interpretation", "confidence", "why_not"],
     "properties": {
         "worth_recording": {
@@ -115,11 +112,11 @@ FOREIGN_LETTER_SHARE = 0.5
 
 
 def non_latin_share(text: str) -> float:
-    ""                                                                      
+    """The share of a statement's letters that are not Latin. 0.0 when none.
 
-                                                                               
-                                                                                
-       
+    Letters only: digits, punctuation and the file paths a statement quotes are
+    script-neutral and would dilute the measure toward zero on a short sentence.
+    """
     letters = [ch for ch in text or "" if ch.isalpha()]
     if not letters:
         return 0.0
@@ -165,29 +162,25 @@ def already_recorded(conn, pid: str) -> list[str]:
 
 
 def fold(deltas: list) -> list[dict]:
-    ""                                                                       
+    """One movement per KIND: oldest `before`, newest `after`, steps between.
 
-                                                                              
-                                                                                     
-                                                                                 
-                                                                                
-                                                                              
-                                                                           
-                                                                                 
-                                                                             
-                                                                           
-                                                     
+    **Why this is a fold and not a bigger cap.** Sending only the oldest few
+    deltas misrepresents a window: the oldest steps of a rise-then-commit cycle
+    are all rises, so a sample can point the wrong way, not merely understate
+    the work. Nothing downstream can catch that, because the project facts
+    carry no quantitative field and these lines are the model's only handle on
+    how much moved.
 
-                                                                              
-                                                                                 
-                                                                          
+    Deltas of one kind over one window ARE a range, so folding drops nothing a
+    cap was hiding, makes `provenance.deltas` true, and shortens every prompt,
+    which is the point, because the budget is what binds this whole layer.
 
-                                                                            
-                                                                            
-                                                                               
-                                                                               
-                                                   
-       
+    **Arrival order, by `seq` where the caller supplies it.** "appeared then
+    disappeared" and the reverse are different histories. The caller queries
+    `ORDER BY rowid`; sorting on `seq` here is what makes that guarantee travel
+    instead of resting on the list's accident. With no `seq` every key is equal
+    and Python's stable sort keeps the given order.
+    """
     out: dict[str, dict] = {}
     for i, d in enumerate(sorted(deltas, key=lambda r: r.get("seq", 0))):
         m = out.get(d["kind"])
@@ -243,12 +236,12 @@ def main() -> int:
         faults: list[dict] = []
 
         def note_fault(pid: str, kind: str, reason) -> None:
-            ""                                        
+            """Why one project was left uninterpreted.
 
-                                                                                 
-                                                                               
-                                                                   
-               
+            `kind` is the REMEDY's address, not the exception's name: `store` and
+            `model-unavailable` are fixed in different places, and a reader who
+            has only a count cannot tell which of the two happened.
+            """
             faults.append({"project": pid, "kind": kind,
                            "reason": (f"{type(reason).__name__}: {reason}"
                                       if isinstance(reason, BaseException)
@@ -270,21 +263,18 @@ def main() -> int:
                    retired: list[str] | None = None,
                    handled: list[str] | None = None,
                    waiting: list[str] | None = None, foreign: int = 0) -> None:
-            ""                                            
+            """The run's outcome as a fact, on EVERY path.
 
-                                                                       
-                                                                                
-                                                                             
-                                                                              
-                                                                               
-                                                                            
-                                                                          
-               
-                                                                                   
-                                                                                
-                                                                           
-                                                                                
-                                               
+            Written by a helper rather than at the end, because the degradations
+            below `return 0` before the end is reached, and they are the cases
+            that most need reporting: a halted interpretation layer must be
+            visible outside the log, and a report reachable only on the happy
+            path would hide exactly that.
+            """
+            # PROJECTS, not only deltas: the cost of draining this queue is one
+            # call per PROJECT, not per delta, because the fold keeps a project's
+            # prompt from growing with its backlog. A delta count alone cannot be
+            # turned into money.
             left = conn.execute(
                 "SELECT count(*) n, count(DISTINCT subject_id) projects,"
                 "       min(s.started_at) since FROM deltas d"
@@ -330,11 +320,10 @@ def main() -> int:
             " FROM deltas WHERE consumed_at IS NULL ORDER BY rowid")]
         if not rows:
             print("no unconsumed deltas — nothing moved, and this run spent nothing")
-                                                                                
-                                                                  
-                                                                              
-                                                                               
-                                                                         
+            # REPORTED, because this is the state that CLEARS the stall finding.
+            # Leaving the previous run's report on disk would keep
+            # `interpretation.halted` lit after the queue drained. Every exit
+            # must report.
             report(None)
             return 0
 
@@ -524,23 +513,17 @@ def main() -> int:
                     " GROUP BY memory_id ORDER BY revision DESC LIMIT 1",
                     (pid, OWNER, now()[:10])).fetchone()
             except sqlite3.DatabaseError as exc:
-                                                                                  
-                                                                                  
-                                                                                 
-                                                                         
-                                                                          
-                                                  
-                 
-                                                                                
-                                                                            
-                                                                                 
-                                                                               
-                                                                              
-                                                                              
-                                                                           
-                                                                              
-                                                                           
-                                       
+                # A FAILED READ IS NOT "no prior". Defaulting to None would append
+                # a SECOND record for this project today, exactly the duplicate
+                # this lookup exists to prevent, so the delta stays unconsumed
+                # and the reason is named. That is this loop's own stated
+                # contract: "one call fails -> that project's delta stays
+                # unconsumed, the others proceed".
+                #
+                # A transient `database disk image is malformed` here once took
+                # the whole scheduled run down with a traceback, although the
+                # store checked clean afterwards. A broken read is a
+                # degradation, not a traceback.
                 print(f"  {pid}: the store could not be read for the duplicate "
                       f"check — {type(exc).__name__}: {str(exc)[:80]}. Its delta "
                       f"stays unconsumed; the other projects proceed.",

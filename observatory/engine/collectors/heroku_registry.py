@@ -10,12 +10,12 @@ reason there are five: `suspended` is Heroku's decision and `down` is the
 application's own crash; `resources-only` pays for a database with no dyno and
 `idle` pays for nothing.
 
-                                                                             
-                                                                             
-                                                                                
-                                                                              
-                                                                               
-                                                       
+The second is the link, and AGENTS.md rule 2 governs it: **never infer from a
+name.** An app can deploy from a folder with an unrelated name, or from a
+monorepo while a folder carrying the app's own name sits beside it with a remote
+to the same application. A name-match gets both wrong and looks confident doing
+it. So a link is made only where something was MEASURED, and every link carries
+the rule that made it:
 
   `heroku-github-link`  Heroku's own Deploy tab names a repository, and the
                         registry already ties that repository to a project.
@@ -157,10 +157,10 @@ def link(app: dict, repo_index: dict, folder_index: dict,
     for folder in app.get("local_folders") or []:
         if folder in folder_index:
             return folder_index[folder], "heroku-remote", None
-                                                                             
-                                                                           
-                                                                               
-                                                                           
+    # A checkout INSIDE a project's folder. Physical containment, not a name:
+    # a deploy checkout can be a repository of its own whose only remote is
+    # heroku, sitting a level or two inside the project that owns it.
+    # Longest containing folder wins, so a nested project beats its parent.
     for folder in app.get("local_folders") or []:
         owners = [(len(p), pid) for p, pid in folder_index.items()
                   if folder.startswith(p.rstrip("/") + "/")]

@@ -58,17 +58,16 @@ DESTINATIONS = {
 }
 
 
-                                                                     
-                                                                              
-                                                                              
-                                                                                
-  
-                                                                               
-                                                                             
-                                                                 
-                                                                                
-                                                                           
-                                                
+#: THE PROVIDER'S OWN LABEL, derived locally. A listing entry carries the key's
+#: prefix, the three characters after it AND the last three, and the same string
+#: is computable from a key value without asking anything — which is why a local
+#: key can be matched to a listing entry without ever sending the key.
+#:
+#: WHY NOT THE TAIL ALONE. Three hex characters collide by the birthday bound
+#: across a large account, and a match on them alone gives a CONFIDENT WRONG
+#: ANSWER — a stranger's key labelled as this project's. Six characters over the
+#: same population is a different order of risk, and a collision is REPORTED
+#: rather than resolved by picking one.
 TAIL = 3
 
 

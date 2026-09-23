@@ -158,13 +158,13 @@ def scale_claim_failures(text: str, rel: str) -> list[str]:
 
 LEDGERS = (("docs/DECISIONS.md", "DEC"), ("docs/OPEN_QUESTIONS.md", "OQ"))
 
-                                                                                     
-                                                                              
-                                                                            
-                                                                           
-                                                                              
-                                                                                
-                                                                        
+# A `**Vacant ids:**` line followed by backticked ids: the ledger accounting for
+# an id it does not carry. A hole can be of opposite kinds: an id that was never
+# minted (an off-by-two when a session resumed, cited by nothing), or an entry
+# that lives elsewhere by decision. Renumbering to close a hole would
+# invalidate every citation of the later ids, so a hole is legitimate, once
+# DECLARED. Prose does not count: "the file mentions it somewhere" passes on any
+# file containing the string, and a rule that cannot fail is not a rule.
 VACANT_RX = re.compile(r"\*\*Vacant ids:\*\*(.*)")
 
 
@@ -179,10 +179,10 @@ def ledger_failures(path: pathlib.Path, prefix: str, rel: str) -> list[str]:
     text = path.read_text(encoding="utf-8")
     minted = [int(m) for m in re.findall(rf"^#+ {prefix}-(\d+)\b", text, re.M)]
     ids = sorted(set(minted))
-                                                                              
-                                                                            
-                                                                                
-                                                                                
+    # ONE ID, ONE ENTRY. Two decisions once shipped under the same id on
+    # consecutive days, and this rule, which counts vacancies, never counted
+    # copies: a citation of the id then pointed at whichever the reader found
+    # first. A later revision found it, dozens of decisions afterwards.
     for dup in sorted({i for i in minted if minted.count(i) > 1}):
         out.append(f"{rel} mints {prefix}-{dup:04d} {minted.count(dup)} times — one id, "
                    f"one entry; renumber the later one to the next free id and say so "
@@ -201,12 +201,12 @@ def ledger_failures(path: pathlib.Path, prefix: str, rel: str) -> list[str]:
                    f"{prefix}-{top + 1:04d}. This counter was once fixed by hand "
                    f"and it drifted again; bump it in the same edit that appends.")
 
-                                                                                 
-                                                                                             
-                                                                              
-                                                                        
-                                                                                 
-                                       
+    # EVERY ENTRY CARRIES A MACHINE-READABLE STATUS, because AGENTS.md advertises
+    # exactly that and nothing kept it: an open question shipped with its status
+    # written in prose and no `- Status:` line, so a reader counting open
+    # questions by the documented spelling came up one short. An audit found it:
+    # a claim the docs make that nothing keeps, which is the class this whole
+    # file exists for.
     if prefix == "OQ":
         for sec in re.split(r"(?m)^## ", text)[1:]:
             head = sec.split("\n", 1)[0].strip()
@@ -326,12 +326,12 @@ def failures() -> list[str]:
         if not md.is_file():
             continue
         for path in sorted(set(PATH_RX.findall(md.read_text(encoding="utf-8")))):
-                                                                              
-                                                                       
-                                                                               
-                                                                              
-                                                                                 
-                                                                        
+            # ONLY a path whose first segment is a top-level directory of THIS
+            # repository. A bare `projects.json` is a name, not a path; a path
+            # into a sibling repository belongs to that repository; a reference
+            # path inside a skill lives in that skill. Checking those produced
+            # dozens of "drifts" of which only a handful were real, and a checker
+            # that cries wolf is the one nobody runs (trap T28).
             first = path.split("/", 1)[0]
             if "/" not in path or first not in TOP_LEVEL:
                 continue

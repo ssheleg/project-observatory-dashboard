@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
-""                                                                              
+"""The env inventory as a registry document: names, states, and who shares what.
 
-                                                                             
-                                                                               
-                                                                              
-                                                                             
-                                                                                
-    
+`collectors/scan_env.py` measures; this decides what of that measurement is a
+FACT the estate keeps. The division is the same one `heroku_registry.py` draws,
+and it exists because the scan holds one thing the registry may never receive:
+the salted fingerprint under every value. That fingerprint answers "are these
+two the same secret", and the answer, not the fingerprint, is what belongs in
+the registry.
 
-                                               
+THREE QUESTIONS THIS DOCUMENT EXISTS TO ANSWER.
 
-                                                                   
-                                                                              
-                                                                              
+  what does this project hold      per file, per variable, by class
+  what would break if I rotate it  `shared_with`, measured rather than curated
+  where can I get one              `available_in`, for a slot still empty here
 
-                                                                     
-                                                                           
-                                                                               
-                                                                                 
-                                                                               
-                                                                                
-   
+The second is the one that could not be answered before. `collectors/
+credential_owners.json` asks an operator to DECLARE which projects share an
+account, and the honest answer was that nobody remembers. Two files holding one
+value is that declaration, measured, and the finding rule says so, pointing at
+the curation file rather than replacing it: a fingerprint proves two values are
+equal, not that they are the same ACCOUNT, and an operator still owns that step.
+"""
 from __future__ import annotations
 from collections import defaultdict
 
-                                                                               
-                                                                                 
-                              
+#: Classes a still-empty slot can be filled FROM. Configuration counts here
+#: (another project's cache URL is a usable default) even though only secrets
+#: are grouped by value below.
 FILLABLE_FROM = ("secret", "config")
 
 #: Listed by name up to this many in a summary, as everywhere else here.
@@ -47,12 +47,12 @@ def sites(files: list[dict]) -> dict[str, list[dict]]:
 
 
 def live_names(files: list[dict]) -> dict[str, set[str]]:
-    ""                                                       
+    """variable name -> projects where it holds a real value.
 
-                                                                               
-                                                                                 
-                                                             
-       
+    REAL EXCLUDES A TEMPLATE, and that is the whole point of the distinction: a
+    `.env.example` declaring a payment secret key is a project ASKING for one, and
+    offering it back as a place to get one would be a circle.
+    """
     out: dict[str, set[str]] = defaultdict(set)
     for f in files:
         if f["kind"] != "env":
@@ -109,12 +109,12 @@ def enrich(files: list[dict]) -> list[dict]:
 
 
 def shared_groups(files: list[dict]) -> list[dict]:
-    ""                                                    
+    """One row per value that more than one PROJECT holds.
 
-                                                                                
-                                                                                 
-                                    
-       
+    Within one project a repeated value is ordinary: a backend and a frontend
+    reading one database. Across projects it is a rotation blast radius, and that
+    is the only version worth a row.
+    """
     groups = []
     for fp, group in sites(files).items():
         projects = sorted({s["project"] for s in group})

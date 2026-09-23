@@ -1,60 +1,60 @@
 #!/usr/bin/env python3
-""                                                        
+"""A control plane for credentials that never carries one.
 
-                                                                            
-                                                  
-                                                                         
+    tools/keyserver.py            serve on 127.0.0.1, print the URL, stay up
+    tools/keyserver.py --port N   a different port
+    tools/keyserver.py --once     answer one request and exit (for tests)
 
-                                                                       
-                                                                           
-                                                                           
-                                                                                
-                                                                          
+WHY THIS EXISTS AND WHY IT IS NARROW. The dashboard is a file read from
+`file://`: it can show what is true and it cannot change anything. Minting,
+capping and revoking a key are one command each, and a person reading a row
+about a key that is about to die should not have to go and assemble that command
+by hand. So the page is served here instead, same-origin with a small API.
 
-                                                                             
+**THE VALUE NEVER PASSES THROUGH THE BROWSER, and that is the whole design.**
 
-                                                                                
-                                                                               
-                                                              
-                                           
-                                                                              
-                                           
-                                                    
+  minting        the provider generates the key, this process writes it straight
+                 to its destination file at mode 600. The browser learns a name
+                 and a limit and never sees a character of it.
+  capping        a number and a reset word.
+  revoking       a label — the provider's truncated display form of the key,
+                 which is not the key.
+  marking a leak free text saying where it was seen.
 
-                                                                              
-                                                                            
-                                                                                
-                                                                         
-                                                                               
-                                                                                
-                                                                                 
-                                                                            
-                                                                                
-                                                                                
-                          
+  revealing      THE ONE EXCEPTION, and it is an exception to "the value never
+                 passes through the browser" rather than to any of the rules
+                 below. One named variable out of one env file, resolved against
+                 `store/raw/env.json` rather than against the path in the
+                 request — so this is a reader of a measured inventory, not a
+                 file reader that happens to hold a token — audited before the
+                 file is opened, with the path, the name and the class in the log
+                 and never the value. It exists because the operator owns the
+                 machine and the secret; the honest way to offer it is to make it
+                 narrow and loud rather than to refuse it and leave them grepping.
 
-                                                                        
-                                                                                
-                                                                        
-                                                                            
-                                                                              
-                                 
+  putting or rotating a VAULT secret is REFUSED here. `tools/vault.py`'s
+  contract is that a value travels on stdin and nowhere else — not argv, not a
+  chat message, and not an HTTP body a browser tab holds in memory and a
+  devtools panel replays. The page hands over the command instead. A control
+  plane that broke that rule to be convenient would be the largest hole in the
+  system it was built to protect.
 
-                   
+WHAT GUARDS THE API:
 
-                                                                            
-                                                                           
-                                                                               
-                                                                   
-                                                                  
-                                                                             
-                                                                               
-                                          
+  bound to 127.0.0.1  never a routable address, and refused if asked for one
+  a token            in a file at mode 600, required on every API call in a
+                     custom header — which also forces a CORS preflight, so a
+                     page on another origin cannot post to it blind
+  an Origin check    the browser's own statement of who is calling
+  an audit line      every action, with what it acted on, appended before the
+                     action is attempted — a log written afterwards loses the
+                     one case that matters
 
-                                                                         
-                                                                          
-                                             
-   
+Only the explicit, authenticated reveal route returns a credential value.
+The state route serves metadata from `registry/credentials.json`; mutation
+routes return a name, a label and an outcome.
+"""
+
 from __future__ import annotations
 import argparse
 import contextvars
@@ -167,7 +167,7 @@ def check_destination(dest: str) -> str:
 
 
 def token() -> str:
-    ""                                                                                 
+    """The API token, read from its owner-only state file; a read never creates one."""
     return load_identity(TOKEN_FILE, 'keyserver-token')
 
 
@@ -191,16 +191,13 @@ def audit(action: str, subject: str, detail: dict) -> None:
 
 
 def _door():
-    ""                                                              
+    """The OpenRouter door, imported when a route first asks for it.
 
-                                                                              
-                                                                             
-                                                                                    
-                                                                             
-                                                                             
-                                                                             
-                                                                        
-       
+    Every live mint, limit, disable, enable and rotate route goes through this
+    one function. `tests/test_keyserver.py` drives a route THROUGH a stubbed
+    door, because a suite that stops at the refusal layer above it cannot
+    notice that the door itself is broken.
+    """
     sys.path.insert(0, str(ROOT / "tools"))
     import openrouter
     return openrouter
@@ -275,14 +272,14 @@ def act_leak(body: dict) -> dict:
 
 
 def act_annotate(body: dict) -> dict:
-    ""                                                                
+    """Sign a credential — the operator's half of the signing step, from the page.
 
-                                                                              
-                                                                              
-                                                                                
-                                                                             
-                                                                            
-       
+    ONE WRITER FOR BOTH PATHS: this calls `tools/sign_credential.write()`, the
+    same function the CLI calls, so a refusal cannot be true at a terminal and
+    false in a browser. Audited before the write, like everything else here, and
+    the audit line carries only the names of changed fields. Free text is not
+    copied into the journal, including text the writer subsequently refuses.
+    """
     cred = (body.get("id") or "").strip()
     if not cred:
         raise ValueError("id is required — the credential as the registry spells it")
@@ -301,33 +298,33 @@ def act_annotate(body: dict) -> dict:
 
 
 def act_reveal(body: dict) -> dict:
-    ""                                                                    
+    """Read ONE variable out of ONE env file, and say so in the log first.
 
-                                                                             
-                                       
+    THIS IS THE ONE ACTION HERE THAT RETURNS A VALUE, and every other rule on
+    this page exists to keep it narrow:
 
-                                                                             
-                                                                             
-                                                                       
-                                                                                
-                                               
+      resolved against the SCAN, not the request. The body names a path and a
+      variable; both must already appear in `store/raw/env.json`. A path this
+      machine has not inventoried is refused even when it exists and is
+      readable — that is the difference between a reader of an inventory and a
+      file reader that happens to hold a token.
 
-                                                                            
-                                                                           
+      one variable, never a file. The answer carries the value asked for and
+      nothing else, so a reveal cannot become a dump by adding a parameter.
 
-                                                                                  
-                                                                         
-                                             
+      audited BEFORE the read, like every other action here — and the audit line
+      carries the path and the name and never the value, because a log of
+      secrets is a second place to leak them.
 
-                                                                          
+      no cache. `_send` sets `Cache-Control: no-store` for every response.
 
-                                                                              
-                                                                        
-                                                                           
-                                                                              
-                                                                              
-                            
-       
+    WHAT IT DOES NOT PROTECT AGAINST, stated because it is the operator's call
+    rather than this file's: the value is on screen, and a screen can be
+    photographed, screen-shared and recorded. The page hides it again after a
+    short timeout and offers a copy button that never renders it at all; past
+    that, revealing a secret is a decision, and this makes it a deliberate one
+    rather than an easy one.
+    """
     path = str(body.get("path") or "").strip()
     name = str(body.get("name") or "").strip()
     if not path or not name:
@@ -362,8 +359,8 @@ def act_reveal(body: dict) -> dict:
 
 
 def _toggle(body: dict, disabled: bool) -> dict:
-    ""                                                                                            
-                                                                               
+    """Disable or enable a provider key. The door PATCHes `disabled` at the
+    provider; nothing is minted and nothing is read."""
     name = body.get("name") or body.get("label") or ""
     if not name:
         raise ValueError("a key name is required")
@@ -385,10 +382,10 @@ def act_enable(body: dict) -> dict:
 
 
 def act_rotate_key(body: dict) -> dict:
-    ""                                                                                   
-                                                                      
-                                                                             
-                                                                          
+    """Rotate a PROVIDER key only: the door mints the successor and delivers it
+    to the key's own destination, so no value crosses this process. `rotate`
+    itself stays REFUSED below — that word is the vault's verb, and a vault
+    rotation takes a value on stdin."""
     name = body.get("name") or body.get("label") or ""
     if not name:
         raise ValueError("a key name is required")
@@ -428,12 +425,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _local_request(self) -> bool:
-        ""                                                                       
+        """Validate the browser authority before serving HTML containing a token.
 
-                                                                               
-                                                                             
-                                                                               
-           
+        Missing Origin is intentional for CLI clients. An Origin, when present,
+        must be the exact HTTP origin of Host, including the actual listening
+        port. Host is checked even for token-free assets to stop DNS rebinding.
+        """
         hosts = self.headers.get_all("Host", [])
         origins = self.headers.get_all("Origin", [])
         port = self.server.server_address[1]
@@ -474,16 +471,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return True
 
     def _page_for(self, route: str):
-        ""                                                   
+        """(file, content type) for a route, or (None, None).
 
-                                                                      
-                                                                          
-                                                                              
-                                                                          
-                                                                             
-                                                                              
-                  
-           
+        THE SPLIT PAGES ARE SERVED HERE TOO, not only the single page: the
+        pages a person actually opens must be able to carry the token, or live
+        mode is a state no page can enter and every `data-act` button on them
+        is a promise the server cannot keep. Names come from the shell's
+        whitelist, the same one `serverd.py` reads; `..` and an unknown name
+        are 404, never a file outside the dashboard directory.
+        """
         sys.path.insert(0, str(ROOT / "dashboard"))
         import shell
         if route in ("/", "/index.html"):
@@ -586,9 +582,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as exc:
             self._send(400, {"error": str(exc)})
         except LookupError as exc:
-                                                                             
-                                                                                 
-                                                                           
+            # A name the ledger or the provider does not know is the caller's
+            # mistake, not the server's — 404 with the door's sentence, never a
+            # 500 that reads as "the keyserver is broken".
             self._send(404, {"error": str(exc)})
         except urllib.error.HTTPError as exc:
             self._send(502, {"error": f"the provider refused: HTTP {exc.code}"})

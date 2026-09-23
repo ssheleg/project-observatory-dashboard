@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-""                                                                 
+"""Weekly aggregates that outlive the rows they were computed from.
 
-                                                                                
-                                                                       
-                                                                                
-                                                                              
-                                                                                                  
-                                                                                
-                                     
+Every statistic in this system was a `sum(1 for …)` over the CURRENT registry,
+so the only real time series was the raw commit stream — bounded by
+`store/retention.json` — and once a week aged out, "was this project active in
+Q1" stopped having an answer at all. An aggregate is orders of magnitude
+smaller than what it summarises: one row per project per week is a few
+thousand rows a year for a large estate, so it is kept for ever while the rows
+beneath it are still pruned on the same horizon as before.
 
-                                                                            
-                                                                            
-                                                                              
-                                                                               
-                                                                                
-                                                                            
-                                                                   
+**The freeze rule is the whole design.** A week is recomputed only while its
+WHOLE span lies inside the event window. Once retention's cutoff passes that
+week's start, the row is frozen and never rewritten — because recomputing it
+would read the pruned events, find none, and replace a measurement with a zero.
+That is the same shape as a collector and a pruner undoing each other every
+tick until they are made to read one horizon, except that here it destroys the
+only copy rather than merely churning it.
 
-                                                                               
-                                                                     
+A week only PARTLY covered by the window is not written at all. A partial count
+understates without saying so, and no row is better than a wrong one.
 
-                                                                            
-                                                                               
-   
+    rollup.py refresh    recompute every fully-covered week; freeze the rest
+    rollup.py status     what is stored, what is frozen, what the window covers
+"""
 from __future__ import annotations
 import argparse, collections, json, pathlib, sqlite3, sys
 from datetime import date, datetime, timedelta, timezone
@@ -37,13 +37,13 @@ RETENTION = paths.config_file("retention.json")
 
 
 def _registry_projects() -> list[dict]:
-    ""                                                          
+    """The registry's projects, or [] with the reason on stderr.
 
-                                                                            
-                                                                                 
-                                                                        
-                                       
-       
+    Optional by the same rule every collector input follows: a registry that
+    will not open must not stop the rollup, it must stop the FOLDING — and then
+    a former id simply keeps its own row, which is the state before folding
+    existed rather than a wrong number.
+    """
     f = paths.REGISTRY / "projects.json"
     try:
         return json.loads(f.read_text(encoding="utf-8"))["projects"]
@@ -67,13 +67,13 @@ def window_days() -> int:
 
 
 def week_of(stamp: str) -> tuple[str, str]:
-    ""                                            
+    """(ISO year-week, that week's Monday) in UTC.
 
-                                                                              
-                                                                                
-                                                                               
-                                                                                
-                                             
+    Computed in Python, not with SQLite's `%W`, because `%W` counts weeks from
+    the first Monday of the calendar year and puts early-January days in week 00
+    — a different answer from ISO 8601 at exactly the boundary where a yearly
+    report is read. Every timestamp here is UTC `Z`, so the week a commit falls
+    in is unambiguous."""
     d = date.fromisoformat(stamp[:10])
     iso = d.isocalendar()
     monday = d - timedelta(days=iso.weekday - 1)
@@ -83,29 +83,27 @@ def week_of(stamp: str) -> tuple[str, str]:
 def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
     today = today or datetime.now(timezone.utc).date()
     cutoff = today - timedelta(days=window_days())
-                                                                              
-                                                                               
-                                                                    
-                                                                               
-                                                                                
-                                                                            
-                                                                
-     
-                                                                                  
-                                                                              
-                                                                
+    # BOTH KINDS. With `commit` alone as the whole series, a (project, week)
+    # pair with agent sessions but no commit produced NO ROW AT ALL — in the
+    # one table designed to outlive its source. And with a deadline attached:
+    # once a week passes the retention cutoff the freeze rule forbids
+    # rewriting it, so every such week would become a permanent zero.
+    #
+    # `commits`, `active_days` and `authors` keep their EXACT previous meaning —
+    # commits, commit-days, commit-actors. Widening a column in place is how a
+    # measurement stops being comparable with the one beside it.
     rows = conn.execute(
         "SELECT project_id, occurred_at, actor, kind FROM events"
         " WHERE kind IN ('commit','session') AND project_id IS NOT NULL").fetchall()
 
-                                                                         
-                                                                          
-                                                                              
-                                                      
-                                                                             
-                                                                                
-                                                                                
-                                                                                  
+    # A PROJECT'S FORMER IDS FOLD INTO ITS CURRENT ONE, before bucketing.
+    # A project's id is derived from its publication state, so giving it a
+    # remote renames it — and its earlier events keep the old name. Without
+    # folding, one week can exist under BOTH ids of the same project, and any
+    # reader that took both counts that week twice. Folding here rather than
+    # summing at read time is what keeps `active_days`, `authors` and
+    # `worked_days` correct: they are SET SIZES computed from the events, and
+    # two rows cannot be added.
     former = identity.former_index(_registry_projects())
 
     buckets: dict[tuple[str, str], dict] = {}
