@@ -268,6 +268,20 @@ def test_corroboration_needs_a_second_witness() -> None:
     check("an already-observed row is not corroborated twice", ok, why)
 
 
+def test_export_writes_a_registry_outside_the_program() -> None:
+    """The workspace registry is not under the engine; the export must still exit 0."""
+    import os, subprocess
+    work = pathlib.Path(tempfile.mkdtemp(prefix="observatory-ledger-export-")).resolve()
+    (work / "registry").mkdir()
+    env = {**os.environ, "OBSERVATORY_REGISTRY": str(work / "registry"),
+           "OBSERVATORY_DB": str(work / "store/observatory.db")}
+    p = subprocess.run([sys.executable, str(ROOT / "tools/export_ledger.py")], cwd=ROOT, env=env,
+                       capture_output=True, text=True, timeout=120)
+    check("export to a registry outside the program exits 0", p.returncode == 0,
+          (p.stdout + p.stderr)[-300:])
+    check("and writes the ledger there", (work / "registry/ledger.jsonl").is_file())
+
+
 if __name__ == "__main__":
     print("ledger invariants\n")
     for fn in (test_owner_required, test_operator_rows_are_sacred,
@@ -275,7 +289,8 @@ if __name__ == "__main__":
                test_lifecycle_edges, test_automated_writer_cannot_self_promote,
                test_outbox_is_transactional, test_tombstone_keeps_the_row,
                test_conflicts_return_together, test_proposal_never_touches_the_registry,
-               test_corroboration_needs_a_second_witness):
+               test_corroboration_needs_a_second_witness,
+               test_export_writes_a_registry_outside_the_program):
         fn()
     print()
     if FAILURES:

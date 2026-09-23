@@ -3,6 +3,14 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.2.7 — 2026-09-23
+
+### Fixed
+
+- The `ledger` step of every scheduled tick failed with `ValueError`: `export_ledger.py` printed the
+  exported file relative to the program directory, and in a workspace installation the registry is
+  elsewhere. The ledger was written; the step reported failure. It now names the file wherever it is.
+
 ## 0.2.6 — 2026-09-23
 
 ### Fixed
