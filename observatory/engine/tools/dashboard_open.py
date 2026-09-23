@@ -16,8 +16,6 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 import webbrowser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,32 +36,79 @@ def build(py: str = sys.executable) -> int:
                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True).returncode
 
 
-def healthy(port: int, timeout: float = 1.0) -> dict | None:
+def healthy(port: int, timeout: float = 3.0) -> dict | None:
+    """Is an Observatory server answering on this loopback port?
+
+    `GET /` is answered without computing the heartbeat, so a slow first
+    heartbeat cannot make a live server look dead. A 302 to the dashboard or
+    the "not built yet" JSON both identify this server; anything else is not it.
+    """
+    import http.client
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=timeout) as r:
-            return json.loads(r.read().decode("utf-8")) if r.status == 200 else None
-    except (urllib.error.URLError, OSError, ValueError):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+        c.request("GET", "/")
+        r = c.getresponse()
+        body = r.read(2048)
+        location = r.getheader("Location") or ""
+        c.close()
+    except OSError:
         return None
+    if r.status == 302 and location.startswith("/dashboard/"):
+        return {"status": r.status}
+    if r.status in (200, 404) and (b"dashboard" in body or b"Observatory" in body):
+        return {"status": r.status}
+    return None
 
 
-def start_server(port: int, wait: float = 20.0) -> dict:
-    """Start tools/serverd.py detached on loopback and wait for /health."""
+def served_workspace(port: int, timeout: float = 30.0) -> str | None:
+    """The workspace a running server reports in /health (None if it does not say)."""
+    import http.client
+    try:
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+        c.request("GET", "/health")
+        r = c.getresponse()
+        doc = json.loads(r.read().decode("utf-8")) if r.status == 200 else {}
+        c.close()
+    except (OSError, ValueError):
+        return None
+    return doc.get("workspace") if isinstance(doc, dict) else None
+
+
+def _tail(path: Path, lines: int = 8) -> str:
+    try:
+        return "\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
+    except OSError:
+        return ""
+
+
+def start_server(port: int, wait: float = 45.0) -> dict:
+    """Start tools/serverd.py detached on loopback and wait for /health.
+
+    A server that exits is reported at once with its exit code and the end of
+    its log, instead of after the whole wait.
+    """
     paths = _paths()
     logs = paths.STATE / "logs"
     logs.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with open(logs / "serverd.out", "ab") as out:
-        subprocess.Popen([sys.executable, str(ROOT / "tools/serverd.py"), "--run", "--port", str(port)],
-                         cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                         start_new_session=True)
+    log = logs / "serverd.out"
+    with open(log, "ab") as out:
+        proc = subprocess.Popen([sys.executable, str(ROOT / "tools/serverd.py"), "--run", "--port", str(port)],
+                                cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                start_new_session=True)
     deadline = time.monotonic() + wait
     while time.monotonic() < deadline:
         beat = healthy(port)
         if beat:
             return beat
+        code = proc.poll()
+        if code is not None:
+            raise configuration.ConfigurationError(
+                f"The dashboard server exited with code {code} before answering; "
+                f"last lines of {log}:\n{_tail(log)}")
         time.sleep(0.3)
     raise configuration.ConfigurationError(
         f"The dashboard server did not answer on 127.0.0.1:{port} within {wait:.0f}s; "
-        f"see {logs / 'serverd.out'} or open the files without --serve")
+        f"last lines of {log}:\n{_tail(log)}\nOr open the files without --serve.")
 
 
 def open_dashboard(*, serve: bool, port: int, rebuild: bool, browser: bool) -> dict:
@@ -80,6 +125,12 @@ def open_dashboard(*, serve: bool, port: int, rebuild: bool, browser: bool) -> d
     result = {"built": built, "path": str(index), "served": False}
     if serve:
         beat = healthy(port)
+        if beat:
+            served = served_workspace(port)
+            if served != str(paths.HOME):
+                raise configuration.ConfigurationError(
+                    f"127.0.0.1:{port} already serves another workspace ({served or 'unknown'}); "
+                    f"pass --port to open this one on a free port")
         result["server"] = "reused" if beat else "started"
         if not beat:
             start_server(port)

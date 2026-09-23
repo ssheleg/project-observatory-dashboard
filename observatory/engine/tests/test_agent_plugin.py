@@ -202,6 +202,14 @@ class OpenDashboardTests(unittest.TestCase):
             self.assertEqual(r.status, 200)
         again = json.loads(self.run_cli("open", "--serve", "--no-browser", "--port", str(self.port)).stdout)
         self.assertEqual(again["server"], "reused")
+        other = Path(self.tmp.name).resolve() / "other"
+        env = dict(self.env, OBSERVATORY_HOME=str(other))
+        subprocess.run([sys.executable, str(ROOT / "observatory.py"), "init"], cwd=ROOT, env=env,
+                       capture_output=True, timeout=120, check=True)
+        p = subprocess.run([sys.executable, str(ROOT / "observatory.py"), "open", "--serve", "--no-browser",
+                            "--port", str(self.port)], cwd=ROOT, env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(p.returncode, 2, p.stdout + p.stderr)
+        self.assertIn("already serves another workspace", p.stderr)
 
 
 if __name__ == "__main__":

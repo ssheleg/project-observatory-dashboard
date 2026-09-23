@@ -176,6 +176,7 @@ def heartbeat() -> dict:
     tick = _read_json(paths.SCRATCH / "tick.json") or {}
     doc = {
         "at": now_z(), "pid": os.getpid(), "port": PORT, "version": VERSION,
+        "workspace": str(paths.HOME),
         "uptime_s": int(time.time() - STARTED),
         "remote": refresh_remote(),
         "leaks": refresh_leaks(),

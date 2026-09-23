@@ -1099,8 +1099,8 @@
       "path": "tests/test_agent_plugin.py",
       "source_sha256": null,
       "upstream_modified": true,
-      "export_sha256": "b1c766672e160ba13082c75e15422007987848429d2701bb77a0a3aa7ddd363d",
-      "bytes": 10206
+      "export_sha256": "b98531909c6c76b5589afd166c8bf00f6b58b388fb5fa3ffa429b68a944061d7",
+      "bytes": 10846
     },
     {
       "path": "tests/test_analytics_plugins.py",
@@ -1573,8 +1573,8 @@
       "path": "tools/dashboard_open.py",
       "source_sha256": null,
       "upstream_modified": true,
-      "export_sha256": "616b788d84556e1a46bc32861a1da30f2b385d99dfcf4ab0b67b04e5daf2b136",
-      "bytes": 4512
+      "export_sha256": "c3f8efa90a43f72c9e99c2b170e25ff86f897bbc59907c50de907c171e5c24cb",
+      "bytes": 6533
     },
     {
       "path": "tools/env_findings.py",
@@ -1820,8 +1820,8 @@
     {
       "path": "tools/serverd.py",
       "source_sha256": "7b7dfc2976658a895b9a9df19cc5a0a8f60828d0b58e922c40d941dfa0cbe266",
-      "export_sha256": "96b56e1867bd4e00fb2ab2fc47687cabccaa752b1235163ee9c9dddf01f42496",
-      "bytes": 18121,
+      "export_sha256": "3c711f5044fbc5b13648c4d4cc930b67868c38ee94bd3b81eae29a4a57b2b404",
+      "bytes": 18159,
       "python_comments_removed": 21,
       "python_docstrings_removed": 4,
       "tool_descriptions_retained": 0,
