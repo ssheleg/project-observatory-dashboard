@@ -4088,11 +4088,29 @@ def collect() -> list[dict]:
 def main(argv: list[str]) -> int:
     previous = {f["id"]: f for f in (json.loads(OUT.read_text(encoding="utf-8"))["findings"]
                                      if OUT.is_file() else [])}
-    acks = {a["id"]: a for a in (json.loads(ACKS.read_text(encoding="utf-8"))["acks"]
-                                 if ACKS.is_file() else [])}
+    # An unreadable acknowledgement file must not stop the board, and must not
+    # be mistaken for "nothing acknowledged" either: build without it and say so.
+    acks, acks_unreadable = {}, False
+    if ACKS.is_file():
+        try:
+            doc = json.loads(ACKS.read_text(encoding="utf-8"))
+            acks = {a["id"]: a for a in doc["acks"]}
+        except (OSError, ValueError, KeyError, TypeError):
+            acks, acks_unreadable = {}, True
 
     findings = []
-    for f in collect():
+    collected = collect()
+    if acks_unreadable:
+        collected.append({
+            "type": "acks.unreadable", "subject": "config:finding_acks",
+            "severity": "warning",
+            "title": "saved acknowledgements could not be read",
+            "detail": ("The acknowledgement file is not valid. The board was built as if "
+                       "nothing were acknowledged, so muted findings show again. The file "
+                       "was left exactly as it was."),
+            "action": "repair the file or restore a known good copy; `tools/ack.py` refuses to write until then",
+            "evidence": [str(ACKS)]})
+    for f in collected:
         f["id"] = f"{f['type']}:{f['subject']}"
         f["first_seen"] = previous.get(f["id"], {}).get("first_seen", TODAY)
         a = acks.get(f["id"])

@@ -112,10 +112,37 @@ def test_an_ack_lands_reaches_the_board_and_can_be_undone() -> None:
     check("a second undo says there was nothing", p.returncode == 1)
 
 
+def test_a_corrupt_ack_file_is_preserved_and_the_board_still_builds() -> None:
+    env, acks = sandbox()
+    board = json.loads((pathlib.Path(env["OBSERVATORY_REGISTRY"]) / "findings.json").read_text())
+    some = board["findings"][0]["id"]
+    for label, body in (("broken JSON", "{broken"), ("wrong shape", '{"acks": {"x": 1}}'),
+                        ("row without a reason", '{"acks": [{"id": "a:b"}]}'),
+                        ("duplicate ids", '{"acks": [{"id": "a:b", "why": "x"}, {"id": "a:b", "why": "y"}]}')):
+        acks.write_text(body, encoding="utf-8")
+        for args in ((some, "--why", "synthetic reason"), ("--undo", some)):
+            p = ack(env, *args)
+            check(f"{label}: `ack {args[0]}` refuses and writes nothing",
+                  p.returncode != 0 and acks.read_text(encoding="utf-8") == body
+                  and "no changes were written" in p.stderr, p.stderr[-160:])
+    acks.write_text("{broken", encoding="utf-8")
+    p = build(env)
+    out = json.loads((pathlib.Path(env["OBSERVATORY_REGISTRY"]) / "findings.json").read_text())
+    check("the board still builds with an unreadable ack file", p.returncode == 0, p.stderr[-200:])
+    check("and names the unreadable file instead of hiding it",
+          any(f.get("type") == "acks.unreadable" for f in out["findings"]))
+    check("and the file is still byte for byte what it was", acks.read_text(encoding="utf-8") == "{broken")
+    acks.unlink()
+    p = ack(env, some, "--why", "synthetic reason")
+    check("a missing file is not an error: the first ack creates it",
+          p.returncode == 0 and json.loads(acks.read_text())["acks"][0]["id"] == some, p.stderr[-160:])
+
+
 if __name__ == "__main__":
     print("silencing a finding — on the record, reaching the page, reversible\n")
     for fn in (test_the_verb_refuses_what_would_hide_something_else,
-               test_an_ack_lands_reaches_the_board_and_can_be_undone):
+               test_an_ack_lands_reaches_the_board_and_can_be_undone,
+               test_a_corrupt_ack_file_is_preserved_and_the_board_still_builds):
         fn()
     print()
     if FAILURES:
