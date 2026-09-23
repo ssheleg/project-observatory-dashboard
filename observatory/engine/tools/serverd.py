@@ -253,11 +253,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
             self._json({"error": "no such page", "pages": list(shell.NAMES)}, 404)
             return
-        if route == "/":
-                                                                                
-            page = paths.DASHBOARD_DIR / "index.html"
-            if not page.is_file():
-                page = paths.DASHBOARD_HTML
+        if route in ("/", "/dashboard"):
+            # The split pages load app.css/app.js as relative siblings, so the
+            # index must be addressed under /dashboard/; served at / its assets
+            # would resolve to /app.css and 404, leaving an unstyled, dead page.
+            if (paths.DASHBOARD_DIR / "index.html").is_file():
+                self.send_response(302)
+                self.send_header("Location", "/dashboard/index.html")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            page = paths.DASHBOARD_HTML
             if not page.is_file():
                 self._json({"error": "the dashboard is not built yet",
                             "build_with": "./observatory.py dashboard"}, 404)

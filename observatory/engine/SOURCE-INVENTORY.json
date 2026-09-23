@@ -1149,11 +1149,12 @@
     {
       "path": "tests/test_pages.py",
       "source_sha256": "3841c0b5f65e20f97078a732d755226824256664ae30eaed795bbf61283d505d",
-      "export_sha256": "45db1b17428ba4a3d5903e2e18a29a4dffe8fde7e31b6a99401d7c5ee72b8d91",
-      "bytes": 36734,
+      "export_sha256": "23cfbe284674d65ede564ce1ae874e376c3df643f5c1377c0cec44319c57ec05",
+      "bytes": 37472,
       "python_comments_removed": 42,
       "python_docstrings_removed": 12,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_plugins.py",
@@ -1705,11 +1706,12 @@
     {
       "path": "tools/serverd.py",
       "source_sha256": "7b7dfc2976658a895b9a9df19cc5a0a8f60828d0b58e922c40d941dfa0cbe266",
-      "export_sha256": "11114f930da009b953ac618de13c4575b588be40668e643db98044798eae32a0",
-      "bytes": 17668,
+      "export_sha256": "05ac593249a0aa96fe43250958a3ba0c97db5e1a63d968c5c10b9a6aead4dbef",
+      "bytes": 18037,
       "python_comments_removed": 21,
       "python_docstrings_removed": 4,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tools/session_findings.py",

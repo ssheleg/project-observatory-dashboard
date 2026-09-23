@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -528,6 +529,16 @@ def get(path: str) -> tuple[int, bytes, str]:
     return r.status, body, ctype
 
 
+def get_raw(path: str) -> tuple[int, bytes, str, str]:
+    c = http.client.HTTPConnection("127.0.0.1", PORT, timeout=5)
+    c.request("GET", path)
+    r = c.getresponse()
+    body = r.read()
+    out = (r.status, body, r.getheader("Content-Type") or "", r.getheader("Location") or "")
+    c.close()
+    return out
+
+
 def test_the_server_serves_the_pages_and_refuses_the_rest() -> None:
     work = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-pages-"))
     (work / "scratch").mkdir()
@@ -562,10 +573,15 @@ def test_the_server_serves_the_pages_and_refuses_the_rest() -> None:
               code == 200 and "javascript" in ctype and len(body) > 10000, f"{code} {ctype}")
         code, _b, ctype = get(f"/dashboard/{shell.ASSET_CSS}")
         check("and the style, as CSS", code == 200 and "text/css" in ctype, f"{code} {ctype}")
-        code, body, _c = get("/")
-        check("/ serves the index when the split is built", code == 200
-              and b"const PAGE" in body,
-              "the single page is the fallback, not the answer")
+        for root in ("/", "/dashboard", "/dashboard/"):
+            code, _b, _c, where = get_raw(root)
+            check(f"{root} redirects to the index when the split is built",
+                  code == 302 and where == "/dashboard/index.html", f"{code} {where}")
+        index = get("/dashboard/index.html")[1].decode("utf-8")
+        for rel in re.findall(r'(?:href|src)="([^"#:]+\.(?:css|js))"', index):
+            code, _b, _c = get(urllib.parse.urljoin("/dashboard/index.html", rel))
+            check(f"the index's {rel} resolves from where the index is served",
+                  code == 200, f"{code}")
         for bad, why in (("/dashboard/../../etc/passwd", "a traversal"),
                          ("/dashboard/../projects-dashboard.html", "a traversal that ends in .html"),
                          ("/dashboard/nope.html", "a name the shell does not know"),

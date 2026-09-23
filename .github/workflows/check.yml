@@ -45,6 +45,7 @@ jobs:
       - name: Build and inspect the installable archive
         shell: bash
         run: |
+          python tools/update_inventory.py --check
           python -m pip wheel --no-deps . --wheel-dir dist
           python tools/check_package.py dist/*.whl
       - name: Public tree and complete Git blob history
