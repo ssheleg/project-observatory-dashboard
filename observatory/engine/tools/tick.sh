@@ -9,7 +9,10 @@
 
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 0
-PY="./.venv/bin/python"
+# The interpreter that installed the engine (set by install_launchd.py), else a
+# source checkout's venv, else python3. An installed package has no .venv, and a
+# bare python3 lacks the [full] dependencies (sqlite-vec, mcp, jsonschema).
+PY="${OBSERVATORY_PYTHON:-./.venv/bin/python}"
 [ -x "$PY" ] || PY="$(command -v python3)" || exit 0
 
 

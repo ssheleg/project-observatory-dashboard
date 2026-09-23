@@ -58,7 +58,9 @@ def launch_path(current: str | None = None) -> str:
 
 
 def environment() -> dict[str, str]:
-    return {"PATH": launch_path(),
+    # OBSERVATORY_PYTHON: tick.sh runs every step with the interpreter that
+    # installed this engine, not whatever python3 is first on PATH.
+    return {"PATH": launch_path(), "OBSERVATORY_PYTHON": sys.executable,
             "HOME": str(pathlib.Path.home()), "OBSERVATORY_HOME": str(paths.HOME)}
 
 

@@ -59,7 +59,7 @@ class WorkspaceScheduler(unittest.TestCase):
             tick = self.launch.build(1800)
             server = self.server.build_plist()
         for plan in (tick, server):
-            self.assertEqual(set(plan['EnvironmentVariables']), {'HOME','PATH','OBSERVATORY_HOME'})
+            self.assertEqual(set(plan['EnvironmentVariables']), {'HOME','PATH','OBSERVATORY_HOME','OBSERVATORY_PYTHON'})
             self.assertEqual(plan['EnvironmentVariables']['OBSERVATORY_HOME'],str(self.home))
             self.assertNotIn(b'synthetic-secret',plistlib.dumps(plan))
             self.assertTrue(plan['StandardOutPath'].startswith(str(self.home)))
@@ -81,6 +81,10 @@ class WorkspaceScheduler(unittest.TestCase):
             self.assertNotIn(bad, entries)
         self.assertIn('/usr/bin', entries, 'system directories are always present')
         self.assertEqual(self.launch.environment()['PATH'], self.launch.launch_path())
+        self.assertEqual(self.launch.environment()['OBSERVATORY_PYTHON'], sys.executable,
+                         'tick.sh must run with the interpreter that installed the engine')
+        tick = (ROOT / 'tools/tick.sh').read_text()
+        self.assertIn('PY="${OBSERVATORY_PYTHON:-', tick)
 
     def test_launch_build_does_not_create_logs(self):
         self.launch.build(1800)

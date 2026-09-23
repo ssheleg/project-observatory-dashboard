@@ -101,6 +101,7 @@ class AgentPluginTests(unittest.TestCase):
         self.assertTrue(s["enabledPlugins"]["observatory-log@observatory-log"])
         self.assertEqual(s["env"]["OBSERVATORY_HOME"], str(self.home))
         self.assertEqual(Path(s["env"]["OBSERVATORY_ROOT"]), ROOT)
+        self.assertEqual(s["env"]["OBSERVATORY_PYTHON"], sys.executable)
         self.assertTrue(self.known()["observatory-log"]["autoUpdate"])
         self.assertTrue((self.claude_home / "settings.json.bak-observatory").is_file(), "backed up first")
         status = self.run_cli("agent", "status")
