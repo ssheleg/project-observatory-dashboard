@@ -278,11 +278,12 @@
     {
       "path": "collectors/scan_sessions.py",
       "source_sha256": "7ef0f186297d701c09fda43bbbb3a66959c0234e4bacc02313b7fb434d701fce",
-      "export_sha256": "2bb0275e9a328511d9e2c13d05723d334776447671435e22f939a0511d708110",
-      "bytes": 27005,
+      "export_sha256": "6268cb6ae4077bc99464986ff24e1067b3bdd52434d77315163bc060fc27e84a",
+      "bytes": 28751,
       "python_comments_removed": 121,
       "python_docstrings_removed": 8,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "collectors/scan_vault.py",
@@ -1055,8 +1056,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "14efcb2ac57d8582d7c54782bb098add3dfbd756ed215e9c487cb94f24cc1aa8",
-      "bytes": 9857,
+      "export_sha256": "41e4bef66a5a06a167eadd99d436c29434d9d2c53da2fef02899e021693eb9ea",
+      "bytes": 9873,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1342,6 +1343,13 @@
       "tool_descriptions_retained": 0
     },
     {
+      "path": "tests/test_sessions.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "c420c5915a8ed3788d3f9c7865c034c07db559593bf43b717908061fdc862935",
+      "bytes": 15444
+    },
+    {
       "path": "tests/test_time.py",
       "source_sha256": "0aa6bacf9b69a619163ae10b9f0928642a64da7d2a2c0d5bdcb40c1b1e3ceff0",
       "export_sha256": "b124ff27fd56679cffe6382bc6e19e207311f486d8f55620a657936f638746f6",
@@ -1481,8 +1489,8 @@
     {
       "path": "tools/build_findings.py",
       "source_sha256": "03136ce1f366d180307f7f0c17ab41a3de82631103750f081a6d79758569e0b3",
-      "export_sha256": "6ff169881341a746d08c74ef5a1017f7edb770b5410f91efc1b52f4de613e323",
-      "bytes": 244042,
+      "export_sha256": "c1bda1825d3da658feaaa5dc1a67b061097fb337eb80837838ecec547aa51475",
+      "bytes": 244780,
       "python_comments_removed": 996,
       "python_docstrings_removed": 28,
       "tool_descriptions_retained": 0,
@@ -1972,7 +1980,7 @@
       "tool_descriptions_retained": 0
     }
   ],
-  "file_count": 241,
+  "file_count": 242,
   "excluded": [
     "git-history",
     "operator-registries",
