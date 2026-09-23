@@ -9,7 +9,7 @@ description: >-
   provider permissions or choosing a project's authentication architecture.
 license: MIT
 metadata:
-  version: "0.10.0"
+  version: "0.11.0"
 compatibility: >-
   Requires an initialized full Project Observatory installation, Python 3.11+
   and local shell access on macOS or Linux. Provider operations additionally
@@ -29,7 +29,7 @@ names. Never ask the user to paste a credential into the conversation.
 2. Select the user's initialized `OBSERVATORY_HOME`. Run
    `python3 "$OBSERVATORY_ROOT/observatory.py" doctor`. A missing workspace
    needs the documented onboarding before secret operations.
-3. Run `python3 "$OBSERVATORY_ROOT/tools/skill_check.py" handling-secrets 0.10.0`.
+3. Run `python3 "$OBSERVATORY_ROOT/tools/skill_check.py" handling-secrets 0.11.0`.
    If stale, read the installed skill once and follow its compatible commands.
    Do not turn an unavailable version check into a retry loop.
 4. Inspect names using `tools/use_secret.py names PROJECT` or `tools/vault.py
@@ -51,8 +51,8 @@ All commands below are Python scripts under `OBSERVATORY_ROOT/tools`. `PROJECT`,
 | Populate a project's ignored environment file | `vault.py inject PROJECT ENV DIRECTORY` |
 | Record an exposure | `vault.py leak PROJECT ENV NAME --where "location and evidence, no value"` |
 | Replace a stored value | `vault.py rotate PROJECT ENV NAME`, replacement on stdin |
-| Record a rotation performed at its provider | `vault.py settle PROJECT ENV NAME --how "action and evidence, no value"` |
-| Record an external movement | `vault.py moved PROJECT ENV NAME --at PROVIDER --how "action and evidence"` |
+| Close an exposure after revocation and consumer checks | `vault.py settle PROJECT ENV NAME --how "action" --revocation-evidence "receipt" --consumer-evidence "receipt"` |
+| Record an external movement | `vault.py moved PROJECT ENV NAME --at PROVIDER --how "action and evidence"`; add `--settle` with both evidence flags to also close its exposure |
 | Review unresolved exposures or movements | `vault.py leaks` or `vault.py movements PROJECT` |
 
 Use the installed command's `--help` for optional flags. Avoid placing a value
@@ -62,8 +62,10 @@ to the script. The agent does not need to observe either value.
 
 `inject` checks that `.env` is ignored by Git. Do not bypass that check. A
 rotation in the local vault archives the old value and changes local state; it
-is not proof that the provider revoked the retired credential. Verify provider
-revocation and dependent applications separately before reporting completion.
+is not proof that the provider revoked the retired credential, and it does not
+close a recorded exposure. Closing one takes `settle` with a revocation receipt
+and a consumer receipt — references to checks already done, never values. The
+tool records these as manual attestations; it does not probe the provider.
 
 The command runner redacts exact known values from its captured output. It is
 not a sandbox: a child process can encode a value, transmit it, or write it to

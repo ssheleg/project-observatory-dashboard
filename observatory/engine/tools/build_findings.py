@@ -36,6 +36,7 @@ import estate
 import identity
 import atomic
 import companion_faults              
+import leak_register  # noqa: E402
 import paths              
 from store import db as store_db              
 
@@ -2509,13 +2510,15 @@ def collect() -> list[dict]:
         except (OSError, ValueError):
             _hk_trail = {}
     if vault_leaks.is_file():
-        rows, settled = [], set()
+        rows, settled, legacy_rotated = [], set(), set()
         try:
             for line in vault_leaks.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 r = json.loads(line)
-                if r.get("event") == "settled":
+                if leak_register.is_legacy_rotation(r):
+                    legacy_rotated.add(r.get("of"))
+                elif r.get("event") == "settled":
                     settled.add(r.get("of"))
                 elif r.get("event") == "leaked":
                     rows.append(r)
@@ -2555,7 +2558,7 @@ def collect() -> list[dict]:
                         return (f" Heroku shows v{rel.get('version')} on {app} at "
                                 f"{(rel.get('at') or '')[:16]}Z touching "
                                 f"{', '.join(rel.get('vars') or [])} ({rel.get('by')}) — "
-                                f"AFTER the sighting. If that was the rotation, settle it.")
+                                f"AFTER the sighting. Verify old-version revocation and consumers before settlement.")
             return ""
 
         for r in rows:
@@ -2566,22 +2569,28 @@ def collect() -> list[dict]:
             _hint = _rotation_hint(r.get("secret") or "", r.get("at") or "")
             out.append({
                 "type": "secret.leaked_unrotated", "subject": f"secret:{r.get('secret')}",
-                "severity": "critical",
+                "severity": "warning" if r.get("id") in legacy_rotated else "critical",
                 "title": (f"{r.get('secret')} was seen leaking"
                           + (f" {age_d:.0f} day(s) ago" if age_d is not None and age_d >= 1
-                             else "") + " and has not been rotated"),
-                "detail": (f"Recorded {r.get('at')}: the value was seen at "
+                             else "")
+                          + (" and was closed only by a local rotate"
+                             if r.get("id") in legacy_rotated else " and has no recorded settlement")),
+                "detail": (("An earlier version marked this leak settled when the local slot "
+                            "was replaced; that records neither revocation nor consumer checks. "
+                            if r.get("id") in legacy_rotated else "")
+                           + f"Recorded {r.get('at')}: the value was seen at "
                            f"{r.get('where', 'an unrecorded place')}. It remains "
-                           f"USABLE by anyone who saw it until it is rotated at its "
-                           f"provider and replaced in the vault. The register keeps "
-                           f"names and places, never values." + _hint),
-                "action": (f"issue a new value at the provider, then "
-                           f"`tools/vault.py rotate "
-                           f"{(r.get('secret') or '//').replace('/', ' ')}` (a slot) or "
-                           f"`tools/vault.py settle "
-                           f"{(r.get('secret') or '//').replace('/', ' ')} --how \"…\"` "
-                           f"(rotated at the provider, no slot) — either settles this "
-                           f"row; revoke the old value after"),
+                           f"potentially usable until the old version is revoked at its "
+                           f"provider. A local replacement does not prove revocation "
+                           f"or consumer verification. The register keeps names and "
+                           f"places, never values." + _hint),
+                "action": (f"verify old-version revocation at the provider and the consumers; "
+                           f"if a local slot needs replacement, use `tools/vault.py rotate "
+                           f"{(r.get('secret') or '//').replace('/', ' ')}` first. "
+                           f"Then record manual settlement with `tools/vault.py settle "
+                           f"{(r.get('secret') or '//').replace('/', ' ')} --how \"…\" "
+                           f"--revocation-evidence \"…\" --consumer-evidence \"…\"`. "
+                           f"These references are manual attestations, not an automatic provider check."),
                 "evidence": [str(vault_leaks)]})
 
                                                                          
@@ -2610,8 +2619,9 @@ def collect() -> list[dict]:
                        "themselves, anything done by hand is `vault.py moved`. "
                        + listed(_unrecorded, 5)),
             "action": ("if an agent or a person did it: `tools/vault.py moved <project> "
-                       "<env> <NAME> --at heroku --how \"…\"` (add --settle if it closed "
-                       "a leak); if nobody here did, that is a change to explain"),
+                       "<env> <NAME> --at heroku --how \"…\"` (settlement also requires "
+                       "--settle, --revocation-evidence and --consumer-evidence); "
+                       "if nobody here did, that is a change to explain"),
             "evidence": [str(vault_leaks.parent / "movements.jsonl"), "store/raw/heroku.json#config_releases"]})
 
                                                                           
