@@ -38,9 +38,11 @@ def launch_path(current: str | None = None) -> str:
     launchd starts jobs with a bare PATH, so tools the collectors call - `claude`
     (MCP inventory), `heroku`, `gh`, `wrangler` - vanished whenever they lived in
     ~/.local/bin or a version manager's directory. The installer's own PATH is
-    kept in its order, restricted to absolute, existing directories that are not
-    group- or world-writable (a writable PATH entry lets another account plant a
-    binary the job would run). See docs/ONBOARDING.md "Enable background ...".
+    kept in its order, restricted to absolute, existing directories that no other
+    account can write: never world-writable, and group-writable only when owned by
+    this user or root (Homebrew's /opt/homebrew/bin is user-owned, admin-writable).
+    A PATH entry another account can write lets it plant a binary the job runs.
+    See docs/ONBOARDING.md "Enable background ...".
     """
     out: list[str] = []
     for entry in [*(current if current is not None else os.environ.get("PATH", "")).split(os.pathsep),
@@ -51,7 +53,9 @@ def launch_path(current: str | None = None) -> str:
             info = os.stat(entry)
         except OSError:
             continue
-        if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o022:
+        if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o002:
+            continue
+        if info.st_mode & 0o020 and info.st_uid not in (os.getuid(), 0):
             continue
         out.append(entry)
     return os.pathsep.join(out)
