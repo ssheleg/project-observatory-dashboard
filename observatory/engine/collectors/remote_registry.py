@@ -78,7 +78,7 @@ def namespace_state(scan: dict, env_scan: dict) -> tuple[str, str]:
 
 
 def compare(app: dict, env_scan: dict, retired: list[dict], *,
-            comparable: bool = True) -> dict:
+            comparable: bool = True, current: list[dict] | None = None) -> dict:
     """The verdict for every variable of one production app.
 
     Each production variable gets one of the verdicts described in the module
@@ -88,7 +88,12 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
     folders = app.get("folders") or []
     local = _local_index(env_scan, folders) if folders else {}
     retired_by_fp: dict[str, dict] = {r["fingerprint"]: r for r in retired}
-    rows, in_use = [], []
+    # The CURRENT vault values, fingerprinted by the same scan under the same
+    # salt (PB-129): a production var equal to one is that slot read at run time.
+    current_by_fp: dict[str, list[dict]] = {}
+    for c in current or []:
+        current_by_fp.setdefault(c["fingerprint"], []).append(c)
+    rows, in_use, vault_in_use = [], [], []
     seen = set()
     for v in app.get("vars") or []:
         name, cls = v["name"], v.get("class")
@@ -122,6 +127,8 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
         # its verdict: production running a value the vault has already rotated
         # away is the most expensive thing this comparison can find, and it does
         # not depend on whether a local checkout exists.
+        for c in current_by_fp.get(v.get("fingerprint") or "", []) if cls == "secret" else []:
+            vault_in_use.append({"name": name, "slot": f"{c['project']}/{c['env']}/{c['name']}"})
         r = retired_by_fp.get(v.get("fingerprint") or "")
         if r:
             in_use.append({"name": name, "retired_on": r["retired_on"],
@@ -135,13 +142,14 @@ def compare(app: dict, env_scan: dict, retired: list[dict], *,
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     return {"app": app["app"], "compared_with": folders,
             "error": app.get("error"), "vars": rows, "counts": counts,
-            "retired_in_use": in_use}
+            "retired_in_use": in_use, "vault_in_use": vault_in_use}
 
 
 def document(scan: dict, env_scan: dict, obs_date: str) -> dict:
     state, reason = namespace_state(scan, env_scan)
     comparable = state == "matched"
-    apps = [compare(a, env_scan, scan.get("retired") or [], comparable=comparable)
+    apps = [compare(a, env_scan, scan.get("retired") or [], comparable=comparable,
+                    current=scan.get("current") or [])
             for a in scan.get("apps") or []]
     def total(word: str) -> int:
         return sum(a["counts"].get(word, 0) for a in apps)

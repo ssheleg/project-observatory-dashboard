@@ -38,6 +38,8 @@ from __future__ import annotations
 import json, os, pathlib, re, stat, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import leak_register  # noqa: E402
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import environments  # noqa: E402  — one spelling of an environment name (DEPLOYMENTS.md)
 import paths                                                                             
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -476,6 +478,40 @@ def destination_edges(scan: dict, projects: list[dict]) -> dict[str, str]:
     return out
 
 
+#: WHERE THE VALUE IS READ, per the rule that made the edge (docs/design/DEPLOYMENTS.md
+#: rule 5, PB-129). A vault slot, a destination file and a file inside the project
+#: are all on this machine: `local`. A curated edge says the project uses the key
+#: and not where: `unknown`. `run` is never inferred here; it is added in the emit
+#: step only where a production config var's fingerprint equals a vault slot's
+#: (`run_edges`). `build` needs CI secrets, which nothing scans yet.
+BINDING_BY_RULE = {"vault-path": "local", "destination-path": "local",
+                   "inside-the-project": "local", "curated": "unknown"}
+
+
+def run_edges(remote_doc: dict, heroku_records: list[dict], credential_ids: set[str],
+              env_serves: dict[str, str]) -> list[dict]:
+    """`credential_used_by` edges with binding `run`: a Heroku app whose config var holds,
+    by salted fingerprint, the value of a vault slot. The project is the app's project;
+    the environment is the one the app serves, when an override or its provider says so."""
+    project_of = {r["name"]: r.get("project") for r in heroku_records}
+    out, seen = [], set()
+    for app in remote_doc.get("apps") or []:
+        project = project_of.get(app.get("app"))
+        for hit in app.get("vault_in_use") or []:
+            cred = f"credential:vault/{hit['slot']}"
+            if not project or cred not in credential_ids or (cred, app["app"]) in seen:
+                continue
+            seen.add((cred, app["app"]))
+            e = {"id": f"relation:{cred.split(':', 1)[1]}:used-by:{project.split(':', 1)[1]}:run:{app['app']}",
+                 "type": "credential_used_by", "from": cred, "to": project,
+                 "rule": "config-var-fingerprint", "binding": "run", "deployment": f"heroku:{app['app']}",
+                 "variable": hit["name"], "source_refs": ["SRC-0018"]}
+            if env_serves.get(f"heroku:{app['app']}"):
+                e["environment"] = env_serves[f"heroku:{app['app']}"]
+            out.append(e)
+    return out
+
+
 def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list[dict], list[dict]]:
     """The credential records and the project edges they justify."""
     known = {p["id"] for p in projects}
@@ -494,15 +530,17 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
 
     edges, seen = [], set()
 
-    def edge(cred_id: str, project_id: str, rule: str, refs: list[str]) -> None:
+    def edge(cred_id: str, project_id: str, rule: str, refs: list[str], env: str | None = None) -> None:
         key = (cred_id, project_id)
         if project_id not in known or key in seen:
             return
         seen.add(key)
-        edges.append({"id": f"relation:{cred_id.split(':', 1)[1]}:used-by:"
-                            f"{project_id.split(':', 1)[1]}",
-                      "type": "credential_used_by", "from": cred_id, "to": project_id,
-                      "rule": rule, "source_refs": refs})
+        e = {"id": f"relation:{cred_id.split(':', 1)[1]}:used-by:{project_id.split(':', 1)[1]}",
+             "type": "credential_used_by", "from": cred_id, "to": project_id,
+             "rule": rule, "binding": BINDING_BY_RULE[rule], "source_refs": refs}
+        if environments.normalise(env):
+            e["environment"] = f"environment:{project_id}/{environments.normalise(env)}"
+        edges.append(e)
 
     for c in creds:
         # BOTH VAULT-SHAPED KINDS. `leaked-untracked` exists precisely because a
@@ -529,7 +567,10 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
         _vp = c.get("vault_project")
         _vault_owner = (by_folder.get(_vp) or by_name.get(_vp)) if _vp else None
         if c["kind"] in ("project-secret", "leaked-untracked") and _vault_owner:
-            edge(c["id"], _vault_owner, "vault-path", ["SRC-0014"])
+            # Only a real slot says which environment it is filed under; a leak
+            # record borrows the register's wording and proves no environment.
+            edge(c["id"], _vault_owner, "vault-path", ["SRC-0014"],
+                 c.get("env") if c["kind"] == "project-secret" else None)
         elif c["kind"] == "project-secret" and _vp and not c.get("unclaimed_reason"):
             # THE PATH NAMES SOMETHING, and the generic sentence below says it
             # names nothing, which sent a reader to look for a missing vault

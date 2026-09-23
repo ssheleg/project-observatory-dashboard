@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.5**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.3.6**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -102,3 +102,12 @@ New file `registry/environments.json` (schema_version 1) and a new relation type
 (deployment → `environment:<project>/<name>`), derived on every emit with a `rule`. Heroku scan
 rows gain `pipeline` and `pipeline_error`. Apps from an older scan are listed as unassigned. The
 optional `config/environments.json` is new, and nothing is created for it.
+
+## Registry: credential bindings (0.3.6)
+
+`credential_used_by` edges gain `binding` (`run`, `build`, `local` or `unknown`) and optionally
+`environment`, `deployment` and `variable`. `validate` refuses an edge without a binding, and a `run`
+edge without a deployment. One credential and project pair may now have more than one edge: one
+`local` edge, and one `run` edge per deployment that reads it. The gitignored
+`store/raw/remote-env.json` gains `current`, the salted fingerprints of the vault's current values.
+The registry's `remote-env.json` apps gain `vault_in_use`, which holds slot names and never a value.

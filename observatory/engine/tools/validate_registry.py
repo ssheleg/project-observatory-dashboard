@@ -232,6 +232,8 @@ def main():
     endpoints=di|pi|ri|hi|ci|pri|zi|ai|ei; types=set(rd["relation_types"])
     for r in relations:
         if r["type"] not in types: errors.append(f"undefined relation type: {r['type']}")
+        if r.get("environment") and r["environment"] not in ei: errors.append(f"relation names an environment that does not exist: {r['id']}")
+        if r.get("deployment") and r["deployment"] not in hi: errors.append(f"relation names a deployment that does not exist: {r['id']}")
         for side in ("from","to"):
             if r[side] not in endpoints: errors.append(f"unresolved relation endpoint: {r['id']} {side}={r[side]}")
     for p in projects:
@@ -333,6 +335,10 @@ def main():
     for relation in relations:
         if not relation.get("source_refs") or set(relation["source_refs"])-si: errors.append(f"relation has missing or unresolved sources: {relation['id']}")
         # Derived edges must say why they exist; an authored edge may explain itself in its own fields.
+        if relation["type"]=="credential_used_by":
+            b=relation.get("binding")
+            if b not in ("run","build","local","unknown"): errors.append(f"credential edge has no binding: {relation['id']}")
+            if b=="run" and not relation.get("deployment"): errors.append(f"run binding names no deployment: {relation['id']}")
         if relation["type"] in ("implemented_by", "deployed_to", "credential_used_by", "in_account", "serves") and not relation.get("rule"):
             errors.append(f"derived relation carries no rule: {relation['id']}")
     for source in sources:

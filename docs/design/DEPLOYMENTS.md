@@ -1,6 +1,6 @@
 # Deployments: accounts, environments and what runs where
 
-Status: design for 0.4 (PB-004). Slices PB-004a (accounts) and PB-004b (environments) shipped in 0.3.3 and 0.3.5. Other released parts: `deployed_commit` on Heroku apps (0.3.1), account-qualified
+Status: design for 0.4 (PB-004). Slices PB-004a (accounts), PB-004b (environments) and PB-004c (bindings) shipped in 0.3.3, 0.3.5 and 0.3.6. Other released parts: `deployed_commit` on Heroku apps (0.3.1), account-qualified
 Cloudflare zone ids (0.3.1), and a `rule` on every derived edge (0.3.1). This document is the contract that code
 comments point to. Project and repository ids come from [IDENTITY.md](IDENTITY.md).
 
@@ -82,7 +82,7 @@ The `credential_used_by` edge gains `binding` and, when known, `environment`. Ex
 |---|---|---|
 | PB-004a accounts | `account:*` entities and `in_account` edges for Heroku apps (team, or the personal account) and Cloudflare zones. | Two apps in two teams point at two accounts. A zone without an account id gets no edge. The account label can change without changing the id. |
 | PB-004b environments | `environments.json` and `serves` edges from rule 1's evidence; the `environments.json` override; `unassigned` listed. | Two projects' production apps give two environment ids. An app named `*-prod` with no evidence is `unassigned`. An override wins and is named as the rule. |
-| PB-004c bindings | `binding` and `environment` on `credential_used_by`. | A Heroku config var gives `run`. A vault slot `local` gives `local`. The same slot used in two places gives two edges. With no evidence the binding is `unknown`, never `run`. |
+| PB-004c bindings (0.3.6; `run` is matched by salted fingerprint between a production config var and a vault slot; `build` waits for a CI-secrets scan) | `binding` and `environment` on `credential_used_by`. | A Heroku config var gives `run`. A vault slot `local` gives `local`. The same slot used in two places gives two edges. With no evidence the binding is `unknown`, never `run`. |
 | PB-004d pages | The dashboard groups each project's deployments by environment and shows account and binding. | A project with production and staging shows two groups. `unassigned` is visible, not hidden. |
 
 A slice ships only with its tests, a COMPATIBILITY entry and a CHANGELOG entry.

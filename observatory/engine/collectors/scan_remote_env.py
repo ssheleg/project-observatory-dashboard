@@ -124,6 +124,32 @@ def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
     return out
 
 
+def current_values(pepper: str, store: pathlib.Path) -> list[dict]:
+    """Every value the vault holds now, as a fingerprint and its slot (PB-129).
+
+    The same shape and the same salt as `retired_values`, so the registry step
+    can tell a production variable that holds a slot's current value (that slot
+    is read at run time) from one that holds a retired value. Metadata, archives
+    and temporary files beside a slot are not values.
+    """
+    out: list[dict] = []
+    if not store.is_dir():
+        return out
+    for slot in sorted(store.rglob("*")):
+        if not slot.is_file() or slot.name.endswith((".meta.json", ".tmp")) or ".retired-" in slot.name:
+            continue
+        rel = slot.relative_to(store).parts
+        if len(rel) != 3:
+            continue                                  # not a project/env/NAME slot
+        try:
+            value = slot.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if value:
+            out.append({"project": rel[0], "env": rel[1], "name": rel[2], "fingerprint": fingerprint(pepper, value)})
+    return out
+
+
 def scan_heroku_apps(pepper: str) -> tuple[list[dict], list[dict]]:
     """(one record per application, degradations). Values never leave this."""
     hk = _load("collectors/scan_heroku.py", "scan_heroku")
@@ -233,6 +259,7 @@ def main(argv: list[str]) -> int:
     rows, degraded = scan_heroku_apps(pepper)
     vault = _load("tools/vault.py", "vault_mod")
     retired = retired_values(pepper, vault.STORE)
+    current = current_values(pepper, vault.STORE)
     doc = {"scanned_at": now(), "provider": "heroku",
            # The namespace names the salt these fingerprints were made under,
            # without revealing it. The registry step compares it with the local
@@ -240,7 +267,7 @@ def main(argv: list[str]) -> int:
            # fingerprints under different salts never match.
            "fingerprint_namespace": env.namespace(pepper),
            "apps": rows,
-           "retired": retired, "degraded": degraded,
+           "retired": retired, "current": current, "degraded": degraded,
            "note": "names, classes and salted fingerprints; never a value. "
                    "This file is gitignored; registry/remote-env.json carries "
                    "only the verdicts derived from it."}
