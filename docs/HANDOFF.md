@@ -49,19 +49,21 @@ This follow-up changes documentation only and does not imply another deployment.
 
 ## Next task and prerequisites
 
-**Status 2026-09-23:** 0.2.0 shipped with defects that the private predecessor had already fixed,
-including one security defect (a local `rotate` marked a leaked credential as closed). 0.2.1
-carries all of them with regression tests; see [CHANGELOG](../CHANGELOG.md). From this date the
-public repository is the engine's single upstream: changes land here first, and the source
-inventory is maintained with `tools/update_inventory.py`.
+**Status 2026-09-23 (evening):** 0.2.0 shipped with defects that the private predecessor had
+already fixed, one of them a security defect (a local `rotate` marked a leaked credential as closed;
+advisory GHSA-x9pc-v2g8-q5jm). 0.2.1 carries every one of them with regression tests, 0.2.2 fixes
+`migrate-local` for installations with runtime identities, 0.2.3 gives launchd jobs the installer's
+PATH. See [CHANGELOG](../CHANGELOG.md). This repository is the engine's single upstream: changes land
+here first, the source inventory is kept current with `tools/update_inventory.py`, and `main` is
+protected (three required checks, linear history, no force-push).
 
-Open work, in order: repository hygiene (branch protection, Dependabot, community files, removal
-of author-specific identifiers from the engine), restoring the engine's comments that the original
-export stripped, then the product paths in the private plan (relations and agent work reports,
-credential lifecycle, verified restore). A new operator starts with [agent onboarding](AGENT-ONBOARDING.md);
-`project-observatory full open` shows the dashboard and `project-observatory full agent install`
-connects Claude Code. Existing live installations still need a deliberate migration
-(`full migrate-local`, writers stopped); no implicit switch is made. Preserve the local-only rule above.
+Open work, in order: the MCP SDK 2.2 upgrade together with the lock file (Dependabot #24), then the
+product paths — relations and agent work reports, credential lifecycle, verified restore. A new
+operator starts with [agent onboarding](AGENT-ONBOARDING.md); `project-observatory full open` shows
+the dashboard, `project-observatory full agent install` connects Claude Code with plugin
+auto-update, and `project-observatory full doctor` names any enabled integration whose source is
+missing. An existing installation moves with `full migrate-local` while its writers are stopped;
+no implicit switch is made. Preserve the local-only rule above.
 
 ## Latest editorial delivery
 
