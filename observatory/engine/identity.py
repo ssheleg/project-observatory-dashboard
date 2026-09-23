@@ -28,6 +28,11 @@
                                                                              
                                              
 
+                                                                              
+                                                                             
+                                                                               
+                                    
+
                                                                                 
                                                                
                                                                                
@@ -75,23 +80,43 @@ def former_ids(project: dict) -> list[str]:
     return out
 
 
-def ids_for(project: dict) -> list[str]:
+def ids_for(project: dict, projects: list[dict] | None = None) -> list[str]:
     ""                                                                     
-                                                        
-    return [project["id"], *former_ids(project)]
+
+                                                                                
+                                                                        
+       
+    if projects is None:
+        return [project['id']]
+    return [project['id'], *sorted(old for old, current in former_index(projects).items()
+                                  if current == project['id'])]
+
+
+def former_claims(projects: list[dict]) -> dict[str, set[str]]:
+    ""                                                                            
+    claims: dict[str, set[str]] = {}
+    for p in projects:
+        for old in former_ids(p):
+            claims.setdefault(old, set()).add(p['id'])
+    return claims
 
 
 def former_index(projects: list[dict]) -> dict[str, str]:
-    ""                                              
+    ""                                                                            
+    live = {p['id'] for p in projects}
+    return {old: next(iter(owners)) for old, owners in former_claims(projects).items()
+            if len(owners) == 1 and old not in live}
 
-                                                                                
-                                                    
-       
-    idx: dict[str, str] = {}
-    for p in projects:
-        for old in former_ids(p):
-            idx.setdefault(old, p["id"])
-    return idx
+
+def former_conflicts(projects: list[dict]) -> dict[str, list[str]]:
+    ""                                                                       
+    live = {p['id'] for p in projects}
+    out = {}
+    for old, owners in former_claims(projects).items():
+        candidates = owners | ({old} if old in live else set())
+        if len(candidates) > 1:
+            out[old] = sorted(candidates)
+    return out
 
 
 def resolve_former(project_id: str, projects: list[dict]) -> str | None:

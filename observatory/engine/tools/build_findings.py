@@ -3000,12 +3000,12 @@ def collect() -> list[dict]:
                 "detail": clipped("; ".join(f"{o} ({counts.get(o, 0)} row(s))"
                                               for o in orphans))
                           + ". A note keyed to a subject the registry does not "
-                            "hold never appears in that project's view, and no "
-                            "project claims these names — a rename this system "
+                            "hold never appears in that project's view, and "
+                            "no unambiguous project claims these names — a rename this system "
                             "can follow is reported separately. The id may be a "
                             "typo, or the project may have been dissolved since "
                             "the note was written.",
-                "action": "re-key them with `observatory_record` (memory_id plus "
+                "action": "review project/folder mappings, then re-key with `observatory_record` (memory_id plus "
                           "expected_revision), or accept them as history",
                 "evidence": ["store:ledger.project_id", "registry:projects.json"]})
 
