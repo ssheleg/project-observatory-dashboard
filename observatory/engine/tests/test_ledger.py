@@ -87,11 +87,11 @@ def test_operator_rows_are_sacred() -> None:
     got = L.append(conn, memory_id=r["memoryId"], expected_revision=r["revision"],
                    owner="operator", statement="the paywall slipped to Monday",
                    function="semantic", state="supported")
-                                                                               
-                                                                              
-                                                                           
-                                                                               
-                                                                     
+    # Revision 3, not 2: the row is created `proposed`, promoted to `observed`,
+    # and this correction is the third revision. Minting it `supported` in one
+    # append is no longer possible for anyone — an agent may not create a
+    # record already promoted (the rule below), and the operator may not create
+    # one at all, so the lifecycle is now the only way in.
     check("the operator may supersede their own row", got["revision"] == 3, str(got))
 
 

@@ -19,18 +19,18 @@ HEADER = {
     "_canonical_source": paths.REGISTRY.as_uri(),
     "_do_not_edit": "Edits here are overwritten on the next projection. Change the registry instead.",
 }
-                                                                              
-                                                                           
-                                                                            
-                                                               
-                                                                         
-                                                                             
-                                                                             
-                                
-  
-                                                                              
-                                                                             
-                                                                        
+#: Registry documents the mirror deliberately does NOT carry, with the reason.
+#: Empty today, and that is the point: the set of files is DERIVED from the
+#: registry rather than listed here. It was a literal of seven names, and by
+#: 2026-09-07 the registry held ten — `domain-liveness.json`,
+#: `findings.json` and `stale-remotes.json` were absent from the wiki and
+#: nothing said so. `findings.json` is the one that matters most: the wiki is
+#: where the operator's narrative memory lives, and "what needs a person" was
+#: the document missing from it.
+#:
+#: Same class as `purge_projections`' hardcoded pair of indexes, `OWNED_ORGS`,
+#: and `scan_github`'s output directory. A document added to the registry now
+#: appears in the mirror by default, and excluding one takes a sentence.
 NOT_MIRRORED: dict[str, str] = {}
 
 

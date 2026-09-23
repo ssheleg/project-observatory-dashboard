@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
-""                                                              
+"""Every Google surface this machine's service accounts can see.
 
-                                                                      
+    scan_google.py store/raw/google.json [--force] [--max-age-hours N]
 
-                                                                                
-                                                                                 
-                                                                             
-                                                                              
-                                                                                
-                                                                     
+WHY. The estate's traffic lives in Google Analytics and its search visibility in
+Search Console, and until now the observatory read FIVE properties — the five a
+hand-written mapping file named. The operator had meanwhile added one service
+account as an editor to every analytics account they own, so the honest number
+was thirty-eight across four accounts: thirty-three properties were invisible to
+a system whose whole job is to say what exists (measured 2026-09-14).
 
-                                                                 
+WHAT IT READS, AND WHAT IT NEVER WRITES. One pass per credential:
 
-                                                                             
-                                                                           
-                                                                           
-                                                                   
-                                                          
-                                                                                 
-                                                                          
-                      
-                                              
+  * `accountSummaries` — accounts and properties, with their display names;
+  * `dataStreams` per property — the web hosts and the app bundle ids the
+    property itself declares. This is what makes the project match MEASURED
+    rather than declared: a web stream's host goes through the same
+    `plugins/hostmap.py` join the rest of the estate uses;
+  * one 30-day report per property — active users, sessions, views. Thirty days
+    because the question is "is this alive", and a day's number on a small
+    property is noise;
+  * Search Console's site list per credential.
 
-                                                                           
-                                                                                 
-                                                                         
-              
+The credential is read to sign a JWT and never leaves this process; what is
+written is the account's own `client_email` — a public identifier, the thing an
+operator grants and revokes — never the key, never a token, never a raw
+response body.
 
-                                                                              
-                                                                          
-                                                                            
-                                                                             
-                                                              
-   
+WHY IT IS CACHED. Thirty-eight properties is seventy-six HTTPS calls and about
+a minute; a dashboard that asked Google on every build would be slow, rate
+limited, and no more correct — analytics settle daily. The scan refuses to
+re-fetch inside the age window and says so; `--force` is the refresh button's
+path, and `./observatory.py google --force` is the operator's.
+"""
 from __future__ import annotations
 import argparse
 import json
@@ -51,8 +51,8 @@ import google_auth
 
 #: Analytics settle daily; a shorter window buys nothing and costs a minute.
 MAX_AGE_HOURS = 12
-                                                                                
-                                                                           
+#: A bounded refusal: four accounts and thirty-eight properties is the size this
+#: was measured on. A run that would walk a thousand is a misconfiguration.
 MAX_PROPERTIES = 500
 GA_READ = "https://www.googleapis.com/auth/analytics.readonly"
 GSC_READ = "https://www.googleapis.com/auth/webmasters.readonly"
@@ -76,8 +76,8 @@ def hours_since(stamp: str) -> float | None:
 
 
 def _reason(exc: urllib.error.HTTPError) -> str:
-    ""                                                                         
-                                                                                 
+    """The provider's own sentence, cut to a line and stripped of anything that
+    is not prose. A body is never carried whole: it can echo a request header."""
     try:
         body = exc.read().decode("utf-8", "replace")
     except Exception:                                                             
@@ -116,14 +116,14 @@ def paged(url: str, tok: str, key: str) -> tuple[list, str | None]:
 
 
 def credentials() -> list[dict]:
-    ""                                                           
+    """Every Google service account this machine holds, as facts.
 
-                                                                          
-                                                                             
-                                                                          
-                                                                              
-                
-       
+    `client_email` is the identifier an operator grants and revokes in the
+    Google console; `project_id` is the Cloud project whose APIs it is billed
+    and enabled against, which is what an `accessNotConfigured` refusal is
+    about. Neither is a secret; the key beside them is never read for anything
+    but signing.
+    """
     out = []
     for f in sorted(SECRET_STORE.glob("*.json")):
         try:
@@ -138,7 +138,7 @@ def credentials() -> list[dict]:
 
 
 def streams_of(prop: str, tok: str) -> tuple[list[str], list[str], str | None]:
-    ""                                                               
+    """(web hosts, app ids, error) a property declares for itself."""
     rows, err = paged(f"{ADMIN}/{prop}/dataStreams", tok, "dataStreams")
     hosts, apps = [], []
     for s in rows:
@@ -155,7 +155,7 @@ def streams_of(prop: str, tok: str) -> tuple[list[str], list[str], str | None]:
 
 
 def window(prop: str, tok: str) -> dict:
-    ""                                                                   
+    """Thirty days of a property, as three numbers. Never a dimension."""
     d = get(f"{DATA}/{prop}:runReport", tok, payload={
         "dateRanges": [{"startDate": "30daysAgo", "endDate": "yesterday"}],
         "metrics": [{"name": "activeUsers"}, {"name": "sessions"},
@@ -178,7 +178,7 @@ def window(prop: str, tok: str) -> dict:
 
 
 def scan_analytics(cred: dict) -> tuple[list[dict], list[dict], list[dict]]:
-    ""                                                            
+    """(accounts, properties, degradations) for one credential."""
     key = SECRET_STORE / cred["file"]
     try:
         tok = google_auth.access_token(key, GA_READ)
@@ -227,11 +227,11 @@ def scan_search_console(cred: dict) -> tuple[list[dict], list[dict]]:
                      "effect": "this credential's Search Console properties are unknown"}]
     d = get(f"{GSC}/sites", tok)
     if "__error__" in d:
-                                                                             
-                                                                                
-                                                                             
-                                                                           
-                                                     
+        # THE COMMONEST REFUSAL HERE IS NOT ABOUT PERMISSION. A Cloud project
+        # with the Search Console API disabled answers 403 `accessNotConfigured`
+        # — which reads as "no access to the sites" and is actually "nobody
+        # enabled the API", a one-click operator fix. Carrying Google's own
+        # sentence is the difference between the two.
         return [], [{"source": f"search console via {cred['client_email']}",
                      "reason": d["__error__"],
                      "effect": "no Search Console site is known through this credential",

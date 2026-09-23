@@ -59,9 +59,9 @@ ADMIN_STORE = paths.source_path("secret_store", paths.SECRETS) / 'cloudflare-adm
 PRESETS: dict[str, dict] = {
     "analytics": {
         "name": "observatory-analytics-read (managed)",
-                                                                                
-                                                                                    
-                                                                                 
+        # DNS Read joined on 2026-09-14: where a zone's records point
+        # — herokudns, pages.dev, a Vercel alias — is the cheapest measured link
+        # from a domain to the thing that serves it, and from there to a project.
         "groups": ("Zone Read", "Analytics Read", "DNS Read"),
         "why": "reads zone request counters and DNS targets for the observatory's dashboard",
     },
@@ -314,19 +314,19 @@ def mint(admin: str, account_id: str, preset: dict) -> tuple[str, str]:
     ids = group_ids(admin, account_id, preset["groups"])
     tid = existing_token(admin, account_id, preset["name"])
     if tid:
-                                                                            
-                                                                                 
-                                                                                
-                                                                    
+        # GRANTS FOLLOW THE PRESET. Rolling reissues the value and keeps the
+        # policies as they were — so a preset that grew a permission would roll
+        # tokens that never gain it. The policy is rewritten first, then rolled;
+        # the token's id, name and every reader stay put.
         _request(f"/accounts/{account_id}/tokens/{tid}", admin,
                  {"name": preset["name"], "status": "active",
                   "policies": [{"effect": "allow",
                                 "resources": {f"com.cloudflare.api.account.{account_id}": "*"},
                                 "permission_groups": [{"id": i} for i in ids]}]},
                  method="PUT")
-                                                                          
-                                                                             
-                                                                           
+        # PUT, not POST: the account-owned roll endpoint refuses POST with
+        # "Method POST not available for that URI" — found the first time a
+        # roll ran for real (2026-09-14); every earlier issue was a create.
         d = _request(f"/accounts/{account_id}/tokens/{tid}/value", admin, {}, method="PUT")
         value = d.get("result")
         if not isinstance(value, str) or not value:

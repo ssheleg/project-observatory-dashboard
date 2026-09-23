@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-""                                                                             
-                                          
+"""Every movement of every key, read from the one journal that records them —
+and the provider changes no journal names.
 
                                                                           
                                                                               
@@ -8,19 +8,19 @@
                                                                         
                            
 
-                                                                              
-                                                                              
-                                                                             
-                                                                         
-                                                                                
+WHAT A MOVEMENT IS. A row in `<store>/projects/movements.jsonl` written by the
+tools (`put`, `rotate`, `moved`, a door's `issue`/`rotate`/`disable`) — plus
+the leak register's SETTLED rows, whose `how` names the release that replaced
+a value, so a settlement is a movement on the record even from before the
+journal existed. Names, places, dates, the `how`. Never a value.
 
-                                                                              
-                                                                             
-                                                                       
-                                                                           
-                                                                              
-                                                                         
-   
+WHAT UNRECORDED MEANS. Heroku's config trail (names only, `config_releases` in
+the Heroku scan) shows a secret-shaped variable changing at the provider, and
+no movement within two hours names that variable or its stem — and no
+settlement or hand record names the release (`v1081`). The operator's rule:
+every movement of every key is recorded by the agent that made it, in the same
+turn; the tools do it themselves, a hand-made change is `vault.py moved`.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -37,9 +37,9 @@ DAYS = 7
 
 
 def read_moves(leaks_path: pathlib.Path) -> list[dict]:
-    ""                                                                        
-                                                                           
-                                                           
+    """The journal beside the leak register, plus the register's settled rows.
+    Unparseable lines are skipped: a half-written line is a crash somewhere
+    else, and this reader is not the place to report it."""
     moves_file = leaks_path.parent / "movements.jsonl"
     out: list[dict] = []
     for mf in (moves_file, leaks_path):
@@ -61,8 +61,8 @@ def read_moves(leaks_path: pathlib.Path) -> list[dict]:
 
 
 def journal_tail(leaks_path: pathlib.Path, limit: int = 30) -> list[dict]:
-    ""                                                                     
-                                                              
+    """The newest movements for a page: when, what, who, how, where — and
+    nothing else, because a page is a thing people forward."""
     rows = sorted(read_moves(leaks_path), key=lambda r: r.get("at") or "", reverse=True)[:limit]
     keep = ("at", "event", "secret", "of", "by", "how", "at_provider", "to", "tool")
     return [{k: r.get(k) for k in keep if r.get(k) not in (None, "")} for r in rows]
@@ -76,8 +76,8 @@ def _when(stamp: str) -> datetime | None:
 
 
 def recorded(var: str, at: str, moves: list[dict], version=None) -> bool:
-    ""                                                                          
-                  
+    """Does the journal own this change — by release number, or by name within
+    the window?"""
     stem = var.split("_")[0].lower()
     if version is not None:
         for mv in moves:
@@ -98,9 +98,9 @@ def recorded(var: str, at: str, moves: list[dict], version=None) -> bool:
 
 def unrecorded(hk_trail: dict[str, list], moves: list[dict],
                now: datetime | None = None, days: int = DAYS) -> list[dict]:
-    ""                                                                         
-                                                                                
-                                                                           
+    """One row per release that moved a secret-shaped variable nobody recorded:
+    app, version, when, the variables, who — structured, so a page can compose
+    the `vault.py moved` that would settle it and a finding can list it."""
     now = now or datetime.now(timezone.utc)
     since = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     out: list[dict] = []
@@ -117,6 +117,6 @@ def unrecorded(hk_trail: dict[str, list], moves: list[dict],
 
 
 def describe(row: dict) -> str:
-    ""                                                      
+    """The one-line spelling the finding has always used."""
     return (f"{row['app']} v{row.get('version')} {(row.get('at') or '')[:16]}Z: "
             f"{', '.join(row['vars'])} ({row.get('by')})")

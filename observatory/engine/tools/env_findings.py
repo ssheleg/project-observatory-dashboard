@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-""                                                                             
+"""What the env inventory owes the operator, on the board rather than in a tab.
 
-                                                                              
-                                                                     
+A TAB ANSWERS A QUESTION SOMEBODY ASKED. These four arrive at somebody who did
+not, and each one is invisible from inside the project it belongs to:
 
                                                                                   
                                                                                
@@ -24,9 +24,9 @@
                                                                                 
                                                                  
 
-                                                                               
-              
-   
+NO TIMESTAMP INSIDE A FINDING: every date quoted is one the registry
+already holds.
+"""
 from __future__ import annotations
 
 #: Listed by name up to this many, as everywhere else on this board.
@@ -40,12 +40,12 @@ def _listed(names: list[str]) -> str:
 
 
 def _real(doc: dict) -> list[dict]:
-    ""                                                               
+    """Files that hold live values. A template is not one of them."""
     return [f for f in doc.get("files", []) if f.get("kind") == "env"]
 
 
 def tracked_in_git(doc: dict) -> list[dict]:
-    ""                                                       
+    """One row per file, because each is its own rotation."""
     out = []
     for f in _real(doc):
         if f.get("git") != "tracked":
@@ -74,7 +74,7 @@ def tracked_in_git(doc: dict) -> list[dict]:
 
 
 def unignored(doc: dict) -> list[dict]:
-    ""                                                                     
+    """Untracked and unignored — one `git add -A` from the rule above."""
     rows = [f for f in _real(doc) if f.get("git") == "loose"]
     if not rows:
         return []
@@ -93,7 +93,7 @@ def unignored(doc: dict) -> list[dict]:
 
 
 def world_readable(doc: dict) -> list[dict]:
-    ""                                                              
+    """One row: the remedy is one loop, not twenty-six decisions."""
     rows = [f for f in _real(doc)
             if any(v.get("class") == "secret" for v in f.get("variables", []))
             and f.get("mode", "0600")[-2:] != "00"]
@@ -116,7 +116,7 @@ def world_readable(doc: dict) -> list[dict]:
 
 
 def shared_secret(doc: dict) -> list[dict]:
-    ""                                                                              
+    """One value in several projects — the measured blast radius of a rotation."""
     groups = [g for g in doc.get("shared", []) if g.get("class") == "secret"]
     if not groups:
         return []
@@ -145,7 +145,7 @@ def shared_secret(doc: dict) -> list[dict]:
 
 
 def reusable_slot(doc: dict) -> list[dict]:
-    ""                                                               
+    """An empty slot whose name holds a live value somewhere else."""
     rows = [(f["path"], v["name"], v["available_in"])
             for f in _real(doc) for v in f.get("variables", [])
             if v.get("available_in")]
@@ -171,8 +171,8 @@ def reusable_slot(doc: dict) -> list[dict]:
 
 
 def findings(doc: dict | None) -> list[dict]:
-    ""                                                                            
-                                                                        
+    """Every env rule. Empty when nothing was scanned — absent is not clean, and
+    the tab says so where a reader is already asking about env files."""
     if not doc or not doc.get("files"):
         return []
     return (tracked_in_git(doc) + unignored(doc) + world_readable(doc)

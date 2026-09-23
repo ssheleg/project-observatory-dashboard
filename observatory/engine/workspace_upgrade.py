@@ -1,4 +1,4 @@
-""                                                                                   
+"""Private snapshots and forward-only upgrades; restore always creates a new home."""
 from __future__ import annotations
 
 import argparse
@@ -81,7 +81,7 @@ def directories(base: Path) -> set[str]:
 
 
 def managed_layout(base: Path) -> None:
-    ""                                                                           
+    """Do not claim a full-home backup while legacy overrides point elsewhere."""
     expected = {"OBSERVATORY_DB": base / "store/observatory.db",
                 "OBSERVATORY_STATE": base / "store", "OBSERVATORY_REGISTRY": base / "registry"}
     for name, value in expected.items():

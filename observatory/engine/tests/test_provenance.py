@@ -56,11 +56,11 @@ def test_a_source_declares_what_it_is_evidence_for() -> None:
           {"local.sync", "local.remote_head", "local.remote_checked_on"},
           str(by_id.get("SRC-0010", {}).get("evidence_for")))
     check("the domain probe has one too", "SRC-0011" in by_id)
-                                                                           
-                                                                          
-                                                                                  
-                                                                               
-                                                                            
+    # The INVARIANT, not the next free number. This read `"SRC-0012" not in
+    # by_id`, meaning "Bitbucket has no source because it measured nothing
+    # here" — an assertion about which id happened to be unused, so it broke the
+    # day SRC-0012 was taken by claude-mem, without anything having gone wrong.
+    # The same currency-versus-invariant mistake this suite exists to catch.
     empty = [s["id"] for s in sources if "evidence_for" in s and not s["evidence_for"]]
     check("no source declares itself evidence for nothing",
           not empty, f"{empty} — a claim about a measurement that never happened")

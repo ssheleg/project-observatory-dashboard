@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                           
+"""The registry fingerprint: how many are kept, and which two are the latest.
 
-                                                                             
-                                                                              
-                                                                         
-                                                                          
+A fingerprint is 40 KB of FULL registry state, written once per tick, and the
+only thing that reads one is `compute_deltas.fingerprints_kept()`. Kept by the
+90-day horizon that covers the rest of `observations`, they reach roughly
+**177 MB** at 48 ticks a day — eight times the whole store as it stands.
 
                                                                            
                                                                            
                                                                              
                                                                         
 
-                                                                                
-                                                                                
-                                                                                
-                        
-   
+The second defect lived in the same function. `observed_at` is second-resolution
+and the tiebreak was `id DESC` over a RANDOM hex id, so two snapshots inside one
+second — a launchd tick beside a manual run — ordered at random and the diff
+could come out inverted.
+"""
 from __future__ import annotations
 import json, pathlib, sqlite3, sys
 
@@ -74,13 +74,13 @@ def test_the_count_bound_keeps_the_newest() -> None:
 
 
 def test_it_never_touches_another_kind() -> None:
-    ""                                                                      
+    """One rule silently owning another's rows is how a table loses data."""
     conn = fixture(n_fingerprints=6, n_other=2)
     prune(conn, 3)
     others = conn.execute(
         "SELECT COUNT(*) FROM observations WHERE kind != ?", (KIND,)).fetchone()[0]
     check("rows of another kind survive the fingerprint rule", others == 2, str(others))
-                                                                       
+    # ...and the day-horizon rule must not swallow fingerprints either.
     n = conn.execute("DELETE FROM observations WHERE observed_at < ? AND kind != ?",
                      ("2026-01-01T00:00:00Z", KIND)).rowcount
     fps = conn.execute("SELECT COUNT(*) FROM observations WHERE kind = ?", (KIND,)).fetchone()[0]
@@ -96,7 +96,7 @@ def test_pruning_is_idempotent() -> None:
 
 
 def test_the_latest_two_are_ordered_by_insertion_not_by_luck() -> None:
-    ""                                                                            
+    """The defect: same second, random id, so the diff could come out inverted."""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE observations (id TEXT PRIMARY KEY, scan_id TEXT,"
@@ -118,11 +118,11 @@ def test_the_latest_two_are_ordered_by_insertion_not_by_luck() -> None:
           by_id[0] == "obs:zzz-older", str(by_id))
     check("rowid calls the row written last the latest",
           by_rowid[0] == "obs:aaa-newer", str(by_rowid))
-                                                                            
-                                                                              
-                                                                                
-                                                                                 
-                                                                          
+    # FOLLOWED THE CODE. `latest_two()` is gone: its contract was
+    # "the two most recent" and it therefore could not express "since the last
+    # one I diffed", which is what the diff actually needed. The ordering lesson
+    # moved to `fingerprints_kept()`, ASCENDING, with the same rowid tiebreak —
+    # so the assertion moves with it rather than guarding a dead function.
     src = (ROOT / "collectors/compute_deltas.py").read_text(encoding="utf-8")
     check("fingerprints_kept orders by rowid", "ORDER BY observed_at, rowid" in src)
     check("and latest_two is gone rather than kept for this test",
@@ -155,12 +155,12 @@ def test_the_live_store_is_bounded() -> None:
     keep = json.loads((paths.config_file("retention.json")).read_text(encoding="utf-8"))["fingerprints_keep"]
     conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
     n = conn.execute("SELECT COUNT(*) FROM observations WHERE kind = ?", (KIND,)).fetchone()[0]
-                                                                        
-                                                                              
-                                                                                   
-                                                                           
-                                                                                
-                           
+    # NOT "at most `keep` right now". A snapshot lands on every tick and
+    # retention runs at the END of one, so between them the table legitimately
+    # holds a surplus — asserting the post-retention state made this go red for a
+    # store that was behaving exactly as designed. What must be true at ANY
+    # moment is that the surplus is REACHABLE: the pruner's own query would take
+    # it back to the bound.
     surplus = conn.execute(
         "SELECT COUNT(*) FROM observations WHERE kind = ? AND rowid NOT IN"
         " (SELECT rowid FROM observations WHERE kind = ? ORDER BY rowid DESC LIMIT ?)",

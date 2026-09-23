@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-""                                                              
+"""Schema-compatible data migrations, applied once and recorded.
 
-                                                                         
-                                                                             
-                                                                            
-                                                                             
-                                                               
+`store/schema.sql` creates the shape. This file fixes CONTENT that a past
+version wrote wrongly — which schema DDL cannot express and which a one-off
+script nobody remembers to run does not fix either. Each migration is named,
+idempotent, and recorded in a `migrations` table, so `db.connect()` can apply
+what is outstanding and skip what is done with a single SELECT.
 
-                                                                               
-                                                                          
-                                                                           
-                                                              
+The first one exists because of a defect measured on 2026-09-06: 8,249 of 9,013
+`events.occurred_at` values carried a local offset — `+02:00`, `+03:00`,
+`+01:00`, `-05:00` — because `collectors/scan_events.py` took git's `%cI`
+verbatim while every other writer in this store wrote UTC `Z`.
 
-                                                                              
-                                                                           
-                                                                    
-                                                                         
-                                                                                 
-                                                                              
-                                                                         
-                                      
-   
+**Why that is a correctness bug and not a formatting one.** The column is TEXT
+and every comparison over it is lexicographic: `survey.timeline` orders and
+windows with `ORDER BY occurred_at DESC` and `occurred_at >= ?`, and
+`store/retention.py` prunes with `occurred_at < '…Z'`. In that ordering
+`+` (0x2B) sorts before `-` (0x2D) sorts before `Z` (0x5A) — so for one and the
+same instant the three shapes sort into three different places, "what happened
+last week" is wrong by up to 26 hours across the offset boundary, and the
+retention cutoff is off by a timezone.
+"""
 from __future__ import annotations
 import sqlite3
 import ast, hashlib, inspect, textwrap
@@ -30,11 +30,11 @@ UTC_Z = "%Y-%m-%dT%H:%M:%SZ"
 
 
 def to_utc_z(value: str) -> str | None:
-    ""                                                                       
+    """One instant, one spelling. None when the value carries no zone at all.
 
-                                                                          
-                                                                               
-                                                                                 
+    A naive timestamp is NOT assumed to be UTC: every writer in this store
+    stamps a zone, so a naive one means something unknown happened and guessing
+    would bury it. The caller counts those and says so rather than converting."""
     if value.endswith("Z") and len(value) == 20:
         return value
     try:
@@ -64,12 +64,12 @@ def _events_utc(conn: sqlite3.Connection) -> str:
 
 
 def _drop_foreign_events(conn: sqlite3.Connection) -> str:
-    ""                                                                   
+    """Commits from projects whose history is not this estate's own work.
 
-                                                                               
-                                                                               
-                                                                               
-                                          
+    `collectors/scan_events.py` recorded every checkout until 2026-09-06, while
+    the companion plugin's recorder had always refused anything but `owned` and
+    `work-bitbucket`. The rule now lives in `estate.py` and both read it; these
+    are the rows written before it did."""
     import json as _json
     import pathlib as _pathlib
     import sys as _sys
@@ -100,8 +100,8 @@ def _drop_foreign_events(conn: sqlite3.Connection) -> str:
 
 
 def _project_week_table(conn: sqlite3.Connection) -> str:
-    ""                                                                       
-                                                                              
+    """`schema.sql` creates it for a fresh store; `db.connect()` applies that
+    script only when the database is new, so an existing one needs it here."""
     execute_statements(conn, """
       CREATE TABLE IF NOT EXISTS project_week (
         project_id TEXT NOT NULL, week TEXT NOT NULL, week_start TEXT NOT NULL,
@@ -114,8 +114,8 @@ def _project_week_table(conn: sqlite3.Connection) -> str:
 
 
 def _metrics_table(conn: sqlite3.Connection) -> str:
-    ""                                                                   
-                                             
+    """Plugin measurements. `schema.sql` creates it for a fresh store; an
+    existing one needs it here."""
     execute_statements(conn, """
       CREATE TABLE IF NOT EXISTS metrics (
         project_id TEXT NOT NULL, metric TEXT NOT NULL, at TEXT NOT NULL,
@@ -129,17 +129,17 @@ def _metrics_table(conn: sqlite3.Connection) -> str:
 
 
 def _project_week_sessions(conn: sqlite3.Connection) -> str:
-    ""                                                                        
+    """Three nullable columns, so a week worked on without a commit can exist.
 
-                                                                              
-                                                                               
-                                                                               
-                                                                        
+    NULL is the load-bearing choice. An existing row was computed before these
+    columns did, and 0 would claim it had been measured and found empty. For an
+    unfrozen row the next refresh fills it in; for a frozen one it can never be
+    completed, which `tools/build_findings.py` raises rather than hides.
 
-                                                                              
-                                                                              
-                                       
-       
+    `ADD COLUMN` is guarded per column: SQLite raises on a duplicate, and this
+    migration must stay re-runnable against a store where `schema.sql` already
+    created the table in its new shape.
+    """
     have = {c[1] for c in conn.execute("PRAGMA table_info(project_week)")}
     added = []
     for col in ("sessions", "session_days", "worked_days"):
@@ -151,16 +151,16 @@ def _project_week_sessions(conn: sqlite3.Connection) -> str:
 
 
 def _collector_cursors(conn: sqlite3.Connection) -> str:
-    ""                                                                      
+    """`cursors` — where a named collector got to. See schema.sql for why.
 
-                                                                               
-                                                                              
-                                                                             
-                                                                              
-                                                                                
-                                                                             
-                          
-       
+    The cursor is SEEDED from `deltas` rather than left empty, because an empty
+    cursor on an existing store would make the next `diff` compare against the
+    previous fingerprint again and re-write deltas already reported. The most
+    recent `to_scan` IS the last state that was diffed; reading it once, here,
+    is safe in a way that reading it on every run is not — retention deletes a
+    delta as soon as the agent consumes it, so the inference is available now
+    and will not be later.
+    """
     conn.execute("CREATE TABLE IF NOT EXISTS cursors ("
                  " name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)")
     # `deltas` MAY NOT EXIST. A migration runs against whatever shape the store
@@ -183,26 +183,26 @@ def _collector_cursors(conn: sqlite3.Connection) -> str:
 #: (id, function). Append only — an applied id is never renamed or reordered,
 #: because the record of what ran is keyed by it.
 def _drop_retention_policy(conn: sqlite3.Connection) -> str:
-    ""                                                           
+    """Remove `ledger.retention_policy`, which nothing ever read.
 
-                                                                              
-                                                                                 
-                                                                       
-                                                                 
-                                       
+    Declared in the schema, `NOT NULL DEFAULT 'default'`, written on every row
+    — by a literal `"default"` in `ledger.append`, the only writer — exported
+    into `registry/ledger.jsonl`, listed in `docs/ARCHITECTURE.md`, and
+    consulted by no code path. Retention decides by state age and
+    `owner_exempt`.
 
-                                                                               
-                                                                             
-                                                                            
-                                                                              
-                                                                      
-                                                                            
-                                                                               
-                                               
+    **Implementing it instead was refused on a measurement, not a preference.**
+    A per-row policy is set at INSERT time, which is exactly the "flag at the
+    call site" that `store/retention.json` argues against — and there is a
+    concrete case: `agent:estate-history` joined `owner_exempt` on 2026-09-08,
+    and the two rows it had already written carry `'default'`. Under a
+    column-driven rule those two would still be unprotected; under the owner
+    list the exemption applied to every row, past and future, the moment it was
+    added. The owner list is the correct locus.
 
-                                                                          
-                        
-       
+    Adding a column back is `ALTER TABLE ADD COLUMN`, so this is the cheap
+    direction to travel.
+    """
     cols = [r[1] for r in conn.execute("PRAGMA table_info(ledger)")]
     if "retention_policy" not in cols:
         return "ledger.retention_policy was already absent"
@@ -223,11 +223,11 @@ MIGRATIONS: list[tuple[str, object]] = [
 
 
 class CompatibilityError(RuntimeError):
-    ""                                                                         
+    """The database requires a different executable; no automatic downgrade."""
 
 
 def execute_statements(conn: sqlite3.Connection, script: str) -> None:
-    ""                                                    
+    """Run DDL without executescript's implicit COMMIT."""
     pending = ""
     for line in script.splitlines(keepends=True):
         pending += line
@@ -250,7 +250,7 @@ def checksum(fn: object) -> str:
 
 
 def validate(conn: sqlite3.Connection) -> set[str]:
-    ""                                                                            
+    """Read-only guard. Unknown histories and changed applied code fail closed."""
     if sqlite3.sqlite_version_info < (3, 37, 0):
         raise CompatibilityError("SQLite 3.37 or newer is required")
     version = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -280,12 +280,12 @@ def needs_upgrade(conn: sqlite3.Connection) -> bool:
 
 
 def apply(conn: sqlite3.Connection) -> list[str]:
-    ""                                                                       
+    """Atomic migrations; nested callers keep ownership of their transaction.
 
-                                                                               
-                                                                           
-                                                                                 
-       
+    Legacy histories are adopted once: their missing checksums are recorded for
+    this release, without pretending to attest which old code actually ran.
+    Production callers use db.connect(), which takes the backup and process lock.
+    """
     if not needs_upgrade(conn):
         return []
     nested = conn.in_transaction

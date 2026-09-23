@@ -182,10 +182,10 @@ def main(argv: list[str]) -> int:
                                "folders": row.get("folders") or [],
                                "scanned_on": scanned_on}])
             except L.LedgerError as exc:
-                                                                                 
-                                                                                 
-                                                                              
-                                   
+                # NAMED, and the run continues: one project's record failing must
+                # not silence the rest, and a swallowed LedgerError here would be
+                # the same silence the companion's own failure hid for fifteen
+                # hours.
                 print(f"  {row['name']}: NOT recorded — {type(exc).__name__}: {exc}",
                       file=sys.stderr)
                 notes.append({"name": row["name"], "outcome": "refused",

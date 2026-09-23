@@ -43,13 +43,13 @@ def main() -> int:
     if not configuration.enabled("github"):
         print("github: not configured (integration disabled)")
         return 0
-                                                                              
-                                                                                  
-                                                                                 
-                                                                                   
-                                                                     
-                                                                                
-                                                                     
+    # `paths.SCRATCH / "gh"`, and the name matters: the default used to be the
+    # relative string `store/raw/github`, while `merge.py` globs `<raw>/gh/*.json`
+    # and `tick.sh` passes `store/raw/gh` explicitly. So a bare run — the way a
+    # human runs a collector to check one thing — wrote ten owner listings into a
+    # directory nothing has ever read, and reported success. Measured
+    # 2026-09-07: `store/raw/github` did not exist on this machine, which is the
+    # only reason the mistake had never produced a stale second copy.
     out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else paths.SCRATCH / "gh"
     out_dir.mkdir(parents=True, exist_ok=True)
     degraded, total, kept = [], 0, 0

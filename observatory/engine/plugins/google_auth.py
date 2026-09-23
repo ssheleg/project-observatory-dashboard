@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """An access token from a service account, over the standard library.
 
-                                                                                    
-                                                                              
-                                                                          
-                                                                               
-                                                                            
-                   
+`google.auth.transport.requests.Request` — the line every Google example shows —
+imports `requests`, which this venv does not have and which the plugins do not
+need. Found on 2026-09-12 by running the real thing: the first call raised
+`ImportError: The requests library is not installed`, which under launchd would
+have been a plugin classified `broken` with a message about a library nobody
+meant to depend on.
 
 So the exchange is done here, in the shape the provider documents: build the
 JWT assertion, sign it with the key already in the service-account file, POST it

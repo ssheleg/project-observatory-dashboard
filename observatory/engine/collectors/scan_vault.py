@@ -92,10 +92,10 @@ def scan() -> list[dict]:
         rows.append({
             "folder": d.name,
             "overview": str(ov.relative_to(V)) if ov.exists() else "",
-                                                                                
-                                                                             
-                                                                           
-                                                                 
+            # The newest write anywhere in the project's notes — the freshness
+            # the wiki can claim. A note that predates weeks of activity is a
+            # narrative that stopped describing its subject, and until this
+            # date existed nothing could measure that.
             "notes_updated_on": __import__("datetime").datetime.fromtimestamp(
                 max(n.stat().st_mtime for n in notes),
                 __import__("datetime").timezone.utc).strftime("%Y-%m-%d"),

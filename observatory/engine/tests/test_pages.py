@@ -185,11 +185,11 @@ def test_a_page_carries_only_what_it_renders() -> None:
 
 
 def test_a_redirected_page_takes_its_pages_with_it() -> None:
-    ""                                                                          
-                                                                                 
-                                                                                   
-                                                                             
-                                                                               
+    """One knob for the whole surface. A fixture that redirected only the single
+    page still wrote nine LIVE pages out of its sandbox, and after a gate run the
+    real dashboard said the store was unreadable and every work figure was zero —
+    invisible, because the pages are gitignored and the hygiene check watches
+    tracked files. Measured 2026-09-14 on `tests/render_provider_health.py`."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-redirect-"))
     code = ("import os, sys, pathlib\n"
             f"sys.path.insert(0, {str(ROOT)!r})\n"
@@ -211,10 +211,10 @@ def test_a_redirected_page_takes_its_pages_with_it() -> None:
 
 
 def test_every_bridge_leads_somewhere_that_exists() -> None:
-    ""                                                                          
-                                                                                 
-                                                                          
-                                                                       
+    """A copy-command is a promise about another file. The page offers three —
+    restart the observer, decide a queued row, open the drifted rows — and each
+    is checked against the tool it names, because a command that no longer
+    parses is worse than no button at all (plan v2, T-05/T-25/T-30)."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     serverd = (ROOT / "tools/serverd.py").read_text(encoding="utf-8")
     review = (ROOT / "tools/review.py").read_text(encoding="utf-8")
@@ -392,7 +392,7 @@ def test_the_live_verbs_have_a_listener_and_the_pages_can_be_live() -> None:
 
 
 def test_every_table_says_what_narrowed_it() -> None:
-    ""                                                                                       
+    """IS-06/IS-11 (audit A-06, A-10): «Ничего не найдено» named nothing."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the bare empty state is gone from every renderer",
           "'<p class=\"empty\">Ничего не найдено</p>'" not in src, "")
@@ -419,8 +419,8 @@ def test_the_findings_page_is_a_working_surface() -> None:
           'data-sev="${s}"' in src and 'class="ftype"' in src and 'class="fq"' in src, "")
     check("and the target rows have anchors to land on",
           'id="d-${E(d.name)}"' in src and 'id="a-${E(a.name)}"' in src and 'id="c-${E(' in src, "")
-                                                                             
-                                                                                    
+    # D-13: the two tables that had none — env variables and MCP
+    # servers — and one spelling for every anchor, shared by the link and the row.
     check("env and MCP rows are addressable too",
           "id=\"e-' + E(anchorSlug(e.path + \":\" + e.name))" in src
           and 'id="m-${E(anchorSlug(s.agent + "/" + s.name))}"' in src, "")
@@ -429,17 +429,17 @@ def test_the_findings_page_is_a_working_surface() -> None:
     check("and a row named in the address is revealed inside a folded group",
           "function revealHash" in src and 'closest("tbody.grp.folded")' in src
           and "revealHash();" in src.split("function render() {", 1)[1][:200], "")
-                                                                              
-                                                                              
-                          
+    # D-12: the env page's fold atom on every grouped table — six
+    # renderers, one `grpHead`, projects folded by default and everything open
+    # under any narrowing.
     check("every grouped table folds through one header helper",
           src.count("${grpHead(") >= 6 and "function grpHead" in src and "function foldOpen" in src,
           f"grpHead used {src.count('${grpHead(')} times")
     check("projects fold by default and open under a narrowing; the rest are open",
           "foldOpen(false)" in src and src.count(", true)}") >= 5, "")
-                                                                               
-                                                                               
-                                                   
+    # D-11: column sort spoken by `aria-sort`, one state per page in
+    # sessionStorage so it survives the search's re-renders, rows sorted INSIDE
+    # their groups, missing values last either way.
     check("sortable headers exist on every table and speak aria-sort",
           "function sortTh" in src and 'aria-sort="${dir}"' in src and src.count("sortTh(") >= 12,
           f"sortTh used {src.count('sortTh(')} times")
@@ -449,9 +449,9 @@ def test_the_findings_page_is_a_working_surface() -> None:
           '"observatory.sort." + PAGE' in src and "render();" in src.split('closest("th[data-sort]")', 1)[1][:900], "")
     check("a missing value sorts last in both directions",
           "if (x == null) return 1;" in src and "if (y == null) return -1;" in src, "")
-                                                                            
-                                                                                  
-                                                                        
+    # D-10: the project panel says what the project authenticates
+    # with — the small inverse of the keys document's `used_by`, built in Python
+    # so it rides every page, each row linking to `creds.html#c-<slug>`.
     check("the panel has a «Ключи» section fed by the small per-project key map",
           "<h3>Ключи</h3>" in src and '"keys": KEYS,' in src and "(D.keys || {})[r.id]" in src
           and 'href="${E(k.href || ("creds.html#c-" + k.slug))}"' in src, "")
@@ -464,10 +464,10 @@ def test_the_findings_page_is_a_working_surface() -> None:
           'out["keys"] = None' in (ROOT / "dashboard/shell.py").read_text(encoding="utf-8"), "")
     check("and a key row says leaked / unsigned in words, never colour alone",
           'chip("утечка не закрыта", "danger")' in src and 'chip("не подписан", "warn")' in src, "")
-                                                                                 
-                                                                              
-                                                                             
-                                                                               
+    # D-15: EVERY LIVE VERB THE PAGE OFFERS IS A ROUTE THE SERVER HAS.
+    # `_door()` was called by three routes and defined nowhere for a week; the
+    # page's third element and the server's ACTIONS table are checked against
+    # each other here so a button cannot promise what the server never learned.
     ks = (ROOT / "tools/keyserver.py").read_text(encoding="utf-8")
     actions_src = ks.split("ACTIONS = {", 1)[1].split("}", 1)[0]
     routes = set(re.findall(r'"([a-z-]+)":', actions_src))
@@ -482,20 +482,20 @@ def test_the_findings_page_is_a_working_surface() -> None:
           {"disable", "enable", "rotate-key"} <= routes and '"rotate":' in ks.split("REFUSED = {", 1)[1].split("}", 1)[0], "")
     check("the page confirms before a rotation or a disable, as it does before a revoke",
           '(act === "revoke" || act === "rotate-key" || act === "disable") && !confirm(ask)' in src, "")
-                                                                           
-                                                                              
-                                                 
+    # D-14: the movements journal has a surface, fed by the same
+    # reader the board's rule uses; an unrecorded Heroku change hands over the
+    # exact `vault.py moved …` that settles it.
     check("the keys page shows the movements journal and the unrecorded changes",
           "function movementsSection" in src and "D.creds.movements" in src and "D.creds.unrecorded" in src
           and 'toolCommand("vault.py", ["moved", u.project' in src, "")
     check("and the build reads the journal through tools/movements.py, as build_findings does",
           "import movements as _movements" in src
           and "import movements as _movements" in (ROOT / "tools/build_findings.py").read_text(encoding="utf-8"), "")
-                                                                    
+    # D-16: the queue's shape in one line above the rows.
     check("the health page carries the queue digest above the rows",
           'id="queue-digest"' in src and "digestLine + q.map" in src and "def _digest(conn)" in src, "")
-                                                                             
-                                                                        
+    # P3. D-20: the single page's tab strip is stripped from split
+    # pages at build and the counters are written only where they exist.
     shell_src = (ROOT / "dashboard/shell.py").read_text(encoding="utf-8")
     check("the shell strips the tab strip from split pages and the script asks before writing a counter",
           'r\'<nav class="tabs"[^>]*>.*?</nav>' in shell_src and "const setN = " in src

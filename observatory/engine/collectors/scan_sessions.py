@@ -216,8 +216,8 @@ def estate_paths(*blobs: str | None) -> set[str]:
                 items = [items]
             for item in items if isinstance(items, list) else []:
                 if isinstance(item, str) and item.startswith(root + "/"):
-                                                                               
-                                                          
+                    # The estate-relative FOLDER, not the file: the question is
+                    # which project this work belonged to.
                     out.add(item[len(root) + 1:].split("/", 1)[0])
     return out
 
@@ -434,14 +434,14 @@ def scan() -> dict:
         "counts": {"sessions": len(sessions), "projects": len(touched),
                    "unmatched_names": len(unmatched),
                    "excluded_names": len(skipped)},
-                                                                              
-                                                                           
-                                                                           
-                                                                            
-                                                                            
-                                                                               
-                                                                             
-                                                       
+        # The unknown names and their weight, so `tools/build_findings.py` can
+        # raise them without re-reading claude-mem. Sorted by sessions: the
+        # question a finding answers is "how much work is unaccounted for".
+        # THE VERDICT TRAVELS WITH THE COUNT. A name that matches nothing is
+        # three different facts — a project this estate lost, a folder the
+        # matcher failed to connect, or a name with no path evidence at all —
+        # and the finding could not tell them apart because the collector did
+        # not carry what distinguishes them.
         "unattributed": [
             {"name": n, "sessions": u["sessions"],
              "verdict": 'ambiguous-project' if u.get('candidates') else verdict_for(u["paths"])[0],

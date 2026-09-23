@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-""                                                                    
+"""GA4 sessions and active users per property, attributed to projects.
 
-                                                                              
-                                                                          
-                                                                             
-                                                          
-                                     
+Same service account as the Search Console plugin — one Google credential on
+this machine, two readers. GA4 adds one thing GSC does not need: a MAPPING
+FILE, because properties are numeric ids that no registry host can be derived
+from. Copy `plugins/config/ga4_properties.example.json` to
+`plugins/config/ga4_properties.json`:
 
                     
                                                                        
                                                                             
       
 
-                                                                          
-                                                                          
-                                                                        
+`host` goes through `plugins/hostmap.py` (ownership follows the registry);
+`project` pins it outright for a property whose site the registry does not
+serve. Grant the service account's client_email Viewer on each property.
 
-                                                                             
-                  
-   
+The window is the last complete UTC day — GA4's intraday tables wobble, its
+daily ones do not.
+"""
 from __future__ import annotations
 import datetime
 import json
@@ -34,21 +34,21 @@ import google_auth
 import hostmap                                                                  
 
 KEY_FILE = paths.source_path("secret_store", paths.SECRETS) / 'google-service-account.json'
-                                                                            
-                                                                       
-                                        
+# `plugins/config/`, not `plugins/`: the runner reads EVERY `plugins/*.json`
+# as a manifest, so a data file beside them is reported as five missing
+# manifest fields (measured 2026-09-12).
 MAP_FILE = paths.config_file("ga4_properties.json")
 SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
 
 
 def token() -> str:
-    ""                                        
+    """A bearer token for this plugin's scope.
 
-                                                                          
-                                                                             
-                                                                             
-                                 
-       
+    Through `plugins/google_auth.py`, which does the JWT exchange over the
+    standard library: the documented `google.auth.transport.requests.Request`
+    needs `requests`, and a launchd tick would have reported that as a broken
+    plugin (measured 2026-09-12).
+    """
     return google_auth.access_token(KEY_FILE, SCOPE)
 
 
@@ -61,7 +61,7 @@ def _call(url: str, tok: str, payload: dict) -> dict:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
-                                                                               
+        # url + status only; a header in an error is the 2026-09-12 leak again.
         raise RuntimeError(f"ga4 answered {e.code} for {url.split('?')[0]}") from None
     except OSError as e:
         raise RuntimeError(f"ga4 unreachable: {type(e).__name__}") from None
@@ -83,7 +83,7 @@ def fetch_day(tok: str, prop: str, day: str) -> dict:
 
 def rows_from(mapping: list[dict], per_prop: dict[str, dict], day: str,
               table: dict[str, str]) -> tuple[list[dict], list[str]]:
-    ""                                                                        
+    """(metric rows, unmappable entries) — pure, testable without Google."""
     rows, unmapped = [], []
     at = f"{day}T00:00:00Z"
     for m in mapping:

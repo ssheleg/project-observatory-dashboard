@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-""                                                                       
+"""The one boundary where a model, its window and its price are resolved.
 
-                                                                               
-                                                                             
-                                                                           
-                
+Nothing else in this repository may name a vendor id or a price. Both come from
+`agent/models.json` (the chain) and OpenRouter's own catalogue (the numbers),
+because a price table in source is wrong the day a provider changes one and
+nothing notices.
 
-                                                         
+Three things this owns, each earned rather than invented:
 
-                                                                                     
-                                                                     
-               
-                                                                           
-                                       
-                                                                                 
-                                                                    
+* **Selection has three levels** — the caller, the config, the default — resolved
+  here and *logged*, because "why did it use that model" is otherwise
+  unanswerable.
+* **Attempts are capped in TOTAL**, not per model. Three models times three
+  retries is nine calls for one prompt.
+* **Spend is enforced on the write.** `charge()` records and enforces in the same
+  breath; enforcement on a schedule arrives after the money is gone.
 
-                                                                          
-                                                                             
-                                                          
+The wallet is denominated in **credits**, which is what OpenRouter's usage
+accounting reports. One credit tracks one dollar at the time of writing; this
+module will not relabel the provider's unit on its behalf.
 
-                                                                                 
-                                                                               
-                                                                               
-                                          
-   
+Failover happens BETWEEN calls, never inside one. That is free here — each call
+is a single turn with no accumulated trajectory — and it is the boundary that
+matters, because reasoning carries a vendor credential that does not travel and
+fails as a 400 rather than as degradation.
+"""
 from __future__ import annotations
 import json, os, sys, pathlib, urllib.error, urllib.request
 from datetime import datetime, timedelta, timezone
@@ -37,10 +37,10 @@ CONFIG = paths.config_file('models.json')
 CATALOGUE = paths.STATE / "openrouter-catalogue.json"
 WALLET = paths.STATE / "wallet.json"
 HEALTH = paths.STATE / "provider-health.json"
-                                                                             
-                                                                                 
-                                                                              
-                                                                             
+#: The KEY's own account state, which is neither this project's journal nor a
+#: model's health — a third subject, so a third file. `provider-health.json` is
+#: keyed by model id and `unhealthy()` reads it by that key, so an entry about
+#: the account would sit in a map where every other row means something else.
 KEY_USAGE = paths.STATE / "key-usage.json"
 KEY_ENV = "OPENROUTER_API_KEY"
 EMBED_KEY_ENV = "OPENAI_API_KEY"
@@ -76,26 +76,26 @@ UA = "project-observatory/0.1 (+https://github.com/ssheleg/project-observatory-d
 
 
 class ProviderError(Exception):
-    ""                                                                                        
+    """Base. Subclasses split retryable from fatal at the type level, not at the call site."""
 
 
 class Retryable(ProviderError):
-    ""                                                                       
+    """Overload, rate limit, 5xx, a socket that died. Worth another model."""
 
 
 class Fatal(ProviderError):
-    ""                                                                            
-                                                                            
+    """A rejected schema, a model that does not exist. Another attempt at the same
+    model spends money to fail identically; another MODEL may still work."""
 
 
 class CredentialError(Fatal):
-    ""                                                                             
-                                                                                    
-                                                                       
+    """401/403. Not the model's fault, so nothing is marked unhealthy and the whole
+    run stops at once — trying every model in turn against a dead key produces one
+    identical error per model and poisons the health of all of them."""
 
 
 class BudgetExceeded(ProviderError):
-    ""                                                        
+    """A guardrail said stop. Not a failure — a decision."""
 
 
 def now() -> datetime:
@@ -119,8 +119,8 @@ def _fetch_catalogue(base_url: str) -> dict:
 
 
 def catalogue(refresh: bool = False) -> tuple[dict, str]:
-    ""                                                                           
-                                                
+    """Returns (models_by_id, provenance). Never raises: a stale catalogue with a
+    stated age beats a run that cannot start."""
     cfg = config()
     ttl = timedelta(hours=cfg.get("catalogue_ttl_hours", 24))
     cached, age = None, None
@@ -190,8 +190,8 @@ def mark_healthy(model_id: str) -> None:
 
 
 def unhealthy(model_id: str) -> str | None:
-    ""                                                                      
-                                                             
+    """None when usable. A model is re-probed after the configured window: a
+    health check that only runs on failure never recovers."""
     entry = _health().get(model_id)
     if not entry:
         return None
@@ -208,11 +208,11 @@ def unhealthy(model_id: str) -> str | None:
 # ──────────────────────────────── selection ──────────────────────────────────
 
 def resolve_chain(requested: str | None = None) -> tuple[list[dict], str, str]:
-    ""                                                        
+    """Returns (chain, selection_level, catalogue_provenance).
 
-                                                                             
-                                                                               
-       
+    Levels, in precedence order: the caller's explicit choice, the configured
+    chain, the built-in default. Which one won is returned so it can be logged.
+    """
     cfg = config()
     models, provenance = catalogue()
     if requested:
@@ -225,20 +225,20 @@ def resolve_chain(requested: str | None = None) -> tuple[list[dict], str, str]:
     for e in cfg.get("chain", []):
         entry = models.get(e["id"])
         if entry is None:
-                                                                                   
-                                                                          
-                                                                            
-                                                                              
-                                                                              
-                         
-             
-                                                                               
-                                                                              
-                                                                             
-                                                                    
-                                                                                
-                                                                               
-                                                                        
+            # SKIPPED AND NAMED. A retired id is not fatal — the point of a chain
+            # is that it survives one model leaving — but it was skipped
+            # SILENTLY, so a three-model chain could become one and the only
+            # visible sign would be the bill. `chain_retired` travels with the
+            # answer, the CLI prints it, and `agent/observe.py` puts it in the
+            # run report.
+            #
+            # That report is NOT where a reader looks, and this comment used to
+            # claim it was. Measured 2026-09-07: the only readers of the field
+            # were this repository's own tests, so the sentence sent the next
+            # person to a consumer that did not exist. The reader is
+            # `provider.chain_retired` in `tools/build_findings.py`, which reads
+            # the run report and raises a warning naming the id and the file to
+            # edit — a retirement never expires, unlike a health mark.
             retired.append(e["id"])
             continue
         chain.append(dict(entry, why=e.get("why", "")))
@@ -264,16 +264,16 @@ _provider_usage_cache: dict | None = None
 
 
 def provider_usage(force: bool = False) -> dict | None:
-    ""                                                                  
+    """What the PROVIDER says this key has spent. None when unreachable.
 
-                                                                            
-                                                                               
-                                                                           
-                                                            
+    Preferred over the local journal for the daily and monthly caps, for one
+    reason: it cannot drift. A local counter is wrong the first time a run dies
+    between the call and the write, and wrong forever after. The provider's
+    number is the same number the provider enforces against.
 
-                                                                                
-                                                            
-       
+    The local journal is still authoritative for spend VELOCITY, because the API
+    reports day, week and month — not a rolling half hour.
+    """
     global _provider_usage_cache
     if _provider_usage_cache is not None and not force:
         return _provider_usage_cache
@@ -301,13 +301,13 @@ def provider_usage(force: bool = False) -> dict | None:
 
 
 def retention_config() -> dict:
-    ""                                                            
+    """The horizons, from the one file that holds every other one.
 
-                                                                             
-                                                                              
-                                                                              
-                                                                 
-       
+    A missing or unreadable file falls back to the numbers that were literals
+    before this existed — the wallet must still be prunable when a config is
+    being edited, and refusing to charge because a JSON file is mid-save would
+    make the spend journal the fragile part of a spend guardrail.
+    """
     try:
         return json.loads(paths.config_file("retention.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -325,25 +325,25 @@ def _wallet() -> dict:
 
 def _save_wallet(w: dict) -> None:
     WALLET.parent.mkdir(parents=True, exist_ok=True)
-                                                                              
-                                                                           
-                                                                            
-                             
+    # THE SPEND JOURNAL, and the one whose truncation is not hypothetical: 500
+    # events were lost from this file on 2026-09-07. The day and
+    # month totals were restorable from a measurement taken minutes earlier;
+    # the event list was not.
     atomic.write_json(WALLET, w)
 
 
 def record_key_usage(pu: dict) -> None:
-    ""                                                                   
+    """Persist what the provider just said about the KEY, with its stamp.
 
-                                                                                 
-                                                                               
-                                                                                
-                                                                         
-                       
+    `tools/build_findings.py` must not call the network — a findings build that
+    depends on an unrelated service being reachable produces a different set of
+    findings depending on the weather. So the one place that DOES call it writes
+    down what it learned, and the findings read that offline with its age
+    visible.
 
-                                                                            
-                                                  
-       
+    A failure here can never stop spending: the caller has already been told
+    what it asked for, and this is a record of it.
+    """
     try:
         atomic.write_json(KEY_USAGE, {
             "checked_at": iso(),
@@ -377,10 +377,10 @@ def wallet_state() -> dict:
     pu = provider_usage()
     state = {
         "denomination": w.get("denomination", "credits"),
-                                                                          
-                                                                             
-                                                                           
-                          
+        # `source` describes where the KEY figures come from. The caps are
+        # decided from this project's own journal, which is always
+        # available, so the guard no longer depends on an unrelated service
+        # being reachable.
         "source": "provider" if pu else "local journal (the provider was unreachable)",
                                                                             
                                                                                
@@ -408,11 +408,11 @@ def wallet_state() -> dict:
 
 
 def check_budget(provider: str = "openrouter") -> str | None:
-    ""                                                                    
+    """None when spending is permitted, else the guardrail that says stop.
 
-                                                                                   
-                                                                                
-                                 
+    Three independent mechanisms, one shared answer — a daily cap, a monthly cap,
+    and spend velocity over a rolling window. The third exists because the first
+    two catch a runaway tomorrow.
 
                                                                                  
                                                                                  
@@ -427,12 +427,12 @@ def check_budget(provider: str = "openrouter") -> str | None:
                                                                                 
                 
 
-                                                                            
-                                                                       
-                                                                               
-                                                                                
-                                                                 
-       
+    For any other provider the caps are evaluated against THIS project's own
+    journal, which `charge()` records for every provider alike, and the
+    OpenRouter-specific key limit is not consulted at all. The velocity ceiling
+    applies to everything: it is computed from local events and its question —
+    "is something looping right now" — is provider-independent.
+    """
     s = wallet_state()
                                                                           
                                                                        
@@ -510,10 +510,10 @@ def check_budget(provider: str = "openrouter") -> str | None:
 def charge(model_id: str, cost: float, tokens_in: int, tokens_out: int,
            upstream: float | None = None, provider: str = "openrouter",
            estimated: bool = False) -> str | None:
-    ""                                                                             
+    """Record, prune, save — and return the guardrail that now says stop, if any.
 
-                                                                 
-       
+    Recording and enforcing happen in the same breath on purpose.
+    """
     w = _wallet()
     day, month = now().strftime("%Y-%m-%d"), now().strftime("%Y-%m")
     w.setdefault("days", {})[day] = w.get("days", {}).get(day, 0.0) + cost
@@ -591,7 +591,7 @@ _SHAPE_WARNED: set[str] = set()
 
 
 def _shape_ok(env_name: str, value: str) -> str | None:
-    ""                                                                          
+    """None when the value looks right for this provider, else what is wrong."""
     want = KEY_SHAPES.get(env_name)
     if not want:
         return None
@@ -617,7 +617,7 @@ def _shapes_file():
 
 
 def shape_report() -> list[dict]:
-    ""                                                                    
+    """One row per key variable THIS PROCESS CAN SEE, and never its value.
 
                                                                                 
                                                                                
@@ -625,10 +625,10 @@ def shape_report() -> list[dict]:
                                                                                 
                                                                    
 
-                                                                           
-                                                                             
-                                            
-       
+    Only the identifying PREFIX of a wrong value is carried. The verdict is
+    unreadable without it and it is not key material; the rest, including any
+    masked tail, never leaves this function.
+    """
     rows: list[dict] = []
     for env_name, (prefix, who) in sorted(KEY_SHAPES.items()):
         value = os.environ.get(env_name)
@@ -639,8 +639,8 @@ def shape_report() -> list[dict]:
                "verdict": "wrong" if wrong else "ok"}
         if wrong:
             row["reason"] = wrong.split(". ")[0]
-                                                                             
-                                                                            
+            # The prefix that DECIDES the verdict, taken from the anti-shapes
+            # this module already declares rather than sliced off the value.
             row["looks_like"] = next(
                 (bad for bad in KEY_ANTI_SHAPES.get(env_name, ())
                  if value.startswith(bad)), "")
@@ -649,13 +649,13 @@ def shape_report() -> list[dict]:
 
 
 def write_shape_report(rows: list[dict] | None = None) -> pathlib.Path:
-    ""                                                                    
+    """Merge this process's verdicts into the receipt and return its path.
 
-                                                                             
-                                                                                
-                                                                           
-                                                                           
-       
+    MERGED, not replaced: two processes see two different environments, and a
+    run that cannot see a variable must not erase another run's true observation
+    of it. A run that CAN see one overwrites its row with a fresh stamp, so
+    fixing the shell clears the finding on the next `./observatory.py key`.
+    """
     rows = shape_report() if rows is None else rows
     f = _shapes_file()
     doc = {"observations": {}}
@@ -678,23 +678,23 @@ def write_shape_report(rows: list[dict] | None = None) -> pathlib.Path:
 
 
 def _read_from(env_name: str, files: tuple) -> tuple[str | None, str]:
-    ""                                                                      
-                                                                     
+    """Shared discipline for every key: environment first, then one file per
+    secret at mode 600, and a loose file is refused rather than used.
 
-                                                                            
-                                                                                 
-                                                                    
+    A value of the wrong SHAPE is skipped with a warning rather than used or
+    silently ignored — the environment wins over a file, so a wrong value there
+    hides a right one here, and that is the failure worth naming."""
     env = os.environ.get(env_name)
     if env and env.strip():
         wrong = _shape_ok(env_name, env.strip())
         if wrong:
-                                                                            
-                                                                              
-                                                                                    
-                                                                              
-                                                                            
-                                                                               
-                                 
+            # ONCE PER PROCESS. The key path is consulted on every embedding
+            # batch and every model call, so this printed 22 times in a single
+            # `./observatory.py check` — measured 2026-09-07 — in the one log an
+            # operator reads when something else has broken. The fact is about
+            # the ENVIRONMENT and does not change during a run; repeating it
+            # teaches a reader to skim exactly the stream that carries the real
+            # message.
             if env_name not in _SHAPE_WARNED:
                 _SHAPE_WARNED.add(env_name)
                 print(f"  ignoring ${env_name}: {wrong}", file=sys.stderr)
@@ -724,26 +724,26 @@ def read_embed_key() -> tuple[str | None, str]:
 
 
 def embed(texts: list[str], log=print) -> dict:
-    ""                                                                        
+    """Vectors for the pinned contract, or a refusal. Never a silent mismatch.
 
-                                                                               
-                                                                                   
-                                                               
+    The dimension the provider returns is checked against the declared contract
+    on every call. A model that quietly returns a different width does not fail —
+    it degrades cosine search, and nothing downstream can tell.
 
-                                                                              
-                                                                                
-                                                                             
-                                                                        
-                                                                              
-                                                                                
-                                                                        
-                                                       
+    **It checks its own ceiling, like `complete()` does.** It did not, and the
+    asymmetry is why the class recurred three times: this module has exactly two
+    functions that call `charge()`, one guarded itself and the other required
+    every caller to remember. `agent/observe.py` remembered, `survey.py`
+    remembered only after the wire audit found it spending on any MCP client's
+    behalf, and `store/indexer.py:104` never did — it embeds a batch per tick,
+    which is the largest spender of the three. A guard every caller must
+    re-implement is a guard, singular, that is missing.
 
-                                                                            
-                                                                               
-                                                                               
-                                                  
-       
+    `BudgetExceeded` derives from `ProviderError`, which the indexer already
+    catches to fall back to the lexical index alone — so the ceiling arriving
+    here turns an unmetered spend into the honest degradation that file already
+    announces, through the handler it already has.
+    """
     import configuration
     if not configuration.enabled("embeddings", "features"):
         raise Fatal("Feature embeddings is not enabled for this workspace")
@@ -801,28 +801,28 @@ def embed(texts: list[str], log=print) -> dict:
 
 
 def read_key() -> tuple[str | None, str]:
-    ""                                                            
+    """The chat provider's key. Same discipline as every other."""
     search = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)
               if os.environ.get("OBSERVATORY_KEY_FILE") else KEY_FILES)
     return _read_from(KEY_ENV, search)
 
 
 def have_key() -> bool:
-    ""                                                       
+    """Can this run USE a credential? Not: does a file exist.
 
-                                                                         
-                                                                              
-                                                                            
-                                                                               
-                                                                            
-                                                                               
-           
+    It used to return True for a refused key — "a key exists; it is the
+    permissions that are wrong" — and the distinction was real but no caller
+    ever acted on it. Its only caller, `agent/observe.py`, took True to mean
+    "proceed" and walked straight into `check_budget()`, which resolves the key
+    again and does NOT catch the refusal: a key file at mode 644 produced an
+    uncaught traceback in the scheduled tick instead of the degradation written
+    for it.
 
-                                                                             
-                                                                                     
-                                                                                  
-                                                                                
-                         
+    The distinction is kept where it is useful and lost where it was harmful.
+    `key_status()` still answers `REFUSED — … chmod 600 …` for a loose file and
+    `no key. Looked in: …` for an absent one, and the caller prints it in either
+    case. A boolean that says yes to something unusable is not a distinction, it
+    is a wrong answer."""
     try:
         key, _ = read_key()
     except Fatal:
@@ -831,7 +831,7 @@ def have_key() -> bool:
 
 
 def key_status() -> str:
-    ""                                                                
+    """One line, for a human. Never prints the key, only its shape."""
     try:
         key, where = read_key()
     except Fatal as exc:
@@ -848,7 +848,7 @@ def key_status() -> str:
 
 
 def scheduled_key_status() -> str:
-    ""                                                          
+    """What the TICK will resolve, which is the one that spends.
 
                                                                             
                                                                                   
@@ -858,10 +858,10 @@ def scheduled_key_status() -> str:
                                                                               
                 
 
-                                                                               
-                                                                                  
-                                              
-       
+    Computed by asking the same resolver with the key variables removed, rather
+    than by reasoning about them — a claim about what another process will do is
+    worth having only if something derives it.
+    """
     import os as _os
     saved = {k: _os.environ.pop(k) for k in (KEY_ENV, "OPENAI_API_KEY")
              if k in _os.environ}
@@ -873,12 +873,12 @@ def scheduled_key_status() -> str:
 
 def complete(messages: list[dict], *, schema_name: str, schema: dict,
              requested: str | None = None, log=print) -> dict:
-    ""                                                                     
+    """One structured completion, over the chain, capped in total attempts.
 
-                                                                         
-                                                                              
-                                                    
-       
+    Returns {parsed, model, cost, tokens_in, tokens_out, attempts, stop}.
+    Raises BudgetExceeded before spending, Fatal when no attempt can help, and
+    Retryable only when every attempt was retryable.
+    """
     import configuration
     if not configuration.enabled("agent", "features"):
         raise Fatal("Feature agent is not enabled for this workspace")

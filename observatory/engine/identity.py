@@ -131,10 +131,10 @@ def resolve_former(project_id: str, projects: list[dict]) -> str | None:
     return former_index(projects).get(project_id)
 
 
-                                                               
-                                                                                
-                                                                               
-                                                                       
+#: The one remap between a merge key and a project id. Lived in
+#: collectors/emit_registry.py alone until 2026-09-14, when the merge needed the
+#: same answer for a host->project hint and would have had to copy the dict —
+#: two copies of a remap disagree the day one of them grows.
 import json
 import paths
 _override_file = paths.config_file("identity_overrides.json")

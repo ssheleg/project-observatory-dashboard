@@ -14,11 +14,11 @@
 
 TWO RULES, BOTH ABOUT FREQUENCY, NEITHER ABOUT VALUES:
 
-                                                                                
-                                                                        
-                                                                           
-                                                                            
-                                                                          
+    secret.reveal_burst      one subject revealed >= BURST times in a WINDOW —
+                             names the subject, the count, and who asked
+    secret.reveal_unnamed    reveals whose caller did not name itself, once
+                             the header exists — a count, info,
+                             because an old skill copy is the likely cause
 
 The journal holds names and places, never values (keyserver.audit()), so this
 module carries nothing it could leak; and it never raises on a journal it

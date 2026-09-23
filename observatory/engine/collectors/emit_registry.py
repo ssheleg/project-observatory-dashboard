@@ -16,22 +16,22 @@ import datetime as _dt
 
 
 def _stamped(name, doc, stamps=("updated_on",)):
-    ""                                                                        
+    """Every registry document, written ATOMICALLY and stamped by measurement.
 
-                                                   
+    Two defects in one line, both found 2026-09-07:
 
-                                                                           
-                                                                                
-                                                                                 
-                                                                           
-                                                                              
-                                                                                
-                                              
-                                                           
+    * `write_text(json.dumps(...))` truncates the destination and only then
+      serialises. `atomic.py` exists in this repository for exactly that and its
+      docstring names three collectors that had it — the emit, which writes the
+      CANONICAL registry six times per tick, was not among them. The volume
+      filled at 06:39 this morning and four collectors died mid-write; had one
+      of them been this, `registry/projects.json` would have been left truncated
+      for `merge.py` to read on the next tick.
+    * the stamp was the literal `"2026-09-03"` (see `OBS`).
 
-                                                                           
-                                                      
-       
+    `stamps=()` for a document whose dates live inside its rows: carrying a
+    doc-level stamp it does not have would invent one.
+    """
     _, changed = atomic.write_json_carrying(
         INV / name, doc, stamps=stamps, now=OBS, indent=2)
     if changed:
@@ -131,10 +131,10 @@ for record in sources:
         record["availability"] = "measured-input" if available else "not-measured"
         if available and not record.get("observed_on"):
             record["observed_on"] = OBS
-                                                                               
-                                                                               
-                                                                                 
-                                                      
+#: Bitbucket's own REST API has NO source id, and that is the honest state: the
+#: collector is credential-degraded on this machine and contributes no field to
+#: any record. A source declaring itself the evidence for nothing would
+#: be a claim about a measurement that never happened.
 SRC=[sid for sid in ("SRC-0007","SRC-0008","SRC-0009") if source_available(sid)]
 # ---- repositories ----
 out_repos=[]; cleared_repos: list[str] = []
@@ -142,12 +142,12 @@ for k in sorted(repos):
     r=repos[k]; rid="repository:"+k; prev=old_repos.get(rid,{})
     e={"id":rid,"host":r["host"],"name_with_owner":k,
        "url":r["url"],"visibility":r["visibility"],
-                                                                              
-                                                                              
-                                                                                
-                                                                               
-                                                                                 
-                                                    
+       # `default_branch` is the ONE field that legitimately falls back to the
+       # previous emit, and the difference from the others is the whole point:
+       # it is measured by `scan_remotes`, which tick.sh age-gates to six hours,
+       # so an absent value means THIS RUN DID NOT MEASURE — not "there is no
+       # default branch". Every git repository has one. Clearing it on a run that
+       # did not look would be inventing an absence.
        "default_branch":r.get("default_branch") or prev.get("default_branch",""),
                                                                              
                                                                        
@@ -178,33 +178,33 @@ for k in sorted(repos):
                     "symlink":r["local"]["symlink"],"checked_out_branch":r["local"]["branch"],
                     "commits":r["local"]["commits"],"last_commit_on":r["local"]["last_commit"],
                     "uncommitted_files":r["local"]["dirty"],"stack":r["local"]["kinds"]}
-                                                                                
-                                                                                
-                                    
-                                                                                 
-                                                                                   
-                                                                                 
-                                                         
+        # Emitted only when measured. An absent `sync` means the remote scan did
+        # not run; `""` would read as "measured, and nothing to say", which is a
+        # different and false claim.
+        # THE LIST IS ENUMERATED, so a key added upstream stops here unless it is
+        # named. `unpushed` and `unpushed_newest_on` reached `store/raw/model.json`
+        # for fifteen checkouts and none of the registry, which is where the loss
+        # was found — measured, not guessed.
         for k_, v_ in (("sync", r["local"].get("sync")),
                        ("remote_head", r["local"].get("remote_head")),
                        ("remote_checked_on", r["local"].get("remote_checked_on")),
                        ("unpushed", r["local"].get("unpushed")),
                        ("unpushed_newest_on", r["local"].get("unpushed_newest_on")),
                        ("nothing_exclusive", r["local"].get("nothing_exclusive")),
-                                                                           
-                                                                           
-                                                                             
-                                                                               
-                                    
+                       # WHICH HALF THE NUMBER CAME FROM. `unpushed` is now
+                       # recounted locally on every tick; when that recount
+                       # could not be taken the scan's older figure survives,
+                       # and this key is the only thing that distinguishes them
+                       #.
                        ("unpushed_recounted", r["local"].get("unpushed_recounted"))):
             if v_: e["local"][k_]=v_
-                                                                               
-                                                                                
-                                                                               
-                                                                                 
-                                                                                  
-                                                                                 
-                                                              
+        # TWO VIEWS OF ONE LIST, so neither reader has to know about the other.
+        # `extra_clones` is the folder NAMES: `plugins/disk_usage.py` walks them
+        # and `plugins/disk-usage.json` documents that shape, and a plugin must
+        # not change because the core needed more. `extra_checkouts` carries what
+        # was measured about each — the branch, the sync state, the commit count
+        # — which the merge used to throw away. Derived here from one
+        # structure rather than assembled twice in `merge.py`.
         if r.get("extra_checkouts"):
             xs=r["extra_checkouts"]
             e["local"]["extra_clones"]=[x["folder"] for x in xs]
@@ -283,9 +283,9 @@ for key in sorted(projs):
        "owners":p["owners"],"lifecycle":"archived" if p["archived"] else "active",
        "description":p["description"] or "",
        "stack":p["kinds"],"local_folders":p["folders"],"last_activity_on":p["last_activity"],
-                                                                                 
-                                                                                 
-                                                                  
+       # Observed, beside the DECLARED `lifecycle` rather than inside it. Derived
+       # on every emit and never carried forward: the validator re-derives it and
+       # fails on a value that disagrees with the date next to it.
        "activity_tier":activity.tier_of(p["last_activity"]),
        "has_vault_note":p["has_note"],"description_source":p.get("description_source",""),
        "membership_rules":p["rules"],
@@ -330,22 +330,22 @@ for key in sorted(projs):
         if s["confidence"]=="registry-confirmed":
             add_rel(f"relation:{s['owned_domain']}:public-domain-of:{slug_id}","public_domain_of",
                     "domain:"+s["owned_domain"],i,SRC)
-                                                                           
-                                                                                
-                                                                               
-                                                                                  
-                                                                                
-                                                                                
-            
- 
-                                                                                
-                                                                                    
-                                                                                  
-                
- 
-                                                                                 
-                                                                                
-                       
+# A WHOLESALE SWING IS REFUSED, and this is the second line rather than the
+# first. `scan_filesystem` now refuses to write when `git` cannot run, because a
+# missing `git` was measured to turn 156 projects into 206 and 172 repositories
+# into 149 — but that preflight only guards ONE cause. Nothing anywhere compared
+# an emit against the one before it, so any future collector failure of the same
+# shape would have been written into the canonical registry and committed by the
+# next tick.
+#
+# ±25% against the previous registry. Normal tick-to-tick movement is nought to
+# two projects out of 156 — well under one percent — and the disaster this comes
+# from was +32% and −13%. A threshold between them catches it and never fires on
+# ordinary work.
+#
+# A first emit has no baseline and is never refused. And a legitimate bulk change
+# is not blocked, only made deliberate: `OBSERVATORY_ALLOW_BULK=1` proceeds, and
+# the refusal names it.
 def _bulk_refusal() -> str:
     import os as _os
     if _os.environ.get("OBSERVATORY_ALLOW_BULK"):
@@ -409,9 +409,9 @@ if HEROKU_SRC.is_file():
     _t = _doc["totals"]
     print(f"heroku-apps.json: {_t['apps']} app(s), {_t['linked_to_a_project']} linked, "
           f"{_t['unlinked']} unlinked, ${_t['monthly_cost']}/month")
-                                                                           
-                                                                             
-                                                                             
+    # THE HEROKU CHAIN, applied to the projects' sites: a custom
+    # domain Heroku accepts for an app that a named rule tied to a project is
+    # that project's surface. Ranked with GitHub evidence by estate_surfaces.
     import estate_surfaces as _es
     _owned_now = {d["name"] for d in json.load(open(INV/"domains.json"))["domains"]}
     _by_id = {p["id"]: p for p in out_projs}
@@ -437,14 +437,14 @@ if HEROKU_SRC.is_file():
     if _added:
         print(f"  heroku domains: {_added} host(s) joined to projects through their apps")
 
-                                                                             
-                                                                                
-                                                                            
-                                                                            
+# WHAT THE ESTATE HOLDS AND HOW IT GROUPS. `estate_surfaces` reads
+# collectors/host_boundary.json for each zone's standing. Zones need a scan; the
+# product document is built on every emit because its curated half is a file
+# in this repository and its suggested half is derived from the sites above.
 import estate_surfaces
 _domains_now = json.load(open(INV/"domains.json"))["domains"]
-                                                                               
-                              
+# THE MCP INVENTORY: what the agents are told to reach, tracked here
+# now that the gateway is off.
 MCP_SRC = paths.SCRATCH / "mcp.json"
 if MCP_SRC.is_file():
     _mscan = json.loads(MCP_SRC.read_text(encoding="utf-8"))
@@ -530,8 +530,8 @@ if ENV_SRC.is_file():
           f"{_et['shared_across_projects']} shared across projects, "
           f"{_et['tracked_in_git']} tracked in git")
 
-                                                                            
-                                                                              
+# WHAT GOOGLE SEES. The scan is cached and may be older than this
+# emit; the document carries its own `scanned_on` so the page can say how old.
 GOOGLE_SRC = paths.SCRATCH / "google.json"
 if GOOGLE_SRC.is_file():
     import google_registry
@@ -616,11 +616,11 @@ if LIVE_SRC.is_file():
     live = json.loads(LIVE_SRC.read_text(encoding="utf-8"))
     owned = {d["name"]: d for d in
              json.loads((paths.REGISTRY / "domains.json").read_text())["domains"]}
-                                                                               
-                                                                                 
-                                                                           
-                                                                         
-                 
+    # THE PREVIOUS ANSWER, so a host that was already dark keeps the day it was
+    # FIRST SEEN dark. The file is rewritten whole on every emit, so without this
+    # the estate can say a host is dark and never how long — which is the
+    # difference between an incident and a decision to stop publishing it
+    #.
     was_dark: dict[str, str] = {}
     try:
         for r in json.loads((paths.REGISTRY / "domain-liveness.json")
@@ -683,15 +683,15 @@ if LIVE_SRC.is_file():
                  "It NEVER overwrites registry/domains.json: that file records what "
                  "the operator transcribed, this one what the network says today, and "
                  "a disagreement is named rather than resolved."),
-                                                                          
-                                                                                
-                              
+        # This file carried NO provenance at all until 2026-09-06, and the
+        # validator never loaded it, so neither its claims nor their source were
+        # checked by anything.
         "source_refs": ["SRC-0011"],
-                                                                                  
-                                                                             
-                                                                                 
-                                                                               
-                                                                              
+        # A date: nothing downstream reads the instant (searched 2026-09-07 across
+        # dashboard/, mcp/, tools/ and survey.py — no reader), the per-host
+        # `checked_on` beside it is already a date, and at second resolution this
+        # one line guaranteed a diff on every domain scan even when no liveness
+        # answer had changed. `store/raw/domains_live.json` keeps the instant.
         "scanned_on": (live.get("scanned_at") or "")[:10],
         "verification": {"agreed": agree, "disagreed": len(differ),
                          "unverifiable": len(live.get("degraded", [])),

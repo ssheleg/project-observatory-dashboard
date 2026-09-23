@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                             
+"""Run the explicit, synthetic full-engine regression set in private sandboxes.
 
-                                                                               
-                                                                              
-                                                                              
-                                                                       
-   
+No test discovery, inherited credentials, original registry or operational data
+is used. Each suite gets a source copy and a fresh HOME/OBSERVATORY_HOME. JSON
+on stdout is the receipt; progress goes to stderr. Network-backed provider and
+external host acceptance tests are explicitly outside this offline set.
+"""
 from __future__ import annotations
 import argparse
 import concurrent.futures
@@ -65,7 +65,7 @@ NOT_RUN = (
 
 
 def copy_source(target: Path) -> None:
-    ""                                                                           
+    """Only code, reviewed defaults and exact fixture dependencies are copied."""
     selected = {ROOT / name for name in ROOT_FILES + SKILL_FILES}
     selected |= {ROOT / 'tests' / ('test_' + name + '.py') for name in SUITES}
     selected |= {ROOT / 'tests' / name for name in HELPERS}
@@ -92,8 +92,8 @@ def copy_source(target: Path) -> None:
 
 
 def runtime_environment() -> dict[str, str]:
-                                                                         
-                                                                           
+    # Hosted CPython builds can require their shared-library search path.
+    # Keep only loader configuration, never provider tokens or user config.
     return {name: os.environ[name] for name in
             ('LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH')
             if name in os.environ}

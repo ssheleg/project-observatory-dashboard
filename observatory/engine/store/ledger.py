@@ -87,20 +87,20 @@ def _check_owner(prior: sqlite3.Row | None, writer: str) -> None:
     if not writer or not writer.strip():
         raise OwnerRequired("a write must declare its owner; there is no default")
     if prior is None:
-                                                                                
-                                                                                   
-                                                                            
-                                                                               
-                                                                                 
-                                                                             
-                                                                                
-                                                                            
-               
-         
-                                                                             
-                                                                                 
-                                                                             
-                                              
+        # A BRAND-NEW record may not be operator-owned. The operator's authority
+        # is exercised OVER existing records — promote, reject, tombstone, all of
+        # which reach here through `transition()` with a prior — and never
+        # asserted by inventing one. Minting a fresh operator-owned row is what
+        # forgery looks like: `owner == "operator"` buys permanent exemption from
+        # retention (`store/retention.json: owner_exempt`), immunity from any
+        # other writer's supersession (below), and no confidence discount. Three
+        # privileges, previously available to any caller willing to type the
+        # word.
+        #
+        # `tools/review.py` already refuses to mint this from a script — it
+        # requires a terminal, on the stated grounds that otherwise anything with
+        # shell access could forge it. This is the same rule at the canonical
+        # write path, where every door passes.
         if writer == OPERATOR:
             raise OwnerRefused(
                 "a new record may not be created as `operator`. The operator's authority "
@@ -186,16 +186,16 @@ def append(
     function: str = "episodic",
     scope: str = "project",
     state: str = "proposed",
-                                                                          
-                                                                                 
-                                                                              
-                                                                            
-                                                                              
-                                                                              
-                                                                              
-                                                                               
-                                                                              
-                                                              
+    #: The writer's note about the RECORD — why it was written, or why a
+    #: revision changed it — as against `statement`, which is the claim itself.
+    #: It had no stated meaning at all, and a field with none collects a third
+    #: use: measured 2026-09-07, the observer writes a revision note into it
+    #: ("confidence corrected: an automated writer may not assert certainty"),
+    #: `tools/record_lost_projects.py` writes why the record is worth keeping,
+    #: and the companion writes nothing because its statement IS the fact. The
+    #: first two fit the definition above; the third is an absence, not a third
+    #: use. Indexed in FTS beside `statement`, so what goes here is
+    #: searchable and a placeholder would pollute every query.
     why: str | None = None,
     confidence: float | None = None,
     classification: str = "project-internal",
@@ -216,27 +216,27 @@ def append(
         raise LedgerError(f"unknown scope {scope!r}; expected one of {SCOPES}")
     if confidence is not None and not (0 < confidence <= 1):
         raise LedgerError("confidence must be in (0, 1]")
-                                                                               
-                                                                             
-                                                                             
-                                                                               
-                                                                              
-                                                                                 
-                                                                               
-                                  
-     
-                                                                               
-                                                                           
-                                                          
-                                                                             
-                                                                  
-                                                                                
-                                                                          
-                                                                               
-                                                                            
-                                                                             
-                                                                               
-                                       
+    # BOUNDED, and structurally — here rather than at each call site, for the
+    # same reason `owner_exempt` is inlined into retention's SQL: an optional
+    # guard is one that is eventually forgotten. Measured 2026-09-07 over the
+    # live ledger: 139 rows, median statement 191 characters, p95 380, MAX 406.
+    # And `observatory_record` accepted a two-million-character statement over
+    # the wire without complaint — a store the size of an agent's patience, and
+    # a row no index can carry: the embedding request would fail for ever while
+    # the outbox kept retrying it.
+    #
+    # 4000 is ten times the observed maximum. A statement is "the minimal claim
+    # or episode", per the wire's own field description — a transcript is
+    # evidence, and evidence is LINKED rather than stored.
+    # A RECORD WITH NO CONTENT IS NOT A RECORD. Measured 2026-09-07: an empty
+    # statement was accepted and stored as `''`. The wire declares
+    # `min_length=1`, so it could not arrive that way — but `agent/observe.py`
+    # appends `parsed.interpretation` straight from the model, and a model
+    # answering `worth_recording: true` with an empty interpretation would have
+    # put a blank conclusion in the queue for an operator to adjudicate. The
+    # indexer would then skip it as "tombstoned or empty" and the review list
+    # would show a blank line. Structural, for the same reason as MAX_TEXT: the
+    # wire's guard protects one caller.
     if not (statement or "").strip():
         raise LedgerError(
             "a record must carry a statement. An empty conclusion cannot be "
@@ -467,12 +467,12 @@ def live(conn: sqlite3.Connection, project_id: str | None = None,
         args.append(project_id)
     sql += f" AND l.state IN ({','.join('?' * len(states))})"
     args += list(states)
-                                                                     
-                                                                             
-                                                                             
-                                                                           
-                                                                                
-                                                                    
+    # The cursor's key is the PAIR `(created_at, memory_id)`, because
+    # `created_at` is second-resolution and therefore not unique: two records
+    # written in the same second would make a cursor over the timestamp alone
+    # ambiguous, skipping one or repeating it. The same non-uniqueness cost
+    # `compute_deltas.latest_two` a random ordering until `rowid` was added as a
+    # tiebreak. `memory_id` is unique, so the pair is a total order.
     if cursor:
         at, _, mid = cursor.partition("|")
         sql += " AND (l.created_at, l.memory_id) < (?, ?)"

@@ -269,7 +269,7 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
         database = source / "store/observatory.db"
         if database.exists():
             backup_database(database, stage / "store/observatory.db")
-                                                                                
+        # Copy installation-specific curation into PRIVATE config, never source.
         import ast
         def parse_curation(file):
             try:

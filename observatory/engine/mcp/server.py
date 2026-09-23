@@ -93,14 +93,14 @@ def _scope_error(kind: str, value: str | None) -> dict[str, Any] | None:
     return None
 
 
-                                                                            
-                                                                                 
-                                                                               
-                                   
-                                                                             
-                                                                        
-                                                                       
-                   
+#: An identity a caller may claim over this wire. POSITIVE, not a blacklist:
+#: a blacklist of `operator` lets "Operator", "operator " and "OPERATOR" through,
+#: and a row that merely LOOKS operator-owned to a person reading the ledger is
+#: the same forgery one layer down.
+# The local part allows upper case: refusing a legitimate `agent:Claude-Code`
+# is a worse failure than accepting a confusingly-named but UNPRIVILEGED
+# identity, since nothing inside the namespace can reach the operator's
+# three privileges.
 CALLER_ID = re.compile(r"^(agent|service):[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
 
 
@@ -193,11 +193,11 @@ def observatory_status(
     bad = _scope_error(kind, value)
     if bad:
         return bad
-                                                                            
-                                                                                
-                                                                                
-                                                                                   
-                                              
+    # THE CONTRACT'S SHAPE FIRST. `scope` is what the published input schema
+    # declares; `kind`/`value` are the flat spelling this tool has always taken.
+    # Until 2026-09-08 only the flat one existed, so a host sending the declared
+    # object had it IGNORED and received the whole estate — 152 projects where it
+    # asked for one, with no error.
     if isinstance(scope, dict) and scope.get("kind"):
         kind, value = scope["kind"], scope.get("value")
     return survey_mod.survey(_scope(kind, value), include_external=includeExternal,
@@ -312,12 +312,12 @@ def observatory_recall(
                 "contested": [], "note": "the store could not be opened",
                 "degraded": [{"source": "store", "reason": f"unavailable: {exc}"}]}
     try:
-                                                                                
-                                                                            
-                                                                               
-                                                                                
-                                                                             
-                                                   
+        # ONE MORE than asked for, and the extra is the signal. Deciding whether
+        # a further page exists by comparing `total` to the page size cannot
+        # work once a cursor is in play — the caller's position is not in the
+        # answer — and my first attempt peeked with a second connection opened
+        # inside a condition and never closed. Over-fetching by one is exact,
+        # needs no second query, and leaks nothing.
         fetched = L.live(conn, project_id=projectId, limit=limit + 1, cursor=cursor)
         rows, more = fetched[:limit], len(fetched) > limit
         total = L.live_count(conn, project_id=projectId)
@@ -489,13 +489,13 @@ def observatory_propose(
     bad = _owner_error(owner)
     if bad:
         return bad
-                                                                           
-                                                                       
-                                                                                 
-                                                                             
-                                                                             
-                                                                                 
-                                                    
+    # REFUSED AT THE WIRE, not only at the decision. Measured 2026-09-07: a
+    # proposal naming `project:also-not-real`, one patching the DERIVED
+    # `activity_tier` along with the record's own `id` and `source_refs`, and one
+    # with no evidence at all were each answered "proposed" — a receipt for
+    # something no decision could ever apply. `proposals.refusal` derives the
+    # appliable set from the curation files an accepted proposal lands in, so the
+    # wire and the decider cannot disagree about it.
     why = proposals.refusal(targetId, patch, evidence or [])
     if why:
         return {"error": "unappliable-proposal", "detail": why,
@@ -530,16 +530,16 @@ def observatory_propose(
         conn.close()
 
 
-                                                                                                                                                                                                                
-                                                                               
-                                                                              
-                                                                               
-                                                                               
-                                                                             
-                                                                          
-                                                                             
-                                                                         
-                                                             
+# ─────────────────────────── resources ──────────────────────────────────────
+# WHY RESOURCES AND NOT A NEW CAPABILITY. The pinned Fabric contract defines no
+# rendering capability, no resource concept and no pagination, so inventing an
+# `estate.render` capability would be inventing contract surface — and a host
+# compiling this manifest would find a capability the contract cannot describe.
+# What the MCP protocol DOES define is resources with URI templates, which is
+# exactly the addressable per-subject shape a renderer needs: one URI, one
+# subject, a declared media type. `fabric/FABRIC-CONFORMANCE.md` records that
+# these are protocol surface and NOT part of the pinned contract, because
+# implying contract coverage would be the more expensive lie.
 
 @server.resource("observatory://estate", mime_type="application/json",
                  title="The whole estate",

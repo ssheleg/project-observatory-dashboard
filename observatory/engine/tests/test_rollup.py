@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-""                                                          
+"""An aggregate that outlives the rows it was computed from.
 
-                                                                                  
-                                                                                
-                                                                              
-       
+Every statistic here was a `sum(1 for …)` over the current registry, so the only
+time series was the raw commit stream — 365 days by `store/retention.json` —
+and the day a week aged out, "was this project active in Q1" stopped having an
+answer.
 
-                                                                             
-                                                                                
-                                                                                
-                                                          
+The obvious implementation of a rollup makes that worse rather than better: a
+recompute that runs after the raw events are pruned reads no events, finds zero,
+and **overwrites the measurement with a zero**. The table would then destroy the
+history it exists to preserve, and nothing would say when.
 
-                                                                                 
-                                                                                 
-   
+So the freeze rule is the design, and the last test here is the one that matters:
+delete the events entirely and assert the aggregate is still exactly what it was.
+"""
 from __future__ import annotations
 import pathlib, sqlite3, sys
 from datetime import date, timedelta
@@ -35,16 +35,16 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def fixture() -> sqlite3.Connection:
-    ""                                                   
+    """The REAL `project_week`, read out of `schema.sql`.
 
-                                                                              
-                                                                               
-                                                                             
-                                                                                  
-                                                                           
-                                                                              
-                                                                             
-       
+    It used to be hand-written here, and the divergence arrived the moment the
+    table gained a column: `sessions`, `session_days` and `worked_days` existed
+    in the store and not in this fixture, so `refresh` would have failed here
+    while working in production — a fixture narrower than the repository tests a
+    repository that cannot exist. `events` stays hand-written on
+    purpose: the real one carries `UNIQUE(kind, ref)` and several indexes this
+    file has no use for, and it is an INPUT rather than the thing under test.
+    """
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.executescript("""
@@ -67,9 +67,9 @@ def add(conn, pid: str, day: str, n: int, actor: str = "a") -> None:
 
 
 def test_the_week_key_is_iso_not_sqlites_idea_of_one() -> None:
-    ""                                                                           
-                                                                                  
-                                                          
+    """1 January 2027 is a Friday and belongs to ISO week 2026-W53. SQLite's `%W`
+    counts from the first Monday of the calendar year and answers otherwise — at
+    exactly the boundary where a yearly report is read."""
     week, monday = rollup.week_of("2027-01-01T12:00:00Z")
     check("2027-01-01 falls in 2026-W53", week == "2026-W53", week)
     check("and its Monday is 2026-12-28", monday == "2026-12-28", monday)
@@ -106,10 +106,10 @@ def test_refreshing_twice_changes_nothing() -> None:
 
 
 def test_a_partly_covered_week_is_not_written_at_all() -> None:
-    ""                                                                            
+    """A partial count understates without saying so. No row beats a wrong one."""
     conn = fixture()
     add(conn, "project:x", "2026-09-02", 5)
-                                                                               
+    # A window whose start lands INSIDE that week: today - 3 days = 2026-09-04.
     stats = rollup.refresh(conn, today=date(2026, 9, 7))
     n = conn.execute("SELECT COUNT(*) FROM project_week").fetchone()[0]
     check("with a wide window the week is written", n == 1, str(n))
@@ -118,7 +118,7 @@ def test_a_partly_covered_week_is_not_written_at_all() -> None:
 
 
 def test_the_aggregate_OUTLIVES_its_events() -> None:
-    ""                                   
+    """The test this table exists for."""
     conn = fixture()
     old_day = "2025-09-15"                                                 
     add(conn, "project:x", old_day, 7)
@@ -149,7 +149,7 @@ def test_the_aggregate_OUTLIVES_its_events() -> None:
 
 
 def test_a_frozen_row_is_never_rewritten_even_with_events_present() -> None:
-    ""                                                                 
+    """Freezing is not 'stop looking'; it is 'this answer is final'."""
     conn = fixture()
     add(conn, "project:x", "2025-09-15", 7)
     rollup.refresh(conn, today=date(2026, 9, 7))

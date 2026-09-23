@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-""                                                                     
+"""One instant, one spelling — and the orderings that depended on it.
 
-                                                                        
-                                                                              
-                                                                            
-                                                                            
-                                        
+`events.occurred_at` is TEXT, and every question asked of it is a string
+comparison: `survey.timeline` orders and windows with it, `store/retention.py`
+prunes with it. Until 2026-09-06, 8,249 of 9,013 rows carried a local offset
+because `collectors/scan_events.py` stored git's `%cI` verbatim, while every
+other writer in the store wrote UTC `Z`.
 
-                                                                            
-                                                                            
-                                                                             
-              
-   
+That is not a formatting preference. In lexicographic order `+` (0x2B) comes
+before `-` (0x2D) comes before `Z` (0x5A), so one instant written three ways
+lands in three different places, and neither the sort nor the cutoff is about
+time any more.
+"""
 from __future__ import annotations
 import pathlib, sqlite3, sys, tempfile
 
@@ -33,12 +33,12 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def fixture() -> sqlite3.Connection:
-    ""                                                                    
+    """The columns the REAL events table has that any migration may touch.
 
-                                                                              
-                                                                               
-                                                                                
-                                                                         
+    A two-column fixture passed until a second migration existed, then crashed
+    `migrate.apply()` on `project_id`. `apply()` runs inside `db.connect()` for
+    every store, so a fixture narrower than the schema tests a table that cannot
+    occur — and fails for a reason that says nothing about the code."""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE events (id TEXT PRIMARY KEY, project_id TEXT,"
@@ -65,7 +65,7 @@ def test_the_conversion_preserves_the_instant() -> None:
 
 
 def test_the_defect_it_exists_for() -> None:
-    ""                                                                        
+    """Four spellings of ONE instant must sort as one instant, not as four."""
     same = ["2026-09-06T23:30:00+02:00", "2026-09-06T16:30:00-05:00",
             "2026-09-07T00:30:00+03:00", "2026-09-06T21:30:00Z"]
     check("before: the same instant sorts to four different places",
@@ -126,7 +126,7 @@ def test_a_new_migration_is_applied_once_and_recorded() -> None:
 
 
 def test_the_live_store_holds_one_spelling() -> None:
-    ""                                                                              
+    """The property, measured on the real store — not on a fixture that agrees."""
     if not paths.DB.exists():
         print("  SKIP  no store on this machine")
         return

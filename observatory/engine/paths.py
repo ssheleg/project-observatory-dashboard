@@ -48,12 +48,12 @@ DB = setting_path("OBSERVATORY_DB", STORE / "observatory.db")
 def tighten() -> list[str]:
     """The store's own directories 700, its journals and database 600.
 
-                                                                               
-                                                                               
-                                                                               
-                                                                                
-                                                                         
-                                                                        
+    Everything under `store/` that is not tracked configuration is a map of the
+    estate — the ledger, the env fingerprints, which secret which command ran
+    with, who revealed what — and until 2026-09-14 the directory was 755, the
+    database 644 and every journal 644. None holds a value; all of it
+    says where the values are. One mode for the store, applied by whoever
+    writes it, so a fresh file cannot arrive looser than its neighbours.
 
     Returns what it changed, for the caller's log. Never raises: a chmod that
     fails is reported by the next run's check, not by a crash in the writer.

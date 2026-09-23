@@ -89,13 +89,13 @@ TOKEN_FILE = paths.STATE / ".keyserver-token"
                                                                              
 AUDIT = paths.STATE / "logs" / "keyserver.jsonl"
 HEADER = "X-Observatory-Token"
-                                                                             
-                                                                                
-                                                                             
-                                                                         
-                                                                                
-                                                                              
-                                                             
+#: WHO IS ASKING. The token says the caller is on this machine and read a 600
+#: file; it does not say which of the nine agent sessions on the machine it was.
+#: Measured 2026-09-14: 33 reveals of one variable between 00:27Z and 06:29Z,
+#: attributable only by correlating session files' mtimes. A caller names
+#: itself in this header — `page:<name>` from the dashboard, a session id from
+#: an agent — and a caller that does not is recorded as `unnamed`, which the
+#: board's `secret.reveal_burst` rule then counts against it.
 CALLER_HEADER = "X-Observatory-Caller"
 _CALLER: contextvars.ContextVar[str] = contextvars.ContextVar("caller", default="unnamed")
 
@@ -177,8 +177,8 @@ def audit(action: str, subject: str, detail: dict) -> None:
     row = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "action": action, "subject": subject,
            "caller": _CALLER.get(), "by": os.environ.get("USER", "unknown"), **detail}
-                                                                             
-                                                                            
+    # Free-text fields are not journalled. Scrub recognizable value shapes in
+    # labels too; a user can paste a credential into any textbox by mistake.
     value_shape = re.compile(r"sk-[A-Za-z0-9_-]{12,}|[A-Za-z0-9_+/=-]{40,}")
     encoded = value_shape.sub("[redacted]", json.dumps(row, ensure_ascii=False))
     fd = os.open(AUDIT, os.O_WRONLY | os.O_APPEND | os.O_CREAT |
@@ -240,9 +240,9 @@ def act_revoke(body: dict) -> dict:
     label = body.get("label") or body.get("name") or ""
     if not label:
         raise ValueError("a label is required")
-                                                                               
-                                                                        
-                                                       
+    # REFUSED FOR A KEY IN SERVICE — the door checks the scan's `serves`, and
+    # so did this file before it; the refusal stays here too so a button
+    # answers instantly, without a provider round-trip.
     scan = paths.SCRATCH / "openrouter.json"
     if scan.is_file():
         for kk in json.loads(scan.read_text(encoding="utf-8")).get("keys", []):
@@ -463,8 +463,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return True
 
     def _authorised(self) -> bool:
-                                                                             
-                                                                        
+        # `compare_digest`, not `!=`: on a loopback socket the timing leak is
+        # academic, and the one-line habit is cheaper than the argument.
         given = self.headers.get(HEADER) or ""
         if (len(self.headers.get_all(HEADER, [])) != 1
                 or not hmac.compare_digest(given.encode(), str(self.server.token).encode())):
@@ -606,7 +606,7 @@ class Server(socketserver.TCPServer):
             raise ValueError("keyserver requires a nonempty token")
         if addr[0] == "::1":
             self.address_family = socket.AF_INET6
-                                                                             
+        # A stalled browser must not hold this single-process server forever.
         super().__init__(addr, handler)
         self.token = tok
 

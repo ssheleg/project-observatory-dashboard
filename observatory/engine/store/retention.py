@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                             
+"""What leaves the store, and the audit trail it leaves behind.
 
                                                                                 
                                                                                  
@@ -7,23 +7,23 @@
                                                                                
                                                      
 
-                                                                          
-                          
+Two guards are structural rather than configurable, because each is a rule
+something else depends on:
 
-                                                                               
-                                                                         
-                       
-                                                                          
-                                                                            
+* **Operator rows are exempt under every state and every age.** The guard lives
+  in the SQL, not in a caller's flag — an optional guard is one that is
+  eventually forgotten.
+* **`superseded` is never pruned.** It is what a correction's `supersedes`
+  points at, and dropping it turns an audit chain into a dangling reference.
 
-                                                                              
-                                                                             
+**WHAT A TOMBSTONE REMOVES, AND WHAT IT KEEPS.** Stated here because it is the
+one thing a reader will act on, and measured 2026-09-07 rather than reasoned:
 
-                                                                                   
-                                       
-                                       
-                                       
-                                                                           
+    canon (the `ledger` table)     KEPT      — deliberately; the row IS the trail
+    `ledger.live()`, the read path gone
+    the lexical index              gone
+    the vector index               gone
+    `registry/ledger.jsonl`        KEPT      — and that file is COMMITTED
 
                                                                                 
                                                                               
@@ -31,15 +31,15 @@
                                                                                 
                                           
 
-                                                                            
-                                                                        
-                                                                               
-                                                                             
-                                    
+If text must be unrecoverable rather than unreadable, a tombstone is not the
+mechanism and this project deliberately does not have one: revisions are
+immutable, so nothing here may rewrite one, and the audit trail was chosen over
+forgetting. `registry/ledger.jsonl`'s own header says the same thing, because
+that is the file somebody will read.
 
-                                                                        
-                                                                         
-   
+    python3 store/retention.py plan     # what WOULD go. Writes nothing.
+    python3 store/retention.py apply    # do it, and collect the receipts
+"""
 from __future__ import annotations
 import argparse, json, sqlite3, sys, pathlib
 from datetime import datetime, timedelta, timezone
@@ -83,22 +83,22 @@ def exempt_owners() -> tuple[str, ...]:
 
 
 def days_left(owner: str, state: str, created_at: str) -> int | None:
-    ""                                                                       
+    """Days until retention would erase this row, or `None` if it never will.
 
-                                                                            
-                                                                         
-                                                                          
-                                                                                 
-                                                                               
-                                                                        
-                                                                                   
-              
+    **ONE HOME, because there were three readers and one applied the rule.**
+    `ledger_candidates` below inlines `owner_exempt` into every query —
+    structurally, so a caller cannot forget it. `tools/review.py` computed
+    `horizon - age` for every row and consulted no exemption; the `soon` query in
+    `tools/build_findings.py` did the same. So a row retention will never touch
+    was shown with a countdown and could be announced as "will be erased
+    unreviewed within 14 days" — a deadline on the operator's attention that does
+    not exist.
 
-                                                                           
-                                                                                
-                                                                        
-               
-       
+    Latent rather than live when this was written: `owner_exempt` held only
+    `operator`, and no operator row was `proposed` on 2026-09-08. It stops being
+    latent the moment a second owner is exempt, which is the same change
+.
+    """
     if owner in exempt_owners() or state in never_states():
         return None
     cfg = config()["ledger"]
@@ -117,8 +117,8 @@ def days_left(owner: str, state: str, created_at: str) -> int | None:
 
 
 def ledger_candidates(conn: sqlite3.Connection) -> list[dict]:
-    ""                                                                          
-                                                                   
+    """Current revisions eligible for a tombstone. Never operator-owned, never a
+    state the config protects, and never one already tombstoned."""
     cfg = config()["ledger"]
     ages = {"proposed": cfg["proposed_days"], "observed": cfg["observed_days"],
             "rejected": cfg["rejected_days"]}
@@ -193,14 +193,14 @@ NOT_A_PROJECTION = {
 
 
 def projection_tables(conn: sqlite3.Connection) -> list[str]:
-    ""                                                                       
-                                                                               
+    """Every table holding a `(memory_id, revision)` pair, minus the declared
+    exemptions. Derived, so a projection added tomorrow is attested by default.
 
-                                                                               
-                                                                                
-                                                                               
-                   
-       
+    A table SQLite cannot describe is returned anyway: `purge_projections` then
+    records it as `absent` or `UNVERIFIABLE` with the error, which is the honest
+    reading. Dropping it here would make an unreadable index look like one that
+    does not exist.
+    """
     out = []
     for (name,) in conn.execute(
             "SELECT name FROM sqlite_master WHERE type IN ('table','view')"):
@@ -216,21 +216,21 @@ def projection_tables(conn: sqlite3.Connection) -> list[str]:
 
 
 def scrub(conn: sqlite3.Connection) -> dict:
-    ""                                                                          
+    """Make the deleted bytes actually leave the file, and say whether they did.
 
-                                                                            
-                                                                           
-                                                                           
-                                                                                 
-                         
+    `secure_delete=ON` (store/db.py) zeroes content as rows are deleted from
+    here on. It cannot reach pages freed before it existed, and it does not
+    compact the file, so a purge that removed anything is followed by a WAL
+    checkpoint and a VACUUM — the two operations that leave nothing recoverable
+    from the file itself.
 
-                                                                            
-                                                                              
-                                                                                 
-                                                                            
-                                                                           
-                         
-       
+    VACUUM needs the database to itself and cannot run inside a transaction.
+    Another writer — the companion plugin appends a ledger row at the end of
+    every turn — makes it fail with `database is locked`, and that failure must
+    be REPORTED rather than swallowed: "the bytes are gone" and "I could not
+    check whether the bytes are gone" are the two answers this whole module
+    exists to keep apart.
+    """
     try:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         # Outside any transaction, hence the isolation_level dance: sqlite3
@@ -254,23 +254,23 @@ def scrub(conn: sqlite3.Connection) -> dict:
 
 
 def purge_projections(conn: sqlite3.Connection) -> dict:
-    ""                                                                          
+    """Remove EVERY tombstoned revision from every derived index, and attest it.
 
-                                                                             
-                                                                              
-                                                                            
-                                                                                  
-                                                                                
-                                                   
+    The contract blocks completion until every configured backend attests the
+    purge, and "every" is load-bearing: the first version purged only the rows
+    tombstoned in the same pass, so a row that returned to an index after an
+    earlier retention — a rebuild against a stale checkpoint would do it — was
+    never checked again and `apply` reported success over an incomplete erasure.
+    Found by a test that put one back deliberately.
 
-                                                                              
-                                                               
-       
-                                                                               
-                                                                               
-                                                                               
-                                                                               
-                                               
+    "Attest" means: count, delete, count again, and then ask the question that
+    actually matters — is anything tombstoned still in there?
+    """
+    # Load the extension FIRST. Without it `vec_notes` answers "no such module:
+    # vec0" and the receipt read `absent` — so a tombstoned vector could have
+    # survived while retention reported nothing to clean. That is a silent hole
+    # in the one guarantee this function exists to give, and it shipped for one
+    # tick before the receipt itself showed it.
     have_vec = indexer.load_vec(conn)
     pairs = [(r["memory_id"], r["revision"]) for r in
              conn.execute("SELECT memory_id, revision FROM tombstones")]
@@ -334,14 +334,14 @@ def purge_projections(conn: sqlite3.Connection) -> dict:
 
 
 def report(**fields) -> None:
-    ""                                                             
+    """Write the receipt where a reader can find it, on every path.
 
-                                                                               
-                                                                               
-                                                                          
-                                                                                
-                                          
-       
+    A helper called unconditionally rather than a write at the end of the happy
+    path: the five times a writer sat after an early return in this repository,
+    the measurement existed and nobody could read it. Failing to write the
+    receipt is itself reported — silently losing the audit trail of an erasure
+    would be the same defect one level up.
+    """
     doc = {"ran_at": iso(), **fields}
     try:
         paths.SCRATCH.mkdir(parents=True, exist_ok=True)
@@ -383,12 +383,12 @@ def cmd_plan(conn: sqlite3.Connection) -> int:
 def cmd_apply(conn: sqlite3.Connection) -> int:
     cands = ledger_candidates(conn)
     cfg = config()
-                                                                          
-                                                                         
-                                                                                
-                                                                              
-                                                                                
-                                                                           
+    # THROUGH `ledger.tombstone`, not around it. This loop wrote the trail
+    # itself, with its own one-row-per-candidate rule, so the record-wide
+    # expansion added there on 2026-09-07 would have applied to the MCP door and
+    # not to the scheduled one — the door that erases almost everything. Two
+    # writers of one trail with different units is the shape this repository has
+    # now paid for twice; the rule lives with the ledger and this calls it.
     records = 0
     tombstoned = 0
     for c in cands:
@@ -430,9 +430,9 @@ def cmd_apply(conn: sqlite3.Connection) -> int:
             (cutoff(cfg.get("metrics_days", 400)),
              cfg.get("metrics_keep_per_series", 2))).rowcount
 
-                                                                            
-                                                                         
-                      
+    # THE BYTES, after the rows. Only when something was actually removed: a
+    # VACUUM on every tick would rewrite 23 MB forty-eight times a day to
+    # compact nothing.
     removed_any = tombstoned or ev or ob or dl or mt or any(
         r.get("removed") for r in receipts.values())
     scrubbing = (scrub(conn) if removed_any else
@@ -461,12 +461,12 @@ def cmd_apply(conn: sqlite3.Connection) -> int:
     else:
         print("projection purge: no index is present to purge")
 
-                                                                            
-                                                                                
-                                                                               
-                                                                              
-                                                                              
-                                   
+    # BOTH VERDICTS OUTSIDE THE CONDITIONAL. The byte check lived inside the
+    # branch above for one edit, which is the early-return class this repository
+    # has now paid for six times: a store with no index at all took the `else`,
+    # printed "nothing to purge" and returned 0 while the scrub had failed. An
+    # erasure is complete when the rows are gone from every index AND the file
+    # holds none of what they said.
     if scrubbing["scrubbed"] is False:
         print(f"\nTHE BYTES WERE NOT SCRUBBED — {scrubbing['detail']}",
               file=sys.stderr)
@@ -491,17 +491,17 @@ def main() -> int:
         try:
             return cmd_apply(conn)
         except sqlite3.Error as exc:
-                                                                              
-                                                                             
-                                                                               
-                                                                                
-                                                                               
-                                                                           
-                                                                     
-             
-                                                                                
-                                                                                
-                                          
+            # A CONCURRENT WRITER, and the receipt must exist ANYWAY. Measured
+            # 2026-09-07 by holding `BEGIN EXCLUSIVE` on a second connection:
+            # the tombstone insert raised `database is locked` and the run died
+            # with a traceback before writing anything — so the one path where
+            # the audit trail matters most was the one path that produced none.
+            # `busy_timeout` is 30 seconds and absorbs the companion hook's
+            # single row; a longer holder is what this branch is for.
+            #
+            # The exit code stays non-zero, so `tick.sh`'s `step` records it and
+            # `tick.step_failed` grades retention critical. What changes is that
+            # the reason survives the run.
             report(tombstoned=0, events=0, observations=0, deltas=0, receipts={},
                    scrub={"scrubbed": False,
                           "detail": f"the pass did not complete: "

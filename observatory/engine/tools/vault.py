@@ -67,20 +67,20 @@ GATEWAY = paths.source_path("gateway_root", paths.HOME / "disabled/gateway")
 STORE = pathlib.Path(os.environ.get("OBSERVATORY_VAULT_DIR",
                                     paths.source_path("secret_store", paths.SECRETS) / "projects"))
 LEAKS = STORE / "leaks.jsonl"
-                                                                       
-                                                                            
-                                                                             
-                                                                          
-                                                                          
-                                                                         
-                                                                  
+#: EVERY MOVEMENT OF EVERY KEY, append-only, names and places only. The
+#: operator's rule (2026-09-14): whether an agent issues, rotates, delivers,
+#: revokes or settles a key — through these tools, through a provider's CLI
+#: (`heroku config:set`, `doctl`), through a dashboard — the movement is
+#: recorded in the same turn. The tools here write it themselves; anything
+#: done outside them is recorded with `vault.py moved`. A rotation nobody
+#: recorded looks exactly like one that never happened.
 MOVES = STORE / "movements.jsonl"
 ENVS = ("local", "stage", "prod")
 BACKUP = GATEWAY / "backup-secrets.sh"
 
 
 class VaultBoundaryError(ValueError):
-    ""                                                                         
+    """Safe static diagnostics, never interpolated secret or request values."""
 
 
 def die(msg: str) -> None:
@@ -304,8 +304,8 @@ def _leak_rows() -> list[dict]:
 
 
 def journal(event: str, secret: str, **detail) -> None:
-    ""                                                                        
-                                                 
+    """One movement, on the record. Never a value: callers pass names, places,
+    providers, and the `how` of what they did."""
     assert "value" not in detail, "a value never enters the journal"
     row = {"at": now(), "event": event, "secret": secret,
            "by": os.environ.get("USER", "unknown"),
@@ -447,13 +447,13 @@ def cmd_leak(a) -> int:
 
 
 def open_leaks() -> list[dict]:
-    ""                                                                      
+    """Every leak row not yet settled — the register's one public reading.
 
-                                                                           
-                                                                             
-                                                                              
-                                                                          
-       
+    A function rather than a convention, because two readers (the board and
+    `tools/cloudflare.py rotate --leaked`) were about to parse the JSONL with
+    their own copies of the settled-set logic, and two copies of "is this leak
+    still open" WILL disagree the day the format grows a field.
+    """
     rows = _leak_rows()
     settled_of = leak_register.settled_ids(rows)
     return [r for r in rows if r.get("event") == "leaked"
@@ -520,7 +520,7 @@ def cmd_list(a) -> int:
 
 @_serialized
 def cmd_inject(a) -> int:
-    ""                                                                      
+    """Write the project's .env; the agent works with NAMES from here on."""
     validate_names(a.project, a.env)
     target_dir = pathlib.Path(a.dir).expanduser().absolute()
     _no_symlinks(target_dir)

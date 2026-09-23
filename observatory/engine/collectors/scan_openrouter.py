@@ -215,8 +215,8 @@ def main(argv: list[str]) -> int:
         "hashes": {(k.get("label") or ""): k.get("hash") for k in rows},
         "keys": keys,
         "destinations": dests,
-                                                                              
-                                                                                
+        # THE PATHS TOO, because where a key file LIVES is how it is tied to a
+        # project: `store/.openrouter-key` sits inside the observatory's folder.
         "destination_paths": {n: str(p) for n, p in DESTINATIONS.items() if p.is_file()},
         "unlisted_destinations": orphan_dests,
         "degraded": degraded,

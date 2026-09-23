@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-""                                                                     
+"""Every zone in every Cloudflare account the estate holds a token for.
 
-                                                      
+    scan_cloudflare.py store/raw/cloudflare_zones.json
 
-                                                                           
-                                                                           
-                                                                                
-                                                                             
-                                                                      
-                                                              
+WHY A COLLECTOR AND NOT THE PLUGIN. `plugins/cloudflare_analytics.py` reads
+traffic and drops what it cannot attribute; this reads POSSESSION — which
+zones exist, in which account, on which plan, registered where — and keeps all
+of it, because "what do we own" is a registry question before it is a traffic
+one. Measured 2026-09-13: 89 zones across three accounts, of which the
+transcribed domain registry knew 53 and no project claimed 79.
 
-                                                                             
-                                                                           
-                                                                               
-                                             
-   
+Tokens come from the same place the plugin reads (`cloudflare-analytics.d/`),
+issued by `tools/cloudflare.py`; this collector never holds an admin token.
+One account failing is reported in `degraded` and the others still land — the
+rule every collector here follows.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -33,7 +33,7 @@ def now() -> str:
 
 
 def zone_rows(token: str, account_label: str) -> list[dict]:
-    ""                                                                  
+    """Every zone the token sees, with the fields a registry can use."""
     out, page = [], 1
     while True:
         d = cf._call(f"/zones?per_page=50&page={page}", token)
@@ -60,12 +60,12 @@ def zone_rows(token: str, account_label: str) -> list[dict]:
 
 
 def dns_records(token: str, zone_id: str) -> list[dict]:
-    ""                                                                     
+    """A, AAAA and CNAME records — where the zone's names actually point.
 
-                                                                               
-                                                                                
-                                                       
-       
+    Needs `DNS Read` on the token; a token issued before that joined the preset
+    answers 403 here, which is reported as an empty list plus a note rather than
+    a dead zone, because the zone itself was read fine.
+    """
     try:
         d = cf._call(f"/zones/{zone_id}/dns_records?per_page=200&type=A,AAAA,CNAME", token)
     except RuntimeError as exc:

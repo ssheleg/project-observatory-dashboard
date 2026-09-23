@@ -50,9 +50,9 @@ def sandbox(manifest: dict, script: str) -> tuple[pathlib.Path, pathlib.Path]:
 def run(plugins: pathlib.Path, db: pathlib.Path, *args: str) -> str:
     p = subprocess.run([PY, "collectors/run_plugins.py", "--force", *args], cwd=ROOT,
                        capture_output=True, text=True, timeout=300,
-                                                                             
-                                                                       
-                                                                     
+                       # The scratch dir too: the runner writes its report to
+                       # `plugins.json` there, and the live one is what
+                       # `build_findings` reads.
                        env={**os.environ, "OBSERVATORY_PLUGINS": str(plugins),
                             "OBSERVATORY_DB": str(db),
                             "OBSERVATORY_SCRATCH": str(db.parent)})
@@ -160,13 +160,13 @@ def test_a_manifest_declaring_no_metrics_is_refused_outright() -> None:
 
 
 def test_the_seam_needs_no_core_file() -> None:
-    ""                                                              
-                                                                      
-                                                                               
-                                                                                 
-                                                                              
-                                                                         
-                                     
+    """The claim the whole iteration rests on, stated as a check."""
+    # ONE READER, in one place, and it is the right one for THIS rule.
+    # `tests/source_reader.py` documents why neither of the other two fits: one
+    # blanks string literals and would miss `WHERE metric = 'disk.bytes'` — the
+    # exact defect `tools/build_findings.py` shipped on 2026-09-07 — and the
+    # other keeps them and so flags a `//` comment inside the dashboard's
+    # embedded JavaScript.
     import source_reader
     code_only = source_reader.code_keeping_strings
 
@@ -178,12 +178,12 @@ def test_the_seam_needs_no_core_file() -> None:
               "disk-usage" not in src and "disk.bytes" not in src,
               "a core file naming a plugin is the six-file problem returning")
     manifest = json.loads((ROOT / "plugins/disk-usage.json").read_text(encoding="utf-8"))
-                                                                              
-                                                                       
-                                                                        
-                                                                           
-                                                                            
-                                            
+    # THE RULE, not a literal list. This demanded exactly `["disk.bytes"]`, so
+    # the plugin gaining the two metrics that answer "what do its extra
+    # checkouts cost" and "what would free the disk" failed a test about
+    # DECLARING metrics. What must hold is that every metric the
+    # runner will accept is declared with a meaning — the reference plugin
+    # having one metric was never the point.
     names = [x["name"] for x in manifest["metrics"]]
     check("the shipped plugin declares what it produces",
           names and all(n.startswith("disk.") for n in names), str(names))
@@ -201,10 +201,10 @@ def test_the_reference_plugin_measured_the_live_estate() -> None:
     conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
     n, total = conn.execute(
         "SELECT COUNT(*), SUM(value) FROM metrics WHERE metric='disk.bytes'").fetchone()
-                                                                                 
-                                                                                    
-                                                                              
-                                                                      
+    # THE ROWS, not the file. A store that does not exist is CREATED by the first
+    # read-write connect — sqlite makes the file and the migrations fill it — so
+    # "is there a store" is nearly always true and answers the wrong question.
+    # What an assertion needs is the rows it asserts about.
     if not live_estate.needs("plugin measurements in the store", (n or 0) > 0,
                              "the plugin contract and its degradations are driven "
                              "against fixtures earlier in this suite"):

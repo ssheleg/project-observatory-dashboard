@@ -58,14 +58,14 @@ VAULT = pathlib.Path(os.environ.get(
     paths.source_path("secret_store", paths.SECRETS) / 'projects'))
 AUDIT = paths.STATE / "logs" / "secret-use.jsonl"
 
-                                                                             
-                                                                               
-                                                                              
+#: Environments the vault knows, in the order a one-off command should prefer
+#: them. `local` first on purpose: a command an agent runs by hand should reach
+#: for the development credential, and reaching production takes `--env prod`.
 ENVS = ("local", "stage", "prod")
 
-                                                                               
-                                                                              
-                                  
+#: What the child prints is filtered in chunks, and a value can straddle two of
+#: them. The carry-over is the longest value we hold, so a split occurrence is
+#: still matched on the next pass.
 CHUNK = 65536
 
 
@@ -293,11 +293,11 @@ def cmd_run(args) -> int:
     return rc
 
 
-                                                                               
-                                                                           
-                                                                              
-                                                                                  
-                                                                             
+#: Programs that read their SOURCE from stdin. A secret piped into one of these
+#: is parsed as code, and the parser prints what it could not parse — the
+#: connection string, password included. Measured 2026-09-14 on the operator's
+#: own agent: `heroku config:get DATABASE_URL -a … | python3 - <<'PY'`; the pipe
+#: and the heredoc both fed stdin, the pipe won, SyntaxError quoted the line.
 STDIN_PROGRAMS = {("python", "-"), ("python3", "-"), ("node", "-"), ("sh", "-s"),
                   ("bash", "-s"), ("zsh", "-s"), ("ruby", "-"), ("perl", "-")}
 

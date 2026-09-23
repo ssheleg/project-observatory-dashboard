@@ -74,7 +74,7 @@ def requirements(text: str) -> set[str]:
     out: set[str] = set()
     for line in text.splitlines():
         line = line.split("#", 1)[0].strip()
-                                                                                  
+        # `-r other.txt`, `-e .`, `--index-url …`: directives, not dependencies.
         if not line or line.startswith("-"):
             continue
         name = re.split(r"[<>=!~\[; ]", line, 1)[0].strip()

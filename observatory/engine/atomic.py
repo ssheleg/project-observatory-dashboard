@@ -49,13 +49,13 @@ def write_json(path: str | os.PathLike, data: Any, *, indent: int = 1,
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=indent, ensure_ascii=ensure_ascii)
-                                                                            
-                                                                            
-                                                                               
-                                                                            
-                                                                       
-                                                                             
-                                                            
+            # A TRAILING NEWLINE, because these files are read in diffs. The
+            # registry emit used to append one and this function did not, so
+            # routing the emit through here rewrote the last line of
+            # six tracked documents with `\ No newline at end of file` — a
+            # whole-file churn in the operator's diff for a byte nobody
+            # intended to change. Every writer in the repository goes through
+            # this function, so the convention belongs here.
             fh.write("\n")
             fh.flush()
             # The rename is atomic; the CONTENT reaching the platter is not
@@ -65,19 +65,19 @@ def write_json(path: str | os.PathLike, data: Any, *, indent: int = 1,
         os.replace(tmp, dest)
         return dest
     except BaseException as exc:
-                                                                              
-                                                                        
+        # Including KeyboardInterrupt and SystemExit: a half-written temp file
+        # left in a scanned directory is litter the next run would glob.
         try:
             os.unlink(tmp)
         except OSError:
             pass
-                                                                               
-                                                                       
-                                                                                  
-                                                                               
-                                                                              
-                                                                             
-                                                                             
+        # A FULL DISK, NAMED. On 2026-09-07 at 06:39 the volume filled and four
+        # collectors died here in the same tick, each with a five-frame
+        # traceback ending in `[Errno 28] No space left on device` — so the tick
+        # reported four failed steps and the log held four stack traces for ONE
+        # cause. The failure is correct and stays; what was wrong was that the
+        # cheapest fact to state was the hardest one to find. Raising it as a
+        # sentence means every caller of this function inherits the sentence.
         if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
             free = shutil.disk_usage(dest.parent).free
             raise OSError(

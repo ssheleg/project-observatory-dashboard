@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-""                                                                               
+"""Is the documentation true? — as an exit code, not as a sentence in a report.
 
-                                                                                
-                                                                                
-                                                                                
-                                                                              
-                                                                                
-                                                                               
-    
+Fourteen drifts were found by an audit on 2026-09-06 and every one of them was a
+statement that had been true once. `README.md` said the LLM layer was "not built
+yet" while the agent had spent real money for three days; `observatory.py`'s own
+docstring documented a step that does not exist; `FABRIC-CONFORMANCE.md` sat a
+revision behind the manifest it certifies; and `fabric/probes/assertions.md` —
+published to any Fabric host that reads it — described three probes when four
+run.
 
-                                                                            
-                                                                            
-                                                                                
-                            
+Fixing fourteen sentences by hand is one afternoon. The class comes back the
+following week, because nothing measures it. So the fixes are what this file
+DEMANDS rather than what somebody remembered, and "the docs are in sync" becomes
+a command with an exit code.
 
-                                                                              
-                                                                              
-                                                                               
-                                                                              
-                                                                              
-                                                     
+Every rule is chosen because it is mechanically decidable, and `--list` is the
+one place they are enumerated. This docstring deliberately states no count and
+no list: it opened with "Five rules" and the numbered five while eleven ran —
+a drift inside the drift checker, and the one sentence here that nothing could
+measure, since rule 2 reads documents and rule 5 reads named phrases. Removing
+the number removes the class instead of the instance.
 
-                                                                               
-                                                                        
-                                                                               
-                                                                           
-                                                                       
+Rule 5 is the brittle one and it is deliberately narrow: each entry carries the
+measurement that killed the claim, so the next reader can tell a retired
+sentence from a typo. Rules 10 and 11 read their subject as TEXT rather than as
+imported objects, because both defects are invisible once Python has parsed
+them — a collapsed duplicate key, and a header that no code consults.
 
-                                                                  
-                                                                 
-   
+    check_docs.py            report and exit non-zero on any drift
+    check_docs.py --list     what is checked, without checking it
+"""
 from __future__ import annotations
 import argparse, json, pathlib, re, sys
 
@@ -50,17 +50,17 @@ RETIRED_CLAIMS = [
      "the `agent` step is in the table fifty lines below the sentence"),
     ("observatory.py", "No model participates in any of these",
      "`agent` and `index` both spend; the docstring contradicted its own table"),
-                                                                        
-                                                                           
-                                                                            
-                                                                       
-                                                                                 
-                                                                                
-                                                                    
-                                                                                
-                                                                                  
-                                                                                 
-                                                                 
+    # INVERTED on 2026-09-07, and the inversion is the point. This entry
+    # forbade saying claude-mem was read, on the ground that "no code reads
+    # claude-mem". `collectors/scan_sessions.py` now does (SRC-0012), so the
+    # justification expired and the rule became a stale claim about the
+    # codebase — a drift checker holding a rule whose reason has run out is the
+    # same defect it exists to catch, one level up. What is forbidden now is the
+    # opposite sentence: the one that says the collector is unbuilt.
+    # The document that argues for dated claims carried an undated one for a day
+    # after the code falsified it: the Heroku collector shipped in `a5a415a` while
+    # `docs/heroku-estate.md` still said wiring it in had not been done. Found by
+    # an audit, not by a rule — which is what this list is for.
     ("docs/heroku-estate.md", "it has not been done",
      "the collector shipped on 2026-09-09 in a5a415a: collectors/scan_heroku.py, "
      "the `heroku` step, registry/heroku-apps.json and four finding rules"),
@@ -114,41 +114,41 @@ TOP_LEVEL = {p.name for p in ROOT.iterdir()
 PATH_RX = re.compile(r"`([a-zA-Z0-9_./-]+\.(?:py|json|md|sql|sh|js|jsonl|yaml|css|html))`")
 
 
-                                                                                
-                                                                                 
-                                                                               
-                                                                                 
-  
-                                                                               
-                                                                                   
-                                                                              
-                                               
+#: A scale claim — "N projects across M repositories and K owners". The README
+#: carried one measured 2026-09-03 while the registry held 159/177/16, and it was
+#: STALE rather than dishonest: it dates its own claim, so a reader could tell.
+#: What would be dishonest is an UNDATED figure, which reads as current for ever.
+#:
+#: Currency is deliberately NOT demanded. The estate grows most days, so a rule
+#: requiring the figure to match would turn the gate red as a matter of routine —
+#: a chore rather than a check, and this repository already learned what a red
+#: nobody can clear does to a red that matters.
 SCALE_CLAIM_RX = re.compile(r"\*\*\d+ projects across \d+ repositories and \d+ owners\*\*")
 
 
 def scale_claim_failures(text: str, rel: str) -> list[str]:
-    ""                                                                       
+    """A scale claim must carry the date it was measured on. Empty when none.
 
-                                                                              
-                                                                          
-                                                                           
-                                                                             
-                                                                         
-                                                                            
-                                                                       
+    **SCOPE, stated because the docstring used to overreach it.** This matches
+    ONE sentence shape and is applied to three entry documents — README,
+    AGENTS.md, ARCHITECTURE. That is deliberate: those are where a newcomer
+    meets the estate's size and reads it as current. Docstrings deeper in the
+    tree carry dated receipts of past defects, and a rule firing on every
+    numeral in them would report hundreds of legitimate frozen measurements.
+    Widening this was considered and refused on that ground.
 
-                                                                         
-                                                                             
-                              
-       
+    Currency is NOT demanded — only the date. The counts move daily, so
+    requiring them to be current would turn every entry document into a chore
+    the next tick invalidates.
+    """
     if not SCALE_CLAIM_RX.search(text):
         return []
-                                                                            
-                                                                               
-                                                                               
-                                                                              
-                                                                               
-                                                                    
+    # BOTH FORMS, because the house writes the other one. This accepted only
+    # `measured on <date>`; every dated claim elsewhere in the repository reads
+    # `Measured 2026-09-07` — `store/retention.json`, a dozen docstrings, the
+    # decision log throughout. The README happens to use `Measured on`, so the
+    # rule passed by luck: rewrite that one sentence in the project's own style
+    # and a green check would have gone red over nothing.
     if re.search(r"[Mm]easured(?: on)? \d{4}-\d{2}-\d{2}", text):
         return []
     return [f"{rel} states a scale claim with no measurement date — an undated "
@@ -169,12 +169,12 @@ VACANT_RX = re.compile(r"\*\*Vacant ids:\*\*(.*)")
 
 
 def ledger_failures(path: pathlib.Path, prefix: str, rel: str) -> list[str]:
-    ""                                              
+    """One ledger's header against its own contents.
 
-                                                                                
-                                                                                
-                                                      
-       
+    Callable on a single file so the rule can be WATCHED failing against planted
+    defects (`tests/test_ledger_pointer.py`) instead of being trusted because it
+    is green over documents that happen to be correct.
+    """
     out: list[str] = []
     text = path.read_text(encoding="utf-8")
     minted = [int(m) for m in re.findall(rf"^#+ {prefix}-(\d+)\b", text, re.M)]
@@ -232,17 +232,17 @@ def ledger_failures(path: pathlib.Path, prefix: str, rel: str) -> list[str]:
 
 
 def shape_doc_failures() -> list[str]:
-    ""                                                            
+    """`docs/REGISTRY_SHAPE.md` against the registry it describes.
 
-                                                                           
-                                                                              
-                                                                        
+    Generated documents drift the moment nothing checks them — the lesson
+    `docs/AGENT_SYNC.md` already carries, with its `cfg=` stamp. This compares
+    the stamp in the header with the one the live registry produces now.
 
-                                                                                
-                                                                              
-                                                                            
-          
-       
+    The stamp hashes the SHAPE, not the data: the registry changes on every tick
+    and its shape almost never does, so hashing the data would make this stale
+    hourly. That is the same distinction rule 13 draws between a check and a
+    chore.
+    """
     doc = ROOT / "docs/REGISTRY_SHAPE.md"
     if not doc.is_file():
         return [f"docs/REGISTRY_SHAPE.md is missing — the registry calls itself "
@@ -268,19 +268,19 @@ def shape_doc_failures() -> list[str]:
 
 
 def conformance_doc_failures() -> list[str]:
-    ""                                                                  
+    """`fabric/FABRIC-CONFORMANCE.md` against the manifest it describes.
 
-                                                                                  
-                                                                                
-                                                                               
-                                                                                 
-                                                                             
-               
+    The document is what a Fabric HOST reads — a stranger who cannot ask — and
+    its first six lines were wrong. It named two capabilities where the manifest
+    declares four, while its own gate table said "all four capabilities" eleven
+    lines below: a host compiling the summary would have missed half the surface.
+    Measured 2026-09-08 by writing down what the manifest holds and comparing
+.
 
-                                                                             
-                                                                                 
-                                                                     
-       
+    Two rules, both mechanical, because the third — is the CURRENT revision
+    published? — has a gate step of its own (`./observatory.py contract`) and a
+    prose statement here would duplicate a check rather than add one.
+    """
     doc = ROOT / "fabric/FABRIC-CONFORMANCE.md"
     manifest = ROOT / "fabric-agent.json"
     if not doc.is_file() or not manifest.is_file():
@@ -398,25 +398,25 @@ def failures() -> list[str]:
         if missing:
             out.append(f"docs/ARCHITECTURE.md does not name table(s) the store has: {missing}")
 
-                                                                                  
-                                                                               
-                                                                              
-                                                                                
-                                                                           
-                                                                             
-                                                                                
-                                                                             
-                                                                             
-                                         
+        # 6b — every document IN the registry must be named in the architecture.
+        #      The registry is the project's canonical surface, and the list of
+        #      its documents is what a reader uses to know what exists at all.
+        #      `stale-remotes.json` was added beside `duplicate-repo-names.json`
+        #      and the sentence listing them stayed as it was: the document
+        #      remained TRUE about every file it named while being incomplete
+        #      about the set, which rule 2 cannot see — it checks that a named
+        #      path resolves, not that an existing path is named. Directories
+        #      are named with a trailing slash (`snapshots/`), and `_raw` and
+        #      `_inventory` are internal.
         for f in sorted(paths.REGISTRY.glob("*.json")):
             if f.name not in text:
                 out.append(f"docs/ARCHITECTURE.md does not name registry document "
                            f"`{f.name}`, which exists")
 
-                                                                                 
-                                                                              
-                                                                           
-                                                                          
+        # 6c — the export must SAY that it carries tombstoned text. The file is
+        #      committed and distributed, so a reader who believes a tombstone
+        #      erased something will find it here; the sentence is the only
+        #      thing standing between that belief and the file.
         exp = paths.REGISTRY / "ledger.jsonl"
         if exp.is_file():
             try:
@@ -444,24 +444,24 @@ def failures() -> list[str]:
         if absent:
             out.append(f"docs/ARCHITECTURE.md's component tree omits: {absent}")
 
-                                                                                 
-                                                                               
-                                                                               
-                                               
+        # 8 — and it must quote NO store-row count. An earlier version gave the
+        #     store's contents after two ticks; every figure was false the next
+        #     afternoon. A design document states invariants, and a measurement
+        #     belongs where it can be re-taken.
         volatile = re.findall(r"\b\d[\d,]{2,}\s+(?:events|revisions|scans|deltas|ledger rows)\b",
                               text)
         if volatile:
             out.append(f"docs/ARCHITECTURE.md quotes a store-row count: {volatile[:3]} — "
                        f"name the command that measures it instead")
 
-                                                                                 
-                                                                          
-                                                                             
-                                                                               
-                                                                               
-                                                                                
-                                                                               
-                            
+    # 9 — a GENERATED document must describe the configuration it was generated
+    #     from. The audit called `docs/AGENT_SYNC.md` stale because it was
+    #     stamped twenty commits back — and that reasoning is wrong at both
+    #     boundaries, as agent-sync's own checker says in a comment: a snapshot
+    #     is written BEFORE the commit that carries it, and the config is often
+    #     added in that same commit. The content hash is exact, so it is what is
+    #     checked here. Measured 2026-09-07: the stamp matched, and the finding
+    #     was a false alarm.
     snapshot = ROOT / "docs/AGENT_SYNC.md"
     cfg_file = ROOT / ".claude/agent-sync.json"
     if snapshot.is_file() and cfg_file.is_file():
@@ -482,16 +482,16 @@ def failures() -> list[str]:
         if f.is_file():
             out += ledger_failures(f, prefix, rel)
 
-                                                                                 
-     
-                                                                             
-                                                                               
-                                                                               
-                                                                                   
-                                                                            
-                                                                               
-                                                                              
-                                     
+    # 11 — no step name may be declared twice, and no group may list one twice.
+    #
+    #      Read from the SOURCE, because by import time the defect is gone: a
+    #      duplicate dict key is not an error in Python, the last wins, and the
+    #      earlier declaration disappears without a word. That happened here on
+    #      2026-09-07 — `test-ledger` was declared a second time for a new suite,
+    #      so `observatory.py test-ledger` ran the OLD suite, `check` ran it
+    #      twice, and the new one ran nowhere. Every existing check passed: the
+    #      table was well-formed, the step resolved, the file existed. Nothing
+    #      could see it but the text.
     obs_src = (ROOT / "observatory.py").read_text(encoding="utf-8")
     keys = re.findall(r'^    "([a-z0-9-]+)": \[', obs_src, re.M)
     for name in sorted({k for k in keys if keys.count(k) > 1}):

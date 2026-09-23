@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                               
+"""Whether a project has ever shipped anything, and how long ago.
 
-                                                                              
-                                                                            
-                                                                              
-                                                                               
-                                           
+The estate answers what a project IS, how big it is, whose code it depends on,
+and when work last happened. **Nothing said the work resulted in anything.**
+`last_activity_on` is a commit or a session; a portfolio of about 120 projects
+needs the other question — did this go anywhere — and for that a tag is the
+cheapest honest signal a checkout can give.
 
                                                                               
                                                                                                            
@@ -16,7 +16,7 @@
                                                                                   
                                                                      
 
-                                                              
+TWO METRICS, AND THE SECOND ONE'S ABSENCE CARRIES INFORMATION.
 
                                                              
                                                                                  
@@ -24,17 +24,17 @@
                                                                                
                                                               
 
-                                                                             
-                                                                                  
-                                                                      
-                                                                               
-                                                                             
-                         
+WHY `for-each-ref` AND NOT `git log --tags`. An annotated tag carries its own
+date, and that is the release's date: the commit it points at may be far older —
+a release cut from a stabilised branch is exactly that shape. `git log
+--no-walk --tags` reads the COMMIT's date and would report the work rather than
+the release. The lightweight case falls back to the commit date, which is the
+only date such a tag has.
 
-                                                                            
-                                                                              
-                                                               
-   
+A tag is not a release everywhere: some repositories tag nightlies, some tag
+nothing and publish from a branch. That is why the metric is named for what it
+MEASURES — tags — rather than for what it is used to infer.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -46,19 +46,19 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import paths                                                                    
 
-                                                                                
-                                                                                
-                                                                          
-                                         
+#: The instant every row of one run shares — the calendar day in UTC, matching
+#: the manifest's 24-hour cadence. A daily plugin stamping `now()` would write a
+#: different `at` on every run and defeat the runner's own idempotency key
+#: `(project_id, metric, at)`.
 AT = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
 
 
 def git(cwd: pathlib.Path, *args: str) -> tuple[str, str | None]:
-    ""                                                                          
+    """`(stdout, reason)` — the three-outcome shape every collector here uses.
 
-                                                                                
-                                                              
-       
+    A checkout that cannot be read is NOT a checkout with no tags, and reporting
+    the second is how a broken clone becomes "never released".
+    """
     try:
         p = subprocess.run(["git", "-C", str(cwd), *args],
                            capture_output=True, text=True, timeout=30)
@@ -75,12 +75,12 @@ def git(cwd: pathlib.Path, *args: str) -> tuple[str, str | None]:
 
 
 def checkouts() -> list[tuple[str, pathlib.Path]]:
-    ""                                                                 
+    """`(project_id, path)` for every project with a git checkout here.
 
-                                                                               
-                                                                        
-                                            
-       
+    Read from the registry, which is the only place that knows which repository
+    belongs to which project — and through `implemented_by`, because a
+    repository's own row carries no project.
+    """
     try:
         projects = json.loads((paths.REGISTRY / "projects.json")
                               .read_text(encoding="utf-8"))["projects"]
@@ -120,9 +120,9 @@ def checkouts() -> list[tuple[str, pathlib.Path]]:
 
 
 def tags_of(repo: pathlib.Path) -> tuple[int, str | None, str | None]:
-    ""                                                                    
-                                                                               
-                                                                      
+    """`(count, newest tag date or None, reason it could not be read)`."""
+    # `creatordate` is the tag's own date for an annotated tag and the commit's
+    # for a lightweight one — which is the only date the latter has.
     out, why = git(repo, "for-each-ref", "--sort=-creatordate",
                    "--format=%(creatordate:short)", "refs/tags")
     if why is not None:

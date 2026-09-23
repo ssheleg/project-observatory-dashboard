@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
-""                                                                              
+"""The second witness ARCHITECTURE.md promised: check a claim against the world.
 
-                                                                          
-                                                                               
-                                                                               
+    "A `proposed` row is promoted when the operator approves it, or when a
+     second, independent scan corroborates it. Nothing else promotes anything."
+                                                    — docs/ARCHITECTURE.md:77
 
-                                                                               
-                                                                                
-              
+Only the first half was even reachable, and nothing called it: forty-three rows
+sat proposed until retention would erase them at ninety days. Erasure by timeout
+is not review.
 
-                                                   
+WHAT CAN HONESTLY BE CORROBORATED, and what cannot:
 
-                                                                                 
-                                                                               
-                                                                             
-                                                                                   
-                                                                                   
-                                                                                 
-                   
+* **`session` rows can.** The companion plugin records a repository, a branch and
+  the HEAD sha it saw. Asking git, later and independently, whether that sha is
+  still an ancestor of that branch is a real second look: it was written from
+  `git status`, and this reads the object graph. If the sha is GONE — force-push,
+  branch deleted, clone rebuilt — the row is NOT promoted. That is a finding, not
+  a corroboration, and pretending otherwise would promote a claim about work that
+  no longer exists.
 
-                                                                               
-                                                                               
-                                                                                   
-                                                                               
-                                                                          
-            
+* **`observation` rows cannot, and this refuses rather than pretending.** Their
+  evidence is a delta that has already been consumed: `dirty-changed 60 -> 62`.
+  Re-reading it proves nothing — the uncommitted-file count moves every hour, and
+  a commit count only grows, so "still true" is either meaningless or trivially
+  true. Those rows need a person, and the queue says so instead of quietly
+  shrinking.
 
-                              
-   
+    corroborate.py [--dry-run]
+"""
 from __future__ import annotations
 import json, pathlib, subprocess, sys
 from datetime import datetime, timezone
@@ -62,13 +62,13 @@ def git(path: pathlib.Path, *args: str) -> tuple[int, str]:
 
 
 def refs_containing(path, sha: str) -> list[str]:
-    ""                                                                       
+    """Every ref this clone knows that contains the commit, local and remote.
 
-                                                                        
-                                                                              
-                                                                               
-                                                                         
-       
+    `branch -a --contains` is the question "did the work survive?" asked
+    directly. The named branch is a stronger claim and is tried first; this is
+    the fallback that separates "the work is gone" from "the branch it was done
+    on has been tidied up", which are not the same fact about the estate.
+    """
     code, out = git(path, "branch", "-a", "--contains", sha)
     if code != 0:
         return []
@@ -82,14 +82,14 @@ def refs_containing(path, sha: str) -> list[str]:
 
 
 def branch_forms(path, branch: str) -> list[str]:
-    ""                                                            
+    """The names one branch can go by in a clone, strongest first.
 
-                                                                                 
-                                                                             
-                                                                               
-                                                                                
-                                                 
-       
+    A row records `feat/attention-rail`; after the branch is pushed and the local
+    copy deleted, the clone still holds `remotes/origin/feat/attention-rail`,
+    which is the same branch as far as the question "did this work survive?" is
+    concerned. Resolving only the bare name is what reported four pushed commits
+    as work git could no longer place.
+    """
     forms = [branch]
     if "/" not in branch.split("/", 1)[0] or True:
         code, out = git(path, "remote")
@@ -101,7 +101,7 @@ def branch_forms(path, branch: str) -> list[str]:
 
 
 def check_session(row) -> tuple[bool | None, str]:
-    ""                                                               
+    """Did the work this row describes survive? Ask git, not the row.
 
                                                                                 
                                                                                 
@@ -114,12 +114,12 @@ def check_session(row) -> tuple[bool | None, str]:
                                                                                 
                                
 
-                                                                               
-                                                                                
-                                                                                
-                                                                               
-                                                          
-       
+    Two outcomes collapsed into one, and it cost data: the row stays `proposed`
+    and retention erases it at ninety days, so four records of real, pushed work
+    were queued for deletion because a branch was tidied up. The same conflation
+    sat one line above — a missing clone is a question nobody can ask, and it
+    was reported as the work being unplaceable.
+    """
     ev = json.loads(row["evidence_json"] or "[]")
     repo = next((e for e in ev if str(e.get("uri", "")).startswith("repo:repository:")), None)
     if not repo or not repo.get("head"):
@@ -137,11 +137,11 @@ def check_session(row) -> tuple[bool | None, str]:
         return False, (f"{sha} is no longer an object in {nwo} — the work was "
                        f"rewritten or the clone was rebuilt")
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                                                               
-                                                                               
-                                                                            
-                                                                                
-                                                                  
+    # THE BRANCH IN ANY OF ITS FORMS. `feat/attention-rail` and
+    # `origin/feat/attention-rail` are the same branch — the second is what a
+    # clone keeps after the local copy is deleted, which is what pushing and
+    # tidying up leaves behind. Resolving only the bare name is what turned four
+    # records of pushed work into "the branch moved away from it".
     resolved = None
     for cand in branch_forms(path, branch):
         if git(path, "rev-parse", "--verify", "--quiet", f"{cand}^{{commit}}")[0] == 0:
@@ -185,21 +185,21 @@ def main(argv: list[str]) -> int:
     dry = "--dry-run" in argv
     conn = store_db.connect()
     conn.row_factory = __import__("sqlite3").Row
-                                                                             
-                                                                                
-                                                                               
-                                                                             
-                                                                               
-                                                                 
+    # The tombstone join is what every other reader does — `ledger.live()`,
+    # `survey.search`, `review.py`, `build_findings.py`, `ledger_candidates` —
+    # and this query was the one that did not. An erased record would have come
+    # back here on every run: refused by the ledger's own guard, counted as a
+    # refusal, and reported as a finding for ever. Excluded here instead, so an
+    # erasure means the same thing on every read path.
     rows = conn.execute(
         "SELECT l.* FROM ledger l JOIN (SELECT memory_id, MAX(revision) rev FROM ledger "
         "GROUP BY memory_id) m ON l.memory_id = m.memory_id AND l.revision = m.rev "
         "LEFT JOIN tombstones t ON t.memory_id = l.memory_id "
         "WHERE l.state = 'proposed' AND t.memory_id IS NULL").fetchall()
 
-                                                                            
-                                                                               
-                                                                    
+    # FOUR BUCKETS, because `check_session` now has three answers and one of
+    # them is "nobody could look". Folding that into `refused` is what put four
+    # records of pushed work on the board as unplaceable.
     promoted, refused, unaskable, needs_person = [], [], [], []
     for row in rows:
         # ONE rule, and it is positive: `session` is the only kind with evidence
@@ -235,13 +235,13 @@ def main(argv: list[str]) -> int:
             refused.append((row["memory_id"], f"{type(e).__name__}: {e}"))
     conn.close()
 
-                                                                                  
-                                                                                     
-                                                                                 
-                                                                               
-                                                                               
-                                                                               
-                                              
+    # A REFUSAL IS A FINDING — this file's own docstring says so: "If the sha is
+    # GONE — force-push, branch deleted, clone rebuilt — the row is NOT promoted.
+    # That is a finding, not a corroboration." Until now it was a line on stdout,
+    # which the tick swallows into a log: the estate recorded work at a sha git
+    # can no longer place, and nothing said so anywhere a person looks. The row
+    # then sits `proposed` until retention erases it at ninety days, taking the
+    # only trace of the vanished work with it.
     if not dry:
         atomic.write_json(paths.SCRATCH / "corroboration.json", {
             "checked_on": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -251,13 +251,13 @@ def main(argv: list[str]) -> int:
             "refused": [{"memory_id": mid, "why": why, "created_at": at,
                          "owner": owner, "state": state}
                         for mid, why, at, owner, state in refused],
-                                                                               
-                                                                             
-                                                                 
-                                                                             
-                                                                             
-                                                                                 
-                                                                        
+            # LISTED, not counted. A count with no list is a number an operator
+            # cannot act on, and this is the bucket whose rows retention will
+            # erase while nothing is known to be wrong with them.
+            # AND WHEN IT WAS WRITTEN. The row a reader is asked to decide on
+            # is erased by retention at ninety days, and the receipt named it
+            # without saying how long it had — sending every reader back to the
+            # store for the one number the decision turns on.
             "unaskable": [{"memory_id": mid, "why": why, "created_at": at,
                            "owner": owner, "state": state}
                           for mid, why, at, owner, state in unaskable],

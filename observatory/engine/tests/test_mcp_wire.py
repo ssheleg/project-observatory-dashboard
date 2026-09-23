@@ -59,10 +59,10 @@ async def run() -> None:
                                    env={**os.environ, "OBSERVATORY_DB": str(tmp)})
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
-                                                                                  
-                                                                                   
-                                                                             
-                                                                              
+            # 2026-07-28 is stateless: discovery is `server/discover`, and opening
+            # with the legacy `initialize` handshake negotiates DOWN to 2025-11-25.
+            # The Fabric manifest pins the revision as a schema const, so the
+            # discovery path is part of the contract, not a client preference.
             disc = await session.discover()
             check("server/discover offers 2026-07-28",
                   "2026-07-28" in disc.supported_versions, f"got {disc.supported_versions}")
@@ -104,8 +104,8 @@ async def run() -> None:
             check("project: an unknown id is a typed answer, not a crash",
                   data.get("error") == "unknown project", str(data)[:120])
 
-                                                                                       
-                                                                                     
+            # The throwaway store has no events, so this asserts the honest-degradation
+            # contract instead of a commit count that would depend on the live store.
             res = await session.call_tool("observatory_timeline",
                                           {"project_id": SYNTHETIC_PROJECT, "limit": 5})
             data = payload(res)

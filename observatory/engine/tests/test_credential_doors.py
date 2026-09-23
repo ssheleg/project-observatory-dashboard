@@ -118,11 +118,11 @@ def test_cf_stash_refuses_an_admin_that_cannot_issue() -> None:
 
 
 def test_cf_one_stash_can_span_several_accounts() -> None:
-    ""                                                                    
-                                                                               
-                                                                               
-                                                                              
-                                                   
+    """A user-scoped token with `All accounts: API Tokens Edit` sees every
+    account its user belongs to — the operator's `example-local` covers three
+    logins. The stash records each, probes each for the one right that matters,
+    names itself after the USER, and `issue` picks the account by its own slug
+    — never "whichever came first"."""
     m = cf()
     m.ADMIN_STORE = pathlib.Path(tmpdir.mkdtemp()).resolve() / "cloudflare-admin"
 
@@ -176,9 +176,9 @@ def test_cf_one_stash_can_span_several_accounts() -> None:
 
 
 def test_cf_stash_finds_accounts_through_memberships_when_accounts_is_empty() -> None:
-    ""                                                                         
-                                                                              
-                                                                           
+    """`GET /accounts` lists nothing for a token without Account Settings: Read
+    — the operator's issuing token was refused as "sees no account" while it
+    managed tokens in three. Memberships are the second road."""
     m = cf()
     m.ADMIN_STORE = pathlib.Path(tmpdir.mkdtemp()).resolve() / "cloudflare-admin"
 
@@ -279,8 +279,8 @@ def test_or_stash_demands_a_label_because_the_provider_names_nothing() -> None:
 
 
 def test_or_rotation_creates_and_delivers_before_deleting() -> None:
-    ""                                                                      
-                                                                            
+    """The order is the contract: a delete-first rotation that fails halfway
+    leaves the consumer with a dead key and a silent fallback."""
     m = orr()
     d = pathlib.Path(tmpdir.mkdtemp()).resolve()
     m.ADMIN_STORE = d / "openrouter-admin"
@@ -370,11 +370,11 @@ def test_or_issue_refuses_a_name_that_already_exists() -> None:
 
 
 def test_or_issue_is_one_function_with_a_monthly_reset() -> None:
-    ""                                                                      
-                                                                            
-                                                                               
-                                                                           
-                                                                
+    """The ONE issuer. `keyserver.py`'s mint used to be a second,
+    ledger-less issuer — and the only one that set `limit_reset: monthly`.
+    Merged: `issue_key()` is what both the command and the button call, and the
+    monthly reset travels with every create (trap T17: a lifetime cap works
+    until the total is reached and then stops, months later)."""
     m = orr()
     d = pathlib.Path(tmpdir.mkdtemp()).resolve()
     m.ADMIN_STORE = d / "openrouter-admin"
@@ -414,9 +414,9 @@ def test_or_issue_is_one_function_with_a_monthly_reset() -> None:
 
 
 def test_or_ping_names_the_strays_it_does_not_manage() -> None:
-    ""                                                                     
-                                                                            
-                                                                
+    """100 PRODUCTION_user_* keys live on the operator's account, minted by
+    another system (measured 2026-09-13). Ping must SAY they exist and NEVER
+    touch them — rotate/revoke operate on ledger rows only."""
     m = orr()
     d = pathlib.Path(tmpdir.mkdtemp()).resolve()
     m.ADMIN_STORE = d / "openrouter-admin"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                             
+"""Does each trap's guard actually CATCH its trap? Measured by putting it back.
 
                                                                                
                                                                                 
@@ -8,36 +8,36 @@
                                                                            
                                                               
 
-                                                                                
-     
+So this tool re-introduces each defect and watches. One mutation, one guard, two
+runs:
 
-                                                                               
-                                                                    
-                                                                  
+* the **control** run, in the same prepared environment, must be GREEN — else
+  the environment, not the mutation, is what the guard is answering;
+* the **mutated** run must be RED, and its failure is the receipt.
 
-                                                                             
-                                                                            
-                                                                        
+Three outcomes, never two: `CAUGHT`, `MISSED` (the guard cannot catch its own
+defect — the finding this tool exists to produce), and `INCONCLUSIVE` (the
+control was not green or the guard skipped, so nothing was established).
 
-                                                                            
-                                                                               
-                                                                                
-                                                                        
-                                                                           
-                                                                                 
-                                                                          
-                         
+**Nothing live is mutated except tracked source, and only under a lease.** A
+registry or store mutation runs against a COPY through `OBSERVATORY_REGISTRY` /
+`OBSERVATORY_DB`, so the operator's data is never touched. Source mutations have
+no such redirect: the file is edited in place and restored from git in a
+`finally`, and the tool refuses to start unless every file it will touch is
+clean, so a restore can never lose work. Acquire the registry lease first — the
+tick stands down while it is held, which is what keeps a mutated tree from
+reaching a scheduled run.
 
-                                                              
-                                                       
-                                                                        
+    tools/trap_efficacy.py             every declared mutation
+    tools/trap_efficacy.py T7 T15      only these traps
+    tools/trap_efficacy.py --list      what is declared, and what is not
 
-                                                                                   
-                                                                              
-                                                                            
-                                                                               
-          
-   
+**Not a gate step, deliberately** — the same reasoning as `tools/fresh_clone.py`.
+It edits tracked files, so a gate that ran it would be a gate that can leave a
+dirty tree; and the invariant it measures moves when a guard is written, not
+when the code under it changes. Run it when you add a trap, and when a guard is
+rewritten.
+"""
 from __future__ import annotations
 import argparse
 import importlib.util
@@ -65,7 +65,7 @@ PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else
                                                                              
                                                                                                
 def _forget(work: pathlib.Path, name: str) -> None:
-    ""                                                                         
+    """Remove every anchor a folder has, so it reaches the registry by none."""
     import json as _json
     proj = work / "projects.json"
     doc = _json.loads(proj.read_text(encoding="utf-8"))
@@ -94,11 +94,11 @@ MUTATIONS: list[dict] = [
                  '      "id": "relation:example-app:implemented-by:example-org-example-app",'),
      "why": "one more repository attached to a project whose rules never name it "
             "— the adoption that took 36"},
-                                                                        
-                                                                              
-                                                                               
-                                                                             
-                                                            
+    # The CURATED status file, not the emitted registry: the guard reads
+    # `collectors/repo_status.json`, so a registry-copy mutation never reached
+    # it and reported MISSED for a guard that was working. Measured 2026-09-08,
+    # and it is the reason the harness now demands that a mutation be VISIBLE
+    # where the guard looks before a verdict means anything.
     {"trap": "T33", "subject": "source", "file": "collectors/repo_status.json",
      "find": '"status": "inactive"', "replace": '"status": "active"',
      "why": "a retirement that only recolours the row leaves the row"},
@@ -187,8 +187,8 @@ MUTATIONS: list[dict] = [
      "why": "dedup keyed on the id rather than the edge is how relations doubled "
             "on every re-run"},
     {"trap": "T36", "subject": "source", "file": "tools/use_secret.py",
-                                                                             
-                                                                             
+     # Empty the set of programs that read their code from stdin: `pipe` then
+     # hands the secret to `python3 -`, which is the 2026-09-14 leak exactly.
      "find": 'STDIN_PROGRAMS = {("python", "-"), ("python3", "-"), ("node", "-"), ("sh", "-s"),',
      "replace": 'STDIN_PROGRAMS = {("never", "-"),',
      "why": "a pipe into an interpreter that reads its program from stdin sends the "
@@ -270,9 +270,9 @@ MUTATIONS: list[dict] = [
      "edits": [('    search = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)\n'
                 '              if os.environ.get("OBSERVATORY_KEY_FILE") else KEY_FILES)',
                 "    search = KEY_FILES"),
-                                                                         
-                                                                           
-                                                                
+               # The anchor moved when the search order was reversed so a
+               # project's own key could win; the registry's own
+               # staleness check caught it in the same gate run.
                ('KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)\n'
                 '             if os.environ.get("OBSERVATORY_KEY_FILE") else\n'
                 '             (paths.STORE / ".openrouter-key",',
@@ -361,13 +361,13 @@ sys.exit(1 if m.FAILURES else 0)
 
 
 def drive(suite: str, fn: str, env: dict) -> tuple[bool, str]:
-    ""                                                                 
+    """Run ONE guard, not its whole suite — isolation and speed both.
 
-                                                                           
-                                                                           
-                                                                               
-                    
-       
+    A suite's other cases re-run collectors that would undo the very defect
+    under test: `tests/test_traps.py` re-emits the registry three functions
+    above T31, which is why that guard's own docstring says negative-testing it
+    needs isolation.
+    """
     code = DRIVER.format(root=str(ROOT), suite=str(ROOT / suite), fn=fn)
     p = subprocess.run([PY, "-c", code], cwd=ROOT, env=env, capture_output=True,
                        text=True, timeout=900)
@@ -376,7 +376,7 @@ def drive(suite: str, fn: str, env: dict) -> tuple[bool, str]:
 
 
 def prepare(mut: dict) -> tuple[dict, pathlib.Path | None]:
-    ""                                                                    
+    """The environment a mutation needs, with the live data left alone."""
     env = dict(**{k: v for k, v in __import__("os").environ.items()})
     work = None
     if mut["subject"] == "registry":
@@ -392,10 +392,10 @@ def prepare(mut: dict) -> tuple[dict, pathlib.Path | None]:
 
 def apply(mut: dict, work: pathlib.Path | None) -> None:
     if mut.get("patch_dir"):
-                                                                             
-                                                                                    
-                                                                             
-                                     
+        # Some defects are not in one file. A folder reaches this registry by
+        # SEVERAL anchors — a project row, a repository row — so removing one of
+        # them is not the defect T31 records, and the guard was right to stay
+        # green. Measured 2026-09-08.
         mut["patch_dir"](work)
         return
     if mut["subject"] == "db":
@@ -433,7 +433,7 @@ def apply(mut: dict, work: pathlib.Path | None) -> None:
 
 
 class Stale(Exception):
-    ""                                                                     
+    """A mutation whose anchor has moved. Reported, never worked around."""
 
 
 def restore(mut: dict) -> None:
@@ -444,15 +444,15 @@ def restore(mut: dict) -> None:
 
 
 def dirty(files: list[str]) -> list[str]:
-    ""                                                                       
+    """Which of THESE files carry uncommitted work. Empty list, empty answer.
 
-                                                                              
-                                                                          
-                                                                               
-                                                                              
-                                                                        
-                                                           
-       
+    `git status --porcelain --` with no paths reports the WHOLE TREE, and this
+    function feeds two decisions: whether to refuse, and whether a restore
+    worked. With an empty plan the second one printed *"TREE NOT RESTORED"* and
+    a `git checkout --` line naming eight files the tool had never touched —
+    a recovery command that would have destroyed the session's own work.
+    Measured 2026-09-08, on a run of one registry mutation.
+    """
     if not files:
         return []
     p = subprocess.run(["git", "status", "--porcelain", "--"] + files, cwd=ROOT,

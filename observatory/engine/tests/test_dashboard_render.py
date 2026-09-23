@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-""                                                               
+"""The one screen a person reads, EXECUTED rather than inspected.
 
-                                                                
-                                                                             
-                                                                            
-                                                                               
-                                                                                  
-                                                                     
+Every earlier assertion about the dashboard pointed at its data:
+`from_store()` returns the right numbers, and `tests/test_dashboard_store.py`
+checks that it does. None of them asked whether the page turns those numbers
+into anything. The health panel was filled four times in one night — registry
+proposals, the projection's lag, the spend — and the page was never opened, so a
+JavaScript error would have left it blank with the whole suite green.
 
-                                                                                
-                                                                             
-                                                                             
-                                                                               
-                                                          
+**Executing it found a row that had never rendered once.** The spend line tested
+`H.wallet.month`, and `store/wallet.json` holds `months: {"2026-09": 0.0924}`
+with no scalar of that name — so the condition was false on every render. A
+branch whose true side is unreachable, in the screen the estate exists to show,
+invisible to every test that looked at the data behind it.
 
-                                                                                
-                                                                     
-                                                                               
-                                                                                
-                                                                   
+A browser was not reachable here (the Chrome extension is not connected), so the
+check is node with a minimal DOM that records what the script writes:
+`tests/render_dashboard.mjs`. It catches a syntax error, an undefined reference
+and an empty panel, which is what "checked in a browser" was protecting against.
+It does not check layout, fonts or colour, and does not pretend to.
 
-                                                                              
-                                                                              
-                                                                           
-                                                   
-   
+**Three of the first four failures were the harness, not the page** — a bare
+`addEventListener`, `ResizeObserver`, a `querySelector` returning null — and
+each was fixed in the stub rather than recorded as a defect. A harness that
+fails differently from a browser tests the harness.
+"""
 from __future__ import annotations
 import json, os, pathlib, re, shutil, sqlite3, subprocess, sys, tempfile
 
@@ -91,7 +91,7 @@ def test_the_page_runs_to_completion() -> None:
 
 
 def test_every_panel_renders_something() -> None:
-    ""                                                              
+    """An empty panel is the failure a data-side test cannot see."""
     if node() is None:
         print(("  SKIP  node is not installed here"
               " [uncoverable: executing the page needs node, and the only two executors here — dashboard/smoke.js and tests/render_dashboard.mjs — are both node]"))
@@ -109,7 +109,7 @@ def test_every_panel_renders_something() -> None:
 
 
 def test_the_spend_row_renders_at_all() -> None:
-    ""                                                           
+    """The row that had never appeared, now driven end to end."""
     if node() is None:
         print(("  SKIP  node is not installed here"
               " [uncoverable: executing the page needs node, and the only two executors here — dashboard/smoke.js and tests/render_dashboard.mjs — are both node]"))
@@ -144,7 +144,7 @@ def test_the_spend_row_renders_at_all() -> None:
 
 
 def test_the_health_panel_shows_what_the_store_holds() -> None:
-    ""                                                               
+    """The numbers on the screen must be the numbers in the store."""
     if node() is None:
         print(("  SKIP  node is not installed here"
               " [uncoverable: executing the page needs node, and the only two executors here — dashboard/smoke.js and tests/render_dashboard.mjs — are both node]"))
@@ -159,8 +159,8 @@ def test_the_health_panel_shows_what_the_store_holds() -> None:
     health = r["health"]
     events = store["health"].get("events")
     if events:
-                                                                                 
-                                                                 
+        # The page groups thousands with a non-breaking space via toLocaleString,
+        # so compare on the digits rather than on the formatting.
         digits = "".join(ch for ch in health if ch.isdigit())
         check("the event count reaches the screen", str(events) in digits.replace(" ", ""),
               f"{events} not in the rendered digits")
@@ -174,13 +174,13 @@ def test_the_health_panel_shows_what_the_store_holds() -> None:
 
 
 def test_the_detail_panel_names_what_a_project_is_made_of() -> None:
-    ""                                                       
+    """Two empty bullets on the first project a person opens.
 
-                                                                                       
-                                                                         
-                                                                                  
-                                                       
-       
+    "Из чего состоит" rendered `x.name` and a repository row has only ever
+    carried `nwo`, so every repository produced an empty `<li>`. Found by
+    opening the panel, not by a test — every assertion about the data was green,
+    because the data was right and the field was wrong.
+    """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     code = "\n".join(l for l in src.splitlines()
                      if not l.strip().startswith(("#", "//", "*", "/*")))
@@ -204,14 +204,14 @@ def test_the_detail_panel_names_what_a_project_is_made_of() -> None:
 
 
 def test_the_info_rows_are_folded_and_the_control_says_how_many() -> None:
-    ""                                                                             
+    """Sixty-three rows put three thousand pixels between the reader and the table.
 
-                                                                                
-                                                                              
-                                                                         
-                                                                              
-                               
-       
+    So `info` is folded behind a control — and folding is a DISCLOSURE, not an
+    omission: the rows stay in the DOM (`.f.finfo`, hidden by CSS), every type
+    still has a row, and the button names the count, because a
+    control that hides a number without saying how many is the silent cap this
+    page already refuses twice.
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-fold-"))
     page = build(d)
     payload = json.loads(re.search(r'const D = (\{.*?\});\n',
@@ -235,13 +235,13 @@ def test_the_info_rows_are_folded_and_the_control_says_how_many() -> None:
 
 
 def test_a_number_meets_its_noun_in_the_right_case() -> None:
-    ""                                                                          
+    """`строк(и)` is what a page prints when nobody wrote the plural rule.
 
-                                                                        
-                                                                            
-                                                                               
-                                               
-       
+    Read from CODE, not from the file: the comment that records this fix
+    contains the very string it forbids, and the first version of this check
+    went red on it — the fifth time in one session a rule fired on prose. The
+    remedy is always the same and always cheap.
+    """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     code = "\n".join(l for l in src.splitlines()
                      if not l.strip().startswith(("#", "//", "*", "/*")))
@@ -258,18 +258,18 @@ def test_a_number_meets_its_noun_in_the_right_case() -> None:
 
 
 def test_no_panel_renders_an_object_as_text() -> None:
-    ""                                                                     
+    """`[object Object]` is what a page says when a field means two things.
 
-                                                                              
-                                                                       
-                                                                            
-                                                                             
-                                                                                
-                         
+    Found by OPENING the page on 2026-09-09, not by a test: `r.notes` held the
+    count of wiki notes at line 437 and the store's list of the agent's
+    conclusions at line 517, the second assignment won, and the wiki chip on
+    every noted project read "[object Object],[object Object] зам.". Every
+    Python assertion about the data was green — the collision was only visible
+    where a person looks.
 
-                                                                              
-                                                    
-       
+    The check is one string across every panel the script writes, which is the
+    cheapest possible guard against the whole class.
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-obj-"))
     page = build(d)
     got = render(page, count="object Object")
@@ -284,16 +284,16 @@ def test_no_panel_renders_an_object_as_text() -> None:
 
 
 def test_a_metric_that_moved_says_so_on_the_page() -> None:
-    ""                                                                    
+    """The second sample is kept for a reader, and no reader could see it.
 
-                                                                            
-                                                                                 
-                                                                               
-                                                               
+    `store/retention.json` keeps two rows per series with the reason written
+    beside it — "the newest, plus one so a reader can see whether it moved" —
+    and the page rendered only the newest. Measured 2026-09-09: 911 metric rows
+    across seven series, and not one movement visible anywhere.
 
-                                                                                
-                                                                    
-       
+    Counted rather than excerpted: the panel this renders into is 268 KB, and no
+    clip of it can honestly answer "is the marker there".
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-delta-"))
     page = build(d)
     payload = json.loads(re.search(r'const D = (\{.*?\});\n',
@@ -317,11 +317,11 @@ def test_a_metric_that_moved_says_so_on_the_page() -> None:
 
 
 def test_a_single_sample_renders_no_movement() -> None:
-    ""                                                                   
+    """Absent is not zero: a first measurement has not 'stayed the same'.
 
-                                                                               
-                                                        
-       
+    Driven against a store with the older sample of every series removed, which
+    is what a fresh estate looks like on its first tick.
+    """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-delta-one-"))
     out = build(d, samples=1)
     payload = json.loads(re.search(r'const D = (\{.*?\});\n',
@@ -338,7 +338,7 @@ def test_a_single_sample_renders_no_movement() -> None:
 
 
 def test_the_harness_itself_can_fail() -> None:
-    ""                                                              
+    """A green from a harness that cannot go red is not evidence."""
     if node() is None:
         print(("  SKIP  node is not installed here"
               " [uncoverable: executing the page needs node, and the only two executors here — dashboard/smoke.js and tests/render_dashboard.mjs — are both node]"))

@@ -45,25 +45,25 @@ def now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-                                                                             
-                                                                                 
-           
-  
-                                                           
-                                                                                                          
-  
-                                                                                   
-                                                                                   
-                                                                             
-                                                                        
-                                                                                 
-                                                                                 
-                                                                   
-  
-                                                                         
-                                                                               
-                                                                        
-                               
+#: THE LOCALE GIT SPEAKS, pinned because two branches below read its English.
+#: `git` translates its messages through gettext, and measured 2026-09-08 on this
+#: machine:
+#:
+#:     LC_ALL=C              error: No such remote 'origin'
+#:     LC_ALL=ru_RU.UTF-8    error: Нет такого внешнего репозитория «origin»
+#:
+#: Those branches turn a failure into an ANSWER — a repository with no remote and
+#: one with no commits are facts about the tree, not faults of the run — and they
+#: recognise it by the English. On a machine whose locale is not English they
+#: would stop matching, and every such repository would be recorded as a
+#: degradation instead: a permanent warning in front of the operator about a tree
+#: that is exactly as intended, which is the noise the branches exist to prevent.
+#: Silently, because nothing says a recogniser stopped recognising.
+#:
+#: The operator of this machine writes Russian, so it was one environment
+#: variable away. `LANGUAGE` is emptied too: gettext lets it override `LC_ALL`,
+#: and while this git honours `LC_ALL` first, relying on that is another
+#: unmeasured claim.
 GIT_ENV = {"LC_ALL": "C", "LANGUAGE": ""}
 
 
@@ -378,9 +378,9 @@ for entry in sorted(os.listdir(DATA)):
             degraded.append({"source": f"folder:{entry}",
                              "reason": "; ".join(f"{k}: {v}" for k, v in unread.items())})
     else:
-                                                                              
-                                                                            
-                                                    
+        # `os.stat`, not `subprocess.run(["date", "-r", ...])`. One subprocess
+        # per non-git folder, with no timeout and no returncode check, for a
+        # number the standard library gives exactly.
         try:
             rec["mtime"] = datetime.fromtimestamp(
                 p.stat().st_mtime, timezone.utc).strftime("%Y-%m-%d")

@@ -267,14 +267,14 @@ def findings(doc: dict | None) -> list[dict]:
     creds = doc.get("credentials") or []
     if not creds:
         return []
-                                                                           
-                                                                               
-                            
+    # THE DATE THE REGISTRY ALREADY HOLDS, never a clock of this rule's own
+    #: the document says when it was measured, and every age here is
+    # measured against that.
     today = (doc.get("scanned_on") or doc.get("updated_on") or "")[:10]
     broken = doc.get("registers_unreadable") or []
-                                                                             
-                                                                           
-                                                                               
+    # `unsigned` is WITHHELD when the annotations register could not be read:
+    # every credential would look unsigned at once, and the board would say
+    # "nobody signed anything" about a file somebody could not open.
     annotations_ok = not any("annotations" in str(b.get("register", "")) for b in broken)
     return (register_unreadable(broken) + lifetime_cap(creds) + unclaimed(creds)
             + untracked(creds) + shared_rotation(creds)

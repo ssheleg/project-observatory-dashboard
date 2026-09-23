@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-""                                                                       
+"""Run every metric plugin, and refuse what they should not have written.
 
                                                                                 
                                                                               
                                                                               
                                                                            
 
-                                                                               
-                                                                               
-                                                                               
-                                                                             
+It is not one. The registry answers what EXISTS, is validated, lives in git and
+is rewritten whole on every emit. A measurement taken at an instant accumulates
+and belongs beside `events`. Once metrics live in the store, nothing downstream
+has to learn a plugin's name — and a new source is two files in `plugins/`.
 
-                                                             
+What this runner owes each plugin, and each plugin's readers:
 
-                                                                                
-                                                   
-                                                                               
-            
-                                                                               
-                                                                              
-                                                                           
-                          
-                                                                               
-                                  
-   
+* **A missing requirement is a SKIP with its reason, never a failure.** The rule
+  every collector here follows (AGENTS.md, rule 7).
+* **Isolation.** A plugin that crashes, hangs or floods is reported; the others
+  still run.
+* **Refusal, counted.** A row naming a metric the manifest does not declare, or
+  a project the registry does not hold, or a timestamp that is not UTC `Z`, is
+  rejected and reported. A plugin that can write any name is a plugin whose
+  output nobody can check.
+* **Idempotence.** `(project_id, metric, at)` is the key: re-measuring a period
+  replaces rather than duplicates.
+"""
 from __future__ import annotations
 import argparse, json, math, pathlib, re, subprocess, sys
 from datetime import datetime, timedelta, timezone
@@ -33,10 +33,10 @@ sys.path.insert(0, str(ROOT))
 import paths                                                                    
 from store import db as store_db                                                
 
-                                                                             
-                                                                            
-                                                                            
-                                            
+# Overridable for the same reason the registry and the store are: a test that
+# plants a misbehaving plugin must not plant it in the live directory, and a
+# hardcoded path is what made the validator silently check the real registry
+# while claiming to check a copy.
 import os
 PLUGINS = pathlib.Path(os.environ.get("OBSERVATORY_PLUGINS") or (ROOT / "plugins"))
 UTC_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
@@ -83,11 +83,11 @@ def requirement_error(req: str) -> str:
 
 
 def missing_requirement(req: str) -> str:
-    ""                                                             
+    """Resolve a declared requirement without executing the plugin.
 
-                                                                            
-                                                                         
-       
+    Private references stay below their configured root. Legacy environment,
+    path, binary and network declarations remain supported for version 1.
+    """
     import os
     import shutil
     malformed = requirement_error(req)
@@ -125,7 +125,7 @@ EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 def period_start(now: datetime, every_hours: float) -> datetime:
-    ""                                                                              
+    """The start of the bucket `now` falls in — the unit a cadence actually means.
 
                                                                                 
                                                                           
@@ -137,16 +137,16 @@ def period_start(now: datetime, every_hours: float) -> datetime:
                                                                                
                            
 
-                                                                                
-                                                                                 
-                                                                             
-                                
+    The drift is one-directional and worse than the delay: each day's sample can
+    only be taken at or after the previous day's clock time, so a late run pushes
+    the next one later still, and a day the machine is asleep at that hour is
+    lost with nothing saying so.
 
-                                                                              
-                                                                           
-                                                                             
-                                   
-       
+    A cadence in whole days is a CALENDAR bucket, because that is what a daily
+    sample's own timestamp means. Anything finer buckets by hours since the
+    epoch, so a 6-hour plugin lands at 00, 06, 12 and 18 rather than wherever
+    the first run happened to fall.
+    """
     if every_hours >= 24 and every_hours % 24 == 0:
         days = int(every_hours // 24)
         n = (now - EPOCH).days
@@ -163,13 +163,13 @@ STALE_PERIODS = 2.0
 
 
 def due(conn, plugin_id: str, every_hours: float, now: datetime | None = None) -> bool:
-    ""                                                                       
+    """Is there a sample for the CURRENT period? Not: has enough time passed.
 
-                                                                               
-                                                                      
-                                                                                    
-                                                    
-       
+    The question the gate has to answer is whether this period's sample exists,
+    and `at` is where a sample says which period it describes. Reading
+    `recorded_at` answered a different question — when the writer last ran — and
+    the two only coincide when nothing is ever late.
+    """
     if not every_hours:
         return True
     start = period_start(now or datetime.now(timezone.utc), float(every_hours))
@@ -257,11 +257,11 @@ def run_one(conn, m: dict, known_projects: set[str], force: bool) -> dict:
             "   value=excluded.value, unit=excluded.unit, source=excluded.source,"
             "   payload_json=excluded.payload_json, recorded_at=excluded.recorded_at", rows)
     result["written"] = len(rows)
-                                                                           
-                                                                             
-                                                                             
-                                                                            
-                                                                  
+    # A PLUGIN'S OWN WORDS ABOUT WHAT IT COULD NOT ATTRIBUTE. The analytics
+    # plugins print unmapped hosts to stderr — traffic on a host no project
+    # claims is a fact about the REGISTRY, not noise — and dropping it here
+    # would hide exactly the gap the operator most wants closed. Kept in the
+    # receipt, one line, for `build_findings` to raise.
     note = (p.stderr or "").strip()
     if note:
         result["note"] = note[:300]
@@ -286,7 +286,7 @@ REQUIRED = {
 
 
 def plugin_script(m: dict) -> pathlib.Path:
-    ""                                                                               
+    """Resolve a relative script within the plugin root, including symlink checks."""
     raw = m.get("script")
     if not isinstance(raw, str) or not raw:
         raise ValueError("script must be a non-empty relative path")
@@ -302,11 +302,11 @@ def plugin_script(m: dict) -> pathlib.Path:
 
 
 def check_manifest(m: dict) -> list[str]:
-    ""                                                               
+    """Validate version and shape before any plugin code can execute.
 
-                                                                      
-                                                                                   
-       
+    Manifests without api_version use the original version-1 contract.
+    Newer or invalid versions require a compatible runner; force never bypasses it.
+    """
     if not isinstance(m, dict):
         return ["manifest must be an object"]
     if m.get("_broken"):
@@ -365,9 +365,9 @@ def cmd_check() -> int:
     for m in found:
         pid = m.get("id") if isinstance(m.get("id"), str) and m["id"] else pathlib.Path(m.get("_path", "?")).stem
         bad = check_manifest(m)
-                                                                                 
-                                                                               
-                                      
+        # A duplicate id is not a per-manifest fault, so it is checked here where
+        # the whole set is visible: two plugins sharing an id share an age gate
+        # and stamp each other's rows.
         if pid in ids:
             bad.append(f"id `{pid}` is already used by {ids[pid]}")
         ids.setdefault(pid, m.get("_path", "?"))
@@ -383,13 +383,13 @@ def cmd_check() -> int:
 
 
 def report(results: list[dict], **extra) -> None:
-    ""                                                       
+    """The run, where a reader can find it — on every path.
 
-                                                                              
-                                                                                 
-                                                                         
-                                                                                
-       
+    `main` returned 0 unconditionally and printed everything, so a plugin that
+    crashed on every tick for a month was invisible: the exit code said fine, and
+    the log the tick pipes into is read by nobody on a schedule. Measured
+    2026-09-07 — `grep -n 'return 1' collectors/run_plugins.py` found nothing.
+    """
     doc = {"ran_at": now(), "plugins": results, **extra}
     try:
         paths.SCRATCH.mkdir(parents=True, exist_ok=True)
@@ -458,29 +458,29 @@ def main() -> int:
 
 
 def classify(r: dict) -> str:
-    ""                                                                     
+    """Four words, and the difference between them is what a finding needs.
 
-                                                      
-                                                                                 
-                                                                              
-                                                                            
-                                                         
-                                                                                
-                                                          
-                                                                               
-                                                                                
-       
+    * `ok`       — it ran and wrote what it declared
+    * `not_due`  — its OWN age gate declined. The healthy steady state, and the
+                   reason this word exists: it was first called `stale`, which
+                   reads as a fault and would have raised a finding on every
+                   plugin behaving exactly as configured.
+    * `waiting`  — a requirement is unmet. A missing credential is a state the
+                   operator may have chosen, not a defect.
+    * `broken`   — it crashed, timed out, exited non-zero, or its manifest is
+                   unusable. This is the only one that means somebody must look.
+    """
     why = r.get("skipped") or ""
     if not why:
         return "ok"
     if "this period already has a sample" in why:
-                                                                                
-                                                                               
-                                                                                
-                                                                              
-                                                                             
-                                                                           
-                                            
+        # NOT DUE **only if the series is actually current**. `not_due` says the
+        # cadence is satisfied; a plugin whose newest sample is several periods
+        # old is not satisfied, it has stopped producing — and reading that as
+        # health is how a metric layer goes quiet without anyone noticing. The
+        # first version of this branch matched a skip phrase nobody produced,
+        # which is the same defect one level up: an unreachable branch is a
+        # check that cannot fire.
         age = r.get("seriesAgePeriods")
         return "stale" if age is not None and age > STALE_PERIODS else "not_due"
     if any(s in why for s in ("is not set", "does not exist", "not on PATH")):
@@ -497,14 +497,14 @@ def last_measurement(conn, plugin_id: str) -> tuple[str, str]:
 
 def series_age(last_at: str, every_hours: float,
                now_dt: datetime | None = None) -> float | None:
-    ""                                                                       
+    """How many CADENCE PERIODS old the newest sample is, or None if unknown.
 
-                                                                         
-                                                                                
-                                                                               
-                                                                                
-                                         
-       
+    A gap in a series is a fact about the series, and `not_due` could not
+    express it: that word says the cadence is satisfied, and a plugin whose last
+    sample is four days old on a daily cadence is not satisfied, it has stopped
+    producing. Counted in periods rather than hours so one number reads the same
+    for a daily plugin and an hourly one.
+    """
     if not last_at or not every_hours:
         return None
     try:

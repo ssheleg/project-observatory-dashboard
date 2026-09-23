@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-""                                                   
+"""What the wire DECLARES must be what the wire DOES.
 
-                                                              
+Three gaps, all of one shape — a statement nothing honoured:
 
-                                                                              
-                                                                              
-                                                                             
-                                                                                 
-                                                                                  
-                                    
+* **`asOfScanId` was declared and unreachable.** The capability's input schema
+  types it, `survey.py` implements it, and the MCP tool did not expose it. The
+  contract's step 3 requires a host to compile that schema before any project
+  data is supplied, so a host would have constructed a call this server could not
+  honour — and `fabric/FABRIC-CONFORMANCE.md` rests its `idempotency: supported`
+  claim on precisely that parameter.
 
                                                                              
                                                                                   
                                                                                  
                                                                  
 
-                                                                            
-                                                                            
-                                                                      
-   
+* **The served `instructions` said "Read-only" and named three tools** while
+  eight were served and two of them write. That string is what an LLM client
+  reads to decide what the server can do; a stale one is not cosmetic.
+"""
 from __future__ import annotations
 import json
 import jsonschema, pathlib, sys
@@ -40,12 +40,12 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def tool_parameters() -> dict[str, list[str]]:
-    ""                                                                   
+    """Every tool's wire parameter names, from the signatures themselves.
 
-                                                                     
-                                                                                  
-                                                                
-       
+    The names Python declares ARE the names the wire publishes — an
+    `AliasChoices` adds an accepted spelling without changing the declared one —
+    so this reads them with `ast` rather than spawning a server.
+    """
     import ast
     tree = ast.parse((ROOT / "mcp/server.py").read_text(encoding="utf-8"))
     out: dict[str, list[str]] = {}
@@ -57,23 +57,23 @@ def tool_parameters() -> dict[str, list[str]]:
 
 
 def test_every_declared_input_is_reachable_on_the_wire() -> None:
-    ""                                                                         
+    """WITHOUT translating the spelling, which is what hid this for a revision.
 
-                                                                         
-                                                                                 
-                                                                          
-                                                                                 
-                                       
+    The previous version of this test said "camelCase on the wire schema,
+    snake_case in Python — compare the shapes" and converted before looking. So
+    it stayed green while the wire published `project_id` against a schema
+    declaring `projectId`, and a host that compiled the schema — the contract's
+    own step 3 — could reach nothing.
 
-                                                                           
-                                                                           
-                                                                                
-                                                                               
-                             
+    Measured 2026-09-08 by sending the manifest's own fixture verbatim: the
+    server IGNORED it and answered the whole estate, 152 projects where the
+    fixture asked for one, `scope: {kind: estate}`, no error. The provider's own
+    probe run reported 31/31 because `tools/run_probes.py` translates the shape
+    on the way in.
 
-                                                                                   
-                                                                        
-       
+    A capability may name several tools — `project.record` names three — so the
+    rule is that every declared property exists on at least ONE of them.
+    """
     manifest = json.loads((ROOT / "fabric-agent.json").read_text(encoding="utf-8"))
     params = tool_parameters()
     for cap in manifest.get("capabilities") or []:
@@ -94,13 +94,13 @@ def test_every_declared_input_is_reachable_on_the_wire() -> None:
 
 
 def pinned_store() -> "sqlite3.Connection":
-    ""                                                                    
+    """A store with two finished scans, and nothing else it does not need.
 
-                                                                            
-                                                                         
-                                                                         
-                                                             
-       
+    `survey` already takes `conn`, so no subprocess and no import dance: the
+    seam was there the whole time. The judgement that called this a `gap`
+    assumed `survey` reads `paths.DB` and nothing else — the thirteenth
+    hypothesis of this session refuted by looking.
+    """
     import sqlite3
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -114,20 +114,20 @@ def pinned_store() -> "sqlite3.Connection":
 
 
 def test_the_pin_is_recorded_and_says_it_is_not_honoured() -> None:
-    ""                                                       
+    """Four outcomes, and one of them used to lie in silence.
 
-                                                                              
-                                                                                
-                                                                                
-                                                                             
-                                                                                
-                                                                            
-                                        
+    Measured on the live store 2026-09-08: pinning to a scan 146 scans and two
+    days old returned byte-identical counts and the identical project list, with
+    no degradation. `as_of_scan_id` was read twice — to check the scan exists,
+    and to stamp `scanId` — and filtered nothing, while the PUBLISHED input
+    schema said "Answer from a recorded scan instead of the latest one" and this
+    file's own docstring called the parameter's absence from the wire one of
+    three "statements nothing honoured".
 
-                                                                               
-                                                                               
-                                                            
-       
+    The case that stood here pinned to the CURRENT scan, which the code answers
+    through the same branch as no pin at all: an assertion that could not fail,
+    behind a skip that hid the fact it never ran.
+    """
     sys.path.insert(0, str(ROOT))
     import survey as survey_mod
     import inspect
@@ -175,9 +175,9 @@ def test_the_pin_is_recorded_and_says_it_is_not_honoured() -> None:
 
 
 def test_no_document_still_promises_the_pin_filters() -> None:
-    ""                                                                         
-                                                                                
-              
+    """Five statements rested on it. A document left claiming the old behaviour
+    is worse than the behaviour was, because the code is now honest and the page
+    is not."""
     for rel, phrase in (
             ("fabric/schemas/capability-input.schema.json",
              "Answer from a recorded scan instead of the latest one"),
@@ -239,10 +239,10 @@ def test_the_ceiling_message_does_not_blame_the_wrong_spender() -> None:
 def test_the_served_instructions_describe_the_served_surface() -> None:
     src = (ROOT / "mcp/server.py").read_text(encoding="utf-8")
     tools = src.count("@server.tool()")
-                                                                            
-                                                                                 
-                                                                                
-                                                       
+    # NINE SINCE `observatory_credentials`. The count is asserted
+    # rather than the names because the instructions below are what an LLM client
+    # reads to decide what to call, and a tool that exists while the string says
+    # otherwise is the drift this test was written for.
     check("the server serves nine tools", tools == 9, str(tools))
     block = src.split("instructions=(", 1)[1].split("),", 1)[0]
     check("the instructions no longer claim read-only", "Read-only" not in block)
@@ -257,22 +257,22 @@ def test_the_served_instructions_describe_the_served_surface() -> None:
 
 
 def test_every_fixture_validates_against_the_schema_it_accompanies() -> None:
-    ""                                                            
+    """The step a host takes before it sends anything, taken here.
 
-                                                                            
-                                                                               
-                                                                          
-                                                                             
-                                                                              
-                                                                                  
-                                                 
+    The contract's step 3 is *compile the JSON Schemas before credentials or
+    project data are supplied*, and a host that compiles them validates what it
+    is about to send. Two of the six fixtures could not survive that: they
+    carried a `_note` key for the human reading them while every input schema
+    sets `additionalProperties: false`, so a host doing exactly what the probe
+    declaration implies — take `inputFixture`, send it as the capability's input
+    — would have refused to send it.
 
-                                                                                
-                                                                                 
-                                                                               
-                                                                             
-                 
-       
+    Nothing checked this. `tools/run_probes.py` validates the RESULT against the
+    output schema, which is the probes' own first assertion, and no test compared
+    a fixture with the input schema of the capability whose probe names it. The
+    explanation moved to the probe's `description`, where the manifest schema
+    allows prose.
+    """
     manifest = json.loads((ROOT / "fabric-agent.json").read_text(encoding="utf-8"))
     seen = 0
     for cap in manifest.get("capabilities") or []:
@@ -305,21 +305,21 @@ def test_every_fixture_validates_against_the_schema_it_accompanies() -> None:
 
 
 def test_the_probe_runner_sends_the_fixture_verbatim() -> None:
-    ""                                                                
+    """A receipt about the runner is not a receipt about the provider.
 
-                                                                      
-                                                                             
-                                                                              
-                                                                              
-                                                                           
-                                                                                
-                                                                            
-                                         
+    `tools/run_probes.py` used to rewrite the fixture on its way in: a
+    `{"projectId": "project_id", …}` map for the read capabilities, `scope`
+    unpacked into flat `kind`/`value` for the survey, and any `_`-prefixed key
+    stripped. So its 31/31 described a payload no host would ever send, and it
+    could not see that a host sending the DECLARED shape received the whole
+    estate — 152 projects where the fixture asked for one. With the
+    wire publishing the contract's own names, a runner that still translated
+    would be measuring itself.
 
-                                                                             
-                                                                                   
-                                               
-       
+    The record probe's negative cases — no owner, a stale revision, another
+    owner's record — are CONSTRUCTED on purpose and are not the fixture. The rule
+    is only about the call that carries `args`.
+    """
     import ast
     manifest = json.loads((ROOT / "fabric-agent.json").read_text(encoding="utf-8"))
     declared: set[str] = set()

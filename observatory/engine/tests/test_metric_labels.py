@@ -123,21 +123,21 @@ def test_the_payload_carries_a_caption_per_metric() -> None:
 
 
 def test_the_core_still_names_no_plugin_metric() -> None:
-    ""                                                                         
-                                                                        
+    """The invariant the whole indirection exists for, re-asserted because this
+    change adds a second thing the dashboard reads from the manifest."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
-                                                                         
-                                                                         
-                                                                                  
-                                                                            
-                                                                              
-                  
-     
-                                                                                 
-                                                                             
-                                                                               
-                                                                             
-                       
+    # TWO READERS, one per half, and the reason is not pedantry. My first
+    # version stripped only `#` comments and reported that the file names
+    # `disk.bytes` — it does, twice, both times in a COMMENT recording this very
+    # scar, one of them a `//` comment inside the embedded script. The fifth
+    # source-level assertion this session to misfire on its reader rather than
+    # on the code.
+    #
+    # `source_reader.code_only` blanks Python comments AND string literals, so it
+    # covers the Python half exactly — but the page's script lives INSIDE a
+    # string, so that reader blanks the JS wholesale and would not see a branch
+    # written there. Hence the second pass: the embedded script with its `//`
+    # comments removed.
     sys.path.insert(0, str(ROOT / "tests"))
     import source_reader
     python_half = source_reader.code_only(src)

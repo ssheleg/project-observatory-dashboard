@@ -1,42 +1,42 @@
 #!/usr/bin/env python3
-""                                                                           
+"""What shape is a registry record? Derived from the data, never hand-listed.
 
-                                                                               
-                                                                              
-                                                                          
-                                                                                 
-                                                                                
-                                                                   
+`AGENTS.md` calls `registry/*.json` "typed facts", and until 2026-09-08 nothing
+published those types. `docs/ARCHITECTURE.md` documents the store's tables and
+the MCP tools; `fabric/schemas/*.json` describe the MCP output shapes; and
+`tools/validate_registry.py` checks invariants — ids unique, domains lowercase,
+the zone snapshot in step with `domains.json` — not the set of fields a record
+carries. The shape lived only in the emitting code and in the data.
 
-                                                                              
-                                                                           
-                                                                              
-                                                                                        
-                                                                               
-                                                                        
+So every reader inferred it, and five inferences of mine were wrong inside two
+iterations — `c["name"]` for `nwo`, `newest_on` for `unpushed_newest_on`,
+`remote_head` where the code compares `branch_sha`, `rel["repository_id"]` for
+`from`/`to`, and a bold `Статус:` label for a `- Status:` list item. Each time the
+answer sat in a file I had edited minutes earlier. A lesson in the decision log
+does not prevent the sixth; this repository's rule for that is a script.
 
-                                                                              
-                                                                               
-                                                                               
-                                                                                  
-                                              
+**Generated, and that is the whole design.** A hand-written field table is the
+next thing to drift — the lesson here about counts, dates, pointers and prose
+alike. This derives the shape FROM the data, so it cannot disagree with it, and
+`tools/check_docs.py` fails when the published copy is stale. `docs/AGENT_SYNC.md`
+is the precedent: generated, stamped, checked.
 
-                                                                                
-                                                                                  
-                                                                                
-                                                      
-                                                                                  
-                                  
+**Every field carries how many records hold it.** `local.unpushed` sits on 15 of
+177 repositories (measured 2026-09-08, and still exactly that — dated because an
+undated true figure becomes an undated false one with nobody touching it), and a
+list showing it beside `id` would teach a reader it is
+always there — the same false confidence one level up. A count makes optionality
+visible without a schema language.
 
-                                                                                 
-                                                                             
-                                                                                 
-                            
+**One level of nesting, no more.** `local` is where every one of my wrong guesses
+lived, so it is described; going deeper would produce a document nobody reads
+instead of the one page a reader needs. Where a value is a list, the element type
+is named rather than walked.
 
-                                                
-                                                           
-                                                                  
-   
+    registry_shape.py            print the shape
+    registry_shape.py --json     the same, machine-readable
+    registry_shape.py --write    regenerate docs/REGISTRY_SHAPE.md
+"""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -108,7 +108,7 @@ def _fields(records: list[dict]) -> dict:
 
 
 def shapes() -> dict:
-    ""                                                                         
+    """One entry per registry document: record count, fields, nested blocks."""
     out: dict[str, dict] = {}
     for path in sorted(paths.REGISTRY.glob("*.json")):
         try:
@@ -123,11 +123,11 @@ def shapes() -> dict:
             out[path.name] = {"records": 0, "fields": {}, "nested": {},
                               "note": f"top level is {_type_of(doc)}, not an object"}
             continue
-                                                                              
-                                                                                  
-                                                                            
-                                                                                
-                                                      
+        # THE LONGEST list, not the first. `domain-liveness.json` carries both
+        # `source_refs` (a two-element provenance list) and `hosts` (the records),
+        # and "first" picked the provenance and reported zero records — an
+        # arbitrary rule producing a confident wrong answer, which is the defect
+        # this whole file exists to reduce.
         lists = [(k, v) for k, v in doc.items() if isinstance(v, list)]
         key = max(lists, key=lambda kv: len(kv[1]))[0] if lists else None
         if key is None:
@@ -147,12 +147,12 @@ def shapes() -> dict:
 
 
 def stamp(data: dict) -> str:
-    ""                                              
+    """A content hash of the SHAPE, not of the data.
 
-                                                                          
-                                                                                  
-                                                              
-       
+    The registry changes on every tick and its shape almost never does, so
+    hashing the data would make this document stale hourly — a chore rather than
+    a check, which is the distinction rule 13 was written for.
+    """
     skeleton = {
         name: {"records_present": bool(d.get("records")),
                "fields": {k: v["type"] for k, v in (d.get("fields") or {}).items()},

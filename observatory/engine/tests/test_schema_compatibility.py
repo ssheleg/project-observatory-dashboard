@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Synthetic-only upgrade, downgrade refusal, WAL backup and concurrency checks."""
 from __future__ import annotations
 import hashlib
 import multiprocessing

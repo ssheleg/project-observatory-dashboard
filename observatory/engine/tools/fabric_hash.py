@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Compute and stamp provider.contentHash in fabric-agent.json.
 
-                                                            
-                                                                        
-                       
+The contract (docs/specification/overview.md:35-36) requires
+`sha256:<64 lowercase hex>` "over the canonical JSON representation with
+`contentHash` omitted".
 
-                                                                                 
-                                                                      
-                                                                                
-                                                                                   
-                                                                        
-                                                        
+Two readings are possible: hash the revisioned object (`provider`) alone, or hash
+the whole manifest. This implementation hashes the WHOLE MANIFEST with
+`provider.contentHash` removed, because a hash that ignores `capabilities` would
+not change when a capability's effect class or profile changes — and the manifest
+revision is what admission is decided against. The choice is recorded in
+fabric/FABRIC-CONFORMANCE.md so a host can reproduce it.
 
 Canonical form: UTF-8 JSON, keys sorted, no insignificant whitespace.
 """

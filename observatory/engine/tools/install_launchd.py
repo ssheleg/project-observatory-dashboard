@@ -97,11 +97,11 @@ def build(interval: int) -> dict:
         "ProcessType": "Background",
         "LowPriorityIO": True,
         "Nice": 5,
-                                                                             
-                                                                                 
-                                                                               
-                                                                         
-                                                                               
+        # PATH and HOME only, and no secret ever. A plist is a world-readable
+        # file: a key in EnvironmentVariables here would be plaintext where every
+        # process on the machine can read it. The agent resolves its key at run
+        # time from the machine's secret store — see agent/providers.py
+        # KEY_FILES, and tests/test_key.py which asserts this dict stays clean.
         "EnvironmentVariables": environment(),
         "Umask": 0o077,
     }

@@ -23,16 +23,16 @@ def main() -> int:
     except Exception:
         return 0
     if not r.get("recorded"):
-                                                                           
-                                                                              
-                                                                         
-                                                                             
-                                                                              
-                                                                             
-                                                                           
-                                                        
-         
-                                                                               
+        # A FAULT IS NOT A QUIET TURN. This returned 0 for every `recorded:
+        # false`, and the recorder's reasons are two different kinds: "nothing
+        # changed" is an answer about the work, while `IllegalTransition:
+        # observed -> proposed` is the recorder failing. Measured 2026-09-07:
+        # once `tools/corroborate.py` promoted a session's record, every later
+        # turn of that session raised that error and said nothing — roughly
+        # seventy-two turns in one session, and the only visible sign was a
+        # ledger row that had stopped moving.
+        #
+        # The recorder marks which kind it is; this only has to stop hiding it.
         reason = r.get("reason") or ""
         if not r.get("fault"):
             return 0                   # nothing changed, not watched, or explained

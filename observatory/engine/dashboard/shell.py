@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                  
+"""The dashboard's shell: which pages exist, how they are linked, what each carries.
 
                                                                               
                                                                               
@@ -9,10 +9,10 @@
                                                                                 
                                                                              
 
-                                                                            
-                                                                             
-                                                                         
-   
+`docs/projects-dashboard.html` stays as the full single page (the tests, the
+smoke harness and the design checks read it), and `docs/dashboard/*.html` are
+the pages a person opens. Both come from `build_dashboard.py` in one run.
+"""
 from __future__ import annotations
 import json
 import re
@@ -32,11 +32,11 @@ PAGES: tuple[tuple[str, str, str], ...] = (
     ("traffic",  "Трафик",    "table"),
     ("health",   "Здоровье",  "health"),
 )
-                                                                              
-                                                                            
-                                                                            
-                                                                              
-                                                           
+#: THE QUESTION EACH PAGE ANSWERS, in the reader's words (IS-01/IS-02; backlog
+#: D-03). Nine pages shared one `<title>` and one `<h1>` until 2026-09-14: a
+#: browser tab, a bookmark and the history could not tell them apart, and no
+#: page said what it showed or over what scope. The sentence is the page's own
+#: heading; the measurement stamp follows it on every page.
 QUESTIONS: dict[str, str] = {
     "index":    "Что требует человека сегодня, и куда двинулся эстейт.",
     "findings": "Всё открытое на доске — по важности и по типу; заглушенное отдельно.",
@@ -60,14 +60,14 @@ LITE_ROW_KEYS = ("id", "name", "anchor", "products", "tier", "lifecycle")
 
 
 def nav_html(page: str, counts: dict[str, int | str]) -> str:
-    ""                                                                         
+    """The top bar: brand, the nine pages with their badges, the theme control.
 
-                                                                             
-                                                                           
-                                                                                        
-                                                                               
-              
-       
+    Sticky and first in the document (S12; backlog D-05): on a long table the
+    way out must not scroll away. The theme control is three buttons rather
+    than a toggle because «система» is a real third state — it follows the OS
+    and re-follows it — and a two-state switch would have to lie about one of
+    the three.
+    """
     items = []
     for name, title, _kind in PAGES:
         n = counts.get(name)
@@ -85,8 +85,8 @@ def nav_html(page: str, counts: dict[str, int | str]) -> str:
 
 
 def counts_of(payload: dict) -> dict[str, int | str]:
-    ""                                                                          
-                                                                        
+    """The badge beside each page name — computed once, carried by every page,
+    so a page that holds no rows of a kind still says how many exist."""
     f = payload.get("findings") or {}
     c = (f.get("counts") or {}) if f else {}
     open_findings = sum(v for k, v in c.items() if k in ("critical", "warning", "info"))
@@ -114,8 +114,8 @@ def counts_of(payload: dict) -> dict[str, int | str]:
 
 
 def _observer(health: dict) -> str:
-    ""                                                                        
-                                                                                
+    """The three states the health row spells apart, in three words: -1 is off
+    (a choice, not a fault), a fresh receipt is alive, an old one is silence."""
     age = health.get("server_age_s")
     if not isinstance(age, (int, float)):
         return "наблюдатель не измерен"
@@ -127,8 +127,8 @@ def _observer(health: dict) -> str:
 
 
 def _traffic_line(payload: dict) -> str:
-    ""                                                                          
-                                                                              
+    """Users over thirty days, and how much of it nothing claims — because the
+    second number is the one that decides whether the first can be trusted."""
     g = payload.get("google") or {}
     tt = g.get("totals") or {}
     if not g:
@@ -140,7 +140,7 @@ def _traffic_line(payload: dict) -> str:
 
 
 def cards_html(payload: dict, counts: dict) -> str:
-    ""                                                                           
+    """The index page's module cards: one sentence each, the number, the link."""
     stats = payload.get("stats") or {}
     health = payload.get("health") or {}
     lines = {
@@ -167,28 +167,28 @@ def cards_html(payload: dict, counts: dict) -> str:
 
 
 def slice_for(page: str, payload: dict) -> dict:
-    ""                                                              
+    """Everything small, and only the HEAVY document a page renders.
 
-                                                                             
-                                                                              
-                                                                         
-                                                                          
-                                                                         
-       
-                                                                           
-                                                                                    
-                                                                                
-                         
+    The first cut kept only what each page draws and every page but two threw
+    at load: the script reads `D.dups`, `D.events` and friends unconditionally
+    before any renderer runs. So the slice is the whole payload minus the
+    heavy parts — full project rows on the projects page only (lite rows
+    elsewhere, for lookups), and each provider document only on its page.
+    """
+    # `google` is the whole property inventory and belongs to its own page;
+    # `traffic` is the per-project summary — a number and a link or two — and is
+    # small enough to ride everywhere, which is what the projects column and the
+    # project panel read.
     heavy = {"env": "env", "heroku": "heroku", "creds": "creds", "mcp": "mcp",
              "google": "traffic"}
     out = dict(payload)
-                                                                         
-                                                                    
+    # WHAT PRODUCTION HOLDS is read by exactly the two pages that can say
+    # something about it: the Heroku row and the ENV row.
     if page not in ("heroku", "env"):
         out["remote"] = None
-                                                                         
-                                                                                
-                                                  
+    # The per-project key map feeds the project PANEL, which opens on the
+    # projects page alone; 319 rows of names rode onto every page and pushed the
+    # index to 133 KB before this line.
     if page != "projects":
         out["keys"] = None
     if page != "projects":
@@ -235,16 +235,16 @@ SHARED_FROM = "// __SHARED_BELOW__"
 
 
 def split_template(template: str) -> tuple[str, str, str]:
-    ""                                                
+    """(page template, the shared CSS, the shared JS).
 
-                                                                             
-                                                                            
-                                                                          
-                                                                             
-                                                                              
-                                                                             
-                                                                         
-       
+    WHY THE SPLIT. Inlined, the style and the script are 114 KB of the 154 KB
+    a page weighs, and nine pages carried nine copies — re-parsed on every
+    navigation, which is the cost the split was supposed to remove. As two
+    sibling files they are fetched once and served from cache thereafter, and
+    an index that holds only its own data drops to ~45 KB (plan v2, T-02 DoD).
+    Both are classic (non-module) subresources next to the page, so `file://`
+    loads them like any browser loads a stylesheet — no fetch, no CORS.
+    """
     o, c = template.index("<style>"), template.index("</style>")
     css = template[o + len("<style>"):c]
     page = (template[:o] + f'<link rel="stylesheet" href="{ASSET_CSS}">'
@@ -263,10 +263,10 @@ def page_html(template: str, page: str, payload: dict) -> str:
     counts = counts_of(payload)
     data = json.dumps(slice_for(page, payload), ensure_ascii=False)
     title = dict((n, tt) for n, tt, _k in PAGES)[page]
-                                                                            
-                                                                                  
-                                                                              
-                                                                                 
+    # D-20: the single page's tab strip is dead markup on a split
+    # page — CSS hid it, the DOM still carried six buttons and six counters, and
+    # `drawTab` wrote into them on every render. Stripped at build; the script
+    # asks before writing a counter (`setN`), so the single page keeps its strip.
     template = re.sub(r'<nav class="tabs"[^>]*>.*?</nav>\s*', "", template, count=1, flags=re.S)
     return (template.replace("__PAGE__", page)
             .replace("__TITLE__", f"{title} — {TITLE_SUFFIX}")

@@ -177,9 +177,9 @@ def main(argv: list[str]) -> int:
             r["liveness"] = "not-listed"
         else:
             r["liveness"] = "not-probed"
-                                                                             
-                                                                              
-                                                     
+    # Servers Claude reaches that no config here declares: plugin-shipped and
+    # claude.ai connectors. Recorded as their own rows so the inventory is the
+    # whole picture, never a subset that looks whole.
     declared = {r["name"] for r in rows if r.get("name")}
     for name, pr in probe.items():
         if name not in declared and pr["plugin"]:
