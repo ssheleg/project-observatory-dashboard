@@ -58,8 +58,8 @@ def now_iso() -> str:
 
 
 def window_days() -> int:
-    ""                                                                       
-                                                                              
+    """The SAME horizon the collector asks git for and the pruner deletes by.
+    Three readers, one file — the arrangement trap T25 exists to enforce."""
     try:
         return int(json.loads(RETENTION.read_text(encoding="utf-8"))["events_days"])
     except Exception:

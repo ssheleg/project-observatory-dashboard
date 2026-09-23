@@ -15,10 +15,10 @@ sys.path.insert(0, str(ROOT))
 import atomic
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))                       
 import paths                                                                    
-                                                                                  
-                                                                               
-                                                                                
-                                                                          
+# `paths`, not `ROOT / "registry"`. The third tool found with the path inlined —
+# after the validator — and the consequence is the same: it is the
+# one file `OBSERVATORY_REGISTRY` cannot redirect, so a test that points it at a
+# copy silently renders the live registry and passes for the wrong reason.
 INV = paths.REGISTRY
 OUT = paths.DASHBOARD_HTML
 
@@ -267,9 +267,9 @@ def from_store() -> dict:
                     if lab and met.get("name"):
                         labels[met["name"]] = lab
         except Exception as exc:                                                    
-                                                                               
-                                                                                  
-                                         
+            # NAMED, not swallowed. Without captions the page still renders —
+            # the script falls back to the metric name — so this degrades rather
+            # than fails, and says which.
             print(f"  metric captions unavailable: {type(exc).__name__}: {exc}",
                   file=sys.stderr)
         # THE PREVIOUS VALUE, because retention keeps it for exactly this and
@@ -436,15 +436,15 @@ def from_store() -> dict:
     return out
 
 
-                                                                            
-                                                                                 
-                                                                            
-                                                                             
-                                                                              
-                                                                               
-                                                                                
-                                                                            
-                                                                                
+#: How many findings the page carries BEFORE every remaining type is given a
+#: row. It was a bare `[:40]` in the middle of a dict literal — a policy nobody
+#: could find and nobody was told about — and the sentence that
+#: justified it said what falls off the end is "the tail of `info`, the right
+#: end to drop". Measured 2026-09-09, on 64 open findings: the tail held **ten
+#: whole classes with no row on the page at all** — `store.faults_recurring`,
+#: `project.unobservable`, `work.unwitnessed` and seven more. Dropping more of a
+#: kind the reader can already see is a cap. Dropping the only instance of a
+#: kind is a silence, and it is the one this repository refuses everywhere else.
 FINDINGS_ON_PAGE = 8                                                                                     
 
 
@@ -867,9 +867,9 @@ def build():
 
 
 def build_pages(payload: dict) -> dict[str, int]:
-    ""                                                                     
-                                                                       
-                                                  
+    """docs/dashboard/<page>.html for every page in `shell.PAGES`, from the
+    same template and the same data, each carrying only what it renders
+. Returns bytes written per page."""
     import shell
     paths.DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
     page_tpl, css, js = shell.split_template(TEMPLATE)

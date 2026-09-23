@@ -120,7 +120,7 @@ TARGET_SUFFIXES = (
 
 
 def classify_target(record: dict) -> tuple[str, str] | None:
-    ""                                                                             
+    """(provider, handle) for an A/AAAA/CNAME record, or None for an IP/unknown."""
     if record.get("type") == "CNAME":
         c = (record.get("content") or "").lower().rstrip(".")
         for suf, prov in TARGET_SUFFIXES:
@@ -133,8 +133,8 @@ def classify_target(record: dict) -> tuple[str, str] | None:
 
 
 def zone_targets(z: dict) -> list[dict]:
-    ""                                                                  
-                                                          
+    """The apex and www records, classified — the reader's question is
+    'what serves this domain', not the full record set."""
     out = []
     for r in z.get("records") or []:
         if "error" in r:
@@ -354,7 +354,7 @@ def suggested_products(projects: list[dict], domains: list[dict],
 
 def products_document(projects: list[dict], domains: list[dict], obs_date: str
                       ) -> tuple[dict, list[dict], list[str]]:
-    ""                                              
+    """(document, part_of edges, curated errors)."""
     curated, roles = load_curated()
     ids = {p["id"] for p in projects}
     errors, missing = curated_errors(curated, roles, ids)
@@ -399,8 +399,8 @@ LIVENESS = ("connected", "failed", "needs-auth", "not-listed", "not-probed")
 
 
 def mcp_rows(scan: dict) -> list[dict]:
-    ""                                                                   
-                                                                            
+    """One row per declaration, id'd by agent, scope and name. No values,
+    no query strings — the scan already dropped them; this only shapes."""
     out = []
     for r in scan.get("servers") or []:
         if not r.get("name"):

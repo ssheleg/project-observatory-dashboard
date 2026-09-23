@@ -68,7 +68,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def _k(tag: str) -> str:
-    ""                                                                     
+    """A value that LOOKS like a credential without being a literal one."""
     return "-".join(("fixture", tag, "value", "not", "a", "real", "one"))
 
 
@@ -102,7 +102,7 @@ def _minted_state() -> tuple[pathlib.Path, str]:
 
 
 def test_the_two_inventories_fingerprint_the_same_way() -> None:
-    ""                                                                    
+    """One derivation, or every comparison silently reads as `differs`."""
     sre = load("collectors/scan_remote_env.py", "scan_remote_env")
     env = load("collectors/scan_env.py", "scan_env")
     pepper, value = _k("pepper"), _k("database-url")
@@ -261,9 +261,9 @@ def test_the_document_carries_no_fingerprint_and_no_value() -> None:
     blob = json.dumps(doc)
 
     def keys(node) -> set:
-        ""                                                                      
-                                                                             
-                                                                
+        """Every key name in the document, at any depth. The prose explains that
+        the comparison is made FROM fingerprints, which is why this walks the
+        structure instead of searching the text for the word."""
         if isinstance(node, dict):
             return set(node) | {k for v in node.values() for k in keys(v)}
         if isinstance(node, list):
@@ -283,7 +283,7 @@ def test_the_document_carries_no_fingerprint_and_no_value() -> None:
 
 
 def test_the_scan_is_gated_to_once_a_day() -> None:
-    ""                                                             
+    """Every run pulls every production secret into one process."""
     state, ns = _minted_state()
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-remote-"))
     out = d / "remote-env.json"
@@ -330,7 +330,7 @@ def test_a_retired_archive_is_read_from_the_vault_shape() -> None:
 
 
 def test_a_scan_names_the_salt_its_fingerprints_belong_to() -> None:
-    ""                                                                   
+    """The name is derived from the salt and does not lead back to it."""
     env = load("collectors/scan_env.py", "scan_env")
     one, two = _k("salt-one"), _k("salt-two")
     a, b = env.namespace(one), env.namespace(two)
@@ -347,7 +347,7 @@ def test_a_scan_names_the_salt_its_fingerprints_belong_to() -> None:
 
 
 def _sides(remote_ns, local_ns):
-    ""                                                                      
+    """One application holding one secret the checkout also holds, equal."""
     scan = {"scanned_at": "2026-09-18T00:00:00Z", "provider": "heroku", "retired": [],
             "apps": [{"app": "demo", "folders": ["/x/demo"], "error": None, "vars": [
                 {"name": "TOKEN", "class": "secret", "fingerprint": "aaaa"},
@@ -420,7 +420,7 @@ def test_one_salt_compares_exactly_as_before() -> None:
 
 
 def test_nothing_to_compare_is_not_a_namespace_complaint() -> None:
-    ""                                                                             
+    """A fresh clone has no local fingerprints at all — and no loss to report."""
     rr = load("collectors/remote_registry.py", "remote_registry")
     scan, _ = _sides(None, None)
     doc = rr.document(scan, {"files": [], "degraded": []}, "2026-09-18")
@@ -433,10 +433,10 @@ def test_nothing_to_compare_is_not_a_namespace_complaint() -> None:
 
 
 def test_a_retired_value_is_still_found_across_a_namespace_refusal() -> None:
-    ""                                                                    
-                                                                      
-                                                                            
-                                             
+    """The archive and production are fingerprinted in ONE process, by one
+    pepper, into one file. The local inventory's salt cannot make them
+    incomparable, and withholding the estate's only critical here would be a
+    refusal with no measurement behind it."""
     rr = load("collectors/remote_registry.py", "remote_registry")
     scan = {"scanned_at": "2026-09-18T00:00:00Z", "provider": "heroku",
             "fingerprint_namespace": "fp1:aaaaaaaaaaaaaaaa",
@@ -481,7 +481,7 @@ def test_the_refusal_reaches_the_board_with_its_remedy() -> None:
 
 
 def test_a_cached_scan_from_another_salt_is_not_served_as_current() -> None:
-    ""                                                                          
+    """The gate used to answer `recent enough` without ever reading the salt."""
     import datetime as _dt
     fresh = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     state, here = _minted_state()

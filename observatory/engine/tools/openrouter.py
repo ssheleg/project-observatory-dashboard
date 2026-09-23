@@ -68,9 +68,9 @@ NAMED_DESTINATIONS = ("observatory", "claude-mem")
 
 
 def _journal(event: str, secret: str, **detail) -> None:
-    ""                                                                    
-                                                                          
-                                                                                 
+    """The vault's movements journal: every issue, rotation and
+    revocation this door performs is on the record beside the vault's own.
+    Never raises — a journal failure must not undo a rotation that happened."""
     try:
         sys.path.insert(0, str(ROOT / "tools"))
         import vault
@@ -91,7 +91,7 @@ def slug(text: str) -> str:
 
 def _request(path: str, key: str, payload: dict | None = None,
              method: str | None = None) -> dict:
-    ""                                                                            
+    """Endpoint and status in errors — never headers, never the body we sent."""
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(
         f"{API}{path}", data=data, method=method or ("POST" if data else "GET"),
@@ -195,7 +195,7 @@ def stash_value(value: str, label: str, origin: str) -> int:
 
 
 def cmd_adopt(label: str) -> int:
-    ""                                                             
+    """The legacy single provisioning file, moved under a label."""
     if not LEGACY.is_file():
         print(f"nothing to adopt: {LEGACY} does not exist", file=sys.stderr)
         return 1
@@ -440,7 +440,7 @@ def _delivery_failed(admin: str, row: dict) -> None:
 
 
 def rotate_one(name: str, doc: dict | None = None) -> dict:
-    ""                                                                                           
+    """Deliver and verify a successor before revoking the predecessor; keep recovery metadata."""
     doc = doc if doc is not None else ledger()
     rec = doc["issued"].get(name)
     if not rec:
@@ -526,10 +526,10 @@ def _leaked(name: str, rec: dict) -> bool:
 
 
 def revoke_key(name_or_label: str) -> dict:
-    ""                                                                       
-                                                                             
-                                                                              
-                                                               
+    """Delete at the provider, then clear the ledger row — in that order: a
+    forgotten live key is worse than a stale row. REFUSED for a key something
+    is reading right now (`serves` in the OpenRouter scan): revoking the key a
+    consumer holds takes the consumer down with no way back."""
     name, rec = resolve_issued(name_or_label)
     scan = paths.SCRATCH / "openrouter.json"
     if scan.is_file():
@@ -596,7 +596,7 @@ def cmd_list() -> int:
 
 
 def cmd_ping() -> int:
-    ""                                                                          
+    """Every stashed and issued key, against the provider. No values printed."""
     bad = 0
     doc = ledger()
     for label, p in admins():

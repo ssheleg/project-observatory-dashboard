@@ -11,32 +11,32 @@ WHAT IT IS. The tick is a pulse: every thirty minutes it measures and stops. A
 person or an agent between pulses talks to files. This daemon is the third shape
 — a process that is UP by default, dies only when told to, and answers now:
 
-                                                                                
-                                                                                 
-                                                                                  
-                                                                                  
-                                                                                   
+    http://127.0.0.1:47311/          the dashboard page, always the newest build
+    http://127.0.0.1:47311/health    pid, uptime, versions, tick lease, last tick
+    http://127.0.0.1:47311/remote    every project's remote-sync state, summarised
+    http://127.0.0.1:47311/leaks     the vault's leak register status (names only)
+    http://127.0.0.1:47311/skills    shipped skill versions vs what sessions report
 
-                                                                            
-                                                                            
-                                                                                 
-                                                                           
-                                          
+ALWAYS LIVE, THE SAME WAY THE MEMORY WORKER IS. `--install` writes a launchd
+agent with `RunAtLoad` and `KeepAlive`, so the daemon starts at login and is
+restarted if it dies. `--uninstall` boots it out AND removes the plist — off is
+a state, not a pause. There is no in-between: a server that is sometimes up
+teaches its readers to check files anyway.
 
-                                                                             
-                                                                                  
-                                                                                 
-                                                                             
-                                                                             
-                                                                                 
-                                                                               
-                                                                       
+WHAT IT WATCHES, AT THIS LEVEL. The remote axis: for all ~160 projects, which
+checkouts are `ahead`, hold a `local-only-branch`, are `unpushed-and-remote-moved`
+or have `diverged` — work that exists on one disk only. The daemon does NOT run
+`git fetch` itself: the tick's collectors measure and write the registry, and
+this process notices the write (mtime) within seconds and re-summarises. That
+split is deliberate — one measurer, one live reader — and it is the extension
+point: a future watcher adds a `refresh_*` function and a route, never a second
+scanner. It also does not spend: no model, no network beyond localhost.
 
-                                                                                
-                                                                           
-                                                                             
-                                                                              
-                                                                           
+THE HEARTBEAT IS A RECEIPT. Every cycle writes `store/raw/serverd.json` (through
+the atomic writer): pid, port, uptime, the remote summary, open-leak count,
+skill versions. `tools/build_findings.py` reads it and raises `server.silent`
+when the plist says the daemon should be up but the heartbeat is stale — the
+board is where silence becomes visible, same as every other component here.
 
 SECURITY. Binds 127.0.0.1 only. Serves NO secret values anywhere: `/leaks` is
 names, places and dates from the register, which never held values to begin

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Every OpenRouter key this account holds, as facts — and never as values.
 
-                                                                              
-                                                                               
-                                                                               
-                                                                                
-                                                                               
-                                             
+WHY. Four destinations on this machine read an OpenRouter key and each learned
+it separately: the tick, claude-mem, the gateway, and the provisioning key that
+governs the rest. Nothing listed them together, so "which key is spending, what
+is it capped at, and is any of them dead" took four commands and a guess — and
+on 2026-09-12 the answer turned out to be that one had been dead for days while
+a shell variable quietly shadowed a live one.
 
 WHAT IT RECORDS, AND WHAT IT REFUSES TO.
 

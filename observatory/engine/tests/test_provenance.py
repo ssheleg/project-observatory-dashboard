@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """A citation must name the thing that measured, not merely a thing that exists.
 
-                                                                             
-                                                                           
-                                                                               
-                                                 
+A reference resolving is necessary but insufficient: local remote-sync values
+must cite their network measurement source, and domain-liveness output must
+cite the probe that produced it. These tests plant eight synthetic repositories
+and deliberately remove their required witnesses.
 
 A source now declares `evidence_for`, and the validator asserts the converse: a
 record carrying one of those fields must cite that source. It is a NECESSARY

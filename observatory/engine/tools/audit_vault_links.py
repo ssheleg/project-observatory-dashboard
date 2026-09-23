@@ -60,7 +60,7 @@ def basenames(root: pathlib.Path) -> dict[str, list[str]]:
 
 def resolve(root: pathlib.Path, target: str,
             index: dict[str, list[str]] | None = None) -> tuple[bool, str]:
-    ""                                                                
+    """(exists, why_not). The anchor is stripped before resolution."""
     raw = target.strip()
     path = raw.split("#", 1)[0].strip()
     if not path:

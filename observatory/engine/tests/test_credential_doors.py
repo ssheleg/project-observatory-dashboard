@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """The two credential doors — `tools/cloudflare.py` and `tools/openrouter.py`.
 
-                                                                     
-                                                                                
-                                                                            
-                                                                           
-                                                                    
+Both share one architecture, decided in this order by the operator on
+2026-09-13: the ADMIN credential is stashed locally and nothing reads it but the
+door itself; working tokens are ISSUED from it, narrow, delivered to a named
+place, and every one carries a record — so `list` and `ping` answer "what
+exists, who spends it, when was it rotated" without opening a value.
 
 Everything here runs against fakes: the provider is a dict, the stores are
 tmpdirs. What is asserted is the door's own reasoning — refusals, ordering,

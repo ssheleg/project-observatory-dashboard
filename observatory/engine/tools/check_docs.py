@@ -35,10 +35,10 @@ import argparse, json, pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-                                                                              
-                                                                               
-                                                                         
-                                
+# AFTER the path insert, not before. Above it the import resolved only because
+# the tick happens to run with the repository as its cwd — and a checker that
+# works from one directory is a checker that stops working the first time
+# somebody runs it from another.
 import paths              
 
 #: (file, phrase, why it is false now). Absence is the assertion.

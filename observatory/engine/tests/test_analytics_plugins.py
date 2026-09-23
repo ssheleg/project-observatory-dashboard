@@ -90,8 +90,8 @@ def test_cloudflare_rows_attribute_and_report_unmapped() -> None:
 
 
 def test_cloudflare_asks_for_at_most_ten_zones_per_query() -> None:
-    ""                                                                       
-                                                                                
+    """`too many zones requested` — the provider's ceiling, measured on the
+    synthetic multi-zone fixture; every requested zone must survive batching."""
     cf = load("cloudflare_analytics")
     asked = []
 
@@ -147,7 +147,7 @@ def test_ga4_rows_honour_explicit_project_over_hostmap() -> None:
 
 
 def test_every_http_error_is_sanitised() -> None:
-    ""                                                                            
+    """No header may reach an exception message — the 2026-09-12 leak's rule."""
     for name in ("cloudflare_analytics", "search_console", "ga4_analytics"):
         src = (ROOT / "plugins" / f"{name}.py").read_text(encoding="utf-8")
         check(f"{name} re-raises HTTP errors without headers",

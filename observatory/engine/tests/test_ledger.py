@@ -225,7 +225,7 @@ def test_proposal_never_touches_the_registry() -> None:
 
 
 def test_corroboration_needs_a_second_witness() -> None:
-    ""                                                                         
+    """The promise in ARCHITECTURE.md:77, and the four ways it can be faked."""
     conn = fresh()
     r = L.append(conn, owner="agent:observer", statement="the branch was pushed")
 

@@ -465,8 +465,8 @@ def cmd_leaks(a) -> int:
     leaks = [r for r in rows if r.get("event") == "leaked"]
     settled_of = leak_register.settled_ids(rows)
     legacy = leak_register.legacy_rotation_ids(rows)
-                                                                       
-                                                                  
+    # (cmd_leaks keeps its own pass because it prints settled rows too;
+    # `open_leaks()` above is the reading everything else shares.)
     if not leaks:
         print("no leaks recorded")
         return 0

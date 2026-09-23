@@ -123,14 +123,14 @@ def remember(conn, scan_id: str) -> None:
 def fingerprints_kept(conn) -> list:
     """Every fingerprint still on record, oldest first. Retention keeps a few.
 
-                                                                        
-                                                                                    
-                                                                           
-                                                                        
-                                                                            
-                                                                            
-                                                                            
-                                                                                 
+    **`rowid` is the tiebreak and it is load-bearing.** `observed_at` is
+    second-resolution and this ordering once used `id` — `obs:<random hex>` — so
+    two snapshots inside one second, which a launchd tick plus a manual run
+    produces, were ordered AT RANDOM and a diff over them could come out
+    inverted: every `before` and `after` swapped, every delta describing the
+    opposite of what happened. `scans` got a unique-id fix for the collision
+    half of this on 2026-09-04 (trap T12). `rowid` is monotonic in insertion
+    order, which is exactly the question being asked — which was written later.
 
     Replaces `latest_two()`, whose contract was "the two most recent" and could
     therefore not express "since the last one I diffed"."""
@@ -162,27 +162,27 @@ def cmd_snapshot(conn) -> int:
 def pair(conn) -> tuple[object, object, list[str], int]:
     """Which two fingerprints to compare, and what saying so costs.
 
-                                                                                
-                                                                          
+    It used to be "the two most recent", full stop, and that could not tell what
+    had already been compared. Two live consequences, measured 2026-09-07:
 
-                                                                              
-                                                                                
-                                                                           
-                                                                               
-                                                                                
-                                                                             
-                                                                           
-                                                                          
-                                                                      
-                                                                               
-                                                   
+    * **A repeated `diff` wrote the same delta again.** Three such rows sat in
+      the live store, all still pending, so the agent would have read one change
+      twice and could have written two notes about it. In a fixture: 2 rows
+      became 4. **Past tense on purpose, re-measured 2026-09-08: zero duplicate
+      pending deltas, of 107 pending** — the cursor did what it was added for,
+      and a sentence left in the present tense would go on reporting a defect
+      that is fixed, which is the same lie as an undated figure.
+    * **A skipped `diff` lost a generation.** Three snapshots and one diff
+      produced deltas for the LAST pair only; the rename in the middle
+      generation became nothing, under a printed "2 delta(s) written". A failed
+      tick or a locked store is enough to cause it.
 
-                                                                                 
-                                                                           
-                                                                              
-                                                                               
-                                                                                
-                                                      
+    So the FROM end is the last state actually reported — the cursor — rather
+    than whichever fingerprint happens to be second-newest. Folding several
+    generations into one comparison loses nothing: a delta answers "what moved
+    since we last looked", and the answer is the same whether the estate passed
+    through one intermediate state or four. It is REPORTED, because a fold and a
+    quiet skip look identical in the output otherwise.
 
     Returns (from_row, to_row, notes, folded). `from_row` is None when there is
     nothing to compare against yet.

@@ -103,14 +103,14 @@ def load_owners() -> list[dict]:
 
 
 def from_openrouter(scan: dict) -> list[dict]:
-    ""                                                                       
+    """One record per key the account lists, plus the consumers it serves."""
     out = []
     for k in scan.get("keys", []):
         if not k.get("serves") and not (k.get("name") or "").startswith("project-"):
-                                                                                 
-                                                                              
-                                                                            
-                                                                            
+            # THE OTHER WORKSPACE'S KEYS ARE NOT THIS ESTATE'S. The account holds
+            # over a thousand `PRODUCTION_user_…` keys minted by a different
+            # product; carrying them here would bury four facts under twelve
+            # hundred and make the document about somebody else's inventory.
             continue
         out.append({
             "id": f"credential:openrouter/{k.get('name') or k['label']}",
@@ -130,7 +130,7 @@ def from_openrouter(scan: dict) -> list[dict]:
 
 
 def from_vault(store: pathlib.Path) -> list[dict]:
-    ""                                                                          
+    """One record per project secret. Names and dates only — never a value."""
     out = []
     if not store.is_dir():
         return out
@@ -222,7 +222,7 @@ def _plugin_readers() -> dict[str, str]:
 
 
 def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
-    ""                                                                         
+    """One record per file in the machine's secret store. Values never read."""
     root = store or MACHINE_STORE
     out: list[dict] = []
     if not root.is_dir():
@@ -395,16 +395,16 @@ def _stamp(mtime: float) -> str:
 
 
 def leaks(store: pathlib.Path) -> dict[str, dict]:
-    ""                                                                
+    """slot -> the open leak against it. A settled leak is not a debt.
 
-                                                                         
-                                                                          
-                                                                        
-                                                                           
-                                                                        
-                                                                           
-                                                                             
-                                                            
+    Reads the schema `tools/vault.py` WRITES: `event: "leaked"` rows, and
+    `event: "settled"` rows whose `of` names the row they close. The first
+    version looked for a `settles` key no writer has ever produced, so a
+    rotation could never have cleared a leak from this document — and the
+    fixture that kept it green wrote rows in the reader's imagined shape
+    rather than the writer's (found 2026-09-13, before the first settlement
+    existed to expose it live). `tools/serverd.py:refresh_leaks` already read
+    the writer's shape; this reader now agrees with both."""
     path = store / "leaks.jsonl"
     if not path.is_file():
         return {}
@@ -479,7 +479,7 @@ def destination_edges(scan: dict, projects: list[dict]) -> dict[str, str]:
 
 
 def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list[dict], list[dict]]:
-    ""                                                              
+    """The credential records and the project edges they justify."""
     known = {p["id"] for p in projects}
     by_name = {p["name"]: p["id"] for p in projects}
     by_folder = {f: p["id"] for p in projects for f in (p.get("local_folders") or [])}

@@ -4,25 +4,25 @@
 A TAB ANSWERS A QUESTION SOMEBODY ASKED. These four arrive at somebody who did
 not, and each one is invisible from inside the project it belongs to:
 
-                                                                                  
-                                                                               
-                                                                                
-                                                                      
-                                                                             
-                                                                           
-                                                                                
-                                                                                
-                                                                 
-                                                                                
-                                                                                
-                                                                             
-                                                                                  
-                                                                                
-                                                                              
-                                                                            
-                                                                             
-                                                                                
-                                                                 
+`env.tracked_in_git`   a real `.env` that git tracks. Not a risk — an event: the
+                       value is in the history, on every clone, and rotating is
+                       the only remedy because history is not a place you delete
+                       from. Templates are excluded by construction; a
+                       `.env.example` is SUPPOSED to be committed, and a rule
+                       that cannot tell the two apart cries wolf 168 times.
+`env.unignored`        untracked AND unignored — one `git add -A` from the row
+                       above. It looks identical to a safe file in every listing
+                       that does not ask git the second question.
+`env.world_readable`   mode grants group or other read. One row for all of them:
+                       the remedy is one `chmod` loop, not twenty-six decisions.
+`env.shared_secret`    one value, several projects, sometimes under different
+                       names. The blast radius of a rotation, MEASURED — and the
+                       rule points at `collectors/credential_owners.json` rather
+                       than replacing it, because equal values prove equality,
+                       not that two projects were meant to share an account.
+`env.reusable_slot`    a secret slot still empty here whose name holds a live
+                       value in another project. The one rule on this board that
+                       reports an opportunity rather than a debt.
 
 NO TIMESTAMP INSIDE A FINDING: every date quoted is one the registry
 already holds.

@@ -7,19 +7,19 @@ can no longer see a private workspace — its own docstring records that the 200
 "is not access". In both cases the transport succeeded, so nothing downstream
 has any reason to doubt the answer, and the repositories simply stop existing.
 
-                                                                           
-                                                                      
-                                                                           
-                                                                             
-                                                                                 
+Measured 2026-09-07 on the live estate: emptying ONE owner's GitHub listing
+removed **20 repositories** from the merged model, every one of them a
+repository with no local checkout, and no line of the run mentioned it. The
+filesystem scan is a second witness for anything cloned here, which is why 20
+went missing rather than 57 — a reassurance about the design and no help at all
                
 
-                                                                                
-                                                                               
-                                                                             
-                                                                             
-                                                                            
-                                          
+This module holds the RULE and the sentence, not the mechanism: GitHub keeps its
+per-owner file and skips the write, Bitbucket carries the previous rows forward
+inside a single document. Both must say the same thing about why, in the same
+words, because the two collectors were written months apart and a rule stated
+twice drifts. It exists as a module rather than as a third comment because a
+finding class seen twice becomes a script.
 
 What it deliberately does NOT do: refuse an empty listing when there was nothing
 to lose. An owner or workspace with genuinely no repositories is a fact, and

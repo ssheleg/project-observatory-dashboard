@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """The dashboard's shell: which pages exist, how they are linked, what each carries.
 
-                                                                              
-                                                                              
-                                                                         
-                                                                          
-                                                                               
-                                                                                
-                                                                             
+One page of 1.3 MB with seven tabs was the whole surface until 2026-09-14, and
+the operator's verdict was that it could not be used: alerts above navigation,
+one `main` for seven subjects, nothing addressable, everything loaded for
+anything (plan v2, M1; scenario S12). The split keeps ONE template and ONE
+script — every page is the same HTML with a `PAGE` constant, a navigation bar
+in place of the tab strip, and only the DATA that page renders — so nothing is
+rendered twice by two code paths, and a fix to a renderer reaches every page.
 
 `docs/projects-dashboard.html` stays as the full single page (the tests, the
 smoke harness and the design checks read it), and `docs/dashboard/*.html` are

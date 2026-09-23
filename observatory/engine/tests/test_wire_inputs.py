@@ -74,9 +74,9 @@ def test_a_cursor_that_is_not_an_id_is_reported() -> None:
 
 
 def test_a_well_formed_cursor_is_not_second_guessed() -> None:
-    ""                                                                        
-                                                                         
-                                                                                  
+    """A project deleted between two pages leaves a cursor that is a perfectly
+    good position and matches nothing. The walk must continue after it in
+    silence — reporting that would cry wolf on the commonest legitimate case."""
     import survey
     real = survey.survey({"kind": "estate"}, limit=3, cursor=__import__("test_portable_mcp").PROJECT_ID)
     gone = survey.survey({"kind": "estate"}, limit=3,
@@ -128,8 +128,8 @@ def test_an_unknown_subject_is_distinguishable_from_an_empty_one() -> None:
 
 
 def test_the_wire_refuses_a_scope_the_schema_permits_but_cannot_mean() -> None:
-    ""                                                                         
-                                                                           
+    """`required` lists only `kind`, so `{kind: "project"}` is schema-valid and
+    means nothing. The server answers a typed error rather than raising."""
     sch = schema()["properties"]["scope"]
     check("the schema really does permit it",
           sch.get("required") == ["kind"],

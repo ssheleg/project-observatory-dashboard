@@ -59,7 +59,7 @@ def _repo_view(r: dict) -> dict:
 
 
 def _marks(items) -> str:
-    ""                                                                            
+    """`?,?,?` for a parameter list — an id set is never empty, so no branch."""
     return ",".join("?" * len(items))
 
 

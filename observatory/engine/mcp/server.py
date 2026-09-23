@@ -81,10 +81,10 @@ def _scope(kind: str, value: str | None) -> dict[str, Any]:
 
 
 def _scope_error(kind: str, value: str | None) -> dict[str, Any] | None:
-    ""                                                 
+    """A bad scope is a typed answer, not an exception.
 
-                                                                            
-                                                                     
+    Raising turns into UnexpectedToolError on the wire, which tells a caller
+    that the server broke rather than that the argument was wrong."""
     if kind in ("owner", "project") and not value:
         return {"error": "missing value",
                 "detail": f"scope kind '{kind}' requires a value",
@@ -342,7 +342,7 @@ def observatory_recall(
 
 
 def _write_error(exc: Exception) -> dict[str, Any]:
-    ""                                                               
+    """Refusals are typed answers with a remedy, not stack traces."""
     remedy = {
         "OwnerRequired": "pass `owner` — an identity of the form `agent:<name>` or "
                          "`service:<name>`, e.g. 'agent:claude-code'. There is no default: a "

@@ -220,7 +220,7 @@ def planted_store() -> tuple[pathlib.Path, dict]:
     subprocess.run([PY, "store/migrate.py"], cwd=ROOT, env=env,
                    capture_output=True, text=True, timeout=600)
     con = sqlite3.connect(db)
-                                                                             
+    # One event and one note under the OLD id, one of each under the new one.
     for pid, ref in (("project:local-sample-site", "old-sha"),
                      ("project:sample-site", "new-sha")):
         con.execute("INSERT INTO events (id, project_id, repo_id, kind, ref, actor,"

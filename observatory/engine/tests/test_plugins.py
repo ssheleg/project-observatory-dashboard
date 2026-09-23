@@ -217,15 +217,15 @@ def test_the_reference_plugin_measured_the_live_estate() -> None:
 def test_a_plugin_written_from_the_readme_alone_runs() -> None:
     """The document's central promise, driven.
 
-                                                                        
-                                                                                
-                                                                            
-                                                                            
-                                                                        
-                                                                               
-                                                               
-                                                                             
-                                                                        
+    `plugins/README.md` says adding a plugin touches no file outside its
+    directory. Tested on 2026-09-08 by authoring one from the document alone —
+    manifest, script, no reading of the runner — and it ran: 91 rows, none
+    refused. What the README did NOT say was how a script finds anything: it
+    hands the script no arguments, no stdin and no project list, and the
+    resolvers the repository has for the estate root and the registry are never
+    mentioned. So the plugin inlined `Path.home() / "DATA"` and
+    `Path("registry/projects.json")` — right on one machine, wrong on every
+    other — and `tools/check_paths.py` had a rule for neither spelling
                
 
     This drives the shape the README now teaches: import `paths` from the root,

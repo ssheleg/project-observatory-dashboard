@@ -84,11 +84,11 @@ def out(payload: dict) -> int:
     try:
         atomic.write_json(paths.SCRATCH / "record-turn.json", payload)
     except Exception as exc:                                                      
-                                                                              
-                                                                                  
-                                                                        
-                                                                              
-                                                           
+        # NAMED ON STDERR, not swallowed. A hook must not fail because its own
+        # receipt could not be written — the facts are already in the ledger —
+        # but a receipt that disappears silently is the very defect this
+        # function was added to close, one layer in. The hook discards stderr,
+        # so this is for a person running the tool by hand.
         print(f"the record-turn receipt could not be written: "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
 
@@ -168,18 +168,18 @@ def repo_id_for(cwd: pathlib.Path) -> tuple[str | None, str | None]:
     return None, top
 
 
-                                                                        
-                                                                              
-                                           
+#: Only the operator's own work is recorded — the rule itself lives in
+#: `estate.py`, which exists BECAUSE this file and `collectors/scan_events.py`
+#: once disagreed about what the estate is.
   
-                                                          
-                                                                         
-                                                                             
-                                                                               
-                                                                             
-                                                                           
-                                                                        
-                                                         
+#: This module kept a COPY of that set, and the test named
+#: `test_one_rule_two_readers` could not detect a divergence: it compared
+#: `estate.RECORDED_OWNERSHIP` against a literal spelled out inside the test,
+#: then checked only that the STRING "RECORDED_OWNERSHIP" appeared here. Driven
+#: 2026-09-07 against a planted copy reading `{"external"}` — this recorder
+#: inverted to write about nothing BUT somebody else's history — and both
+#: assertions passed. `sys.path` already reaches the root for
+#: `atomic` and `paths`, so the copy was never necessary.
 import estate                                                                    
 records_events = estate.records_events
 
@@ -412,9 +412,9 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except Exception as exc:                                                                
-                                                                               
-                                                                                   
-                                                                               
-                        
+        # THROUGH `out`, so the receipt exists for the one path that most needs
+        # it. A bare print here left the outer failure — the class that swallowed
+        # `IllegalTransition` for fifteen hours — as the only outcome with no
+        # record at all.
         _fault(exc)
         raise SystemExit(0)

@@ -359,12 +359,12 @@ def footprint_source() -> str | None:
 
 
 def footprint_means() -> str | None:
-    ""                                                                        
+    """The manifest's own `means`, which is written to be read by a person."""
     return _footprint_metric().get("means")
 
 
 def reclaimable_holders() -> list[str]:
-    ""                                                                
+    """The projects holding the most reinstallable bytes, coarsely."""
     metric = metric_for_role(RECLAIMABLE_ROLE)
     if not metric or not paths.DB.is_file():
         return []
@@ -434,7 +434,7 @@ def disk_culprits() -> tuple[list[str], list[str]]:
 #: than an inlined `Path.home()`, so a test can point it somewhere and drive the
 #: divergence — the rule `tools/check_paths.py` enforces for every other input.
 def shorten(p: pathlib.Path) -> str:
-    ""                                                                          
+    """`~/…` when it is under home, the whole path otherwise. Never raises."""
     try:
         return "~/" + str(p.relative_to(pathlib.Path.home()))
     except ValueError:
@@ -1947,10 +1947,10 @@ def collect() -> list[dict]:
             doc = {}
         for row in doc.get("unattributed", []):
             n = row.get("sessions", 0)
-                                                                          
-                                                                          
-                                                                       
-                        
+            # One session in a folder is not evidence of a project — the
+            # same reason `pack` carries in the exclusion list. Two is the
+            # floor at which "someone worked here twice" starts to mean
+            # something.
             if n < 2 and row.get('verdict') != 'ambiguous-project':
                 continue
             name = row["name"]
@@ -2265,12 +2265,12 @@ def collect() -> list[dict]:
             "evidence": ["store/raw/vault.json#notes_updated_on",
                          "store/raw/local.json#last_commit"]})
 
-                                                                              
-                                                                              
-                                                                             
-                                                                                 
-                                                                               
-                                        
+    # THE ALWAYS-ON SERVER WENT QUIET. `tools/serverd.py --install` promises a
+    # process that is up by default; the heartbeat receipt is how that promise
+    # is checked rather than believed. Three states, three answers: installed
+    # and beating — nothing; installed and silent — a warning naming the age;
+    # not installed — nothing, because off is a legitimate state the operator
+    # chose with --uninstall.
     sys.path.insert(0, str(paths.ROOT / "tools"))
     import install_launchd
     sd_plist = pathlib.Path.home() / "Library/LaunchAgents" / f"{install_launchd.instance_label('server')}.plist"
@@ -3043,15 +3043,15 @@ def collect() -> list[dict]:
                     "action": "if it is a rename, pin it in config/identity_overrides.json to the id it should keep",
                     "evidence": ["registry:identity.json"]})
 
-                                                                              
-                                                                                   
-                                                                          
-                                                                                 
-                                                                             
+    # A PLUGIN NOBODY IS TOLD ABOUT. The plugin seam exists so a new analytics
+    # source is two files in `plugins/` and no edit anywhere else — and it had no
+    # channel out: `run_plugins.main()` returned 0 on every path (measured
+    # 2026-09-07, `grep 'return 1'` found nothing) and printed into a log read on
+    # no schedule. A plugin crashing on every tick for a month was invisible.
      
-                                                                                
-                                                                         
-                                                                       
+    # Graded by the runner's own four words, because they mean different things:
+    # `broken` needs somebody, `waiting` is a state the operator may have
+    # chosen, `not_due` is the healthy steady state and raises nothing.
     plug = paths.SCRATCH / "plugins.json"
     if plug.is_file():
         try:

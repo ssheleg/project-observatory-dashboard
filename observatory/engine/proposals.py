@@ -8,14 +8,14 @@ project has a CURATION layer — `collectors/project_overrides.json`,
 `repo_overrides.json`, `repo_status.json` — which the emitter reads and applies
 on top of what it measured. An accepted proposal belongs there, and nowhere else.
 
-                                                                                 
-                                                                              
-                                                                               
-                                                    
+**So the appliable set is not a matter of taste.** It is exactly the fields those
+files supply, derived from them rather than restated here: a second list would
+drift, and a proposal for a field nothing can apply is a row that can only ever
+be listed. Measured 2026-09-07, before this existed:
 
-                                                                               
-                                                                                   
-                                                                              
+    observatory_propose(target_id="project:also-not-real", …)   -> "proposed"
+    patch={"activity_tier": …, "id": …, "source_refs": …}       -> "proposed"
+    patch with no evidence at all                                -> "proposed"
 
 The first names a subject that does not exist. The second asks to change a
 DERIVED field the emitter recomputes, the record's own id, and its provenance.

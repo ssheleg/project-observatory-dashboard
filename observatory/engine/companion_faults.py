@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """Which turns the companion could not record, kept where the next turn cannot take them.
 
-                                                                              
-                                                                               
-                                                                             
-                                                                               
-                                                                               
+`store/raw/record-turn.json` is a SLOT: one document, describing the last turn
+the companion handled. Every Stop hook of every watched project on this machine
+writes it, and forty-nine Claude processes were running when that was counted
+. So a fault written at 10:04 lasts until any of them ends a turn —
+including a turn that succeeded, in a project the fault had nothing to do with.
 
-                                                                            
-                                                                               
-                                                                         
-                                                                                 
-                                                                             
-                                                                                
-                                   
+The board is rebuilt every 1800 seconds. `companion.not_recording` therefore
+fired only for a fault that happened to be the newest turn on the whole machine
+at the moment the tick ran. The incident that produced that rule survived
+because it was PERMANENT — roughly seventy-two consecutive turns of one session
+raised the same `IllegalTransition` — and the class this machine
+actually suffers is the opposite: ten transient database errors in a single day,
+42 `No space left` inside one tick.
 
 **Three properties, and they are the whole design.**
 
-                                                                            
-                                                                                 
-                                                                       
-                                                                             
-                                                                              
-                                                                             
+1. **Pure append.** One `open(..., "a")`, one `write`. No read-modify-write:
+   `store_faults.py` already argued this for the same hazard — reading the file
+   back to trim it "is both a second chance to fail and a way to lose a
+   concurrent writer's line". A carry-forward inside the slot would have been
+   smaller code and would have lost exactly the fault it kept: session A reads
+   no-fault, session B writes a fault, session A writes its document over it.
 
 2. **It cannot raise.** `append()` returns the row or `None`. This runs inside
    an `except` block in a hook that must not fail the session it observes.

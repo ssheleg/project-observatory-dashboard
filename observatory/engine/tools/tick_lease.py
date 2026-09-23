@@ -48,8 +48,8 @@ _PLUGIN = pathlib.Path.home() / ".claude/plugins/cache/agent-sync/agent-sync"
 
 
 def _version_key(name: str) -> tuple:
-    ""                                                                          
-                                                                            
+    """Sort 1.20.0 above 1.9.0. Lexicographic order gets that backwards, and the
+    consequence is silently running an old copy of the coordination tool."""
     parts = []
     for chunk in name.split("."):
         parts.append((0, int(chunk)) if chunk.isdigit() else (1, 0, chunk))
@@ -67,10 +67,10 @@ def agent_sync_script() -> pathlib.Path | None:
 
 
 def agent_sync_module():
-    ""                                                                         
-                                                                                  
-                                                                            
-                       
+    """The script imported as a module, or None. Importing rather than shelling
+    out is what gives access to `all_holdings()` — the CLI reports holdings only
+    as prose, and parsing prose to decide whether to write is worse than not
+    checking at all."""
     if not (paths.HOME / ".claude/agent-sync.json").is_file():
         return None
     script = agent_sync_script()
@@ -86,7 +86,7 @@ def agent_sync_module():
 
 
 def _sync(mod):
-    ""                                                                           
+    """A Sync bound to this repository, or None if this version's shape moved."""
     try:
         cwd = os.getcwd()
         os.chdir(paths.HOME)
@@ -99,10 +99,10 @@ def _sync(mod):
 
 
 def other_holders(mod) -> tuple[list[tuple[str, str]] | None, str]:
-    ""                                                                    
+    """[(run, key)] held by runs that are not this one, or (None, reason).
 
-                                                                                
-                                                                             
+    None is not an empty list: it means the question could not be asked, and the
+    caller must degrade out loud rather than read silence as an all-clear."""
     s = _sync(mod)
     if s is None:
         return None, "this agent-sync version does not expose its holdings"
@@ -155,36 +155,36 @@ def run_identity(role: str) -> str:
 
 
 def hold(identity: str) -> tuple[object | None, str]:
-    ""                                                                  
-                                                                              
-                                                                                   
+    """Take the registry lease IN-PROCESS, for a reader that must not be
+    interleaved with a writer. Returns (handle, explanation); a None handle is
+    never fatal — the caller decides, and the gate proceeds unleased and says so.
 
-                                                                                  
-                                                                          
-                                                                                
-                                                                              
-                                                                                    
-                                                                                 
-                                                                       
-                                                                         
+    Why a reader needs it at all: `./observatory.py check` reads `registry/*.json`
+    across about ten minutes, and the tick rewrites those files one atomic
+    replace at a time. A tick landing mid-gate therefore lets a cross-file check
+    read the NEW `relations.json` against the OLD `projects.json` and report a
+    dangling reference that never existed on disk — a false red — or pass over a
+    combination that never existed either. The gate already DETECTS the collision
+    after the fact (`tree_state()` in observatory.py) and fails with an
+    explanation; a lease turns a detected collision into a prevented one.
 
-                                                                             
-                                                                                 
-                                                                          
-                                                                             
-                                                              
-                                                                        
-                                                                              
-                                                                                
-                                                                             
-                                                                                
-                                                                              
-                                           
+    The identity is set here rather than inherited, and that matters: a lease
+    taken under one identity and used by another reads as a FOREIGN holder to the
+    process doing the work. Exporting `AGENT_SYNC_RUN_ID` in a subshell to
+    acquire, then editing from a session whose own run id differs, blocked an
+    edit on 2026-09-07 with the holder being me."""
+    # NOT `setdefault`: a child inherits this variable from its parent's
+    # environment, so a nested run would adopt the PARENT's identity, re-enter
+    # the lease the parent is holding, and release it on the way out — leaving
+    # the parent believing it still held the registry. That is precisely what
+    # the fixture group inside `tests/test_tick_repo.py` did to the gate running
+    # it (observed 2026-09-07: `released \`registry\`` in the middle of a gate
+    # that had another twelve steps to go).
      
-                                                                              
-                                                                                 
-                                                                                  
-                                   
+    # An identity that does not carry THIS process's pid names somebody else's
+    # run, so it is replaced rather than honoured. A value that does carry it —
+    # `tools/tick.sh` exports one for its acquire and its release trap — is left
+    # exactly as the caller set it.
     want = run_identity(identity)
     current = os.environ.get("AGENT_SYNC_RUN_ID") or ""
     if f"{os.getpid()}-" not in current:
@@ -205,8 +205,8 @@ def hold(identity: str) -> tuple[object | None, str]:
 
 
 def drop(handle) -> str:
-    ""                                                                       
-                                                                                    
+    """Release on every path, including failure. Never raises, for the reason
+    `release()` gives: a cleanup that fails loudly teaches people to ignore logs."""
     if handle is None:
         return ""
     try:
@@ -268,9 +268,9 @@ def record_outcome(outcome: str, *, holder: str = "", reason: str = "") -> dict:
         import atomic
         atomic.write_json(f, doc)
     except Exception as exc:                                                      
-                                                                            
-                                                                              
-                                                                
+        # NAMED, never fatal. The tick must not fail because its own receipt
+        # could not be written — but a receipt that vanishes silently is the
+        # defect this function was added to close, one layer in.
         print(f"the tick-lease receipt could not be written: "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
     return doc
@@ -324,8 +324,8 @@ def acquire() -> int:
 
 
 def release() -> int:
-    ""                                                                           
-                                                                            
+    """Always exit 0: this runs from a trap, and a cleanup path that fails loudly
+    over a lease it never held teaches the next reader to ignore the log."""
     mod = agent_sync_module()
     s = _sync(mod) if mod else None
     if s is None:
@@ -373,7 +373,7 @@ def step_allowed(name: str) -> bool:
 
 
 def supervised(command: list[str]) -> int:
-    ""                                                                              
+    """One writer per workspace, independent of optional agent-sync installation."""
     configuration.validate_workspace(required=True)
     if not configuration.enabled("scheduler", "features"):
         print("tick disabled: enable features.scheduler in this workspace first")
