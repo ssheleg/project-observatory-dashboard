@@ -28,6 +28,7 @@ LEGACY = (
     'pages', 'dashboard_render', 'atomic_writers', 'ack', 'rollup',
     'runtime_identity', 'remote_env',
     'project_identity',
+    'sessions',
 )
 BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries',

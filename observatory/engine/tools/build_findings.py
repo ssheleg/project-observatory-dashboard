@@ -1951,7 +1951,7 @@ def collect() -> list[dict]:
                                                                           
                                                                        
                         
-            if n < 2:
+            if n < 2 and row.get('verdict') != 'ambiguous-project':
                 continue
             name = row["name"]
                                                                           
@@ -1972,7 +1972,14 @@ def collect() -> list[dict]:
             verdict = row.get("verdict") or "no-path-recorded"
             folders = row.get("folders") or []
             where = listed([str(paths.DATA / f) for f in folders], 3)
-            if verdict == "estate-folder-gone":
+            if verdict == 'ambiguous-project':
+                candidates = ', '.join(row.get('candidates') or [])
+                detail = (f"Equally strong project matches: {candidates}. "
+                          f"{row.get('reason') or 'The available evidence does not identify one project.'} "
+                          "This scan leaves the work unattributed.")
+                action = ("Review the project/folder mapping for this session; "
+                          "keep shared repository membership when it is correct.")
+            elif verdict == "estate-folder-gone":
                 detail = (f"claude-mem's own record of this work names "
                           f"{where} — a folder under the estate root that is "
                           f"NOT there now. So this is neither a project the "
@@ -2028,7 +2035,9 @@ def collect() -> list[dict]:
                 "severity": ("info" if kept else
                              ("warning" if verdict == "estate-folder-gone" or n >= 10
                               else "info")),
-                "title": (f"{n} session(s) of work on {name!r}, whose folder "
+                "title": (f"{n} session(s) with ambiguous project attribution for {name!r}"
+                          if verdict == 'ambiguous-project' else
+                          f"{n} session(s) of work on {name!r}, whose folder "
                           f"{where} is gone" if verdict == "estate-folder-gone"
                           else f"{n} session(s) of work on {name!r}, which this "
                                f"registry does not list"),

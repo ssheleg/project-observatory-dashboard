@@ -67,54 +67,54 @@ def now() -> str:
 
 
 def build_index(projects: list[dict]) -> tuple[dict, dict]:
-    ""                                                                           
+    ""                                                                    
 
-                                                                           
-                                                               
+                                                                            
+                                                                              
        
-    index: dict[str, tuple[str, str]] = {}
+    strengths = {'local folder name': 0, 'project id slug': 1, 'project name': 2,
+                 'repository name': 3, 'repository checkout folder': 4}
+    best: dict[str, tuple[int, str, set[str]]] = {}
 
     def put(key: str, pid: str, rule: str) -> None:
-        k = (key or "").strip().lower()
-                                                                             
-                                                                               
-                                  
-        if k and k not in index:
-            index[k] = (pid, rule)
+        key = (key or '').strip().lower()
+        if not key:
+            return
+        rank = strengths[rule]
+        previous = best.get(key)
+        if previous is None or rank < previous[0]:
+            best[key] = (rank, rule, {pid})
+        elif rank == previous[0]:
+            previous[2].add(pid)
 
+    valid = {p['id'] for p in projects}
     for p in projects:
-        for folder in p.get("local_folders") or []:
-            put(folder, p["id"], "local folder name")
-    for p in projects:
-        put(p["id"].split(":", 1)[1], p["id"], "project id slug")
-    for p in projects:
-        put(p.get("name") or "", p["id"], "project name")
-                                                                      
-                                                                               
-                                                                               
-                                                                                  
-                             
-     
-                                                                             
-                                                                             
-             
+        for folder in p.get('local_folders') or []:
+            put(folder, p['id'], 'local folder name')
+        put(p['id'].split(':', 1)[1], p['id'], 'project id slug')
+        put(p.get('name') or '', p['id'], 'project name')
     try:
-        repos = json.loads((paths.REGISTRY / "repositories.json")
-                           .read_text(encoding="utf-8"))["repositories"]
-        rel = json.loads((paths.REGISTRY / "relations.json")
-                         .read_text(encoding="utf-8"))["relations"]
+        repos = json.loads((paths.REGISTRY / 'repositories.json').read_text(encoding='utf-8'))['repositories']
+        rel = json.loads((paths.REGISTRY / 'relations.json').read_text(encoding='utf-8'))['relations']
     except (OSError, json.JSONDecodeError, KeyError):
-        return index, {}
-    owner_of = {r["to"]: r["from"] for r in rel if r["type"] == "implemented_by"}
+        repos, rel = [], []
+    owners: dict[str, set[str]] = {}
+    for r in rel:
+        if r['type'] == 'implemented_by' and r['from'] in valid:
+            owners.setdefault(r['to'], set()).add(r['from'])
     for r in repos:
-        pid = owner_of.get(r["id"])
-        if not pid:
-            continue
-        put(r["name_with_owner"].split("/")[-1], pid, "repository name")
-        folder = (r.get("local") or {}).get("folder")
-        if folder:
-            put(folder, pid, "repository checkout folder")
-    return index, {}
+        for pid in owners.get(r['id'], set()):
+            put(r['name_with_owner'].split('/')[-1], pid, 'repository name')
+            put((r.get('local') or {}).get('folder'), pid, 'repository checkout folder')
+    index, conflicts = {}, {}
+    for key, (_, rule, candidates) in sorted(best.items()):
+        ordered = sorted(candidates)
+        if len(ordered) == 1:
+            index[key] = (ordered[0], rule)
+        else:
+            conflicts[key] = ordered
+            index[key] = (None, f"ambiguous {rule}: {', '.join(ordered)}")
+    return index, conflicts
 
 
 def exclusions() -> tuple[list[tuple[str, str]], dict[str, str]]:
@@ -242,7 +242,7 @@ def verdict_for(folders: set[str]) -> tuple[str, list[str]]:
 def scan() -> dict:
     projects = json.loads((paths.REGISTRY / "projects.json")
                           .read_text(encoding="utf-8"))["projects"]
-    index, _ = build_index(projects)
+    index, conflicts = build_index(projects)
 
     degraded: list[dict] = []
     if not STORE.is_file():
@@ -333,6 +333,16 @@ def scan() -> dict:
     for r in rows:
         pid, rule = attribute(r["project"], index)
         if pid is None:
+            key = r['project'].strip().lower()
+                                                                              
+                                                                             
+            candidates = conflicts.get(key) or conflicts.get(key.split('/', 1)[0])
+            if candidates and rule.startswith('ambiguous '):
+                u = unmatched.setdefault(r['project'], {'sessions': 0,
+                    'candidates': candidates, 'reason': rule, 'session_ids': set()})
+                u['sessions'] += 1
+                u['session_ids'].add(r['sid'])
+                continue
                                                                                
                                                                             
                                                                            
@@ -410,7 +420,7 @@ def scan() -> dict:
         top = sorted(unmatched.items(), key=lambda kv: -kv[1]["sessions"])[:8]
         degraded.append({
             "source": "claude-mem",
-            "reason": f"{len(unmatched)} claude-mem project name(s) match no project here, "
+            "reason": f"{len(unmatched)} claude-mem project name(s) cannot be attributed to one project here, "
                       f"so {sum(u['sessions'] for u in unmatched.values())} session(s) are "
                       f"unattributed. Largest: "
                       + ", ".join(f"{n} ({u['sessions']})" for n, u in top)})
@@ -434,8 +444,10 @@ def scan() -> dict:
                                                        
         "unattributed": [
             {"name": n, "sessions": u["sessions"],
-             "verdict": verdict_for(u["paths"])[0],
-             "folders": verdict_for(u["paths"])[1][:6]}
+             "verdict": 'ambiguous-project' if u.get('candidates') else verdict_for(u["paths"])[0],
+             "folders": verdict_for(u["paths"])[1][:6],
+             **({'candidates': u['candidates'], 'reason': u['reason'],
+                 'session_ids': sorted(u['session_ids'])} if u.get('candidates') else {})}
             for n, u in sorted(unmatched.items(), key=lambda kv: -kv[1]["sessions"])],
         "excluded": [{"name": n, "why": w} for n, w in sorted(skipped.items())],
         "sessions": sorted(sessions, key=lambda s: (s["project_id"], s["session_id"])),
@@ -470,8 +482,19 @@ def to_events(out: dict) -> int:
         "DELETE FROM events WHERE kind='session' AND ref NOT LIKE '%:project:%'")
     if stale.rowcount:
         print(f"  removed {stale.rowcount} session event(s) written under the old key shape")
-    inserted = skipped = 0
+    inserted = skipped = withdrawn = 0
     try:
+                                                                           
+                                                                               
+                                                                              
+        supported = {(s['session_id'], s['project_id']) for s in out['sessions']}
+        ambiguous = {(sid, pid) for row in out.get('unattributed', [])
+                     if row.get('verdict') == 'ambiguous-project'
+                     for sid in row.get('session_ids', [])
+                     for pid in row.get('candidates', [])}
+        for sid, pid in sorted(ambiguous - supported):
+            withdrawn += conn.execute("DELETE FROM events WHERE kind='session' AND ref=?",
+                                      (f'{sid}:{pid}',)).rowcount
         conn.execute("INSERT INTO scans (id, started_at, collector_version) VALUES (?,?,?)",
                      (scan_id, now(), "scan_sessions/1"))
         for s in out["sessions"]:
@@ -498,13 +521,15 @@ def to_events(out: dict) -> int:
             "UPDATE scans SET finished_at = ?, counts_json = ?, degraded_json = ? WHERE id = ?",
             (now(), json.dumps({"sessions_inserted": inserted,
                                 "sessions_already_present": skipped,
+                                "sessions_ambiguous_withdrawn": withdrawn,
                                 "projects": out["counts"]["projects"],
                                 "unmatched_names": out["counts"]["unmatched_names"]}),
              json.dumps(out["degraded"], ensure_ascii=False), scan_id))
         conn.commit()
     finally:
         conn.close()
-    print(f"  events: {inserted} new session event(s), {skipped} already present")
+    print(f"  events: {inserted} new session event(s), {skipped} already present, "
+          f"{withdrawn} ambiguous attribution(s) withdrawn")
     return inserted
 
 
