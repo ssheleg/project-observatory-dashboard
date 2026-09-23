@@ -3,6 +3,15 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+### Added
+
+- `full doctor` reports `coverage_warnings`: an enabled integration or feature whose source is not
+  configured or does not exist. A migrated installation without a `sessions` source had its leak
+  scan narrowed from every agent transcript to four files without any warning. ONBOARDING now lists
+  every source.
+
 ## 0.2.3 — 2026-09-23
 
 ### Fixed

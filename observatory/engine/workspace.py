@@ -332,6 +332,42 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
     return {**summary, "status": "copied", "apply_required": False}
 
 
+# Which configured sources each switch reads. A source left at its placeholder
+# default (or pointing at a missing path) silently narrows coverage: with no
+# `sessions` source the leak scan reads 4 targets instead of every transcript.
+# doctor names that instead of letting a quiet collector look healthy.
+# The same table is documented in docs/ONBOARDING.md, "Sources".
+SOURCE_NEEDS = {
+    ("integrations", "sessions"): ("sessions",),
+    ("integrations", "mcp"): ("mcp_config_root",),
+    ("integrations", "wiki"): ("wiki",),
+    ("integrations", "openrouter"): ("secret_store",),
+    ("integrations", "google"): ("secret_store",),
+    ("integrations", "search_console"): ("secret_store",),
+    ("integrations", "cloudflare_analytics"): ("secret_store",),
+    ("features", "wiki_projection"): ("wiki",),
+    ("features", "companion_remediation"): ("companion_home", "companion_db"),
+}
+
+
+def coverage_warnings(doc: dict) -> list[dict]:
+    """Enabled switches whose sources are unconfigured or missing (names and paths only)."""
+    sources = doc.get("sources", {})
+    out = []
+    for (section, name), needed in SOURCE_NEEDS.items():
+        if doc.get(section, {}).get(name) is not True:
+            continue
+        for source in needed:
+            value = sources.get(source)
+            if not value:
+                out.append({section[:-1]: name, "source": source,
+                            "problem": "not configured; the collector reads nothing from it",
+                            "fix": f"project-observatory full configure sources {source} PATH"})
+            elif not Path(value).expanduser().exists():
+                out.append({section[:-1]: name, "source": source, "problem": f"{value} does not exist"})
+    return out
+
+
 def doctor(base: Path) -> dict:
     runtime = require_runtime()
     config.validate_workspace(base, required=True)
@@ -342,6 +378,7 @@ def doctor(base: Path) -> dict:
             "sources": {k: {"configured": True, "exists": Path(v).expanduser().exists()} for k, v in doc.get("sources", {}).items()},
             "integrations": doc.get("integrations", {}),
             "features": doc.get("features", {}),
+            "coverage_warnings": coverage_warnings(doc),
             "credentials": "values are never returned", "network_calls": 0}
 
 
