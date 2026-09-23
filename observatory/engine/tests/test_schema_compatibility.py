@@ -227,6 +227,38 @@ class SchemaCompatibility(unittest.TestCase):
                 with upgrade_lock(self.target, timeout=0.01):
                     self.fail('second opener acquired exclusive lock')
 
+    def test_a_file_mid_creation_does_not_fail_the_opener(self):
+        from store import compatibility, db
+        from unittest.mock import patch
+        calls = []
+        real = compatibility.preflight
+        def racing(target):
+            calls.append(target)
+            if len(calls) == 1:
+                raise sqlite3.DatabaseError("file is being created by another process")
+            return real(target)
+        with patch.object(compatibility, "preflight", racing):
+            conn = db.connect(self.target)
+            try:
+                self.assertEqual(conn.execute('SELECT COUNT(*) FROM migrations').fetchone()[0], 7)
+            finally:
+                conn.close()
+        self.assertEqual(len(calls), 2, "the check under the lock still runs")
+
+    def test_many_concurrent_first_opens(self):
+        ctx = multiprocessing.get_context('spawn')
+        for round_ in range(3):
+            target = self.target.with_name(f"concurrent-{round_}.db")
+            q = ctx.Queue()
+            workers = [ctx.Process(target=open_worker, args=(str(target), str(self.home), q)) for _ in range(4)]
+            for p in workers:
+                p.start()
+            for p in workers:
+                p.join(60)
+                self.assertEqual(p.exitcode, 0)
+            self.assertEqual(sorted(q.get(timeout=5) for _ in workers), [7, 7, 7, 7])
+            q.close()
+
     def test_concurrent_first_open(self):
         ctx = multiprocessing.get_context('spawn')
         q = ctx.Queue()

@@ -77,14 +77,15 @@ def require_runtime() -> dict:
             "sqlite_vec": "loadable"}
 
 
-def initialize(base: Path) -> dict:
+def initialize(base: Path, *, identities: bool = True) -> dict:
     require_runtime()
     reject_symlinks(base)
                                                                
     marker = config.validate_workspace(base)
     if marker:
         config.load(base)
-        ensure_identities(base)
+        if identities:
+            ensure_identities(base)
         return {"status": "already-initialized", "version": config.VERSION}
     if base.exists() and any(base.iterdir()):
         raise config.ConfigurationError("Non-empty unversioned directory; use migrate-local into a new home")
@@ -116,11 +117,12 @@ def initialize(base: Path) -> dict:
             "created_by": config.VERSION, "created_at": now,
             "instance_id": str(uuid.uuid4()), "registry_schema": 1,
         })
-        ensure_identities(base)
+        if identities:
+            ensure_identities(base)
     return {"status": "initialized", "version": config.VERSION, "integrations_enabled": 0}
 
 
-def ensure_identities(base: Path) -> None:
+def ensure_identities(base: Path, state: Path | None = None) -> None:
     """Create the keyserver token and fingerprint salt once, never replacing them.
 
     Readers refuse a missing or invalid identity instead of minting one, so
@@ -128,7 +130,8 @@ def ensure_identities(base: Path) -> None:
     on an existing workspace is safe: an existing valid file is kept as is.
     """
     import runtime_identity
-    state = Path(os.environ["OBSERVATORY_STATE"]) if os.environ.get("OBSERVATORY_STATE") else base / "store"
+    if state is None:
+        state = Path(os.environ["OBSERVATORY_STATE"]) if os.environ.get("OBSERVATORY_STATE") else base / "store"
     for kind, (name, _pattern, _make) in runtime_identity.KINDS.items():
         runtime_identity.load(state / name, kind, initialize=True)
 
@@ -244,7 +247,9 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
     before = snapshot()
     stage = target.parent / ("." + target.name + ".migration-" + uuid.uuid4().hex)
     try:
-        initialize(stage)
+        # Identities come from the original installation; only a missing one is
+        # created, after the copy, so a salt is never replaced by a new one.
+        initialize(stage, identities=False)
         for p in (stage / "registry").glob("*.json"):
             p.unlink()
         copy_private(source / "registry", stage / "registry")
@@ -315,6 +320,7 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
             "source_modified": False, "external_credentials_copied": False,
             "requires_source_configuration": True,
         })
+        ensure_identities(stage, stage / "store")
         validate_data(stage, integrity=True)
         if before != snapshot():
             raise config.ConfigurationError("Source changed during migration; stop background writers and retry")

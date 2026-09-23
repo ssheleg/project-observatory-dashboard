@@ -172,6 +172,34 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         after = {str(p.relative_to(base)): p.read_bytes() for p in base.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
 
+    def test_migration_keeps_the_original_runtime_identities(self):
+        import secrets as _secrets
+        source = self.original()
+        salt = _secrets.token_hex(32) + "\n"
+        token = _secrets.token_urlsafe(32) + "\n"
+        for name, value in ((".env-fingerprint-salt", salt), (".keyserver-token", token)):
+            f = source / "store" / name
+            f.write_text(value)
+            f.chmod(0o600)
+        destination = self.root / "migrated"
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OBSERVATORY_STATE", None)
+            workspace.migrate_local(source, destination, True)
+        self.assertEqual((destination / "store/.env-fingerprint-salt").read_text(), salt,
+                         "fingerprints stay comparable only if the salt moves unchanged")
+        self.assertEqual((destination / "store/.keyserver-token").read_text(), token)
+
+    def test_migration_without_identities_creates_them_once(self):
+        source = self.original()
+        destination = self.root / "migrated-fresh"
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OBSERVATORY_STATE", None)
+            workspace.migrate_local(source, destination, True)
+        for name in (".env-fingerprint-salt", ".keyserver-token"):
+            f = destination / "store" / name
+            self.assertTrue(f.is_file(), name)
+            self.assertEqual(f.stat().st_mode & 0o777, 0o600)
+
     def test_migration_failure_preserves_source_and_existing_destination(self):
         source = self.original()
         destination = self.root / "existing"
