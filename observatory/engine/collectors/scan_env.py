@@ -51,9 +51,9 @@ from runtime_identity import IdentityError, load as load_identity
                                                                     
 MAX_DEPTH = None
 
-                                                                               
-                                                                                
-                           
+#: Directories that hold OTHER people's `.env` files. A dependency's fixture is
+#: not this estate's secret, and `node_modules` alone would multiply the scan by
+#: two orders of magnitude.
 SKIP_DIRS = {
     "node_modules", ".git", "vendor", "venv", ".venv", "env", ".env.d",
     "site-packages", "dist", "build", ".next", ".nuxt", "__pycache__",
@@ -68,17 +68,17 @@ TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist", ".defaults")
 
 ENV_NAME = re.compile(r"^\.env(\..+)?$|^\.envrc$")
 
-                                                                             
-                                   
+#: `KEY=value`, with or without `export`, and with an optional inline comment
+#: that only counts outside quotes.
 ASSIGN = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$")
 
-                                                                               
-                                                                             
+#: A comment at the start of the value, or after whitespace inside it. Anchored
+#: at the start too: `KEY=  # note` leaves the note flush left once stripped.
 COMMENT = re.compile(r"(^|\s)#.*$")
 
-                                                                            
-                                                                                 
-                                                        
+#: A NAME that is itself secret-shaped. Rare, and the product of a malformed
+#: file rather than a convention — but this output is committed, so a name that
+#: looks like a value is redacted rather than published.
 SECRET_SHAPED = re.compile(r"(sk|pk|rk|ghp|gho|ghs|xoxb|xoxp|AKIA|AIza)[-_A-Za-z0-9]{16,}")
 
 SECRET_NAME = re.compile(
@@ -103,22 +103,22 @@ PLACEHOLDER_LEAD = re.compile(
 PLACEHOLDER_EXACT = re.compile(
     r"^(none|null|nil|n/?a|undefined|x{3,}|\*{3,}|\.{3,}|-+|<.*>|\{\{.*\}\}|"
     r"\$\{.*\}|__.*__|%.*%)$", re.I)
-                                                                           
+#: A value that ANNOUNCES itself as a slot to fill, wherever the words sit.
 PLACEHOLDER_MARK = re.compile(
     r"(_?here$|[-_]here$|goes[-_]here|your[-_]|xxxxx|<[^>]+>|\.\.\.)", re.I)
 
-                                                         
+#: Shapes that are a credential whatever they are called.
 KNOWN_PREFIX = ("sk-", "sk_", "pk_live", "pk_test", "rk_", "ghp_", "gho_", "ghs_",
                 "github_pat_", "xoxb-", "xoxp-", "xapp-", "AIza", "AKIA", "ASIA",
                 "eyJ", "-----BEGIN", "glpat-", "dop_v1_", "shpss_", "shpat_",
                 "SG.", "hf_", "npm_", "dckr_pat_", "figd_", "sntrys_")
 
-                                                                                   
-                                  
+#: A URL carrying its own credentials — `postgres://user:pass@host`. The name may
+#: be anything; the shape decides.
 URL_WITH_AUTH = re.compile(r"^[a-z][a-z0-9+.-]*://[^/\s:@]+:([^/\s@]+)@", re.I)
 
-                                                                               
-                                                             
+#: Passwords that are the word for a password. Not a blocklist for people — a
+#: list of what an example file says where a secret would go.
 EXAMPLE_PASSWORDS = {"password", "passwd", "pass", "secret", "postgres", "mysql",
                      "root", "admin", "test", "dev", "user", "username", "db",
                      "localhost", "example", "changeme", "hunter2", "12345",
@@ -135,7 +135,7 @@ EXAMPLE_PASSWORDS = {"password", "passwd", "pass", "secret", "postgres", "mysql"
                                          
 HEX_ONLY = re.compile(r"^[0-9a-fA-F]+$")
 
-                                                                            
+#: An endpoint carrying no credentials is configuration, however long it is.
 URL_NO_AUTH = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
 
 PLAIN = re.compile(r"^(true|false|yes|no|on|off|none|null|\d+(\.\d+)?|"
@@ -178,7 +178,7 @@ def namespace(pepper: str) -> str:
 
 
 def wordish(value: str) -> bool:
-    ""                                                                       
+    """Does this read as a tokenised identifier rather than as randomness?"""
     toks = re.split(r"[-_.]", value)
     if len(toks) < 2:
         return False
@@ -198,27 +198,27 @@ def is_placeholder(value: str) -> bool:
                 or PLACEHOLDER_MARK.search(v))
 
 
-                                                                           
+#: Below this a value is not decided by shape alone — the name still can.
 MIN_SECRET_LEN = 24
 MIN_SECRET_ENTROPY = 3.4
 
 
 def looks_secret(value: str) -> bool:
-    ""                                                         
+    """The value's own shape, independent of what it is called.
 
-                                                                                 
-                                                                                 
-                                                                                 
-                           
-       
+    Order matters. A known issuer prefix is decisive whatever else is true; a URL
+    carrying `user:pass@` is a credential and one without is an address; and only
+    then does the entropy test run, against a value that has already failed to be
+    a tokenised identifier.
+    """
     v = value.strip()
     if v.startswith(KNOWN_PREFIX):
         return True
     pw = URL_WITH_AUTH.match(v)
     if pw:
-                                                                                
-                                                                                  
-                                                                            
+        # `postgres://user:password@localhost/db` is a template, not a leak. The
+        # shape says credential and the credential says "fill me in"; 58 committed
+        # examples were reported as live databases before this line existed.
         return not is_placeholder(pw.group(1)) and pw.group(1).lower() not in EXAMPLE_PASSWORDS
     if URL_NO_AUTH.match(v):
         return False
@@ -232,7 +232,7 @@ def looks_secret(value: str) -> bool:
 
 
 def classify(name: str, value: str) -> str:
-    ""                                                                
+    """One word per variable, and the value is not one of the four."""
     v = value.strip()
     if not v:
         return "empty"
@@ -254,12 +254,12 @@ def classify(name: str, value: str) -> str:
 
 
 def parse(text: str) -> tuple[list[tuple[str, str]], int]:
-    ""                                                                          
+    """`KEY=value` pairs in file order, plus the count of lines nothing matched.
 
-                                                                                   
-                                                                            
-                          
-       
+    Quoted values may span lines — a PEM private key in a `.env` is one variable,
+    not forty unparsable lines, and counting it as the latter would report a
+    clean file as damaged.
+    """
     out: list[tuple[str, str]] = []
     unparsed = 0
     lines = text.splitlines()
@@ -316,7 +316,7 @@ def env_files(root: pathlib.Path) -> list[pathlib.Path]:
 
 
 def repo_of(path: pathlib.Path, root: pathlib.Path) -> pathlib.Path | None:
-    ""                                                                             
+    """The git work tree a file sits in, or None. Walks up, stops at the estate."""
     d = path.parent
     while True:
         if (d / ".git").exists():
@@ -327,12 +327,12 @@ def repo_of(path: pathlib.Path, root: pathlib.Path) -> pathlib.Path | None:
 
 
 def git_states(files: list[pathlib.Path], root: pathlib.Path) -> tuple[dict, list]:
-    ""                                                                              
+    """`tracked` / `ignored` / `loose` / `no-repo` per file, batched per repository.
 
-                                                                                
-                                                                              
-                              
-       
+    `loose` is the one worth naming: untracked AND unignored is one `git add -A`
+    away from a committed secret, and it looks identical to `ignored` in every
+    listing that does not ask.
+    """
     by_repo: dict[pathlib.Path, list[pathlib.Path]] = {}
     state: dict[str, str] = {}
     degraded: list[dict] = []
@@ -384,11 +384,11 @@ def scan(root: pathlib.Path) -> dict:
             shown = name if not SECRET_SHAPED.search(name) else "<redacted: the NAME is secret-shaped>"
             row = {"name": shown, "class": cls}
             if cls == "secret":
-                                                                                 
-                                                                                 
-                                                                                
-                                                                                
-                                                                                 
+                # SECRETS ONLY. The first version fingerprinted `config` too, and
+                # the result was a "shared value" list whose widest row was forty
+                # projects agreeing that `APP_ENV` is `production`. Two projects
+                # holding the same configuration is a coincidence of vocabulary;
+                # two holding the same credential is a rotation that breaks both.
                 row["fingerprint"] = hashlib.sha256(
                     (pepper + value).encode("utf-8")).hexdigest()[:16]
             variables.append(row)

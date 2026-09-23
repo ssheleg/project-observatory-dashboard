@@ -25,8 +25,8 @@ from store import db as store_db
 FUNCTIONS = ("working", "episodic", "semantic", "experiential")
 SCOPES = ("run", "agent-private", "project", "global")
 
-                                                                             
-                                                               
+#: The lifecycle from the Fabric memory contract. A transition absent here is
+#: refused; the diagram is the specification, not a suggestion.
 TRANSITIONS: dict[str, frozenset[str]] = {
     "proposed":   frozenset({"observed", "rejected"}),
     "observed":   frozenset({"supported", "archived"}),
@@ -39,8 +39,8 @@ TRANSITIONS: dict[str, frozenset[str]] = {
 }
 OPERATOR = "operator"
 
-                                                                   
-                                 
+#: The longest text a single record may carry. See `append` for the
+#: measurement behind the number.
 MAX_TEXT = 4000
 
 
@@ -161,10 +161,10 @@ def _commit_revision(conn: sqlite3.Connection, row: dict) -> int:
              json.dumps(row["conflicts_with"]),
              json.dumps(row["provenance"], ensure_ascii=False),
              json.dumps(row["evidence"], ensure_ascii=False), row["created_at"]))
-                                                                               
-                                                                               
-                                                                                
-                                                         
+        # The version comes from the store's own vocabulary, not from a literal
+        # here. This line held `1` while `store/indexer.py` filtered on its own
+        # constant — two numbers that had to agree, in two files, with nothing
+        # checking. See `store/db.py:PROJECTION_VERSION`.
         cur = conn.execute(
             "INSERT INTO outbox (memory_id, revision, projection_version) VALUES (?,?,?)",
             (row["memory_id"], row["revision"], store_db.PROJECTION_VERSION))

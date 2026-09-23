@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-""                                                                   
+"""Take the estate's credential VALUES out of the companion's memory.
 
-                                                                            
-                                                                   
+    tools/scrub_companion.py            # backup, scrub both stores, journal
+    tools/scrub_companion.py --dry-run  # count only, write nothing
 
                                                                       
                                                                              
                                                                             
                                                                      
 
-                                                                        
-                                                                             
-                                                         
-                                                                 
-                                                                       
-                                                                          
-                                                                           
-                                                                            
+WHAT IT DOES. For every value the leak scanner already knows — the env
+inventory in `store/raw/env.json`, the vault's slots, the installed keys, the
+same `scan_leaks.known_values()` — every text column of
+every table in both stores is rewritten with `replace(col, value,
+'[REDACTED:<NAME>]')`. FTS mirrors follow: claude-mem's FTS tables have
+AFTER UPDATE triggers, Chroma's contentful FTS5 table is updated directly.
+Embedding vectors remain. This tool does not prove erasure from embeddings,
+backups, caches or other copies; exposed credentials still require rotation.
 
                                                                         
                                                                               
@@ -24,10 +24,10 @@
                                                                                
                                                                             
 
-                                                                           
-                                                                          
-                                             
-   
+WHAT IT NEVER DOES: print a value, store a value in its journal, or touch a
+row that holds none. The journal (`store/logs/scrub.jsonl`) carries names,
+`table.column`, counts and the backup's path.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -41,13 +41,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "collectors"))
-import paths              
+import paths  # noqa: E402
 
 HOME = pathlib.Path(os.environ.get("CLAUDE_MEM_HOME", paths.source_path("companion_home", paths.HOME / "disabled/companion")))
 STORES = [HOME / "claude-mem.db", HOME / "chroma" / "chroma.sqlite3"]
 JOURNAL = paths.STATE / "logs" / "scrub.jsonl"
 BACKUP_DIR = HOME / "backups"
-                                                                          
+#: Every database modified by remediation must have its own SQLite backup.
 BACKED_UP = ("claude-mem.db", "chroma.sqlite3")
 
 
@@ -56,9 +56,9 @@ def now() -> str:
 
 
 def text_columns(conn: sqlite3.Connection) -> list[tuple[str, list[str]]]:
-    ""                                                                    
-                                                                              
-                                                   
+    """(table, [text columns]) for every table that can hold prose — FTS
+    shadow tables (`_data`, `_idx`, `_config`, `_docsize`, `_content`) are the
+    index's own storage and follow their parent."""
     out = []
     for name, sql in conn.execute("SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
         if any(name.endswith(s) for s in ("_data", "_idx", "_config", "_docsize", "_content")):
@@ -104,7 +104,7 @@ def backup(db: pathlib.Path) -> pathlib.Path | None:
 
 
 def scrub_store(db: pathlib.Path, values: dict[str, str], dry: bool) -> tuple[list[dict], str | None]:
-    ""                                                                                
+    """[{table.column, name, cells}] per store, and a problem if it would not open."""
     if not db.is_file():
         return [], None
     try:
@@ -113,11 +113,11 @@ def scrub_store(db: pathlib.Path, values: dict[str, str], dry: bool) -> tuple[li
         return [], f"{type(exc).__name__}: {exc}"
     conn.execute("PRAGMA busy_timeout = 60000")
     rows: list[dict] = []
-                                                                               
-                                                                                
-                                                                             
-                                                                            
-                              
+    # ONE PASS PER TABLE. The first draft asked SQLite `count(*) WHERE instr()`
+    # once per (column × value) — thousands of full scans over 3.9 GB, killed
+    # at ten minutes. Rows are read once, every value is tested in Python the
+    # way `scan_leaks.scan_sqlite` does it, and only the cells that hold one
+    # are rewritten, by rowid.
     needles = {v.encode("utf-8", "surrogateescape"): (v, n) for v, n in values.items()}
     try:
         for table, cols in text_columns(conn):
@@ -127,7 +127,7 @@ def scrub_store(db: pathlib.Path, values: dict[str, str], dry: bool) -> tuple[li
             except sqlite3.Error:
                 continue
             hits: dict[tuple[str, str], int] = {}
-            todo: list[tuple[str, int, str, str]] = []                                      
+            todo: list[tuple[str, int, str, str]] = []           # (col, rowid, value, name)
             while True:
                 page = cur.fetchmany(500)
                 if not page:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                         
+"""Provider credential boundaries, exercised with synthetic values and mocked HTTP only."""
 from __future__ import annotations
 import contextlib
 import io

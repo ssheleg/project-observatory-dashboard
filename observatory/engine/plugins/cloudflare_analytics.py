@@ -80,8 +80,8 @@ def _call(path_or_query, token: str, graphql: bool = False) -> dict:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
     except ValueError:
-                                                                         
-                                                                                
+        # http.client refuses a header with a newline by raising with the
+        # HEADER VALUE in the message — the token. Never let that message out.
         raise RuntimeError("token value is not header-safe (contains a line "
                            "break) — the file is not a token") from None
     except urllib.error.HTTPError as e:
@@ -195,9 +195,9 @@ def main() -> int:
     seen_zones: set[str] = set()
     day, _ = day_bounds()
     for label, token in accounts:
-                                                                            
-                                                                            
-                                                                                  
+        # ONE ACCOUNT'S FAILURE IS NOT THE ESTATE'S. A revoked token, a rate
+        # limit or a network blip on one login must not delete the other two
+        # accounts' traffic from the store — it is reported and the run goes on.
         try:
             zs = [z for z in zones(token) if z["id"] not in seen_zones]
             seen_zones.update(z["id"] for z in zs)
@@ -215,8 +215,8 @@ def main() -> int:
     for r in rows:
         print(json.dumps(r, ensure_ascii=False))
     if unmapped:
-                                                                             
-                                                                      
+        # NOT dropped silently: traffic on a host no project claims is a fact
+        # about the registry. run_plugins keeps stderr in its receipt.
         ranked = sorted(unmapped.items(), key=lambda kv: -kv[1])
         print(f"unmapped zones ({len(unmapped)}), by yesterday's requests: "
               + ", ".join(f"{z} ({n})" for z, n in ranked[:12])

@@ -35,8 +35,8 @@ sys.path.insert(0, str(ROOT))
 import paths
 import configuration
 
-                                                                             
-                                                                              
+#: The key every writer of `registry/*.json` takes. See the module docstring:
+#: agent-sync arbitrates per key, so a shared name is what makes it exclusive.
 REGISTRY_KEY = "registry"
 
                                                                                 
@@ -113,10 +113,10 @@ def other_holders(mod) -> tuple[list[tuple[str, str]] | None, str]:
         return None, f"holdings could not be read: {type(exc).__name__}"
 
 
-                                                                               
-                                                                             
-                                                                               
-                       
+#: The GATE's identity, distinct from the tick's on purpose. Both write nothing
+#: to the registry — the gate reads it for ten minutes — but they must be
+#: distinguishable in the journal, or "who was holding this when the tick stood
+#: down" has no answer.
 GATE_IDENTITY = "observatory-gate"
 
 
@@ -216,9 +216,9 @@ def drop(handle) -> str:
         return f"the lease could not be released cleanly: {type(exc).__name__}: {exc}"
 
 
-                                                                                
-                                                                                 
-                                               
+#: Outcomes that mean the tick DID NOT RUN this cycle. `unguarded` is not one of
+#: them — agent-sync being absent lets the tick proceed, and counting that as a
+#: skip would report a gap that never happened.
 SKIPPED = ("stood-down", "refused")
 
 
@@ -250,9 +250,9 @@ def record_outcome(outcome: str, *, holder: str = "", reason: str = "") -> dict:
         try:
             prior = json.loads(f.read_text(encoding="utf-8"))
         except (ValueError, OSError):
-                                                                               
-                                                                           
-                                                 
+            # An unreadable receipt is replaced. It holds no canon — only the
+            # last look at a lease — and refusing to write would lose the
+            # outcome this call exists to record.
             prior = {}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     skipped = outcome in SKIPPED
@@ -405,7 +405,7 @@ def supervised(command: list[str]) -> int:
         except InterruptedError:
             return 128 + interrupted[-1]
         finally:
-                                                                               
+            # Keep the lock until the complete child process group has stopped.
             for sig, handler in previous.items():
                 signal.signal(sig, handler)
             if child.poll() is None:

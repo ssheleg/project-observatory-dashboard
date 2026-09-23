@@ -40,7 +40,7 @@ def excluded(path: Path) -> bool:
 
 
 def inventory(base: Path) -> dict[str, tuple[int, int, str]]:
-    ""                                                                                          
+    """Detect movement while copying; refuse links and special files rather than follow them."""
     result = {}
     for directory, children, files in os.walk(base,followlinks=False):
         current = Path(directory)
@@ -127,7 +127,7 @@ def preflight(base: Path) -> dict:
 
 @contextlib.contextmanager
 def operation_lock(base: Path, *, existing: bool = True):
-    ""                                                                                  
+    """Stable sibling lock plus existing workspace/tick locks, never a swapped inode."""
     workspace.reject_symlinks(base)
     base.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     locks = [base.parent / ('.' + base.name + '.observatory-operation.lock')]
@@ -223,7 +223,7 @@ def _snapshot(base: Path, output: Path) -> dict:
 
 def snapshot(base: Path, output: Path | None = None, *, writers_stopped: bool = False) -> dict:
     managed_layout(base)
-    preflight(base)                                                        
+    preflight(base)  # unknown versions refuse before locks or other writes
     require_stopped(writers_stopped)
     output = output or base / 'backups' / ('snapshot-' + uuid.uuid4().hex)
     with operation_lock(base):
@@ -308,7 +308,7 @@ def restore(source: Path, destination: Path) -> dict:
         stage = Path(tempfile.mkdtemp(prefix='.restore-',dir=destination.parent))
         try:
             workspace.copy_private(source / 'data', stage)
-            verify_snapshot(source)                                              
+            verify_snapshot(source)  # do not publish a copy of a moving snapshot
             for row in manifest['files']:
                 if digest(stage / row['path']) != row['sha256']:
                     raise config.ConfigurationError('Restored file hash mismatch')
@@ -326,7 +326,7 @@ def restore(source: Path, destination: Path) -> dict:
 
 
 def add_missing(current: dict, defaults: dict) -> dict:
-    ""                                                                
+    """User values and unknown fields always win over new defaults."""
     out = dict(current)
     for key, value in defaults.items():
         if key not in out:
@@ -348,8 +348,8 @@ def prepare_upgrade(stage: Path) -> list[str]:
         if not target.exists() or merged != current:
             workspace.write_json(target,merged)
             changed.append(target.relative_to(stage).as_posix())
-                                                                                  
-                                                                       
+    # A subprocess resolves all paths freshly; inherited individual path overrides
+    # must not let migrations touch the source or an external database.
     env = {key:value for key,value in os.environ.items() if not key.startswith('OBSERVATORY_')}
     env['OBSERVATORY_HOME'] = str(stage)
     command = 'from store import db; c=db.connect(); c.execute("PRAGMA wal_checkpoint(TRUNCATE)"); c.close()'
@@ -411,7 +411,7 @@ def upgrade(base: Path, *, apply: bool = False, writers_stopped: bool = False) -
             (base / JOURNAL).unlink()
             sync_directory(base)
             committed = True
-                                                                                 
+            # Cleanup cannot turn a committed upgrade into an attempted rollback.
             shutil.rmtree(rollback,ignore_errors=True)
             return {'status':'upgraded','version':config.VERSION,'snapshot':receipt['snapshot'],
                     'files_updated':len(changed),'scheduler_activated':False}

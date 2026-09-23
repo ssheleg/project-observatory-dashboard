@@ -91,11 +91,11 @@ def searchable(value: str) -> bool:
     import scan_env
     return len(value) >= MIN_LEN and scan_env.looks_secret(value)
 
-                                                                           
-                                   
+#: How much of one file to read at a time, with an overlap so a value split
+#: across two reads is still found.
 CHUNK = 1 << 20
 
-                                                                                 
+#: The four destinations `tools/install_key.py` owns, plus the observatory's own.
 DESTINATIONS = {
     "observatory": paths.STORE / ".openrouter-key",
     "claude-mem": paths.source_path("companion_home", paths.HOME / "disabled/companion") / ".env",
@@ -118,7 +118,7 @@ def known_values() -> tuple[dict[str, str], list[dict], list[dict]]:
     skipped: list[dict] = []
     import scan_env
 
-                                                                      
+    # 1. the env inventory's secrets, read back out of their own files
     scan_path = paths.SCRATCH / "env.json"
     if scan_path.is_file():
         doc = json.loads(scan_path.read_text(encoding="utf-8"))
@@ -145,7 +145,7 @@ def known_values() -> tuple[dict[str, str], list[dict], list[dict]]:
                     continue
                 values.setdefault(value, f"{f['project']}/{name}")
 
-                          
+    # 2. the vault's slots
     if VAULT.is_dir():
         for slot in sorted(VAULT.glob("*/*/*")):
             if not slot.is_file() or slot.name.startswith(".") or slot.name == "meta.json":
@@ -164,7 +164,7 @@ def known_values() -> tuple[dict[str, str], list[dict], list[dict]]:
                 continue
             values.setdefault(value, f"vault:{slot.parent.parent.name}/{slot.name}")
 
-                                    
+    # 3. the OpenRouter destinations
     for label, path in DESTINATIONS.items():
         text = _read(path)
         if text is None:
@@ -237,8 +237,8 @@ def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
     try:
         tables = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
-                                                                         
-                                                                      
+        # FTS mirrors are the same text again: `observations_fts` and its
+        # `_fts_*` shadow tables doubled every count on the first run.
         tables = [t for t in tables if not re.search(r"_fts(_|$)", t)]
         for table in tables:
             try:
@@ -283,8 +283,8 @@ def scan_file(path: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
     except OSError:
         return hits, start
     if size < start:
-                                                                              
-                                                                              
+        # TRUNCATED OR REPLACED. A log that rotated is a new file under an old
+        # name, and resuming at the old offset would skip its whole beginning.
         start = 0
     try:
         with path.open("rb") as fh:
@@ -333,10 +333,10 @@ def main(argv: list[str]) -> int:
 
     by_value = {v.encode("utf-8", "surrogateescape"): n for v, n in values.items()}
     longest = max(len(b) for b in by_value)
-                                                                                 
-                                                                                 
-                                                                                
-                                                                       
+    # `bytes.find` PER PATTERN, not one compiled alternation. The alternation was
+    # the obvious thing and it read 956 MB in 2m58s: `re` walks the buffer in its
+    # own VM, while `find` is `memmem` in C and 199 passes of that over the same
+    # buffer still win by an order of magnitude. Measured, not assumed.
     pattern = sorted(by_value, key=len, reverse=True)
 
     state = {}
@@ -389,8 +389,8 @@ def main(argv: list[str]) -> int:
     print(f"leaks: {len(values)} known value(s) against {len(files)} target(s), "
           f"{read_bytes/1e6:.1f} MB read, {len(rows)} sighting(s)")
     for r in rows[:8]:
-                                                                                 
-                                                                               
+        # THE NAME AND THE FILE, never the line. A report that quotes the leak is
+        # a second copy of it, in a file that is easier to read than the first.
         print(f"  {r['secret']} seen in {r['where']} ×{r['occurrences']}")
     for n in notes:
         print(f"  not scanned: {n['what']} — {n['why']}")

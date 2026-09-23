@@ -252,8 +252,8 @@ def test_corroboration_needs_a_second_witness() -> None:
                         expected_revision=1)
     check("an independent check promotes proposed -> observed",
           out["state"] == "observed", str(out))
-                                                                                
-                                                                              
+    # The claim does not change hands. A corroborator who became the owner could
+    # then edit the statement, which is the opposite of what a witness is for.
     check("the claim stays its author's", out["owner"] == "agent:observer", str(out))
     row = L.current(conn, r["memoryId"])
     check("the corroborator is recorded in provenance",

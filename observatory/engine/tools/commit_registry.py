@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                   
+"""Commit the generated registry, or explain why not.
 
                                                                              
                                                                            
@@ -7,14 +7,14 @@
                                                                          
                                     
 
-                                                                               
-                                                                               
-                                                                            
-                                                                           
-                                              
+The sibling's rule was "refuse if anything outside the projection is modified".
+That is right for the wiki, where the whole repository is the projection's home
+and a dirty file there is probably an abandoned edit. It is wrong here: this
+repository is under active development, so it is nearly always dirty, and a
+committer that refuses on any dirt never runs.
 
-                                                                           
-                                   
+What actually has to be true is narrower and testable — **the commit must
+capture nothing but the registry**:
 
                                                                      
                                                                               
@@ -24,9 +24,9 @@
                                                                                
                                          
 
-                                                                            
-                                                       
-   
+It is a writer of a guarded path like any other, so it asks agent-sync's own
+guard first wherever the project declares coordination.
+"""
 from __future__ import annotations
 import re
 import argparse, json, pathlib, subprocess, sys
@@ -49,11 +49,11 @@ def git(*args: str, cwd: pathlib.Path) -> tuple[int, str]:
 
 
 def may_write(root: pathlib.Path) -> tuple[bool, str]:
-    ""                                                                           
+    """agent-sync's own answer, and only where the project declares coordination.
 
-                                                                              
-                                                                                 
-                                                             
+    A project with no `.claude/agent-sync.json` is not coordinated, and asking
+    the guard there returns a denial about a config that does not exist — which
+    would make this tool refuse in every checkout but one."""
     if not (root / ".claude/agent-sync.json").exists():
         return True, "coordination is not declared in this checkout"
     script = tick_lease.agent_sync_script()
@@ -87,20 +87,20 @@ VOLATILE = {"uncommitted_files", "files", "mtime", "extra_clones",
 
 
 def describe_change(root: pathlib.Path, changed: list[str]) -> str:
-    ""                                                         
+    """What MOVED, in one line — not how big the registry is.
 
-                                                                    
-                                                                               
-                                                                           
-                                                                            
-                                                           
+    The subject line used to be `Registry refresh: 156 projects, 172
+    repositories, 200 relations`, which is the SIZE of the registry and changes
+    almost never. Every commit the tick made therefore carried an identical
+    subject: 48 a day, none of them searchable, and no way to tell a counter
+    bump from a project appearing without opening the diff.
 
-                                                                     
-                                                                             
-                                                                                
-                                                                                 
-                                                               
-       
+    Field names are read out of the staged diff. A JSON diff rewrites
+    neighbouring lines when a list element moves, so a name appearing here is
+    evidence that something in its neighbourhood changed rather than proof about
+    that exact field — which is why the summary counts LINES per field and says
+    so by ordering them, instead of claiming "field X changed".
+    """
     code, diff = git("diff", "--cached", "--unified=0", "--", REGISTRY, cwd=root)
     if code != 0 or not diff.strip():
         code, diff = git("diff", "--unified=0", "--", REGISTRY, cwd=root)
@@ -132,7 +132,7 @@ def describe_change(root: pathlib.Path, changed: list[str]) -> str:
 
 
 def private_workspace(root: pathlib.Path) -> tuple[bool, str]:
-    ""                                                                        
+    """Never let scheduled commits stage runtime facts into source history."""
     root = root.resolve()
     source = paths.ROOT.resolve()
     if root == source or root in source.parents or source in root.parents:
@@ -173,9 +173,9 @@ def main() -> int:
     if code != 0:
         print(f"git status failed: {out}", file=sys.stderr)
         return 0
-                                                                                  
-                                                                             
-                                          
+    # `XY path`, and a rename is `R  old -> new`; the status letters vary in width
+    # across git versions, so the last whitespace-separated field is the only
+    # slice that is right for every shape.
     changed = [l.split()[-1] for l in out.splitlines() if l.strip()]
     if not changed:
         print("the registry is clean — nothing to commit")

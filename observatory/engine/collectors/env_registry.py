@@ -29,7 +29,7 @@ from collections import defaultdict
                               
 FILLABLE_FROM = ("secret", "config")
 
-                                                                        
+#: Listed by name up to this many in a summary, as everywhere else here.
 LISTED = 8
 
 
@@ -81,12 +81,12 @@ def enrich(files: list[dict]) -> list[dict]:
                 if len(group) > 1:
                     row["copies"] = len(group)
             elif v["class"] in ("empty", "placeholder") and f["kind"] == "env":
-                                                                             
-                                                                          
-                                                                          
-                                                                              
-                                                                              
-                                 
+                # THE REUSE AFFORDANCE, and only for a live file. An unfilled
+                # slot whose name holds a real value somewhere else is the
+                # question "where do I get one" already answered — but a
+                # `.env.example` is a DECLARATION, not a slot, and offering it
+                # somewhere to fill from would put the affordance on 168 files
+                # that never run.
                 where = sorted(live.get(v["name"], set()) - {f["project"]})
                 if where:
                     row["available_in"] = where[:LISTED]
@@ -128,7 +128,7 @@ def shared_groups(files: list[dict]) -> list[dict]:
             "class": "secret" if any(s["class"] == "secret" for s in group) else "config",
             "in_templates": sum(1 for s in group if s["kind"] == "template"),
         })
-                                                                       
+    # Widest blast radius first, then the secrets, then stably by name.
     groups.sort(key=lambda g: (-len(g["projects"]), g["class"] != "secret",
                                g["names"][0] if g["names"] else ""))
     return groups

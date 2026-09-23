@@ -46,9 +46,9 @@ import paths
 
 LINKS = paths.config_file('heroku_links.json')
 
-                                                                              
-                                                                                    
-                                                                            
+#: Stacks Heroku has superseded twice over. Not a judgement about whether they
+#: still work — they do — but the count belongs on a screen, because the upgrade
+#: is a decision somebody has to make and nothing else on this machine asks.
 OLD_STACKS = {"heroku-18", "heroku-20", "heroku-22"}
 
 

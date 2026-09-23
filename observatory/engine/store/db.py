@@ -20,9 +20,9 @@ import paths
 DB_PATH = paths.DB
 SCHEMA = paths.ROOT / "store" / "schema.sql"
 
-                                                                                 
-                                                                                 
-                                                                                
+#: The `observations.kind` written by the registry fingerprint, named here rather
+#: than in the collector because the store's own retention has to know it too —
+#: and a vocabulary word spelled in two files is a word that eventually differs.
 FINGERPRINT_KIND = "project-fingerprints"
 
                                                                                    

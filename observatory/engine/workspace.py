@@ -1,4 +1,4 @@
-""                                                                                       
+"""Initialize and migrate complete Observatory installations without publishing state."""
 from __future__ import annotations
 import argparse
 import contextlib
@@ -56,7 +56,7 @@ def lock(base: Path):
 
 
 def require_runtime() -> dict:
-    ""                                                                                  
+    """Check the installed SQLite runtime entirely in memory before workspace writes."""
     message = ("Full engine requires Python with SQLite 3.37+ and loadable extensions, "
                "plus the locked sqlite-vec dependency. On macOS use Homebrew Python "
                "3.14 in a virtual environment; reinstall the full package there.")
@@ -80,7 +80,7 @@ def require_runtime() -> dict:
 def initialize(base: Path, *, identities: bool = True) -> dict:
     require_runtime()
     reject_symlinks(base)
-                                                               
+    # Version checks precede any mkdir, chmod or lock creation.
     marker = config.validate_workspace(base)
     if marker:
         config.load(base)
@@ -137,7 +137,7 @@ def ensure_identities(base: Path, state: Path | None = None) -> None:
 
 
 def copy_private(source: Path, target: Path) -> int:
-    ""                                                                             
+    """Copy regular files only; never follow links or copy executable Git state."""
     if source.is_symlink():
         raise config.ConfigurationError("Migration refuses symbolic links")
     if not source.exists():
@@ -188,7 +188,7 @@ def backup_database(source: Path, target: Path) -> None:
 
 
 def validate_data(base: Path, *, integrity: bool = False) -> dict:
-    ""                                                                                 
+    """Read-only registry/database compatibility guard, shared by import and doctor."""
     from store import compatibility, migrate
     reject_symlinks(base)
     config.validate_registries(base / "registry")
@@ -226,7 +226,7 @@ def migrate_local(source: Path, target: Path, apply: bool) -> dict:
                "scheduler": "not activated", "apply_required": True}
     if not apply:
         return summary
-                                                                             
+    # Caller must stop writers for a cross-file snapshot; detect changes too.
     def snapshot():
         measured = {}
         files = [source / "paths.py", source / "identity.py"]

@@ -32,7 +32,7 @@ try:
     ZONE_NAMES={z["name"] for z in json.load(open(paths.SCRATCH/"cloudflare_zones.json"))["zones"]}
 except (OSError, ValueError, KeyError):
     ZONE_NAMES=set()
-                                                                                      
+# Curated host -> project adoptions (the other side of collectors/host_boundary.json).
 try:
     CLAIMS={h.lower():c for h,c in json.load(open(paths.config_file('domain_claims.json')))["claims"].items()}
 except (OSError, ValueError, KeyError):
@@ -68,19 +68,19 @@ def _optional(name, key, default):
         return default
     return json.loads(f.read_text()).get(key, default)
 
-                                                                                
-                                                                                
-                                                                              
-                                                    
+#: The last session date per project, from claude-mem. Optional by the same rule
+#: as every other collector output: a missing file means "not measured", not "no
+#: work happened" — and the second reading is what made `last_activity_on` a
+#: measure of COMMITS while calling itself activity.
 SESSIONS={}
 for _s in _optional("sessions.json", "sessions", []):
     _d = _s.get("ended_on") or _s.get("started_on") or ""
     if _d and _d > SESSIONS.get(_s["project_id"], ""):
         SESSIONS[_s["project_id"]] = _d
 
-                                                                               
-                                                                               
-                                      
+#: The same dates keyed by the SLUG, so a project whose id was overridden still
+#: finds its sessions. `ID_OVERRIDE` lives in the emitter, so neither map alone
+#: is complete and both are consulted.
 SESSIONS_BY_SLUG={k.split(":",1)[1]: v for k, v in SESSIONS.items()}
 
 REMOTES=_optional("remotes.json", "repositories", {})
@@ -92,7 +92,7 @@ def nwo(remote):
     m=re.search(r"bitbucket\.org[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?$", remote)
     if m: return ("bitbucket", f"{m.group(1)}/{m.group(2)}")
     return None
-                                    
+# ---------- repositories ----------
 repos={}
 for k,r in gh.items():
     repos[k]={"key":k,"host":"github","owner":k.split("/")[0],"name":k.split("/")[1],
@@ -165,8 +165,8 @@ def canonical(host: str, k: str) -> tuple[str, str | None, str]:
         return k, None, f"{type(exc).__name__}: {exc}"
     real = out.stdout.strip()
     if out.returncode != 0:
-                                                                                 
-                                                                                  
+        # A 404 IS an answer: the address does not exist under any name. Anything
+        # else — no credential, rate limit, network — is a question not asked.
         err = (out.stderr or "").strip()[:120]
         if "Not Found" in err or "404" in err:
             return k, None, ""
@@ -216,8 +216,8 @@ for folder,l in local.items():
             "source":"local-remote-only"}
     b=BB.get(k)
     if b and repos[k].get("source")=="local-remote-only":
-                                                                             
-                                                                
+        # The listing is the only source for these; a local clone cannot know
+        # whether its origin is private, archived, or described.
         repos[k].update(description=b.get("description") or "",
                         visibility="private" if b.get("is_private") else "public",
                         language=b.get("language") or "",
@@ -285,12 +285,12 @@ for folder,l in local.items():
                                       lr.get("remote_head", ""),
                                       lr.get("branch", ""))
         if fresh:
-                                                                               
-                                                                               
-                                                                             
-                                                                  
-                                                                         
-                      
+            # ABSENT STAYS ABSENT. An empty answer means the count could not be
+            # taken now — the remote sha may be unknown to this clone — and
+            # overwriting a measured older number with silence would lose the
+            # only figure there is. The scan's value survives, and
+            # `unpushed_recounted` is what tells a reader which one it is
+            # holding.
             for key, out_key in (("unpushed", "unpushed"),
                                  ("newest_on", "unpushed_newest_on"),
                                  ("nothing_exclusive", "nothing_exclusive")):
@@ -317,12 +317,12 @@ for folder,l in local.items():
     if repos[k]["local"] is None:
         repos[k]["local"]=lr
     elif repos[k]["local"].get("worktree_of") and not lr.get("worktree_of"):
-                                                                               
+        # The real checkout arrived second; promote it and demote the worktree.
         repos[k].setdefault("extra_checkouts",[]).append(demoted(repos[k]["local"]))
         repos[k]["local"]=lr
     else:
         repos[k].setdefault("extra_checkouts",[]).append(demoted(lr))
-                                                          
+# ---------- projects anchored on vault folders ----------
 ORG_BY_LOWER={o.lower():o for o in OWNED_ORGS}
 projects={}
                                                                               
@@ -335,7 +335,7 @@ for folder,v in vault.items():
         "vault":{"folder":folder,"overview":v["overview"],"notes":v["note_count"],
                  "summary":v["summary"],"domains":v["domains"]},
         "repos":[],"rules":[],"sites":[]}
-                                                                                
+# specificity: a repo that has its own vault folder cannot be absorbed elsewhere
 own_folder_of={}
 for folder in vault:
     for k in repos:
@@ -399,16 +399,16 @@ def apply_verified_links():
         p=projects.get(L["project"])
         if not p or L["repo"] not in repos or L["repo"] in p["repos"]: continue
         p["repos"].append(L["repo"]); p["rules"].append(f'{L["repo"]}: verified — {L["evidence"]}')
-                                                                        
-                                                                              
-                                              
+        # What was absorbed must stop being a project of its own. Only a
+        # standalone is dissolved: a project holding more than this repository
+        # is something else and is left alone.
         victim=projects.get(L["repo"])
         if victim is not None and victim is not p and victim["repos"]==[L["repo"]]:
             del projects[L["repo"]]
 
 apply_verified_links()
 assigned={k for p in projects.values() for k in p["repos"]}
-                                 
+# ---------- leftovers ----------
 orgs_with_project={repos[k]["owner"] for p in projects.values() for k in p["repos"]}
 from collections import defaultdict
 left=defaultdict(list)
@@ -467,7 +467,7 @@ for folder,l in local.items():
                       "commits":int(l.get("commits") or 0),"branch":l.get("branch","") or "",
                       "last_commit":l.get("last_commit","") or "","dirty":int(l.get("dirty") or 0),
                       "readme":l["readme"],"files":l.get("file_count",0),"mtime":l.get("mtime","")}}
-                                               
+# ---------- sites, by evidence rank ----------
 def host_of(u):
     u=(u or "").strip().lower(); u=re.sub(r"^https?://","",u); u=re.sub(r"^www\.","",u)
     return u.split("/")[0].rstrip(".").rstrip("/")
@@ -489,8 +489,8 @@ for key,p in projects.items():
             for src,val in r["local"]["homepage_hits"]:
                 h=host_of(val)
                 if not h or h in THIRD_PARTY: continue
-                                                                               
-                                                                                
+                # An env or nginx line names a host the estate OWNS, or it is a
+                # provider's host and says nothing about this project's surface.
                 if src.startswith(("env:","nginx:")) and not (registrable(h) or ".".join(h.split(".")[-2:]) in ZONE_NAMES):
                     continue
                 cand.setdefault(h,[]).append(f"repo-config:{r['local']['folder']}/{src}")
@@ -500,10 +500,10 @@ for key,p in projects.items():
         for d in p["vault"]["domains"]:
             if re.search(r"(?<![\w.-])"+re.escape(d)+r"(?![\w-])", ov):
                 cand.setdefault(d,[]).append(f"vault-overview:{p['vault']['overview']}")
-                                                                               
-                                                                           
-                                                                          
-                                                                             
+    # THE OPERATOR'S ADOPTIONS, from collectors/domain_claims.json: a host tied
+    # to this project by decision where no config, README or note names it.
+    # Strongest evidence there is — `estate_surfaces.EVIDENCE_RANK` puts
+    # `operator-claim` above every measurement — and it carries its reason.
     for h,claim in CLAIMS.items():
         if claim.get("project")==my_id:
             cand.setdefault(h,[]).append(f"operator-claim:{claim.get('why','')[:80]}")
@@ -512,7 +512,7 @@ for key,p in projects.items():
         p["sites"].append({"host":h,"owned_domain":reg,
             "confidence":"registry-confirmed" if reg else "declared-not-in-registry",
             "evidence":sorted(set(ev))})
-                                                   
+# ---------- description, activity, kind ----------
 for p in projects.values():
     desc=""; src=""
     if p["vault"] and p["vault"]["summary"]:

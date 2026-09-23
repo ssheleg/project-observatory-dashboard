@@ -82,9 +82,9 @@ def ids_for_project(project_id: str) -> list[str]:
             if p["id"] == project_id:
                 return identity.ids_for(p, projects)
     except (OSError, ValueError, KeyError):
-                                                                               
-                                                                                
-                                                                                  
+        # The registry is the same source every other section reads; if it will
+        # not open, the caller's own degradation reports it. Falling back to the
+        # id as given keeps this from turning a registry fault into an empty view.
         pass
     return [project_id]
 
@@ -224,8 +224,8 @@ def _project_view(p: dict, repos: dict, members: dict) -> dict:
                                                                                   
                                                                              
                      ("activity_tier", "activityTier"),
-                                                                                 
-                                                               
+                     # WHERE WORK WAS DONE when no commit was made — SRC-0012's
+                     # whole reason, and 57 projects carry one.
                      ("last_session_on", "lastSessionOn")):
         val = p.get(src)
         if val not in (None, "", []):
@@ -359,9 +359,9 @@ def survey(scope: dict | None = None, include_external: bool = False,
                                        f"repeat what it has already seen"})
         page = [p for p in page if p["id"] > cursor]
     if limit is not None:
-                                                                                 
-                                                                           
-                                                                                
+        # A limit below 1 is a caller mistake, and returning an empty page for it
+        # would be a silent one: "no projects" and "you asked for none" are
+        # different answers. The wire declares `ge=1` so it cannot arrive there.
         if limit < 1:
             raise ValueError(f"limit must be at least 1; got {limit}")
         more = page[limit:]
@@ -369,11 +369,11 @@ def survey(scope: dict | None = None, include_external: bool = False,
         if more and page:
             next_cursor = page[-1]["id"]
 
-                                                                              
-                                                                                 
-                                                                                
-                                                                              
-                                                             
+    # HOW MUCH MOVED, in one query for the estate rather than one per project.
+    # `windowDays` is the RULE (the `active` tier's own boundary) and `weeksFrom`
+    # is what was actually summed: the predicate compares against a DATE, so the
+    # earliest week included starts on or after it, and naming the date a week
+    # boundary would be a precision the number does not have.
     recent: dict[str, dict] = {}
     window: dict | None = None
     estate_work: dict | None = None
@@ -389,8 +389,8 @@ def survey(scope: dict | None = None, include_external: bool = False,
                 "date('now', ?)", (f"-{days} days",)).fetchone()[0]
             if first:
                 window["weeksFrom"] = first
-                                                                                
-                                                                         
+                # THE ESTATE'S OWN FIGURES, over the same span as the rows, so a
+                # host never has to add up a column that cannot be added.
                 try:
                     known = {p['id'] for p in project_rows} | set(renamed_to)
                     work = _estate_work(conn, first, known)
@@ -408,14 +408,14 @@ def survey(scope: dict | None = None, include_external: bool = False,
     views = []
     for p in page:
         v = _project_view(p, repos, members)
-                                                                                
-                                                                     
+        # ABSENT, NOT ZERO. 69 of 160 projects carry no weekly row at all, and a
+        # project nothing measured is not a project that did nothing.
         if p["id"] in recent:
             v["recentActivity"] = recent[p["id"]]
         views.append(v)
-                                                                           
-                                                                               
-                                                                         
+    # `seen_repos` and `owners` describe the SCOPE, not the page: they feed
+    # `counts`, and a count that shrank with the page size would say the estate
+    # had fewer repositories because the caller asked for fewer projects.
     all_views_repos = {rid for p in selected for rid in members.get(p["id"], [])}
     seen_repos = all_views_repos or {r["id"] for v in views for r in v["repositories"]}
     owners = {o for p in selected for o in p.get("owners", [])}
@@ -624,15 +624,15 @@ def project_detail(project_id: str, timeline_limit: int = 10,
         finally:
             conn.close()
 
-                                                                             
-                                                                                
-                                                                            
-                                          
-                                                                        
-                                                                               
-                                                                                
-                                                                                  
-                                                                               
+    # THIS PROJECT'S FINDINGS, from the file the estate's own tooling writes.
+    # Acknowledged ones are withheld for the same reason the dashboard withholds
+    # them: the operator silenced them, and a surface that shows them anyway
+    # teaches that silencing does nothing.
+    # ITS REPOSITORIES' FINDINGS TOO, and the first version had only the
+    # project's own. Of the live set, 2 findings carry a `project:` subject and
+    # **20 carry a `repository:` or `clone:` one** — dirty checkouts, diverged
+    # branches, stale remotes — so a per-project view built on the subject alone
+    # showed nothing for almost every project that had something wrong with it.
     mine = {project_id}
     for r in out["project"].get("repositories", []):
         mine.add(r.get("id", ""))
@@ -645,10 +645,10 @@ def project_detail(project_id: str, timeline_limit: int = 10,
             if f.get("acked") or (f.get("subject") or "") not in mine:
                 continue
             row = {k: f[k] for k in ("type", "severity", "title", "action") if k in f}
-                                                                             
-                                                                            
-                                                                               
-                            
+            # THE SUBJECT TRAVELS WITH IT. Without it a renderer showing five
+            # findings under one project cannot say which repository each is
+            # about, and "a branch exists only locally" is unactionable without
+            # knowing where.
             row["subject"] = f.get("subject")
             row["aboutThisProject"] = f.get("subject") == project_id
             out["findings"].append(row)
@@ -828,10 +828,10 @@ def fts_query(query: str) -> str:
        
     terms = [t for t in re.findall(r"[\w'-]+", query, flags=re.UNICODE) if t]
     if not terms:
-                                                                                
-                                                                                
-                                                                          
-                                              
+        # Not a query FTS5 can answer, and not an error either: the caller asked
+        # for punctuation. An empty MATCH raises, so the lexical half is skipped
+        # by returning an expression that matches nothing rather than by a
+        # special case the reader has to find.
         return '""'
     return " OR ".join('"' + t.replace('"', '""') + '"' for t in terms)
 
@@ -871,12 +871,12 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
     conn = store_db.connect()
     degraded: list[dict] = []
     hits: dict[tuple[str, int], dict] = {}
-                                                                                
+    #: Each half's own ORDER, kept so the two can be fused rather than compared.
     vector_order: list[tuple[str, int]] = []
     lexical_order: list[tuple[str, int]] = []
     try:
         have_vec = indexer.load_vec(conn)
-                                                                                
+        # --- similarity, when the extension and a key are both there ----------
         if have_vec:
             try:
                 import providers
@@ -911,8 +911,8 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
             degraded.append({"source": "vector",
                              "reason": "sqlite-vec is not loadable here"})
 
-                                                                               
-                                                                              
+        # --- lexical, always. It is the path that still answers when the other
+        # --- one cannot, which is exactly when a caller most needs an answer.
         try:
             fts = ("SELECT memory_id, revision, rank FROM search_notes"
                    " WHERE search_notes MATCH ? ORDER BY rank LIMIT ?")
@@ -928,15 +928,15 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
         except sqlite3.Error as exc:
             degraded.append({"source": "lexical", "reason": str(exc)})
 
-                                                                                
-                                                                           
-                                                                                
-                                                                                 
-                                                                                   
-                                                                        
-                                                                                 
-                                                                                
-                                             
+        # --- the LAG, which both halves search over and neither reported ------
+        # Both indexes are fed by the outbox, so a pending queue means this
+        # answer was computed over an index that does not yet contain the newest
+        # conclusions. The old `degraded` list named the store, bitbucket and the
+        # domain scan and said nothing about the projection — so a search running
+        # against an index a hundred revisions behind answered with full
+        # confidence. The age comes from the ledger: an append and its outbox row
+        # are one transaction, so `ledger.created_at` IS the enqueue time and no
+        # column had to be added to learn it.
         try:
             lag = conn.execute(
                 "SELECT count(*) AS n, min(l.created_at) AS oldest FROM outbox o"
@@ -951,7 +951,7 @@ def search(query: str, project_id: str | None = None, limit: int = 10) -> dict:
         except sqlite3.Error as exc:
             degraded.append({"source": "projection", "reason": f"lag unknown: {exc}"})
 
-                                                                                
+        # --- hydrate from CANON, never from the projection --------------------
         out, contested = [], []
         for (mid, rev), h in hits.items():
             row = conn.execute(

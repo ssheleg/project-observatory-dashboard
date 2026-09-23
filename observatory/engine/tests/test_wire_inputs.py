@@ -59,7 +59,7 @@ def cursor_note(answer: dict) -> list[str]:
     return [d["reason"] for d in answer.get("degraded") or [] if d.get("source") == "cursor"]
 
 
-                                                                                                                                                 
+# ─────────── the cursor that names no position ─────────────────────────
 
 def test_a_cursor_that_is_not_an_id_is_reported() -> None:
     import survey
@@ -96,7 +96,7 @@ def test_a_cursor_past_the_end_is_an_empty_page_not_an_error() -> None:
           got["counts"]["projects"] > 0, str(got["counts"]))
 
 
-                                                                                                                                                           
+# ─────────── the scopes the schema allows ──────────────────────────────
 
 def test_an_unknown_subject_is_distinguishable_from_an_empty_one() -> None:
     ""                                                                   

@@ -90,9 +90,9 @@ def checkouts() -> list[tuple[str, pathlib.Path]]:
         relations = json.loads((paths.REGISTRY / "relations.json")
                                .read_text(encoding="utf-8"))["relations"]
     except (OSError, ValueError, KeyError) as exc:
-                                                                               
-                                                                              
-                                                          
+        # The runner treats a non-zero exit as a plugin failure and reports it,
+        # which is the right destination: an unreadable registry is a fault of
+        # the run rather than a measurement of the estate.
         print(f"release_cadence: the registry could not be read: "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1)
@@ -110,10 +110,10 @@ def checkouts() -> list[tuple[str, pathlib.Path]]:
         path = local.get("path")
         if not path or not (pathlib.Path(path) / ".git").exists():
             continue
-                                                                               
-                                                                               
-                                                                               
-                                                                
+        # ONE checkout per project, the first by relation order. A project with
+        # several repositories would otherwise get one row per repository under
+        # the same `(project_id, metric, at)` key, and the last write would win
+        # silently — a number that depends on iteration order.
         seen.add(pid)
         out.append((pid, pathlib.Path(path)))
     return out
@@ -137,9 +137,9 @@ def main() -> int:
     for pid, repo in checkouts():
         count, newest, why = tags_of(repo)
         if why is not None:
-                                                                              
-                                                                         
-                                                    
+            # NAMED on stderr and counted. The runner collects stderr into its
+            # report, so a checkout git could not answer about is visible
+            # without becoming a zero in the metric.
             print(f"  {pid}: tags could not be read at {repo} — {why}",
                   file=sys.stderr)
             unreadable += 1
@@ -147,8 +147,8 @@ def main() -> int:
         print(json.dumps({"project_id": pid, "metric": "release.tags",
                           "at": AT, "value": float(count)}, ensure_ascii=False))
         if newest is None:
-                                                                             
-                                       
+            # NO ROW, deliberately. See the module docstring: zero days would
+            # read as "released today".
             continue
         try:
             days = (today - datetime.strptime(newest, "%Y-%m-%d").date()).days

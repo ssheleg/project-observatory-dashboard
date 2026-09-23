@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                                    
+"""`tools/ack.py` — one verb to silence a finding, on the record (plan v2 T-24, S5).
 
-                                                                      
-                                                                          
-                                                                             
-                                                             
-   
+Driven in a sandbox: a copied registry and an empty acks file. What is
+asserted is the refusals (no reason, unknown id, a date already past), the
+row that lands, the undo, and that the board's builder then withholds the row
+— the silence must reach the page, or the verb did nothing.
+"""
 from __future__ import annotations
 import json
 import os
@@ -21,7 +21,7 @@ from test_portable_mcp import setup as portable_setup, PROJECT_ID as SYNTHETIC_P
 portable_setup()
 
 sys.path.insert(0, str(ROOT / "tests"))
-import tmp as tmpdir                                                            
+import tmp as tmpdir                                                # noqa: E402
 
 PY = sys.executable
 FAILURES: list[str] = []
@@ -35,7 +35,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 def sandbox() -> tuple[dict, pathlib.Path]:
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-ack-"))
-    shutil.copytree(__import__("paths").REGISTRY, d / "registry")                                                                       
+    shutil.copytree(__import__("paths").REGISTRY, d / "registry")  # paths-check: allow — a fixture's SOURCE must be the real registry
     shutil.copytree(__import__("paths").SCRATCH, d / "raw")
     acks = d / "finding_acks.json"
     acks.write_text(json.dumps({"note": "fixture", "acks": []}), encoding="utf-8")
@@ -72,12 +72,12 @@ def build(env: dict) -> subprocess.CompletedProcess:
 def test_an_ack_lands_reaches_the_board_and_can_be_undone() -> None:
     env, acks = sandbox()
     reg = pathlib.Path(env["OBSERVATORY_REGISTRY"])
-                                                                              
-                                                                        
-                                                                              
-                                                                          
-                                                                            
-                                                            
+    # THE BASELINE IS A BUILD, NOT THE COPIED FILE. The fixture's registry was
+    # written by whatever ran last, and the builder recomputes from live
+    # sources — so a finding that resolved in between made the copied counts
+    # disagree with a fresh build by a row nobody acked, and the assertion
+    # below read that as the ack failing. Build first, then ack, then build:
+    # the only difference between the two counts is the ack.
     b = build(env)
     check("the builder runs over the sandbox", b.returncode == 0, (b.stdout + b.stderr)[-200:])
     board = json.loads((reg / "findings.json").read_text())
@@ -93,7 +93,7 @@ def test_an_ack_lands_reaches_the_board_and_can_be_undone() -> None:
     check("acking again replaces the row rather than adding a twin",
           len(json.loads(acks.read_text())["acks"]) == 1
           and json.loads(acks.read_text())["acks"][0]["why"] == "a second reason", "")
-                              
+    # the builder withholds it
     b = build(env)
     check("the builder runs again with the ack in place", b.returncode == 0,
           (b.stdout + b.stderr)[-200:])

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                       
+"""Drive ENV controls on a newly built synthetic page."""
 from pathlib import Path
 import subprocess
 import sys

@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT))
                                 
 import paths              
 
-                                                                 
+#: (file, phrase, why it is false now). Absence is the assertion.
 RETIRED_CLAIMS = [
     ("README.md", "not built yet",
      "the agent has been scheduled and spending since 2026-09-04; "
@@ -75,14 +75,14 @@ RETIRED_CLAIMS = [
      "removed from the vault when the registry moved here"),
 ]
 
-                                                                                
-                                                                   
-                                                                          
-                                                                            
-                                                                         
-                                                                           
-                                                                         
-                                                                               
+#: path -> why it may be named and not exist. A set would become a bin; a reason
+#: per entry is what stops the exemption list from being the drift.
+#: Path PREFIXES whose contents a fresh clone legitimately lacks, with the
+#: reason. `store/raw/` is one .gitignore line (`store/raw/`) and holds zero
+#: tracked files — verified with `git check-ignore`, not assumed — so
+#: enumerating its members one by one was a maintenance step that every new
+#: collector had to remember. Two did not: `sessions.json` (SRC-0012) and
+#: `corroboration.json`, and the second failed the gate the day it was written.
 PATH_PREFIX_ALLOWLIST = {
     "store/raw/": "collector and tool output; the whole directory is gitignored and "
                   "written by a run, so a fresh clone has none of it",
@@ -90,7 +90,7 @@ PATH_PREFIX_ALLOWLIST = {
 }
 
 PATH_ALLOWLIST = {
-                                                                             
+    # Generated or volatile, and gitignored: a fresh clone has none of these.
     "store/observatory.db": "the store is gitignored and rebuilt",
     "store/observatory.db.backup-2026-09-06T2150Z": "a dated backup, gitignored",
     "store/wallet.json": "written by the provider boundary",
@@ -101,14 +101,14 @@ PATH_ALLOWLIST = {
     "store/logs/tick.log": "written by launchd", "store/logs/tick.err": "written by launchd",
     "store/budget.json": "named by an early design that a later one superseded",
     "docs/projects-dashboard.html": "generated, gitignored",
-                                                  
+    # Deliberately gone, and the document says so.
     "tools/validate_inventory.py": "removed from the vault when the registry moved here",
     "tools/build_dashboard.py": "the vault's copy, removed for the same reason",
-                                                
+    # In ANOTHER repository, cited with its pin.
 }
 
-                                                                              
-                                                  
+#: The repository's own top-level directories, computed rather than listed —
+#: a hand-written list is the next thing to drift.
 TOP_LEVEL = {p.name for p in ROOT.iterdir()
              if p.is_dir() and not p.name.startswith((".", "_"))}
 PATH_RX = re.compile(r"`([a-zA-Z0-9_./-]+\.(?:py|json|md|sql|sh|js|jsonl|yaml|css|html))`")
@@ -309,7 +309,7 @@ def failures() -> list[str]:
     out: list[str] = list(local_failures())
     out += conformance_doc_failures()
 
-                                                                    
+    # 1 — the CLI's help must not name a step that does not exist.
     import observatory as obs
     doc = obs.__doc__ or ""
     named = set()
@@ -321,7 +321,7 @@ def failures() -> list[str]:
     if unknown:
         out.append(f"observatory.py's help names step(s) that do not exist: {unknown}")
 
-                                                 
+    # 2 — a path a document names must resolve.
     for md in sorted((ROOT / "docs").glob("*.md")) + [ROOT / "README.md", ROOT / "AGENTS.md"]:
         if not md.is_file():
             continue
@@ -341,7 +341,7 @@ def failures() -> list[str]:
             if not (ROOT / path).exists():
                 out.append(f"{md.relative_to(ROOT)} names {path}, which does not exist")
 
-                                                                             
+    # 3 — the conformance report certifies A revision; it must be THIS one.
     manifest = json.loads((ROOT / "fabric-agent.json").read_text(encoding="utf-8"))
     revision = manifest["provider"]["revision"]
     conformance = ROOT / "fabric/FABRIC-CONFORMANCE.md"
@@ -351,12 +351,12 @@ def failures() -> list[str]:
             out.append(f"FABRIC-CONFORMANCE.md does not name revision {revision}, "
                        f"which is what fabric-agent.json declares")
 
-                                                                                
-                                                                               
-                                                                               
-                                                                                  
-                                                                                
-                                                                       
+    # 4 — the PUBLISHED prose contract must list the probes that actually run.
+    # `capabilities[i].profile.probes`, one level deeper than the first version
+    # looked. Reading `cap["probes"]` found nothing, so the rule built an empty
+    # set and passed — green because it had nothing to check, which is the shape
+    # this whole file exists to catch. A rule that cannot fail is not a rule, so
+    # it now REFUSES an empty set rather than treating it as agreement.
     declared = set()
     for cap in manifest.get("capabilities", []):
         for probe in (cap.get("profile") or {}).get("probes", []):
@@ -373,10 +373,10 @@ def failures() -> list[str]:
         if missing:
             out.append(f"fabric/probes/assertions.md — published to hosts — omits "
                        f"probe(s) the manifest declares: {missing}")
-                                                                                
-                                                                                 
-                                                                                   
-                                                                       
+        # TEXT by text, not by count. `tools/run_probes.py` already compares the
+        # runner's assertions with the manifest's this way, on the grounds that a
+        # count cannot see a SWAPPED assertion — and a swapped one is exactly how
+        # this document came to describe a fixture that no longer runs.
         for cap in manifest.get("capabilities", []):
             for probe in (cap.get("profile") or {}).get("probes", []):
                 for a in probe.get("assertions", []):
@@ -385,9 +385,9 @@ def failures() -> list[str]:
                             f"assertions.md does not carry {probe.get('id')}'s assertion "
                             f"{a[:60]!r} — a host reads this instead of running the probe")
 
-                                                                                 
-                                                                               
-                                                                            
+    # 6 — every table the store actually has must be named in the architecture.
+    #     Four were not: `metrics`, `project_week`, `proposals` and `vec_meta`,
+    #     two of which are the whole reason a statistic survives its source.
     arch = ROOT / "docs/ARCHITECTURE.md"
     schema = ROOT / "store/schema.sql"
     if arch.is_file() and schema.is_file():
@@ -431,10 +431,10 @@ def failures() -> list[str]:
                 out.append("store/retention.py does not distinguish unreadable "
                            "from unrecoverable, which is what a tombstone does")
 
-                                                                            
-                                                                              
-                                                                          
-                                                       
+        # 7 — every top-level component must appear in the component tree.
+        # The COMPONENT TREE, found by its root line — not "the first fenced
+        # block", which is a different block and made the rule report four
+        # directories the tree was never meant to hold.
         listed = ""
         for block in text.split("```"):
             if "project-observatory/" in block:
@@ -476,7 +476,7 @@ def failures() -> list[str]:
             out.append(f"docs/AGENT_SYNC.md describes configuration {stamped.group(1)}, "
                        f"the live one is {actual} — regenerate with `agent_sync.py setup`")
 
-                                                                                 
+    # 10 — a ledger's header must agree with the ledger. See ledger_failures().
     for rel, prefix in LEDGERS:
         f = ROOT / rel
         if f.is_file():
@@ -506,20 +506,20 @@ def failures() -> list[str]:
                 out.append(f"observatory.py group {gname!r} lists {name!r} "
                            f"{listed.count(name)} times — it would run that many times")
 
-                                                                   
-     
-                                                             
-                                                                              
-                                                                            
-                                                                                 
-                                                                                
-                                                                             
-                                                                          
-                                         
-     
-                                                                             
-                                                                              
-                                                                     
+    # 12 — every `test-*` step must be reachable from some group.
+    #
+    #      A suite that no group runs is a suite nobody runs.
+    #      `tests/test_gate_purity.py` was declared as a step and listed in no
+    #      group, and its assertion about `FOREIGN_WRITES_IGNORED` named one
+    #      entry while the constant grew to four — red for two iterations while
+    #      the gate was reported green, which was true of the group and false of
+    #      the whole. It cannot sit inside `check`, because it drives a whole
+    #      `./observatory.py check` as its fixture; that is a reason for a
+    #      different group, not for none.
+    #
+    #      Scoped to `test-*` deliberately. `index-status`, `retention-apply`
+    #      and `skip-sites` are also in no group and belong there: an operator
+    #      command run on demand is not a check that stopped running.
     grouped = set()
     if groups_blk:
         for _g, gbody in re.findall(r'"([a-z0-9-]+)":\s*\[(.*?)\]',
@@ -531,25 +531,25 @@ def failures() -> list[str]:
                            f"— a suite outside every group is a suite that has stopped "
                            f"being run, and it goes red without anybody noticing")
 
-                                                                   
-                                                                          
+    # 13 — a scale claim carries the date it was measured on. See
+    #      `scale_claim_failures` for why currency itself is not demanded.
     for rel in ("README.md", "AGENTS.md", "docs/ARCHITECTURE.md"):
         f = ROOT / rel
         if f.is_file():
             out += scale_claim_failures(f.read_text(encoding="utf-8"), rel)
 
-                                                                      
+    # 14 — the published registry shape describes the live registry.
     out += shape_doc_failures()
 
-                                              
+    # 5 — sentences the code has made false.
     for rel, phrase, why in RETIRED_CLAIMS:
         f = ROOT / rel
         if not f.is_file():
             continue
-                                                                                
-                                                                               
-                                                                           
-                                                                                
+        # A retired claim QUOTED in the explanation of its retirement is not the
+        # claim. The first version failed on its own replacement text, which is
+        # the same distinction `tests/test_plugins.py` had to learn about a
+        # plugin name in a comment: check the assertion, not the prose about it.
         text = "\n".join(
             re.sub(r'"[^"]*"', "", line) for line in f.read_text(encoding="utf-8").splitlines())
         if phrase in text:

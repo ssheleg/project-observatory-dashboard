@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Every OpenRouter key this account holds, as facts — and never as values.
 
                                                                               
                                                                                
@@ -8,48 +8,48 @@
                                                                                
                                              
 
-                                        
+WHAT IT RECORDS, AND WHAT IT REFUSES TO.
 
-                                                                 
-                                                                      
-                                                      
+  recorded   name, the provider's own label, limit, usage, reset,
+             disabled, created — everything a person needs to decide
+  refused    the key itself, and the provisioning hash
 
-                                                                               
-                                                                                
-                                                                               
-                                                                               
-                                                                            
-                           
+The hash is refused on purpose. It is not a credential — but it is the handle
+`PATCH`/`DELETE` take, and this file's output feeds `registry/credentials.json`,
+which is IN GIT. A handle that acts, committed to a repository, is a capability
+in the wrong place. The raw file is gitignored and keeps it; the registry never
+sees it, and `tools/keyserver.py` resolves a key by its tail against the raw
+file at the moment it acts.
 
-                                                                           
-                                                                                
-                                                                            
-                                                                             
-                          
+WHICH DESTINATION EACH KEY SERVES is answered by reading the four files and
+comparing the PROVIDER'S OWN LABEL with the listing — never by transmitting or
+storing what they hold. A destination whose key the account does not list is
+reported: that is either a key from another workspace or a dead one, and both
+are worth saying out loud.
 
-                                                
-   
+    scan_openrouter.py store/raw/openrouter.json
+"""
 from __future__ import annotations
 import json, pathlib, sys, time, urllib.error, urllib.request
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import atomic              
-import paths              
+import atomic  # noqa: E402
+import paths  # noqa: E402
 
 API = "https://openrouter.ai/api/v1"
 PAGE = 100
-                                                                               
-                                                                                  
-                                                                               
-                                                                            
-         
+#: A ceiling on paging, not a cap on the estate: this account's other workspace
+#: holds hundreds of `PRODUCTION_user_…` keys minted by a different product, and
+#: walking all of them on every tick would be minutes of nothing. When the page
+#: budget runs out the file says so rather than presenting a partial list as
+#: whole.
 MAX_PAGES = 12
 
-                                                                        
-                                                                         
-                             
+#: Where a key is read from, and by whom. The paths are facts about this
+#: machine; `tools/install_key.py` owns the first three and the gateway's
+#: `servers.yaml` the fourth.
 DESTINATIONS = {
     "observatory": paths.STORE / ".openrouter-key",
     "claude-mem": paths.source_path("companion_home", paths.HOME / "disabled/companion") / ".env",
@@ -73,7 +73,7 @@ TAIL = 3
 
 
 def label_of(value: str) -> str:
-    ""                                                                      
+    """What the provider will call this key, computed without sending it."""
     value = (value or "").strip()
     if not value.startswith("sk-or-v1-") or len(value) < 16:
         return ""
@@ -81,11 +81,11 @@ def label_of(value: str) -> str:
 
 
 def _label(text: str) -> str:
-    ""                                                      
+    """The label of a key found in a file. Never the key."""
     text = (text or "").strip()
     if not text:
         return ""
-    if "OPENROUTER_API_KEY" in text:                                              
+    if "OPENROUTER_API_KEY" in text:                      # a .env, not a bare key
         for line in text.splitlines():
             if line.strip().startswith("OPENROUTER_API_KEY"):
                 text = line.split("=", 1)[-1].strip().strip('"').strip("'")
@@ -94,7 +94,7 @@ def _label(text: str) -> str:
 
 
 def destinations() -> tuple[dict[str, str], list[dict]]:
-    ""                                                                            
+    """destination -> tail, plus a degradation for each one that is unreadable."""
     out, degraded = {}, []
     for name, path in DESTINATIONS.items():
         if not path.is_file():
@@ -116,7 +116,7 @@ def destinations() -> tuple[dict[str, str], list[dict]]:
 
 
 def listing(prov: str) -> tuple[list[dict], str | None]:
-    ""                                                                         
+    """Every key the provisioning key governs, or the reason there are none."""
     rows, offset = [], 0
     for _ in range(MAX_PAGES):
         req = urllib.request.Request(f"{API}/keys?offset={offset}",
@@ -126,7 +126,7 @@ def listing(prov: str) -> tuple[list[dict], str | None]:
                 page = json.loads(r.read().decode())["data"]
         except urllib.error.HTTPError as e:
             return rows, f"GET /keys failed: HTTP {e.code}"
-        except Exception as e:                                                  
+        except Exception as e:                                    # noqa: BLE001
             return rows, f"GET /keys failed: {type(e).__name__}"
         rows.extend(page)
         if len(page) < PAGE:
@@ -148,9 +148,9 @@ def main(argv: list[str]) -> int:
 
     prov_path = DESTINATIONS["provisioning"]
     if not prov_path.is_file():
-                                                                                
-                                                                                
-                                                                         
+        # HONEST DEGRADATION. Without the provisioning key nothing can be listed
+        # — but what each destination holds is still knowable, and saying that
+        # much beats writing an empty file that reads as "no keys exist".
         atomic.write_json(out_path, {
             "schema_version": 1, "scanned_at": started, "keys": [],
             "destinations": dests, "unlisted_destinations": sorted(dests),
@@ -167,9 +167,9 @@ def main(argv: list[str]) -> int:
     if why:
         degraded.append({"source": "openrouter:listing", "reason": why})
 
-                                                                            
-                                                                          
-                       
+    # A LABEL SHARED BY TWO KEYS IS NAMED, never resolved by preference: the
+    # destination is then unattributable, and saying so is the only honest
+    # answer available.
     seen: dict[str, int] = {}
     for k in rows:
         lab = k.get("label") or ""
@@ -210,8 +210,8 @@ def main(argv: list[str]) -> int:
     atomic.write_json(out_path, {
         "schema_version": 1,
         "scanned_at": started,
-                                                                             
-                                                                               
+        # The hash stays HERE and never reaches the registry: gitignored, and
+        # `tools/keyserver.py` resolves a tail to a hash at the moment it acts.
         "hashes": {(k.get("label") or ""): k.get("hash") for k in rows},
         "keys": keys,
         "destinations": dests,

@@ -42,8 +42,8 @@ from datetime import date
                               
 STALE_AFTER_DAYS = 2
 
-                                                                             
-                                                                            
+#: Listed by name up to this many; beyond it the row says how many more. Same
+#: number as the other aggregates on the board, so a reader learns one rule.
 LISTED = 6
 
 
@@ -65,9 +65,9 @@ def app_down(apps: list[dict]) -> list[dict]:
                 f"its dyno(s) {', '.join(a['crashed'])} are crashed"
                 if a.get("crashed") else
                 "it is scaled and nothing came up")
-                                                                              
-                                                                           
-                                                        
+        # The last deploy is the operator's first question — a crash the day
+        # after a deploy is a bad release, a crash two years after one is a
+        # dependency or a platform change underneath it.
         since = (f"; the last code deploy was {a['last_deploy_on']}"
                  if a.get("last_deploy_on") else
                  "; no code was ever deployed to it")
@@ -205,7 +205,7 @@ def findings(doc: dict | None, today: date | None = None) -> list[dict]:
     apps = doc.get("apps") or []
     if not apps:
         return []
-                                                                       
+    # THE AGE OF THE EVIDENCE DECIDES WHETHER THERE IS ANYTHING TO SAY.
     scanned = doc.get("scanned_on")
     if scanned:
         try:
@@ -215,9 +215,9 @@ def findings(doc: dict | None, today: date | None = None) -> list[dict]:
         if age is not None and age.days > STALE_AFTER_DAYS:
             return snapshot_stale(doc, age.days)
     rows = app_down(apps) + paying_for_nothing(apps) + orphan_app(apps) + no_local_clone(apps)
-                                                                                
-                                                                                 
-                                         
+    # EVERY ROW NAMES THE DAY IT WAS MEASURED. Without it a reader cannot tell a
+    # crash that happened an hour ago from one the scan saw two days ago, and the
+    # remedy for the two is not the same.
     if scanned:
         for row in rows:
             row["detail"] = row["detail"].rstrip() + f" Measured {scanned}."

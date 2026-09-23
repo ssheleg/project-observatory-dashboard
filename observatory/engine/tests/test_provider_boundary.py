@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-""                                                                                                       
+"""The provider boundary: three literals that a config also declared, and a chain that shrank in silence.
 
-                                                                            
-                                                                              
-                                                                              
-                     
+`agent/providers.py` is the only file that names a model, a price or a spend
+ceiling. Most of it measures well — this suite records what was measured and
+found SOUND as carefully as what was wrong, because the next reader should not
+have to re-derive it:
 
-                                                            
-                                                                            
-                                                                              
-                                                                                
-                                                                              
-                     
-                                                                              
-                                                                             
-                                                                            
-                
-                                                                                
-                                                                       
-                                                                            
-                                                   
+* **The health mark expires.** `unhealthy()` re-probes after
+  `health.probe_after_minutes`, so a model marked bad by one outage does not
+  leave the chain for ever — "a health check that only runs on failure never
+  recovers", as its own docstring says. And it IS applied: `complete()` consults
+  it per model and marks on every failure shape (HTTP, no choices, unparseable
+  structured output).
+* **The catalogue has a real TTL** — 24 hours by default, and its provenance
+  string comes back in three shapes: `cached Nm ago`, `STALE (…)`, `fetched
+  now`. It never raises while a cache exists, which is the right trade for a
+  scheduled run.
+* **The confidence cap and the guardrail message are honest.** The refusal names
+  the KEY, the provider, this project's own journal figure and says the
+  remainder belongs to another consumer. The synthetic fixture distinguishes
+  the shared key total from this project's journal.
 
                                                                                 
                                                                                 
@@ -29,18 +29,18 @@
                                                                               
                                                                                 
 
-                                                                               
-                                                                                
-                                                                          
+**A correction to my own first reading**, recorded because the class repeats: I
+reported `wallet_days` as "enforced nowhere". It was enforced — by the literal
+that happened to equal it. The defect was the duplication, not an absence.
 
-                                                                         
-                                                                               
-                                                                                    
-                                                                             
-                                                                               
-                                                                               
-               
-   
+**And a chain that lost a model said nothing.** `resolve_chain` skipped a
+configured id missing from the catalogue with `continue  # not fatal`, which is
+the right POLICY — the point of a chain is surviving one model leaving — carried
+out invisibly: a three-model chain could become one and the only visible sign
+would be the bill. The loss now travels with the answer, the `chain` CLI prints
+it before the survivors, and `agent/observe.py` puts it in the run report where
+a reader looks.
+"""
 from __future__ import annotations
 import json, os, pathlib, subprocess, sys
 
@@ -52,7 +52,7 @@ portable_setup()
 
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "agent"))
-import tmp as tmpdir                                                            
+import tmp as tmpdir                                                # noqa: E402
 
 PY = str(ROOT / ".venv/bin/python") if (ROOT / ".venv/bin/python").exists() else sys.executable
 FAILURES: list[str] = []
@@ -70,7 +70,7 @@ def providers():
     return importlib.reload(pr)
 
 
-                                                                                                                                                         
+# ─────────── the horizons live in one file ─────────────────────────────
 
 def test_the_wallet_horizons_come_from_the_config() -> None:
     pr = providers()
@@ -95,13 +95,13 @@ def test_the_wallet_horizons_come_from_the_config() -> None:
 
 
 def test_changing_the_config_changes_the_pruning() -> None:
-    ""                                                                        
-                                                                                        
+    """The point of reading a config is that editing it does something. Driven
+    against a redirected wallet, so existing user journals are never read or changed."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-wallet-"))
     (d / "store").mkdir()
-                                                                               
-                                                                              
-                                                                                 
+    # `paths.STORE` is deliberately not overridable, so the config is edited in
+    # a COPY of the repository's own store directory and the module is pointed
+    # at it — the same reason the retention suite copies rather than redirects.
     cfg = json.loads((__import__("paths").config_file("retention.json")).read_text(encoding="utf-8"))
     cfg["wallet_events"] = 3
     (d / "store/retention.json").write_text(json.dumps(cfg), encoding="utf-8")
@@ -123,7 +123,7 @@ def test_changing_the_config_changes_the_pruning() -> None:
         paths.CONFIG = real_store
 
 
-                                                                                                                                               
+# ─────────── a chain that loses a model says so ────────────────────────
 
 def test_a_retired_model_is_named_rather_than_skipped() -> None:
     pr = providers()
@@ -181,7 +181,7 @@ def test_the_run_report_carries_the_loss() -> None:
           str(doc.get("chain_retired")))
 
 
-                                                                                                                                                                   
+# ─────────── measured and found sound ──────────────────────────────────
 
 def test_the_health_mark_expires() -> None:
     ""                                                                        
@@ -195,7 +195,7 @@ def test_the_health_mark_expires() -> None:
         check("a fresh mark makes it unusable",
               pr.unhealthy("vendor/m") == "a 503 from the edge",
               str(pr.unhealthy("vendor/m")))
-                                                                        
+        # Age the mark past the probe window rather than waiting for it.
         h = json.loads(pr.HEALTH.read_text(encoding="utf-8"))
         h["vendor/m"]["since"] = "2020-01-01T00:00:00Z"
         pr.HEALTH.write_text(json.dumps(h), encoding="utf-8")
@@ -228,7 +228,7 @@ def test_the_catalogue_states_its_own_age() -> None:
 
 
 def test_the_guardrail_names_whose_spend_stopped_it() -> None:
-    ""                                                                                
+    """Shared-key exhaustion must distinguish the project journal from other spend."""
     pr = providers()
     from unittest.mock import patch
     with patch.object(pr, "provider_usage", return_value={"limit": 10, "limit_remaining": 0, "limit_reset": "monthly",

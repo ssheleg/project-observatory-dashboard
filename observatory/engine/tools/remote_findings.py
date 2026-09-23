@@ -34,7 +34,7 @@
    
 from __future__ import annotations
 
-                                                                   
+#: Named by name up to this many, as everywhere else on this board.
 LISTED = 6
 
 
@@ -50,7 +50,7 @@ def findings(doc: dict | None) -> list[dict]:
     apps = doc.get("apps") or []
     out: list[dict] = []
 
-                                                                                                              
+    # ── a production secret that also lives in a checkout here ──────────────
     shared = [(a["app"], [v["name"] for v in a["vars"]
                           if v["verdict"] == "same_as_local" and v.get("class") == "secret"])
               for a in apps]
@@ -77,7 +77,7 @@ def findings(doc: dict | None) -> list[dict]:
                        "vault and let `use_secret run` supply it"),
         })
 
-                                                                                                                                        
+    # ── a value the vault retired, still deployed ───────────────────────────
     for a in apps:
         for row in a.get("retired_in_use") or []:
             out.append({

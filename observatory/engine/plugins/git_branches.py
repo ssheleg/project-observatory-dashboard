@@ -43,9 +43,9 @@ def main() -> int:
             if n is not None:
                 total += n
                 seen = True
-                                                                             
-                                                                                
-               
+        # ABSENT, NOT ZERO: a project with no readable checkout has no branch
+        # count, and printing 0 would put it beside a project that genuinely has
+        # none.
         if seen:
             print(json.dumps({"project_id": pr["id"], "metric": "git.branches",
                               "at": at, "value": float(total)}))

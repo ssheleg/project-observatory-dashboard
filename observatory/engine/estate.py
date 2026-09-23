@@ -119,10 +119,10 @@ ROUTINE_DELTA_KINDS = frozenset({
     "commits-changed", "dirty-changed", "last_activity_on-changed",
 })
 
-                                                                            
-                                                                          
-                                                                              
-                                                            
+#: Sort order for the three classes. `structural` first because it is what a
+#: person is needed for; `unclassified` SECOND rather than last, because a
+#: record whose evidence cannot be read might be either and demoting it to the
+#: cheap class is how a queue hides the thing that mattered.
 _RANK = {"structural": 0, "unclassified": 1, "routine": 2}
 
 
@@ -244,7 +244,7 @@ def fold_groups(records: list[dict]) -> list[dict]:
     for key, group in buckets.items():
         if len(group) < 2 or key[0] == "__undated__":
             continue
-                                                                       
+        # THE WRITER'S OWN POLICY, or nothing. See ONE_PER_DAY_WRITERS.
         if (key[1], key[2]) not in ONE_PER_DAY_WRITERS:
             continue
         ordered = sorted(group, key=lambda r: (str(r.get("created_at") or ""),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                   
+"""An access token from a service account, over the standard library.
 
                                                                                     
                                                                               
@@ -8,15 +8,15 @@
                                                                             
                    
 
-                                                                            
-                                                                                
-                                                                            
-                                                                               
-                                                                     
+So the exchange is done here, in the shape the provider documents: build the
+JWT assertion, sign it with the key already in the service-account file, POST it
+to Google's token endpoint. `google-auth` is still used for the signing (its
+`crypt` module resolves to `cryptography` or `rsa`, whichever is installed) —
+what is dropped is the HTTP transport, which `urllib` already covers.
 
-                                                                               
-                                                 
-   
+A token is cached for its lifetime minus a minute, because three plugins on one
+tick would otherwise mint three identical tokens.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -36,7 +36,7 @@ def _b64(data: bytes) -> bytes:
 
 
 def access_token(key_file: pathlib.Path, scope: str, now: float | None = None) -> str:
-    ""                                                                     
+    """A bearer token for one scope, or RuntimeError naming what failed."""
     t = now if now is not None else time.time()
     hit = _CACHE.get((str(key_file), scope))
     if hit and hit[1] > t:
@@ -73,8 +73,8 @@ def access_token(key_file: pathlib.Path, scope: str, now: float | None = None) -
         with urllib.request.urlopen(req, timeout=30) as r:
             doc = json.loads(r.read())
     except urllib.error.HTTPError as e:
-                                                                                
-                                                               
+        # Error bodies may reflect the signed assertion or private account data.
+        # Only the HTTP status crosses the credential boundary.
         raise RuntimeError(f"google refused the service account (HTTP {e.code})") from None
     except OSError as e:
         raise RuntimeError(f"google token endpoint unreachable: {type(e).__name__}") from None

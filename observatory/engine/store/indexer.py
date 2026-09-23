@@ -27,9 +27,9 @@ from store import db as store_db
 import store_faults
 import providers
 
-                                                                              
-                                                                   
-                                                                  
+#: One owner, in the store's own vocabulary. This file used to declare its own
+#: constant while `store/ledger.py` stamped the literal `1` — see
+#: `store/db.py:PROJECTION_VERSION` for what turning the knob did.
 PROJECTION_VERSION = store_db.PROJECTION_VERSION
 
 
@@ -131,13 +131,13 @@ def index_batch(conn: sqlite3.Connection, rows: list[sqlite3.Row], have_vec: boo
                   f" writing the lexical index only — these revisions stay QUEUED so a "
                   f"later run can embed them", file=sys.stderr)
             vectors = None
-                                                                              
-                                                                              
-                                                                                 
-                                                                               
-                                                                                 
-                                                              
-                                                                           
+    # There was a bare `import sqlite_vec` here, commented "(only reached when
+    # have_vec)". It was not: it sits in the function body, so it ran on every
+    # call — and on a machine without the package it raised ImportError instead
+    # of building the lexical index, which is the exact degradation `cmd_index`
+    # announces two functions below. `tick.sh` swallowed the traceback into a log
+    # line. Nothing needed it: `load_vec` does the loading and
+    # `serialize_float32` is imported at its own use site, under `vectors`.
     with conn:
         for i, r in enumerate(rows):
             conn.execute("DELETE FROM search_notes WHERE memory_id = ? AND revision = ?",
@@ -184,11 +184,11 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
         " WHERE consumed_at IS NULL AND projection_version <= ?"
         " ORDER BY seq LIMIT ?", (PROJECTION_VERSION, limit)))
     if not pending:
-                                                                                
-                                                                             
-                                                                              
-                                                                               
-                                                        
+        # Only ever say this when the projections were BUILT at the version this
+        # code projects for. `vec_meta.projection_version` records what is on
+        # disk; a bump leaves an index that is complete under the old contract
+        # and stale under the new one, and "every committed revision is already
+        # projected" is then true of the wrong contract.
         built = conn.execute("SELECT projection_version FROM vec_meta LIMIT 1").fetchone()
         if built and built[0] != PROJECTION_VERSION:
             print(f"outbox empty, but the projections on disk were built at version "
@@ -229,13 +229,13 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
             store_faults.record("index", exc)
             raise
         total_written += w; total_cost += c; total_tokens += tok
-                                                                                
-                                                                            
-                                                                                
-                                                                                  
-                                                                                
-                                                                      
-                                                    
+        # A batch whose vector half failed keeps its rows QUEUED. Consuming them
+        # turned a run's degradation into a permanent one: the lexical entry
+        # exists, the vector never will, and nothing retries. When sqlite-vec is
+        # not loadable at all the rows ARE consumed — that is a property of this
+        # machine, announced at the top of the run, not a transient failure, and
+        # holding them would grow the queue without bound and keep the
+        # `projection.lagging` finding lit for ever.
         (done_seqs if vectors_ok else held_seqs).extend(batch_seqs)
         batch, batch_seqs = [], []
 
@@ -252,9 +252,9 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
             flush()
     flush()
 
-                                                                                
-                                                                                
-                                                                
+    # Checkpoint only what was actually handled, and only after the writes above
+    # committed. An outbox row marked consumed before its projection landed is a
+    # revision that never gets indexed and nothing ever notices.
     with conn:
         conn.executemany("UPDATE outbox SET consumed_at = ? WHERE seq = ?",
                          [(now(), s) for s in done_seqs])
@@ -262,14 +262,14 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
             conn.execute("UPDATE vec_meta SET checkpointed_seq = ?", (max(done_seqs),))
     still = conn.execute(
         "SELECT count(*) FROM outbox WHERE consumed_at IS NULL").fetchone()[0]
-                                                                               
-                                                                               
-                                                                       
+    # BOTH halves in the count. This said "indexed 200 revision(s)" when 64 had
+    # a vector and 136 had only a lexical entry — one number for two indexes,
+    # and the half that was missing was the one a caller could not see.
     full = total_written - len(held_seqs)
     half = f", {len(held_seqs)} lexical-only" if held_seqs else ""
-                                                                               
-                                                                                
-                                                                      
+    # "into both indexes" is false on a machine with no sqlite-vec, where there
+    # is only one. The run announces the missing extension at the top; a summary
+    # that then contradicts it is the same defect one paragraph later.
     where = "both indexes" if have_vec else "the lexical index"
     print(f"indexed {full} revision(s) into {where}{half}, skipped {skipped} "
           f"(tombstoned or empty), checkpoint "
@@ -305,10 +305,10 @@ def cmd_rebuild(conn: sqlite3.Connection) -> int:
         if have_vec:
             conn.execute("DROP TABLE IF EXISTS vec_notes")
         conn.execute("UPDATE outbox SET consumed_at = NULL")
-                                                                            
-                                                                                 
-                                                                           
-                                                                            
+        # Re-stamp the queue and record the contract the projections are now
+        # built at. Without this, `rebuild` is the only way out of a version bump
+        # and cannot itself complete one: the rows keep their old stamp and
+        # `vec_meta` keeps the old version, so `index` would go on refusing.
         conn.execute("UPDATE outbox SET projection_version = ?", (PROJECTION_VERSION,))
         conn.execute("UPDATE vec_meta SET checkpointed_seq = 0, projection_version = ?",
                      (PROJECTION_VERSION,))
@@ -316,9 +316,9 @@ def cmd_rebuild(conn: sqlite3.Connection) -> int:
         ensure_vec_table(conn, cfg["dims"])
     n = conn.execute("SELECT count(*) FROM outbox WHERE consumed_at IS NULL").fetchone()[0]
     print(f"projections dropped; {n} outbox row(s) re-queued at version {PROJECTION_VERSION}")
-                                                                                
-                                                                               
-                                                                             
+    # A cap that silently truncates a REBUILD is worse than one that truncates a
+    # tick: the projections were just dropped, so whatever it does not reach is
+    # missing rather than merely late. Say so instead of returning 0 quietly.
     CAP = 10_000
     rc = cmd_index(conn, limit=CAP)
     left = conn.execute(

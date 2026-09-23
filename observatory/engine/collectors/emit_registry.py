@@ -99,12 +99,12 @@ for sid, desc, evidence in NEW_SOURCES:
             rec["evidence_for"] = evidence
         sources.append(rec)
     elif evidence:
-                                                                             
-                                                                        
+        # A source declared before it had an `evidence_for` gets one now; the
+        # validator's rule is only as good as the declaration behind it.
         for s in sources:
             if s["id"] == sid and s.get("evidence_for") != evidence:
                 s["evidence_for"] = evidence
-                                                                  
+# Current coverage is independent of historical observation dates.
 for record in sources:
     if record.get("id") in SOURCE_INPUTS:
         available = source_available(record["id"])
@@ -116,7 +116,7 @@ for record in sources:
                                                                                  
                                                       
 SRC=[sid for sid in ("SRC-0007","SRC-0008","SRC-0009") if source_available(sid)]
-                        
+# ---- repositories ----
 out_repos=[]; cleared_repos: list[str] = []
 for k in sorted(repos):
     r=repos[k]; rid="repository:"+k; prev=old_repos.get(rid,{})
@@ -146,10 +146,10 @@ for k in sorted(repos):
         e["status"] = st["status"]
         e["status_evidence"] = st["evidence"]
         e["status_measured_on"] = st.get("measured_on")
-                                                                                   
-                                                                             
-                                                                                 
-                                                                           
+        # `moved_to` and `superseded_by` are different claims and both are carried.
+        # A move says one repository has a newer address; superseded says two
+        # repositories competed and one won. Recording the second where the first
+        # is true tells a reader to distrust an address that is simply old.
         for field in ("superseded_by", "moved_to"):
             if st.get(field):
                 e[field] = st[field]
@@ -191,10 +191,10 @@ for k in sorted(repos):
             e["local"]["extra_checkouts"]=[{kk:vv for kk,vv in x.items()
                                             if vv not in (None,"")} for x in xs]
         e["source_refs"]=sorted(set(e["source_refs"])|{"SRC-0007"})
-                                                                   
-                                                                                
-                                                                                
-                                       
+        # The network probe cites itself. `sync`, `remote_head` and
+        # `remote_checked_on` are `git ls-remote` answers, not filesystem facts,
+        # and they rode under SRC-0007 — "Filesystem scan of ~/DATA" — on 87
+        # repositories until this line.
         if any(e["local"].get(f) for f in ("sync", "remote_head", "remote_checked_on")):
             e["source_refs"]=sorted(set(e["source_refs"])|{"SRC-0010"})
                                                                                 
@@ -205,24 +205,24 @@ for k in sorted(repos):
     if rov:
         for ck,cv in rov.items():
             if ck=="why": continue
-                                                                                
-                                                                             
-                                                                                 
-                                                                              
-                                                                              
-                                                         
+            # `source_refs` is UNIONED, never replaced. Provenance is cumulative
+            # evidence: a curated value adds the witness that supplied it, it
+            # does not erase the collectors that measured the rest of the record.
+            # Replacing it wiped SRC-0010 off the two curated repositories the
+            # moment the network probe started citing itself — caught by the
+            # validator's new rule the first time it ran.
             e[ck]=sorted(set(e.get(ck) or [])|set(cv)) if ck=="source_refs" else cv
         e["curated_fields"]=sorted(ck for ck in rov if ck!="why")
     for field in ("description","default_branch"):
         if prev.get(field) and not e.get(field):
             cleared_repos.append(f"{rid}.{field} was {str(prev[field])[:40]!r}, measurement says nothing")
     out_repos.append(e)
-                    
-                                                                            
-                                                                             
-                                                                            
-                                                                                
-                                                   
+# ---- projects ----
+#: Relation types this emitter DERIVES from the model on every run. They are
+#: rebuilt rather than accumulated: a link the model no longer makes must not
+#: survive because it was written once. T26 pruned relations whose endpoints
+#: vanished; this is the other half — a relation whose JUSTIFICATION vanished,
+#: which is what an operator's correction produces.
 DERIVED_TYPES = {"implemented_by", "public_domain_of", "deployed_to", "credential_used_by", "part_of"}
 authored = [r for r in rel_doc["relations"] if r["type"] not in DERIVED_TYPES]
 stale = len(rel_doc["relations"]) - len(authored)
@@ -265,9 +265,9 @@ for key in sorted(projs):
        "has_vault_note":p["has_note"],"description_source":p.get("description_source",""),
        "membership_rules":p["rules"],
        "source_refs":sorted(SRC)}
-                                                                                
-                                                                          
-                                                                                
+    # The session date, and the citation that carries it. Absent when no session
+    # was seen — the emitter's standing rule: an absent field means "not
+    # measured", where `""` would claim "measured, and nothing there" (trap T4).
     if p.get("last_session_on"):
         e["last_session_on"]=p["last_session_on"]
         e["source_refs"]=sorted(set(e["source_refs"])|{"SRC-0012"})
@@ -283,11 +283,11 @@ for key in sorted(projs):
         e["curated_fields"]=sorted(k for k in ov if k!="why")
     if p["sites"]: e["sites"]=p["sites"]
     if p.get("local_only"): e["local_only"]=p["local_only"]
-                                                                              
-                                                                                
-                                                                             
-                                                                                 
-                                  
+    # `prev` is now read for ONE purpose: to say out loud when measurement has
+    # cleared a field that had a value. Silence is what made T11 expensive — a
+    # curated `canonical_page` vanished and the only sign was a count falling
+    # from 44 to 43. A loss that announces itself is a loss somebody can put back
+    # into project_overrides.json.
     for field in ("lifecycle","description","canonical_page"):
         had, has = prev.get(field), e.get(field)
         if had and not has:
@@ -425,8 +425,8 @@ if MCP_SRC.is_file():
           + (f", {_mt['key_in_url']} with a key in the URL" if _mt['key_in_url'] else ""))
 _pdoc, _pedges, _perrors = estate_surfaces.products_document(out_projs, _domains_now, OBS)
 if _perrors:
-                                                                          
-                                                                               
+    # A curated file with a wrong project id or an unknown role is refused
+    # whole: emitting half of an operator's grouping is a grouping nobody made.
     sys.exit("collectors/products.json refused:\n  " + "\n  ".join(_perrors))
 for e in _pedges:
     add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"])
@@ -450,15 +450,15 @@ if ZONES_SRC.is_file():
           f"project, {_zt['in_domain_registry']} in the domain registry, "
           + ", ".join(f"{k} {v}" for k, v in sorted(_zt['by_standing'].items())))
 
-                                                                            
-                                                                           
-                                                                              
-                                                                           
-                                                            
-                                                                           
-                                                                               
-                                                                             
-                                       
+# ---- credentials ---------------------------------------------------------
+# WHAT EXISTS AND WHO MAY USE IT, never a value. `tools/vault.py` holds the
+# values; this is the estate's side of the same question, and the reason it is
+# a registry document is that "which projects share this account" is a fact
+# about what exists rather than a measurement at an instant.
+# TWO INPUTS NAMED HERE for the derivation that reads this script's source:
+# `credentials_registry.records` opens `collectors/credential_owners.json`, and
+# the scan it reads is `store/raw/openrouter.json` — same reason the Heroku
+# block names its curated file by hand.
 CRED_SRC = paths.SCRATCH / "openrouter.json"
 credentials: list = []
 if CRED_SRC.is_file():
@@ -477,15 +477,15 @@ if CRED_SRC.is_file():
           f"{_ct['claimed_by_a_project']} claimed, {_ct['unclaimed']} unclaimed, "
           f"{_ct['leaked_unrotated']} leaked and unrotated")
 
-                                                                            
-                                                                               
-                                                                              
-                                                                             
-                                                                                
-                                                                              
-                    
-                                                                           
-                                                  
+# ---- env files -----------------------------------------------------------
+# WHAT EACH PROJECT HOLDS ON THIS DISK, as names. The credential document above
+# answers "what accounts exist"; this answers "what is actually sitting in the
+# working copy", and until it existed the answer was a grep. The two are kept
+# apart deliberately: an account is a fact about a provider and an env file is a
+# fact about a folder, and folding them together would make a rotated key look
+# like a moved file.
+# ONE INPUT, named here for the derivation that reads this script's source:
+# `store/raw/env.json`, written by the `env` step.
 ENV_SRC = paths.SCRATCH / "env.json"
 if ENV_SRC.is_file():
     import env_registry
@@ -562,23 +562,23 @@ _stamped("relations.json", rel_doc)
 src_doc["sources"]=sources
 _stamped("sources.json", src_doc, stamps=())                                      
 _stamped("duplicate-repo-names.json", {"schema_version":1,"updated_on":OBS,"note":"Repository names that occur under more than one owner. Not defects by themselves; each pair needs a human decision.","source_refs":["SRC-0008"],"groups":M["duplicate_repo_names"]})
-                                                                              
-                                                                             
-                                                                             
-                                                                         
-                                                                            
-                                                                                
+# A CLONE POINTING AT AN ADDRESS THAT MOVED. The merge follows the transfer on
+# every tick so the registry never gains a phantom repository, and until this
+# line the record of having done so was written into `model.json` and read by
+# nobody. The fix is one command per clone and the operator cannot run it
+# without being told which checkout to run it in, so the folder travels with
+# the pair. Tracked, unlike the model: it belongs in the diff an operator reads.
 _stamped("stale-remotes.json", {"schema_version":1,"updated_on":OBS,"note":"Local checkouts whose `origin` names an address that has been transferred. GitHub keeps the old path working as a redirect, so nothing breaks and nothing says so; the merge follows the transfer to keep the phantom out of the registry. Remedy per row: git -C <path> remote set-url origin git@github.com:<now>.git","source_refs":["SRC-0008"],"clones":M.get("stale_remotes",[])})
 print(f"projects={len(out_projs)} repositories={len(out_repos)} relations={len(relations)} sources={len(sources)}")
 print("with canonical_page:",sum(1 for p in out_projs if "canonical_page" in p))
 
-                                                                              
-                                                                         
-                                                                            
-                                                                        
-                                                                               
-                                                                           
-                                                                               
+# ---- domain liveness -------------------------------------------------------
+# A SEPARATE artefact, deliberately. `registry/domains.json` is a curated
+# transcription of two documents the operator supplied; this is what DNS and
+# RDAP say today. Merging them would destroy the only record of what was
+# believed and when, and the first run showed why that record is worth keeping:
+# registrar and expiry matched the transcription on every domain RDAP could
+# answer for. The transcription was right. What it could not carry is liveness.
 LIVE_SRC = paths.SCRATCH / "domains_live.json"
 if LIVE_SRC.is_file():
     live = json.loads(LIVE_SRC.read_text(encoding="utf-8"))
@@ -616,9 +616,9 @@ if LIVE_SRC.is_file():
         elif _seen is None and was_dark.get(name):
             row["dark_first_seen"] = was_dark[name]
         about = w.get("about") if w else None
-                                                                                 
-                                                                             
-                                                                                 
+        # A registry entry of its own + an RDAP record about a SHORTER name means
+        # the name sits under a multi-label public suffix and rdap.org has no
+        # record for it. The suffix's registrar and expiry are not this domain's.
         wrong_subject = bool(w) and name in owned and about != name
         if w and not wrong_subject:
             row["measured"] = {k: v for k, v in
@@ -672,8 +672,8 @@ if LIVE_SRC.is_file():
           f"{agree} agree / {len(differ)} disagree with the transcription")
 
 
-                                                                                 
-                                                              
+# Said out loud, never inferred from a count. T11 cost a curated `canonical_page`
+# and the only sign was a project total falling from 44 to 43.
 if cleared:
     print(f"CLEARED by measurement — {len(cleared)} field(s) that had a value now have none. "
           f"If one of these was curated, its home is collectors/project_overrides.json:")

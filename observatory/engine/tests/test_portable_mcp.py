@@ -1,7 +1,7 @@
-""                                                               
+"""Shared private synthetic estate for legacy integration suites.
 
-                                                                      
-   
+No account, credential, network collector or existing runtime is used.
+"""
 from __future__ import annotations
 import atexit
 import datetime

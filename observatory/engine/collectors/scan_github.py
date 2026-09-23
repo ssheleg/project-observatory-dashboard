@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                 
+"""List every repository the authenticated GitHub account can read.
 
-                                                                                
-                                                                               
-                                                                               
+Uses the `gh` CLI so the token stays in the keyring rather than in this process.
+Owners are discovered from `user/orgs` plus the authenticated login; nothing is
+hardcoded, because an org added tomorrow must appear without editing this file.
 
-                                                                                
-                                                     
-   
+Writes one JSON file per owner into the output directory, and reports the owners
+it could NOT read rather than dropping them silently.
+"""
 from __future__ import annotations
 import json, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import paths              
+import paths  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import listing_guard              
+import listing_guard  # noqa: E402
 
 FIELDS =("name,nameWithOwner,description,homepageUrl,url,visibility,isArchived,"
           "isFork,primaryLanguage,pushedAt,createdAt,repositoryTopics,diskUsage,"
@@ -60,8 +60,8 @@ def main() -> int:
             print(f"{owner:<20} DEGRADED {err.strip()[:60]}", file=sys.stderr)
             continue
         repos = json.loads(out)
-                                                                                   
-                                                                        
+        # An empty listing that SUCCEEDED is not a measurement — the rule and its
+        # sentence live in `listing_guard`, which Bitbucket applies too.
         prev = out_dir / f"{owner}.json"
         had = 0
         if prev.is_file():
@@ -82,10 +82,10 @@ def main() -> int:
         total += len(repos)
         print(f"{owner:<20} {len(repos):>4} repositories")
     (out_dir / "_degraded.json").write_text(json.dumps(degraded, indent=1), encoding="utf-8")
-                                                                                 
-                                                                                 
-                                                                             
-                                
+    # Two numbers, because one would be a claim about the estate made out of what
+    # this run happened to write. `kept` is what an earlier run measured and this
+    # one declined to destroy; folding it into `total` would hide the refusal
+    # behind a plausible number.
     print(f"total {total} repositories written; {kept} kept from a refused empty "
           f"listing; degraded sources: {len(degraded)}")
     return 0

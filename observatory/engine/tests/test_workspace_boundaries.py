@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Regression probes for workspace migration, version and filesystem boundaries."""
 from __future__ import annotations
 import contextlib
 import io
@@ -62,7 +62,7 @@ class WorkspaceBoundaryTests(unittest.TestCase):
         instance = []
         @contextlib.contextmanager
         def competing_initializer(path):
-                                                                               
+            # Simulate another completed init between the outer check and lock.
             with patch.object(workspace, "lock", real_lock):
                 workspace.initialize(path)
                 doc = configuration.load(path)

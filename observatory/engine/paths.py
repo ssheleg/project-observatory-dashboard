@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                      
+"""Immutable program resources and explicit per-user state locations."""
 from __future__ import annotations
 import os
 from pathlib import Path
@@ -46,7 +46,7 @@ SESSIONS = configuration.source_path("sessions", "sessions", "OBSERVATORY_SESSIO
 DB = setting_path("OBSERVATORY_DB", STORE / "observatory.db")
 
 def tighten() -> list[str]:
-    ""                                                                
+    """The store's own directories 700, its journals and database 600.
 
                                                                                
                                                                                
@@ -55,9 +55,9 @@ def tighten() -> list[str]:
                                                                          
                                                                         
 
-                                                                             
-                                                                            
-       
+    Returns what it changed, for the caller's log. Never raises: a chmod that
+    fails is reported by the next run's check, not by a crash in the writer.
+    """
     changed: list[str] = []
     dirs = [STORE, STORE / "logs", SCRATCH, STATE, STATE / "logs"]
     files = [DB, *(STATE / "logs").glob("*.jsonl"), *SCRATCH.rglob("*.json"),

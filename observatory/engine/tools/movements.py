@@ -27,12 +27,12 @@ import pathlib
 import re
 from datetime import datetime, timedelta, timezone
 
-                                                                            
-                                                 
+#: A variable whose NAME says it holds a credential. The trail carries names
+#: only, so the name is all there is to judge by.
 SECRETISH = re.compile(r"(KEY|TOKEN|SECRET|PASS|DATABASE|DSN|CREDENTIAL|PRIVATE)", re.I)
-                                                                           
+#: A movement within this many hours of a release is that release's record.
 WINDOW_HOURS = 2
-                                  
+#: How far back the trail is read.
 DAYS = 7
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Every MCP server an agent on this machine is told to reach, and whether it does.
 
-                                  
+    scan_mcp.py store/raw/mcp.json
 
                                                                          
                                                                             
@@ -12,16 +12,16 @@
                                                                          
              
 
-                                                                           
-                                                                            
-                                                                                 
-                                                                       
+WHAT IS NEVER WRITTEN. A URL is recorded as scheme+host+path with its QUERY
+STRING DROPPED, and a header or env block as a boolean — `claude mcp list`
+itself echoes `?token=…` verbatim, which is how one reached a transcript today.
+This file reports THAT a key is in a URL (a finding) and never the key.
 
-                                                                               
-                                                                               
-                                                                           
-                  
-   
+Liveness comes from Claude Code's own probe (`claude mcp list`), parsed for the
+servers this scan knows; Cursor and opencode have no equivalent probe, so their
+rows say `liveness: not-probed` rather than borrowing Claude's answer for a
+different process.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -34,8 +34,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import paths                                            
-import atomic                                                                   
+import paths  # per-user configuration and private state
+import atomic                                                       # noqa: E402
 
 HOME = paths.source_path("mcp_config_root", paths.HOME / "disabled/mcp")
 SOURCES = {
@@ -43,8 +43,8 @@ SOURCES = {
     "cursor": HOME / ".cursor/mcp.json",
     "opencode": HOME / ".config/opencode/opencode.json",
 }
-                                                                             
-                                                 
+#: The observatory's own server, which must be declared somewhere or its nine
+#: tools are unreachable (credentials audit G14).
 OWN_SERVER = "observatory"
 
 
@@ -53,7 +53,7 @@ def now() -> str:
 
 
 def safe_url(url: str) -> tuple[str, bool]:
-    ""                                                         
+    """(url without its query, whether a query was present)."""
     try:
         s = urlsplit(url)
     except ValueError:
@@ -62,11 +62,11 @@ def safe_url(url: str) -> tuple[str, bool]:
 
 
 def classify(name: str, cfg: dict) -> dict:
-    ""                                                                
+    """One declaration -> the facts a registry can hold. No values."""
     url = cfg.get("url") or ""
     cmd = cfg.get("command") or ""
-                                                                                 
-                                                                              
+    # opencode spells a stdio server as `command: ["npx", "-y", …]`; Claude and
+    # Cursor as `command` + `args`. One shape here: the executable, then args.
     extra_args: list = []
     if isinstance(cmd, list):
         extra_args = [str(a) for a in cmd[1:]]
@@ -124,7 +124,7 @@ LINE = re.compile(r"^(?P<name>.+?): (?P<target>.*?) - (?P<mark>✔|✘|!) (?P<st
 
 
 def claude_probe() -> tuple[dict[str, dict], str | None]:
-    ""                                                                          
+    """name -> {status, plugin, target} from `claude mcp list`, or ({}, why)."""
     if not shutil.which("claude"):
         return {}, "claude CLI not on PATH"
     try:
@@ -170,8 +170,8 @@ def main(argv: list[str]) -> int:
             r["liveness"] = probe[r["name"]]["status"]
             r["liveness_detail"] = probe[r["name"]]["detail"]
         elif r["agent"] == "claude" and probe and r["scope"].startswith("project:"):
-                                                                             
-                                                                        
+            # `claude mcp list` reports only the servers active in ITS cwd; a
+            # server scoped to another project is out of view, not down.
             r["liveness"] = "not-probed"
         elif r["agent"] == "claude" and probe:
             r["liveness"] = "not-listed"

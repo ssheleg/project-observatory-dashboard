@@ -61,12 +61,12 @@ WRITE_CMD = "`.venv/bin/python tools/registry_shape.py --write`"
 
 DOC = ROOT / "docs/REGISTRY_SHAPE.md"
 
-                                                                                 
-                                                                 
+#: Blocks described one level down. `local` earned it by holding every field this
+#: file's own author guessed wrong; the rest of a record is flat.
 NESTED = ("local",)
 
-                                                                                
-                                           
+#: How many example values a field shows. One is enough to recognise a shape and
+#: short enough that the page stays a page.
 EXAMPLES = 1
 
 
@@ -114,9 +114,9 @@ def shapes() -> dict:
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-                                                                                
-                                                                             
-                                            
+            # NAMED, not skipped: a document that will not parse is a fact about
+            # the registry, and omitting it would publish a shape that claims
+            # completeness it does not have.
             out[path.name] = {"unreadable": f"{type(exc).__name__}: {exc}"}
             continue
         if not isinstance(doc, dict):

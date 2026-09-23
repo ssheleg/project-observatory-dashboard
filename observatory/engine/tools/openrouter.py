@@ -56,14 +56,14 @@ import paths
 API = "https://openrouter.ai/api/v1"
 ADMIN_STORE = paths.source_path("secret_store", paths.SECRETS) / 'openrouter-admin'
 LEGACY = paths.source_path("secret_store", paths.SECRETS) / 'openrouter-provisioning'
-                                                                             
-                                                                               
-                                                         
+#: name -> where it was delivered and from which account it was minted. Names
+#: and places only, never values: this ledger is what rotation reads to deliver
+#: a successor to the same place, and what `list` prints.
 LEDGER = paths.source_path("secret_store", paths.SECRETS) / 'openrouter-issued.json'
-                                                                              
-                                                                      
-                                                                             
-                               
+#: Where an issued key can be delivered. `vault:` slots go through the project
+#: vault so they inherit its metadata and leak register; the two named
+#: destinations reuse `tools/install_key.py`'s writers so claude-mem's dotenv
+#: handling stays in one place.
 NAMED_DESTINATIONS = ("observatory", "claude-mem")
 
 
@@ -87,7 +87,7 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
 
 
-                                                                                                                                                                                                                  
+# ─────────────────────────── the wire ───────────────────────────────────────
 
 def _request(path: str, key: str, payload: dict | None = None,
              method: str | None = None) -> dict:
@@ -107,7 +107,7 @@ def _request(path: str, key: str, payload: dict | None = None,
         raise RuntimeError(f"openrouter unreachable: {type(e).__name__}") from None
 
 
-                                                                                                                                                                                                    
+# ─────────────────────────── the admin stash ────────────────────────────────
 
 def admins() -> list[tuple[str, pathlib.Path]]:
     if any(p.is_symlink() for p in (ADMIN_STORE, *ADMIN_STORE.parents)):
@@ -168,9 +168,9 @@ def stash_value(value: str, label: str, origin: str) -> int:
         raise ValueError("A plain account label is required")
     private_io.check(ADMIN_STORE / label)
     private_io.check(meta(ADMIN_STORE / label))
-                                                                               
-                                                                                
-                   
+    # CAN IT PROVISION? A provisioning key answers /keys; an inference key does
+    # not, and stashing an inference key here would make `issue` fail on the day
+    # it is needed.
     try:
         _request("/keys?include_disabled=false", value)
     except RuntimeError as exc:
@@ -214,7 +214,7 @@ def cmd_adopt(label: str) -> int:
     return rc
 
 
-                                                                                                                                                                                                                 
+# ─────────────────────────── the ledger ──────────────────────────────────────
 
 def ledger() -> dict:
     private_io.check(LEDGER)
@@ -233,7 +233,7 @@ def save_ledger(doc: dict) -> None:
     write_secret(LEDGER, json.dumps(doc, ensure_ascii=False, indent=2))
 
 
-                                                                                                                                                                                                                     
+# ─────────────────────────── delivery ────────────────────────────────────────
 
 def deliver(value: str, to: str, *, rotate: bool = False) -> str:
     ""                                                                      
@@ -266,7 +266,7 @@ def deliver(value: str, to: str, *, rotate: bool = False) -> str:
                        f"{', '.join(NAMED_DESTINATIONS)} or vault:<project>/<env>/<NAME>")
 
 
-                                                                                                                                                                                       
+# ─────────────────────────── issue / limits / rotate ─────────────────────────
 
 def find_key(admin: str, name: str) -> dict | None:
     for row in _request("/keys?include_disabled=true", admin).get("data", []):
@@ -294,10 +294,10 @@ def issue_key(name: str, limit: float, account: str | None, to: str,
                          f"`rotate {name}` replaces its value, `limit {name} --set` "
                          f"moves its ceiling; a second key with the same name is how "
                          f"spend becomes unattributable")
-                                                                                
-                                                                            
-                                                                            
-                                  
+    # A MONTHLY RESET, not a lifetime cap (trap T17): a lifetime cap works until
+    # the total is reached and then stops — months later, with no warning.
+    # Found in the audit that merged keyserver's mint into this door: it set
+    # the reset, the door did not.
     d = _request("/keys", admin, {"name": name, "limit": limit, "limit_reset": "monthly"})
     value = d.get("key") or (d.get("data") or {}).get("key")
     row = d.get("data") or d
@@ -568,7 +568,7 @@ def cmd_revoke(name: str) -> int:
     return 0
 
 
-                                                                                                                                                                                                               
+# ─────────────────────────── list / ping ─────────────────────────────────────
 
 def cmd_list() -> int:
     a = admins()
@@ -605,8 +605,8 @@ def cmd_ping() -> int:
             rows = _request("/keys?include_disabled=true", key).get("data", [])
             known = {r.get("name") for r in rows}
             print(f"  admin/{label}: alive, {len(rows)} key(s) at the provider")
-                                                                              
-                                                       
+            # Keys at the provider the ledger does not know are spend capacity
+            # nobody here manages — said, not hidden.
             mine = {n for n, r in doc["issued"].items() if r["account"] == label}
             stray = sorted(known - mine - {None})
             if stray:

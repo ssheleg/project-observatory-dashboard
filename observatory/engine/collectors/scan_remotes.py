@@ -108,10 +108,10 @@ def sync_state(path: pathlib.Path, local_sha: str, remote_sha: str,
     if local_sha == remote_sha:
         return "current"
     if git(["cat-file", "-e", remote_sha + "^{commit}"], cwd=path)[0] != 0:
-                                                                           
-                                                                                  
-                                                                                
-                                                                          
+        # The remote commit is not in this clone, and getting it would mean
+        # writing to the operator's repository. But the half that MATTERS here —
+        # is there work on this disk and nowhere else — is answerable from the
+        # tracking ref without either. Ask that; refuse only what is left.
         return tracking_state(path, local_sha, branch) or "behind-or-diverged"
     if git(["merge-base", "--is-ancestor", remote_sha, local_sha], cwd=path)[0] == 0:
         return "ahead"
@@ -121,9 +121,9 @@ def sync_state(path: pathlib.Path, local_sha: str, remote_sha: str,
 
 
 
-                                                                            
-                                                                              
-                                                             
+#: The states where work exists on this disk and possibly nowhere else. Only
+#: these are counted: `behind` and `current` have nothing at stake, and asking
+#: git about them would be a walk for an answer nobody reads.
 AT_RISK_STATES = ("ahead", "unpushed-and-remote-moved", "local-only-branch",
                   "diverged")
 
@@ -195,8 +195,8 @@ def probe(rec: dict) -> tuple[str, dict]:
     refs = ["HEAD"] + ([f"refs/heads/{branch}"] if branch and branch != "HEAD" else [])
     code, stdout, stderr = git(["ls-remote", "--symref", url, *refs], timeout=NET_TIMEOUT)
     if code != 0:
-                                                                               
-                                                                               
+        # A permission failure and a deleted repository are different facts and
+        # the operator needs to tell them apart; git says which, so pass it on.
         out.update(reachable=False, reason=(stderr.splitlines() or ["unknown"])[-1][:200])
         return folder, out
 
@@ -232,7 +232,7 @@ def main(argv: list[str]) -> int:
     dest = pathlib.Path(argv[1])
     only = set(argv[argv.index("--only") + 1:]) if "--only" in argv else None
 
-                                                                        
+    # `paths.SCRATCH`: see scan_bitbucket for the class this belongs to.
     src = paths.SCRATCH / "local.json"
     if not src.is_file():
         sys.exit(f"scan_remotes: no {src} — run scan_filesystem.py first")

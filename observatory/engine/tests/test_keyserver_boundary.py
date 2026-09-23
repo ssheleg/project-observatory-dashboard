@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                             
+"""Synthetic keyserver boundary checks; never read live inventories or keys."""
 from __future__ import annotations
 
 import http.client

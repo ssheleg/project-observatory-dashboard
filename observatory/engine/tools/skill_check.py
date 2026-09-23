@@ -41,9 +41,9 @@ import paths
 
 RECEIPT = paths.SCRATCH / "skill-sessions.json"
 SKILLS = ROOT / "skill/plugins/observatory-log/skills"
-                                                                              
-                                                                           
-                                      
+#: How long a stale sighting stays interesting. A session that reported an old
+#: version nine days ago has almost certainly ended; the finding should not
+#: outlive the session it warns about.
 STALE_WINDOW_HOURS = 48
 
 

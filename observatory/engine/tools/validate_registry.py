@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                        
+"""Validate the typed inventory using only the Python standard library."""
 from __future__ import annotations
 import csv, hashlib, json, re, sys
 from collections import Counter
@@ -9,14 +9,14 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 import activity
 import paths
-                                                                                
-                                                                                
-                                                                             
-                                                                         
+# `paths.REGISTRY`, not `ROOT/"registry"`. The hardcoded path made the validator
+# the one tool `OBSERVATORY_REGISTRY` could not redirect, so a test that pointed
+# it at a sandboxed copy silently validated the LIVE registry instead — and
+# passed, for a reason that had nothing to do with what it was asserting.
 INV=paths.REGISTRY
 def resolve_ref(ref):
-    ""                                                                           
-                                                                           
+    """A reference names the store it lives in. A bare relative path is rejected:
+    that is what silently broke when the registry moved out of the wiki."""
     if ref.startswith("registry:"): return (INV/ref.split(":",1)[1]), None
     if ref.startswith("vault:"):    return (paths.VAULT/ref.split(":",1)[1]), None
     p=Path(ref)
@@ -88,10 +88,10 @@ def main():
             if d["registrar"]=="namecheap" and d.get("namecheap")!=namecheap_by_name.get(d["name"]): errors.append(f"Namecheap fields differ from export: {d['name']}")
     for d in domains:
         if d["registrar"]!="namecheap" and "namecheap" in d: errors.append(f"non-Namecheap domain carries Namecheap data: {d['name']}")
-                                                                              
-                                                                                
-                                                                              
-                         
+    # ---- Heroku ------------------------------------------------------------
+    # A hosting record is a claim about money and about whether something is up,
+    # so it is gated like every other typed fact rather than trusted because a
+    # collector wrote it.
     heroku=load("heroku-apps.json")["apps"] if (INV/"heroku-apps.json").is_file() else []
     hi=uniq(heroku,"id","heroku-apps",errors) if heroku else set()
     RULES={"heroku-github-link","heroku-remote","heroku-remote-nested","verified"}
@@ -99,16 +99,16 @@ def main():
     for a in heroku:
         if a["id"]!="heroku:"+a["name"]: errors.append(f"heroku id mismatch: {a['id']}")
         if a["state"] not in STATES: errors.append(f"unknown heroku state: {a['id']} {a['state']}")
-                                                                              
-                                                                               
-                                                                 
+        # A LINK AND ITS RULE ARE ONE FACT. Either both are present or neither
+        # is: a project with no rule is the guess AGENTS.md rule 2 forbids, and
+        # a rule with no project is a rule that fired on nothing.
         if bool(a.get("project")) != bool(a.get("link_rule")):
             errors.append(f"heroku link without its rule, or rule without a link: {a['id']}")
         if a.get("link_rule") and a["link_rule"] not in RULES:
             errors.append(f"unknown heroku link rule: {a['id']} {a['link_rule']}")
         if a.get("project") and a["project"] not in pi:
             errors.append(f"heroku app names a project that does not exist: {a['id']} -> {a['project']}")
-                                                                                
+        # Silence about why is how an unresolved link becomes a permanent shrug.
         if not a.get("project") and not a.get("unlinked_reason"):
             errors.append(f"unlinked heroku app says nothing about why: {a['id']}")
                                                                                
@@ -131,10 +131,10 @@ def main():
         if t.get("linked_to_a_project")!=sum(1 for a in heroku if a.get("project")):
             errors.append("heroku totals.linked_to_a_project disagrees with the rows")
 
-                                                                               
-                                                                                
-                                                                               
-                                                   
+    # ---- credentials --------------------------------------------------------
+    # A document about secrets is gated harder than the rest, and the first rule
+    # is that it contains none: `tools/check_secrets.py` reads it on every gate
+    # run, and this adds the shape check beside it.
     creds=load("credentials.json")["credentials"] if (INV/"credentials.json").is_file() else []
     ci=uniq(creds,"id","credentials",errors) if creds else set()
                                                                               
@@ -148,8 +148,8 @@ def main():
         if c.get("kind") not in KINDS: errors.append(f"unknown credential kind: {c['id']} {c.get('kind')}")
         for pid in c.get("used_by") or []:
             if pid not in pi: errors.append(f"credential names a project that does not exist: {c['id']} -> {pid}")
-                                                                             
-                                     
+        # Silence about why nothing claims it is how a shared account becomes
+        # permanently unattributable.
         if not (c.get("used_by") or []) and not c.get("unclaimed_reason"):
             errors.append(f"unclaimed credential says nothing about why: {c['id']}")
                                                                                      
@@ -257,17 +257,17 @@ def main():
     for repo in repos:
         if not repo.get("source_refs") or set(repo["source_refs"])-si: errors.append(f"repository has missing or unresolved sources: {repo['id']}")
 
-                                                                                
-                                                                                 
-                                                                                   
-                                                                                
-                                                                            
-                              
-     
-                                                                              
-                                                                           
-                                                                                    
-                                                                           
+    # PROVENANCE IS CHECKED FOR TRUTH, NOT ONLY FOR RESOLUTION. Every rule above
+    # asks whether a reference points at a source that exists. None asked whether
+    # it points at the source that did the measuring — so 87 repositories carried
+    # `local.sync` and `local.remote_head`, produced by `git ls-remote` over the
+    # network, citing SRC-0007, whose description begins "Filesystem scan of
+    # ~/DATA on this machine".
+    #
+    # A source now declares `evidence_for`, and this is the converse: a record
+    # carrying one of those fields must cite that source. It is a NECESSARY
+    # condition, not a sufficient one — nothing here can prove a citation true —
+    # but it catches the whole class where a field appears with no witness.
     evidence_of = {s["id"]: s["evidence_for"] for s in sources if s.get("evidence_for")}
     def field_present(record, dotted):
         node = record
@@ -278,13 +278,13 @@ def main():
     for sid, fields in sorted(evidence_of.items()):
         for field in fields:
             if field.startswith("registry:"):
-                continue                                                  
+                continue                     # a whole file, checked below
             for repo in repos:
                 if field_present(repo, field) and sid not in repo.get("source_refs", []):
                     errors.append(f"{repo['id']} carries {field}, which only {sid} measures, "
                                   f"but cites {repo.get('source_refs')}")
-                                                                                 
-                                                           
+    # The liveness file was never loaded by this validator at all, so neither its
+    # claims nor their provenance were checked by anything.
     live_path = INV/"domain-liveness.json"
     if live_path.exists():
         live=json.loads(live_path.read_text(encoding="utf-8"))

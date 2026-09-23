@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-""                                                                   
+"""Run a command with a project's secret in its environment, by NAME.
 
-                                                                          
-                                                                  
-                                                                                
+    use_secret.py names <project>                    what this project has
+    use_secret.py run <project> <NAME>[,<NAME>…] -- <command…>
+    use_secret.py where <project> <NAME>             which slot it would resolve
 
                                                                            
                                                                                  
@@ -12,31 +12,31 @@
                                                                               
                                                       
 
-                                                                                
-                                                                               
-                                
+So: the value is resolved here, placed in the child's environment, and **removed
+from everything the child prints**. The agent says the name, sees the name, and
+the transcript carries the name.
 
                                                                          
 
-                                                                           
-                                                                             
-                                                                                
-                                                                             
-                                                                              
-                                                                              
-                                                                                
-                                                   
+WHAT THIS DEFENDS AGAINST, stated honestly because the boundary matters: an
+ACCIDENT. A traceback quoting the connection string, a debug line echoing the
+environment, a verbose HTTP client printing its own Authorization header — the
+scrubber catches all three, and all three are how credentials actually escape
+here. It does NOT defend against a hostile command: anything with the value in
+its environment can encode it, post it, or write it to a file this never sees.
+An agent that would do that could also read the `.env` directly. The point is to
+make the CAREFUL path as short as the careless one.
 
-                                                         
+RESOLUTION ORDER, and it is reported rather than guessed:
 
-                                                                          
-                                                                          
-                                                                
+  1. the vault slot `projects/<project>/<env>/<NAME>` — the managed copy
+  2. the project's own env files, as `store/raw/env.json` lists them, live
+     files before templates and `.env` before `.env.<something>`
 
-                                                                             
-                                                                      
-                                                          
-   
+A name that resolves nowhere is an error naming both places it looked. A name
+that resolves in BOTH is reported on stderr, because two copies of one
+credential drift and the run should say which one it took.
+"""
 from __future__ import annotations
 import argparse
 import json
@@ -49,7 +49,7 @@ from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import paths              
+import paths  # noqa: E402
 sys.path.insert(0, str(ROOT / "tools"))
 import vault as private_files
 
@@ -83,12 +83,12 @@ def scan() -> dict:
 
 
 def env_candidates(project: str, name: str) -> list[pathlib.Path]:
-    ""                                                                  
+    """Files in this project that the inventory says hold this variable.
 
-                                                                               
-                                                                               
-                                                                             
-       
+    LIVE BEFORE TEMPLATE, and `.env` before `.env.staging`: a template holds no
+    value by construction, and picking `.env.production` for a command an agent
+    typed by hand would be the wrong default in the most expensive direction.
+    """
     rows = []
     for f in scan().get("files", []):
         if f.get("project") != project:
@@ -136,7 +136,7 @@ def vault_slot(project: str, name: str, env: str | None) -> tuple[pathlib.Path |
 
 
 def resolve(project: str, name: str, env: str | None = None) -> tuple[str, str]:
-    ""                                                                       
+    """(value, where it came from). Raises LookupError naming both places."""
     slot, got_env = vault_slot(project, name, env)
     files = env_candidates(project, name)
     if slot is not None:
@@ -169,12 +169,12 @@ def scrub(data: bytes, values: dict[str, str]) -> bytes:
 
 
 def pump(src, dst, values: dict[str, str], longest: int) -> None:
-    ""                                                                      
+    """Keep raw suffix bytes until the longest possible secret is decidable.
 
-                                                                          
-                                                                        
-                     
-       
+    Replacements are never scanned again. A shorter secret that prefixes a
+    longer one cannot consume the prefix while the longer value is split
+    across two reads.
+    """
     pattern, replacements = _redaction(values)
     longest = max((len(value) for value in replacements), default=1)
     carry = b""
@@ -266,8 +266,8 @@ def cmd_run(args) -> int:
         except LookupError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-                                                                         
-                                                            
+    # WRITTEN BEFORE THE RUN, like every other audited action here: a log
+    # written afterwards loses the run that never came back.
     audit("use", f"{args.project}:{','.join(names)}",
           {"from": wheres, "command": args.command[0],
            "argv_len": len(args.command)})
@@ -303,10 +303,10 @@ STDIN_PROGRAMS = {("python", "-"), ("python3", "-"), ("node", "-"), ("sh", "-s")
 
 
 def cmd_pipe(args) -> int:
-    ""                                                                       
-                                                                               
-                                                                                
-       
+    """The value arrives on STDIN (from a provider's CLI, from pbpaste), goes
+    into the child's environment under NAME, and every byte the child prints is
+    scrubbed of it. One stdin, one passenger: the program must come from a file.
+    """
     if not args.command:
         print("nothing to run — put the command after `--`", file=sys.stderr)
         return 2

@@ -55,11 +55,11 @@ TIMEOUT = 60
                                                                               
 RELEASE_WINDOW = 200
 
-                                                                            
-                                                                            
-                                                                              
-                                                                                  
-                                                                     
+#: On-demand list price per dyno per month. NOT an invoice: Heroku bills per
+#: second, so an estimate built from this is an upper bound and the registry
+#: says so in the document's own note. A size absent from this map is reported
+#: in `unpriced` rather than silently costed at zero — a price list that grows a
+#: hole when Heroku adds a tier would understate the estate for ever.
 DYNO_PRICE = {"Eco": 5, "Basic": 7, "Standard-1X": 25, "Standard-2X": 50,
               "Performance-M": 250, "Performance-L": 500, "Performance-L-RAM": 500,
               "Performance-XL": 750, "Performance-2XL": 1500}
@@ -69,8 +69,8 @@ DYNO_PRICE = {"Eco": 5, "Basic": 7, "Standard-1X": 25, "Standard-2X": 50,
                                                        
 CODE_RELEASE = ("Deploy ", "Deployed ", "Promote ", "Rollback ")
 
-                                                                             
-                                                                               
+#: `https://git.heroku.com/<app>.git` in a checkout's `.git/config`. Both the
+#: https and the ssh spelling, because the CLI has written both over the years.
 HEROKU_REMOTE = re.compile(r"git\.heroku\.com[:/]+([A-Za-z0-9][A-Za-z0-9-]*)\.git")
 
 
@@ -85,7 +85,7 @@ def token() -> tuple[str | None, str | None]:
     except subprocess.TimeoutExpired:
         return None, "heroku auth:token did not answer within 30s"
     if p.returncode != 0:
-                                                                        
+        # The CLI prints its own reason and it is more useful than ours.
         return None, ("heroku auth:token failed: "
                       + (p.stderr.strip().splitlines() or ["no output"])[-1])
     tok = (p.stdout.strip().splitlines() or [""])[-1].strip()
@@ -230,9 +230,9 @@ def scan_app(app: dict, tok: str) -> dict:
                          for f in form] if isinstance(form, list) else [])
     row["formation_error"] = form.get("__error__") if isinstance(form, dict) else None
 
-                                                                          
-                                                                           
-                                                                       
+    # SUSPENDED IS A STATE, NOT A FAILURE TO READ. Heroku answers 403 with
+    # `{"id":"suspended"}` and an empty dyno list would read as "scaled but
+    # never started" — a different diagnosis with a different remedy.
     row["suspended"] = (isinstance(dynos, dict)
                         and dynos.get("__reason__") == "suspended")
     row["dynos"] = ([{"name": d["name"], "state": d["state"], "size": d["size"]}
@@ -266,9 +266,9 @@ def scan_app(app: dict, tok: str) -> dict:
     row["last_deploy"] = ({"version": code["version"], "at": code["created_at"],
                            "desc": (code.get("description") or "")[:120]}
                           if code else None)
-                                                                                
-                                                                                
-                            
+    # `releases_seen == RELEASE_WINDOW` and no code release means the window ran
+    # out, not that no deploy exists. Said out loud so a reader cannot mistake a
+    # truncation for a fact.
     row["deploy_beyond_window"] = (code is None and len(rels) >= RELEASE_WINDOW)
 
     row["github"] = (gh.get("repo") if isinstance(gh, dict) and "repo" in gh else None)
@@ -336,9 +336,9 @@ def main(argv: list[str]) -> int:
 
     tok, why = token()
     if not tok:
-                                                                     
-                                                                            
-                                                                        
+        # AN EMPTY SURVEY IS NEVER RETURNED IN PLACE OF A PARTIAL ONE
+        # (AGENTS.md rule 7). The file is written so downstream steps find a
+        # shape rather than a missing path, and it says why it is empty.
         atomic.write_json(out_path, {
             "schema_version": 1, "scanned_at": started.isoformat(),
             "account": None, "teams": [], "apps": [],
@@ -374,10 +374,10 @@ def main(argv: list[str]) -> int:
     checkouts, folders_read = local_checkouts()
     for r in rows:
         r["local_folders"] = sorted(checkouts.get(r["name"], []))
-                                                                               
-                                                                               
-                                                                               
-                                    
+    # A remote pointing at an application this account cannot see is not noise:
+    # it is either a deleted application still wired to a folder, or an account
+    # this run was not logged into. Either way the folder is misleading and the
+    # operator should hear the name.
     known = {r["name"] for r in rows}
     orphan_remotes = sorted(set(checkouts) - known)
 

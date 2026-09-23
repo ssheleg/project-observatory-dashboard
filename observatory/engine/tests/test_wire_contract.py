@@ -204,7 +204,7 @@ def test_search_cannot_spend_past_the_ceiling() -> None:
           "spend guardrail reached" in src,
           "the lexical half must still answer, with the reason in `degraded`")
 
-                                                                     
+    # Driven: the answer must name the reason when a guardrail is up.
     import survey as survey_mod
     result = survey_mod.search("a probe of the guardrail", limit=2)
     sources = [d.get("source") for d in result.get("degraded", [])]
@@ -337,10 +337,10 @@ def test_the_probe_runner_sends_the_fixture_verbatim() -> None:
         payload = node.args[1]
         if not isinstance(payload, ast.Dict):
             continue
-                                                                                  
-                                                                              
-                                                                                
-                                                                   
+        # CONSTRUCTING IS ALLOWED — the record probe's negative cases must build
+        # a payload the fixture does not contain — but only out of names the
+        # contract declares. A key no input schema knows is a translation, and a
+        # translation is what made the receipt describe the runner.
         for k in payload.keys:
             if isinstance(k, ast.Constant) and isinstance(k.value, str) \
                     and k.value not in declared:

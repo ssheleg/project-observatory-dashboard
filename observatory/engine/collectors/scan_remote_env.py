@@ -57,14 +57,14 @@ from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import atomic                                                                   
-import paths                                                                    
+import atomic                                                       # noqa: E402
+import paths                                                        # noqa: E402
 
                                                                          
 MAX_AGE_HOURS = 24
-                                                                          
-                                                                       
-                               
+#: A bounded refusal: an estate of sixty applications is the size this was
+#: measured on, and a run that would walk a thousand is a configuration
+#: accident rather than a scan.
 MAX_APPS = 400
 
 
@@ -88,19 +88,19 @@ def hours_since(stamp: str) -> float | None:
 
 
 def fingerprint(pepper: str, value: str) -> str:
-    ""                                                                          
-                                                                          
+    """The same derivation `collectors/scan_env.py` uses, so the two inventories
+    can be compared at all. Sixteen hex characters of a salted SHA-256."""
     return hashlib.sha256((pepper + value).encode("utf-8")).hexdigest()[:16]
 
 
 def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
-    ""                                                                       
+    """Every value the vault has rotated away, as a fingerprint and its slot.
 
-                                                                  
-                                                                               
-                                                                             
-                                                                               
-       
+    `tools/vault.py rotate` keeps the old value beside the slot as
+    `<NAME>.retired-<stamp>` at mode 600 — deliberately, so a rotation can be
+    undone and so the operator can revoke the old value at its provider. That
+    archive is also the only way to ask whether production is still holding it.
+    """
     out: list[dict] = []
     if not store.is_dir():
         return out
@@ -109,7 +109,7 @@ def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
             continue
         rel = slot.relative_to(store).parts
         if len(rel) != 3:
-            continue                                                               
+            continue                                  # not a project/env/NAME slot
         name, _, stamp = rel[2].partition(".retired-")
         try:
             value = slot.read_text(encoding="utf-8").strip()
@@ -128,7 +128,7 @@ def retired_values(pepper: str, store: pathlib.Path) -> list[dict]:
 
 
 def scan_heroku_apps(pepper: str) -> tuple[list[dict], list[dict]]:
-    ""                                                                        
+    """(one record per application, degradations). Values never leave this."""
     hk = _load("collectors/scan_heroku.py", "scan_heroku")
     env = _load("collectors/scan_env.py", "scan_env")
     tok, why = hk.token()
@@ -164,7 +164,7 @@ def scan_heroku_apps(pepper: str) -> tuple[list[dict], list[dict]]:
         rows.append({"app": app["name"],
                      "folders": [str(f) for f in (app.get("local_folders") or [])],
                      "vars": variables, "error": None})
-                                                                               
+        # The values in `got` go out of scope here, and nothing above kept one.
     bad = [r for r in rows if r["error"]]
     if bad:
         degraded.append({"source": "heroku config-vars",

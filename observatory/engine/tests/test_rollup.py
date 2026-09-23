@@ -128,7 +128,7 @@ def test_the_aggregate_OUTLIVES_its_events() -> None:
           row and row["commits"] == 7, str(tuple(row) if row else None))
     check("and is not frozen yet", row["frozen_at"] is None)
 
-                                                         
+    # Time moves on: the window's start passes that week.
     later = date.fromisoformat(old_day) + timedelta(days=400)
     rollup.refresh(conn, today=later)
     row = conn.execute("SELECT commits, frozen_at FROM project_week").fetchone()
@@ -136,7 +136,7 @@ def test_the_aggregate_OUTLIVES_its_events() -> None:
           str(row["commits"]))
     check("and is now frozen", row["frozen_at"] is not None)
 
-                                                                                  
+    # Retention prunes the raw events. THIS is where a naive rollup zeroes itself.
     conn.execute("DELETE FROM events")
     conn.commit()
     rollup.refresh(conn, today=later)

@@ -1,4 +1,4 @@
-""                                                                                 
+"""Versioned per-user configuration. Importing this module does not write files."""
 from __future__ import annotations
 import json
 import os

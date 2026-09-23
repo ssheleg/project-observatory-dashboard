@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                       
+"""Install, remove or inspect the launchd job that ticks the observatory.
 
-                                                                           
-                                                                               
-                                                                       
-                                                                             
-   
+Every path is absolute and computed from this file, so the plist is correct
+wherever the checkout lives. `--interval` is seconds between ticks; the default
+is 30 minutes because a tick over a quiet machine costs nothing and the
+interesting resolution here is "did work happen this half hour", not seconds.
+"""
 from __future__ import annotations
 import argparse, plistlib, subprocess, sys, os, pathlib, hashlib, stat
 
@@ -84,7 +84,7 @@ def build(interval: int) -> dict:
         "Label": LABEL,
         "ProgramArguments": ["/bin/bash", str(ROOT / "tools/tick.sh")],
         "StartInterval": interval,
-        "RunAtLoad": False,                                                  
+        "RunAtLoad": False,          # a login is not a reason to burn a scan
         "WorkingDirectory": str(ROOT),
         "StandardOutPath": str(LOG_DIR / "tick.log"),
         "StandardErrorPath": str(LOG_DIR / "tick.err"),

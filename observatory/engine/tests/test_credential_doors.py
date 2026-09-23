@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                              
+"""The two credential doors — `tools/cloudflare.py` and `tools/openrouter.py`.
 
                                                                      
                                                                                 
@@ -7,10 +7,10 @@
                                                                            
                                                                     
 
-                                                                          
-                                                                             
-                                             
-   
+Everything here runs against fakes: the provider is a dict, the stores are
+tmpdirs. What is asserted is the door's own reasoning — refusals, ordering,
+labels, and that no code path prints a value.
+"""
 from __future__ import annotations
 import importlib.util
 import json
@@ -23,9 +23,9 @@ sys.path.insert(0, str(ROOT / "tests"))
 from test_portable_mcp import setup as portable_setup
 portable_setup()
 sys.path.insert(0, str(ROOT / "tests"))
-import tmp as tmpdir                                                            
+import tmp as tmpdir                                                # noqa: E402
 import private_io
-import source_reader                                                            
+import source_reader                                                # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -43,10 +43,10 @@ def load(rel: str, name: str):
     return m
 
 
-                                                                                                                                                                                                             
+# ─────────────────────────── shared rules ────────────────────────────────────
 
 def test_no_door_takes_or_prints_a_value_outside_stdin() -> None:
-    ""                                                                
+    """The rule both doors exist to enforce, checked on their CODE."""
     for rel in ("tools/cloudflare.py", "tools/openrouter.py"):
         src = (ROOT / rel).read_text(encoding="utf-8")
         code = source_reader.code_only(src)
@@ -67,21 +67,21 @@ def test_no_door_takes_or_prints_a_value_outside_stdin() -> None:
 
 
 def test_the_ledgers_hold_no_values() -> None:
-    ""                                                                             
+    """Meta files and the ledger carry names, dates and places — never values."""
     for rel, fields in (("tools/cloudflare.py", ("account_id", "issued_on", "rotations")),
                         ("tools/openrouter.py", ("destination", "limit_usd", "rotations"))):
         src = (ROOT / rel).read_text(encoding="utf-8")
-                                                                            
-                                                  
+        # `code_keeping_strings`: the field names ARE string literals, which
+        # `code_only` strips along with the prose.
         code = source_reader.code_keeping_strings(src)
         for f in fields:
             check(f"{rel} records `{f}`", f'"{f}"' in code, "")
-                                                                             
+        # The one string that must never be json.dump'ed: the token variable.
         check(f"{rel} never serialises the value into a meta file",
               '"value": value' not in code and "'value': value" not in code, "")
 
 
-                                                                                                                                                                                                                 
+# ─────────────────────────── cloudflare ──────────────────────────────────────
 
 def cf():
     sys.path.insert(0, str(ROOT / "plugins"))
@@ -134,7 +134,7 @@ def test_cf_one_stash_can_span_several_accounts() -> None:
         if path == "/user":
             return {"result": {"email": "user@example.com"}}
         if path.startswith("/accounts/a3/tokens"):
-            raise RuntimeError("cloudflare answered 403 for " + path)                            
+            raise RuntimeError("cloudflare answered 403 for " + path)   # member, no token rights
         return {"result": []}
     m._request = fake
     rc = m.cmd_stash("tok-" + "a" * 36)
@@ -149,7 +149,7 @@ def test_cf_one_stash_can_span_several_accounts() -> None:
           [a["can_issue"] for a in meta["accounts"]] == [True, True, False],
           str(meta.get("accounts")))
 
-                                                           
+    # issue must NAME an account when several are reachable
     try:
         m.find_account(None)
         check("issue with no --account is refused when several are reachable", False, "no raise")
@@ -166,7 +166,7 @@ def test_cf_one_stash_can_span_several_accounts() -> None:
         check("an account the token cannot issue into is not offered",
               "no reachable account matches" in str(exc), str(exc))
 
-                                                        
+    # the old single-account record shape still resolves
     private_io.write(m.ADMIN_STORE / "legacy", "t\n")
     private_io.write(m.ADMIN_STORE / "legacy.meta.json", json.dumps(
         {"account_id": "a9", "account_name": "Legacy Co"}))
@@ -184,7 +184,7 @@ def test_cf_stash_finds_accounts_through_memberships_when_accounts_is_empty() ->
 
     def fake(path, token, payload=None, method=None):
         if path.startswith("/accounts?"):
-            return {"result": []}                                        
+            return {"result": []}                        # the empty road
         if path.startswith("/memberships"):
             return {"result": [
                 {"status": "accepted", "account": {"id": "a1", "name": "Example Primary Account"}},
@@ -219,7 +219,7 @@ def test_cf_issue_rolls_rather_than_duplicating() -> None:
                                {"id": "g2", "name": "Analytics Read", "scopes": ["com.cloudflare.api.account.zone"]},
                                {"id": "g3", "name": "DNS Read", "scopes": ["com.cloudflare.api.account.zone"]}]}
         if path.endswith("/tokens/t-old") and method == "PUT":
-            return {"result": {"id": "t-old"}}                                  
+            return {"result": {"id": "t-old"}}              # policies rewritten
         if path.endswith("/tokens?per_page=50"):
             return {"result": [{"id": "t-old", "name": m.PRESETS["analytics"]["name"]}]}
         if path.endswith("/tokens/t-old/value"):
@@ -254,7 +254,7 @@ def test_cf_external_tokens_are_recorded_and_never_rolled_here() -> None:
           (d / "foreign").is_file(), "")
 
 
-                                                                                                                                                                                                                 
+# ─────────────────────────── openrouter ──────────────────────────────────────
 
 def orr():
     return load("tools/openrouter.py", "or_door")
@@ -324,8 +324,8 @@ def test_or_rotation_creates_and_delivers_before_deleting() -> None:
 
 
 def test_or_issue_deletes_the_key_when_delivery_fails() -> None:
-    ""                                                                    
-                                                            
+    """A minted key that reached no consumer is live spend capacity nobody
+    holds — the door deletes it rather than leaving it."""
     m = orr()
     d = pathlib.Path(tmpdir.mkdtemp()).resolve()
     m.ADMIN_STORE = d / "openrouter-admin"
@@ -406,7 +406,7 @@ def test_or_issue_is_one_function_with_a_monthly_reset() -> None:
         check("a key with no ceiling is refused", False, "no raise")
     except ValueError as exc:
         check("a key with no ceiling is refused", "ceiling" in str(exc), str(exc))
-                                                              
+    # the adapter: keyserver's mint reaches this same function
     src = (ROOT / "tools/keyserver.py").read_text(encoding="utf-8")
     code = source_reader.code_keeping_strings(src)
     check("keyserver mints through the door and holds no provider client of its own",

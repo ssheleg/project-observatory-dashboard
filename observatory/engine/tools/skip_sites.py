@@ -36,8 +36,8 @@ import argparse, ast, json, pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-                                                                            
-                                                                            
+#: The marker as a suite prints it. Anchored the same way `observatory.py`'s
+#: `SKIP_MARKER` is, and for the same reason: a PASS line may name the word.
 CALL_RX = re.compile(r'print\(f?"  (SKIP|NOTE)')
 
                                                                                

@@ -1,4 +1,4 @@
-""                                                                                  
+"""Synthetic registry and plugin compatibility checks; never reads a live estate."""
 import json
 import os
 from pathlib import Path

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                 
+"""Write the read-only registry projection into the narrative wiki.
 
-                                                                            
-                                                                              
-                                                                          
-                                                    
-   
+The registry is canonical here. The vault keeps a generated copy so Obsidian
+links and the wiki-* skills keep resolving. Every file carries a header saying
+it is generated, because a projection nobody can tell from a source is the
+second source of truth this split exists to prevent.
+"""
 from __future__ import annotations
 import json, sys, pathlib
 from datetime import datetime, timezone
@@ -49,8 +49,8 @@ def main() -> int:
         try:
             doc = json.loads(src.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
-                                                                                 
-                                                                           
+            # NAMED, not skipped in silence: a registry document this cannot read
+            # is a hole in the mirror, and the wiki skills read the mirror.
             skipped.append({"file": name, "why": f"unreadable: {type(exc).__name__}"})
             print(f"skip (unreadable): {name}", file=sys.stderr)
             continue
@@ -74,8 +74,8 @@ def main() -> int:
     print(f"projected {written} files into {dest}")
     for sk in skipped:
         print(f"  not mirrored: {sk['file']} — {sk['why']}")
-                                                                           
-                              
+    # The run as a fact. A mirror missing three of ten documents said so on
+    # stdout and nowhere else.
     try:
         paths.SCRATCH.mkdir(parents=True, exist_ok=True)
         atomic.write_json(paths.SCRATCH / "projection.json", {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                        
+"""Sign a credential: what it is for, who answers for it, how it is known.
 
                                                                               
                                                                             
@@ -12,21 +12,21 @@
                                                                               
                                                                        
 
-                                                      
+WHAT IS REFUSED, AND WHY EACH REFUSAL IS LOAD-BEARING.
 
-                                                                        
-                                                                              
-                                                                               
-                                                              
-                                                                                
-                                                                                
-                                                                          
-                                                                              
-                                                        
+  no purpose      an unsigned credential is the state this exists to end
+  no evidence     a purpose nobody can check is a guess that will be read as a
+                  fact — the rule `collectors/credential_owners.json` already
+                  enforces for membership, for the same reason
+  a value-shaped  purpose or evidence that looks like a key. The annotation file
+    purpose       is in git; a credential pasted into a "purpose" field would be
+                  committed, and no later edit removes it from the history
+  an unknown id   the board carries no such credential today, so the signature
+                  would describe nothing and hide a typo
 
-                                                                                  
-                                                                               
-   
+`auto` — what the door knows at issue time — is written by the doors and never
+by this tool: a re-issue replaces it and leaves `purpose` and `owner` standing.
+"""
 from __future__ import annotations
 import argparse
 import datetime
@@ -38,17 +38,17 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import atomic                                                                   
-import paths                                                                    
+import atomic                                                       # noqa: E402
+import paths                                                        # noqa: E402
 
-                                                                             
-                                                                             
-                                   
+#: Redirectable for the same reason every other artefact here is: a test that
+#: writes the real file signs a real credential, and the gate's hygiene check
+#: would be the thing that noticed.
 FILE = pathlib.Path(os.environ.get("OBSERVATORY_ANNOTATIONS",
                                    paths.config_file("credential_annotations.json")))
-                                                                          
-                                                                                
-                                                                               
+#: A value looks like this: a long unbroken run with no spaces, or a known
+#: provider prefix. Deliberately generous — a false refusal costs a rewording,
+#: and a credential committed to git costs a rotation and stays in the history.
 VALUE_SHAPED = re.compile(r"(sk-[A-Za-z0-9_-]{12,}|[A-Za-z0-9_\-+/=]{40,})")
 
 
@@ -87,11 +87,11 @@ def board_ids() -> dict[str, dict]:
 
 
 def write(cred_id: str, fields: dict, *, by: str = "operator") -> dict:
-    ""                                                                         
-                                                            
+    """THE ONE WRITER. The CLI, the keyserver route and the page all land here,
+    so a refusal cannot be true of one path and not another.
 
-                                                                       
-       
+    Raises ValueError with the operator's own wording on every refusal.
+    """
     purpose = (fields.get("purpose") or "").strip()
     evidence = (fields.get("evidence") or "").strip()
     if not purpose:

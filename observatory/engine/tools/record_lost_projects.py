@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                
+"""Keep what only somebody else's store remembers.
 
                                                                                
                                                                                
@@ -8,24 +8,24 @@
                                                                          
                                                                         
 
-                                                                                   
-                                                                           
-                                                                              
-                                                                                
-                                                       
+**The problem is where that knowledge lives.** It is in claude-mem — a store this
+system opens READ-ONLY and does not own, with its own retention and its own
+reasons to prune. The registry cannot hold the fact either: it is derived from
+what EXISTS, so an entry with no anchor is wiped by the next emit. So the estate
+can currently SAY a project is lost and cannot KEEP it.
 
-                                                                                
-                                                           
+The ledger is the one authored, append-only record here, and this writes into it
+under the rules that already govern every automated writer:
 
-                                                                             
-                                                                              
-                                                                        
-                                                                             
-                                                                                
-       
-                                                                                   
-                                                                                
-                                                                  
+* `state='proposed'` — an automated writer may not promote its own row, and
+  `tools/corroborate.py` sends any kind but `session` to `needs_person`, which
+  is right: what a vanished project MEANT is not mechanically checkable.
+* `project_id` is NULL, deliberately. The project is not in the registry, and
+  minting an id for it would be inventing the thing this record exists to say is
+  gone.
+* the statement carries measured numbers only — counts, dates, the folder — and
+  the `why` says why it is worth keeping at all. No guess about what happened to
+  it: a fabricated cause is read as true by everything downstream.
 
                                                                              
                                                                                   
@@ -34,28 +34,28 @@
                                                                             
         
 
-                                                                                
-                                                                    
-   
+    record_lost_projects.py              write or revise, one record per project
+    record_lost_projects.py --dry-run    print what would be written
+"""
 from __future__ import annotations
 import argparse, json, pathlib, sqlite3, sys
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import atomic                                                                   
-import paths                                                                    
-from store import db as store_db                                                
-from store import ledger as L                                                   
+import atomic                                                       # noqa: E402
+import paths                                                        # noqa: E402
+from store import db as store_db                                    # noqa: E402
+from store import ledger as L                                       # noqa: E402
 
 OWNER = "agent:estate-history"
-                                                                           
-                                                               
-                                                                                  
-                                                             
+#: Not `observation` and not `session`: a fact about the estate's own PAST,
+#: which is a third subject. Nothing filters reads by kind, and
+#: `tools/corroborate.py` routes every kind but `session` to a person — which is
+#: the correct destination for "what became of this project".
 KIND = "estate-history"
-                                                                                
-                                                                                 
+#: One cursor per lost project, holding the record this tool has already written
+#: for it. The prefix keeps the namespace legible beside `deltas.diffed_through`.
 CURSOR_PREFIX = "estate-history.lost:"
 
 
@@ -64,12 +64,12 @@ def now() -> str:
 
 
 def lost_from_sessions() -> tuple[list[dict], str | None]:
-    ""                                                                       
+    """(the lost projects, why not) — read from the collector's own output.
 
-                                                                                
-                                                                              
-                                            
-       
+    `store/raw/sessions.json` is where `scan_sessions` puts the verdict, so this
+    tool needs no second reading of claude-mem and no network, and it degrades
+    honestly when the collector has not run.
+    """
     f = paths.SCRATCH / "sessions.json"
     if not f.is_file():
         return [], f"{f} does not exist — `./observatory.py scan-sessions` writes it"
@@ -118,7 +118,7 @@ def report(**fields) -> None:
     try:
         atomic.write_json(paths.SCRATCH / "lost-projects.json",
                           {"ran_at": now(), **fields})
-    except Exception as exc:                                                      
+    except Exception as exc:                                        # noqa: BLE001
         print(f"the receipt could not be written: {type(exc).__name__}: {exc}",
               file=sys.stderr)
 
@@ -153,9 +153,9 @@ def main(argv: list[str]) -> int:
             mid = cursor_for(conn, row["name"])
             prior = L.current(conn, mid) if mid else None
             if prior is not None and prior["statement"] == statement:
-                                                                                 
-                                                                               
-                             
+                # Nothing moved. A revision saying exactly what the last one said
+                # is the append-only equivalent of noise, and this tool runs on
+                # every tick.
                 unchanged += 1
                 notes.append({"name": row["name"], "memoryId": mid,
                               "outcome": "unchanged"})
@@ -168,9 +168,9 @@ def main(argv: list[str]) -> int:
             try:
                 res = L.append(
                     conn, owner=OWNER, kind=KIND, statement=statement, why=WHY,
-                                                                              
-                                                                            
-                                                   
+                    # NULL project_id, deliberately: the project is not in the
+                    # registry and minting an id would invent the thing this
+                    # record exists to say is gone.
                     project_id=None, function="semantic", scope="global",
                     state="proposed", confidence=0.9,
                     memory_id=mid if prior else None,

@@ -261,10 +261,10 @@ def cmd_digest(conn, args) -> int:
             ages.append(left)
             if left <= 14:
                 soon.append((left, r["memory_id"], pid))
-                                                                          
-                                                                          
-                                                                                 
-                                           
+        # BOTH, when a group holds both. The first version printed the age
+        # window and dropped the `kept` count whenever any row still had a
+        # deadline — so a group of one deadlined row and two irreplaceable ones
+        # read exactly like a group of one.
         window = (f"{min(ages)}–{max(ages)}d left" if ages
                   else "no deadline" if kept else "age unknown")
         if kept:
@@ -443,10 +443,10 @@ def cmd_proposal_accept(conn, args) -> int:
     require_terminal("accept a registry proposal")
     row = _proposal(conn, args.id)
     patch = json.loads(row["patch_json"] or "{}")
-                                                                                   
-                                                                             
-                                                                             
-                                        
+    # UNWRAPPED. `proposals_add` stores `{"owner": …, "evidence": [...]}` — the
+    # owner is provenance the ledger adds — and the curation file wants the
+    # caller's references. The owner is not lost: it travels in `proposed_by`
+    # beside the proposal's id and date.
     stored = json.loads(row["evidence_json"] or "[]")
     evidence = (stored.get("evidence") if isinstance(stored, dict) else stored) or []
     why = proposals.refusal(row["target_id"], patch, evidence)
@@ -462,10 +462,10 @@ def cmd_proposal_accept(conn, args) -> int:
     doc = json.loads(f.read_text(encoding="utf-8"))
     before = doc[key].get(row["target_id"], {})
     merged = {**before, **patch}
-                                                                             
-                                                                               
-                                                                                
-                                                                    
+    # PROVENANCE, written by the decision rather than proposed by the caller.
+    # The next reader of this file needs to know who suggested it, on what, and
+    # when a person agreed — otherwise an override is a value with no argument
+    # behind it, which is how a curated file becomes unmaintainable.
     merged["why"] = args.why
     merged["proposed_by"] = f"{row['id']} ({row['created_at']})"
     merged["evidence"] = evidence
@@ -518,9 +518,9 @@ def main() -> int:
     p.add_argument("--why", help="optional here: the default reason names the policy "
                                  "that made these records unnecessary")
     p.set_defaults(fn=cmd_reject_group)
-                                                                         
-                                                                         
-                                                          
+    # THE REGISTRY QUEUE, which had a reporter and no decider. Keyed by a
+    # proposal id rather than a `memory_id`: it is a different queue, and
+    # sharing the argument name would invite the wrong id.
     for name, fn in (("accept-proposal", cmd_proposal_accept),
                      ("reject-proposal", cmd_proposal_reject)):
         p = sub.add_parser(name, help="decide a registry proposal from "

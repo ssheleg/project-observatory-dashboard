@@ -85,15 +85,15 @@ def _drop_foreign_events(conn: sqlite3.Connection) -> str:
     if not foreign:
         return "no project is outside the estate's own work"
     marks = ",".join("?" * len(foreign))
-                                                                                
-                                                                            
-                                                                             
-                                                                      
-                                                                                 
-                                                                             
-                                                                            
-                                                                             
-                                                               
+    # `AND kind = 'commit'` — the narrowing this docstring always claimed. The
+    # statement deleted every event of a foreign project regardless of kind,
+    # while the sentence above says "commits", and the difference became real
+    # when SRC-0012 started recording `session` events: a session in a
+    # third-party clone is the OPERATOR's work — they sat down and worked in it
+    # — where a commit there is somebody else's history, which is the whole
+    # reason this migration exists. Narrowing a destructive statement to its
+    # own documented intent; the rows it will now spare did not exist when it
+    # ran on this machine, so its recorded effect is unchanged.
     n = conn.execute(f"DELETE FROM events WHERE kind = 'commit'"
                      f" AND project_id IN ({marks})", foreign).rowcount
     return f"{n} event(s) dropped from {len(foreign)} project(s) outside this estate's own work"
@@ -163,11 +163,11 @@ def _collector_cursors(conn: sqlite3.Connection) -> str:
        
     conn.execute("CREATE TABLE IF NOT EXISTS cursors ("
                  " name TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)")
-                                                                               
-                                                                           
-                                                                              
-                                                                               
-                                                               
+    # `deltas` MAY NOT EXIST. A migration runs against whatever shape the store
+    # is in, and that includes a store built by hand to exercise an earlier
+    # migration — `tests/test_time.py` creates `events` alone, and this line
+    # failed the gate the moment it was written. A seed is an optimisation over
+    # an empty cursor; a missing source for it is not an error.
     try:
         row = conn.execute("SELECT to_scan FROM deltas ORDER BY rowid DESC LIMIT 1").fetchone()
     except sqlite3.Error as exc:
@@ -180,8 +180,8 @@ def _collector_cursors(conn: sqlite3.Connection) -> str:
     return f"cursors seeded: deltas.diffed_through = {row[0]}"
 
 
-                                                                               
-                                                 
+#: (id, function). Append only — an applied id is never renamed or reordered,
+#: because the record of what ran is keyed by it.
 def _drop_retention_policy(conn: sqlite3.Connection) -> str:
     ""                                                           
 
@@ -239,7 +239,7 @@ def execute_statements(conn: sqlite3.Connection, script: str) -> None:
 
 
 def checksum(fn: object) -> str:
-                                                                                 
+    # AST excludes comments; documentation-only edits do not change the contract.
     tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

@@ -17,11 +17,11 @@
    
 from __future__ import annotations
 
-                                                                   
+#: Named by name up to this many, as everywhere else on this board.
 LISTED = 6
-                                                                                
-                                                                             
-                                               
+#: A scan older than this is stale enough that the page should say so. Analytics
+#: settle daily and the scan is gated to twice a day, so three days means the
+#: tick has not run, not that Google was quiet.
 STALE_DAYS = 3
 
 
@@ -39,7 +39,7 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
         return []
     out: list[dict] = []
 
-                                                                                                                                                              
+    # ── properties nothing here claims ──────────────────────────────────────
     unclaimed = [p for p in props if p.get("standing") == "unclaimed"]
     if unclaimed:
         unclaimed.sort(key=lambda p: -(p.get("users_30d") or 0))
@@ -63,7 +63,7 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
                        "either answer silences this row"),
         })
 
-                                                                                                                                                          
+    # ── a property that would not report ────────────────────────────────────
     broken = [p["name"] for p in props if p.get("error")]
     if broken:
         out.append({
@@ -77,7 +77,7 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
             "action": "check the service account's access to them in the Analytics admin",
         })
 
-                                                                                                                            
+    # ── a credential that cannot reach a surface at all ─────────────────────
     for d in doc.get("degraded") or []:
         if "accessNotConfigured" in str(d.get("reason", "")) or "has not been used in project" in str(d.get("reason", "")):
             out.append({
@@ -91,7 +91,7 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
                 "action": d.get("remedy") or "enable the API in that Cloud project",
             })
 
-                                                                                                                                                                                    
+    # ── the numbers are old ─────────────────────────────────────────────────
     scanned = (doc.get("scanned_on") or "")[:10]
     if today and scanned:
         import datetime

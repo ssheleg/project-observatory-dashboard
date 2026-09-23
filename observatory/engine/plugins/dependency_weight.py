@@ -31,8 +31,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import paths                                                                    
 
-                                                                                 
-                                                                  
+#: Depth 2 from a project folder: a monorepo keeps `packages/*/package.json`, and
+#: a deeper walk starts counting vendored copies and example apps.
 MAX_DEPTH = 2
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "vendor", "Pods", "target",
              "build", "dist", ".next", "__pycache__", "examples", "example",
@@ -109,8 +109,8 @@ def gradle(text: str) -> set[str]:
     return out
 
 
-                                                                              
-                                                                         
+#: filename -> parser. A format is added by adding a line here, and by nothing
+#: else — the same property the plugin seam itself claims one level up.
 PARSERS = {
     "package.json": npm,
     "pyproject.toml": pyproject,
@@ -182,9 +182,9 @@ def main() -> int:
             problems += bad
         if problems:
             print(f"{p['id']}: {'; '.join(problems[:3])}", file=sys.stderr)
-                                                                               
-                                                                              
-                                          
+        # A project with no manifest at all emits NO ROW rather than a zero: it
+        # has no dependency surface to measure, which is different from having
+        # measured one and found it empty.
         if names:
             print(json.dumps({"project_id": p["id"], "metric": "deps.direct",
                               "at": at, "value": float(len(names))}))

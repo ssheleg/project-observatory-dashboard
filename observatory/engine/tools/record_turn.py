@@ -50,10 +50,10 @@ NOT_A_FAULT = (
 )
 
 
-                                                                       
-                                                                                
-                                                                               
-                                                           
+#: Set by `main` before anything is written, so `out` can stamp them on
+#: every path including the outer exception handler. `_cwd` is here for the same
+#: reason the session id is: a lost turn's first question is WHICH PROJECT, and
+#: the outer handler has no arguments left to read it from.
 _session_id = ""
 _cwd = ""
 
@@ -109,10 +109,10 @@ def out(payload: dict) -> int:
         except Exception as exc:                                                   
             kept, where = None, f"the fault log ({type(exc).__name__}: {exc})"
         if kept is None:
-                                                                              
-                                                                                
-                                                                             
-                                                                              
+            # Named on stderr and NOT swallowed, for the same reason as above:
+            # the hook discards stderr, so this is for a person running the tool
+            # by hand — and the finding rule reports the orphan separately,
+            # because a count with a silently missing line is worse than none.
             print(f"the lost turn could not be added to {where}: the receipt is "
                   f"now its only record", file=sys.stderr)
     return 0
@@ -361,9 +361,9 @@ def main() -> int:
             continues = prior["memory_id"]
             prior = None
         if prior is not None and prior["statement"] == statement:
-                                                                           
-                                                                        
-                                                                             
+            # Nothing moved since the last turn. Appending here would add a
+            # revision that says exactly what the previous one said, and
+            # append-only is a reason to be careful about what gets appended.
             return out({"recorded": False, "reason": "unchanged since the last turn",
                         "memoryId": prior["memory_id"], "revision": prior["revision"],
                         "hasWhy": bool(prior["why"]), "project": project_id})

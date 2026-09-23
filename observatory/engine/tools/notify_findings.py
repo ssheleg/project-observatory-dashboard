@@ -70,19 +70,19 @@ def close_episodes(con: sqlite3.Connection, open_ids: set[str]) -> list[str]:
        
     notified = [r[0] for r in con.execute(
         "select ref from events where kind = ?", (KIND,))]
-                                                                               
-                                                                         
-                                                                               
-                                                                              
-                                                                             
-                                                          
+    #: id -> the episodes it has been notified in. An ending needs a beginning:
+    #: without this the loop below wrote `#0`, then `#1`, then `#2` for a
+    #: finding that had simply stayed away — one ending per run for ever, and
+    #: the counter running ahead of reality until a recurrence was filed under
+    #: an episode nothing had announced. Found by the test below on the third
+    #: cycle, which is the first place it becomes visible.
     started: dict[str, set[int]] = {}
     for ref in notified:
         base, _, ep = ref.rpartition("#")
         if base and ep.isdigit():
             started.setdefault(base.rsplit("@", 1)[0], set()).add(int(ep))
         else:
-                                                                       
+            # A legacy ref, which IS episode 0 (see `already` in main).
             started.setdefault(ref.rsplit("@", 1)[0], set()).add(0)
     closed = []
     for fid in sorted(set(started) - open_ids):
@@ -145,10 +145,10 @@ def main(argv: list[str]) -> int:
         if not isinstance(doc.get("findings"), list):
             raise ValueError("no `findings` list")
     except (ValueError, OSError) as exc:
-                                                                               
-                                                                                  
-                                                                              
-                                                             
+        # A REFUSAL WITH A RECEIPT. The document is written atomically, so this
+        # is unlikely — and a traceback out of the tick's notify step would be a
+        # channel that stopped working with no record of having stopped, which
+        # is the failure this whole file is arranged against.
         print(f"notify_findings: findings.json is unreadable: "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
         _report(now_z(), False, f"findings.json unreadable: {type(exc).__name__}", [])
@@ -167,14 +167,14 @@ def main(argv: list[str]) -> int:
               "record that it was sent")
         return 0
     con = sqlite3.connect(db)
-                                                                              
-                                                                         
-                        
-                                                                            
-                                                                          
-                                                                               
-                                                                           
-                                   
+    # ENDINGS FIRST. A finding that has gone is what makes the NEXT occurrence
+    # of it new, so the record of its ending has to exist before the send
+    # decision is taken.
+    # NOT ON A DRY RUN. `close_episodes` WRITES — it is the record that an
+    # episode ended — and a command whose whole promise is "this changes
+    # nothing" must not advance the counter that decides what the next real run
+    # says. Caught by running `--dry-run` against the live store one minute
+    # after the function was added.
     closed = [] if dry else close_episodes(con, {f["id"] for f in doc["findings"]})
     seen = {r[0] for r in con.execute(
         "select ref from events where kind = ?", (KIND,))}
@@ -238,10 +238,10 @@ def main(argv: list[str]) -> int:
             con.execute(
                 "insert or ignore into events (id, kind, ref, actor, occurred_at, "
                 "payload_json) values (?,?,?,?,?,?)",
-                                                                            
-                                                                              
-                                                                               
-                                                                             
+                # A STABLE id. `abs(hash(ref))` is randomised per process by
+                # PYTHONHASHSEED, so the same fact got a different id on every
+                # run; the UNIQUE(kind, ref) index hid that, and a re-run after
+                # a delete would have written the same fact under a new name.
                 (f"ev:notify:{hashlib.sha256(ref.encode()).hexdigest()[:16]}",
                  KIND, ref, "tool:notify_findings", now,
                  json.dumps({"title": f["title"], "severity": f["severity"],
@@ -249,10 +249,10 @@ def main(argv: list[str]) -> int:
         con.commit()
     con.close()
 
-                                                                          
-                                                                           
-                                                                          
-                                                                     
+    # A CHANNEL THAT CANNOT DELIVER IS ITSELF A FINDING. Without this, not
+    # recording a failure would trade a permanent silence for a retry every
+    # thirty minutes that nobody hears either — the operator would learn
+    # nothing from either shape. `build_findings.py` reads this file.
     _report(now, sent, detail,
             [] if sent else [{"id": f["id"], "severity": f["severity"],
                               "title": f["title"]} for f in fresh])

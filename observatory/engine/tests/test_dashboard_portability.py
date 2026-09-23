@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                              
+"""OSS-10: execute generated commands against inert tools in synthetic paths."""
 from __future__ import annotations
 import ast
 import html

@@ -1,4 +1,4 @@
-""                                                                                
+"""A known measured project and an unmeasured peer, with isolated path readers."""
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import importlib

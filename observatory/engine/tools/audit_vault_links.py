@@ -28,8 +28,8 @@ import argparse, collections, json, pathlib, re, sys
 from datetime import datetime, timezone
 
 LINK = re.compile(r"\[\[([^\]|]+?)(?:\\?\|[^\]]*)?\]\]")
-                                                                                 
-                                                                              
+#: Inline code spans. `[[wikilinks]]` inside backticks is documentation ABOUT the
+#: syntax, not a link, and counting it as broken is how an auditor cries wolf.
 CODE = re.compile(r"`[^`\n]*`")
 
 
@@ -67,22 +67,22 @@ def resolve(root: pathlib.Path, target: str,
         return True, "anchor-only, resolves to the same file"
     if path.startswith(("http://", "https://", "mailto:")):
         return True, "external"
-                                                                              
-                                                                              
-                                                                             
-                                                                   
+    # `[[path\|label]]` — the pipe is escaped because the link sits inside a
+    # Markdown table, where a bare | breaks the cell. The backslash belongs to
+    # the escape, not to the path. This was the third false positive in a row
+    # from a checker written faster than the thing it was checking.
     path = path.rstrip("\\")
     if (root / (path + ".md")).exists() or (root / path).exists():
         return True, ""
     if "/" not in path:
-                                                                          
-                                                                        
+        # THREE OUTCOMES for a bare name, because Obsidian resolves one by
+        # basename anywhere in the vault and this used to have only two.
         hits = (index or {}).get(path, [])
         if len(hits) == 1:
             return True, f"bare name, resolved by basename to {hits[0]}"
         if len(hits) > 1:
-                                                                              
-                                                                          
+            # Obsidian picks by proximity, so which note this means depends on
+            # where the link sits. A working link, and still worth saying.
             return False, (f"bare name matching {len(hits)} notes "
                            f"({', '.join(sorted(hits)[:3])}…) — Obsidian resolves it "
                            f"by proximity, so it means different things from "
@@ -146,7 +146,7 @@ def main() -> int:
             continue
         files += 1
         text = f.read_text(encoding="utf-8", errors="replace")
-                                                                       
+        # Blank out code spans so their contents cannot parse as links.
         text = CODE.sub(lambda m: " " * len(m.group(0)), text)
         for m in LINK.finditer(text):
             total_links += 1

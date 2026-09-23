@@ -37,9 +37,9 @@ sys.path.insert(0, str(ROOT))
 import atomic                                                                   
 import paths                                                                    
 
-                                                                               
-                                                                              
-                                                                         
+#: What the suites prefix their fixtures with (`tests/tmp.py`). A narrower glob
+#: than "everything old in $TMPDIR" on purpose: this tool cleans up after THIS
+#: project and must never develop an opinion about anybody else's litter.
 PREFIX = "observatory-"
 DEFAULT_AGE_HOURS = 6.0
 
@@ -94,9 +94,9 @@ def sweep(root: pathlib.Path, older_than_h: float = DEFAULT_AGE_HOURS,
         try:
             shutil.rmtree(row["path"])
         except OSError as exc:
-                                                                              
-                                                                              
-                                                                           
+            # NAMED, and the sweep continues. One undeletable fixture must not
+            # leave the other thousands in place, and a swallowed failure here
+            # would be a sweeper that reports success while the disk fills.
             refused.append({"path": row["path"],
                             "reason": f"{type(exc).__name__}: {exc}"})
             continue
@@ -110,8 +110,8 @@ def sweep(root: pathlib.Path, older_than_h: float = DEFAULT_AGE_HOURS,
         "stale_bytes": sum(r["bytes"] for r in stale),
         "fresh_bytes": sum(r["bytes"] for r in fresh),
         "refused": refused,
-                                                                           
-                                                                       
+        # The largest few, so a receipt read later says which suites litter
+        # without carrying thousands of rows into a committed document.
         "largest": sorted(stale, key=lambda r: -r["bytes"])[:5],
     }
 

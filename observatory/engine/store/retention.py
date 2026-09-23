@@ -72,8 +72,8 @@ def cutoff(days: int) -> str:
     return iso(now() - timedelta(days=days))
 
 
-                                                                               
-                             
+#: The states retention never touches, whatever their age, read from the config
+#: rather than repeated here.
 def never_states() -> tuple[str, ...]:
     return tuple(config()["ledger"].get("never") or ())
 
@@ -104,9 +104,9 @@ def days_left(owner: str, state: str, created_at: str) -> int | None:
     cfg = config()["ledger"]
     horizon = cfg.get(f"{state}_days")
     if horizon is None:
-                                                                              
-                                                                              
-                                            
+        # A state with no declared horizon is not erased by age. Saying `None`
+        # is the honest answer: this function must not invent a deadline for a
+        # state the policy does not mention.
         return None
     try:
         made = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ").replace(
@@ -136,8 +136,8 @@ def ledger_candidates(conn: sqlite3.Connection) -> list[dict]:
             " WHERE t.memory_id IS NULL"
             "   AND l.state = ?"
             "   AND l.created_at < ?"
-                                                                             
-                                                                             
+            # Structural, not a parameter: the exempt owners are inlined into
+            # every query rather than passed in by a caller who might forget.
             f"   AND l.owner NOT IN ({','.join('?' * len(cfg['owner_exempt']))})",
             (state, cutoff(days), *cfg["owner_exempt"])).fetchall()
         out += [dict(r, horizon_days=days) for r in rows]
@@ -158,12 +158,12 @@ def volatile_counts(conn: sqlite3.Connection) -> dict:
             " (SELECT rowid FROM observations WHERE kind = ? ORDER BY rowid DESC LIMIT ?)",
             FINGERPRINT_KIND, FINGERPRINT_KIND, cfg.get("fingerprints_keep", 3)),
         "deltas consumed": q("SELECT count(*) FROM deltas WHERE consumed_at IS NOT NULL"),
-                                                                              
-                                                                               
-                                                                                
-                                                                             
-                                                                               
-                                                                           
+        # TWO CONDITIONS, and the second is what keeps the dashboard honest. A
+        # metric row goes when it is past the horizon AND is not among the last
+        # few of its own series: the page renders the LATEST value per (project,
+        # metric), so a pure time rule would erase the last known figure of a
+        # metric whose plugin was removed and the page would show nothing where
+        # it should show a stale number. Same shape as `fingerprints_keep`.
         "metrics past horizon": q(
             "SELECT count(*) FROM metrics WHERE at < ? AND rowid NOT IN"
             " (SELECT rowid FROM (SELECT rowid, row_number() OVER"
@@ -174,13 +174,13 @@ def volatile_counts(conn: sqlite3.Connection) -> dict:
     }
 
 
-                                                                             
-                                                                            
-                                                                             
-                                                                              
-                                                                            
-                                                                         
-                                                         
+#: Tables carrying `(memory_id, revision)` that are NOT derived indexes, each
+#: with the reason it is exempt. The purge used to name its two targets as a
+#: literal while its own docstring promised "EVERY derived index", so a third
+#: projection would have been silently unattested — the shape of every other
+#: hardcoded set this repository has had to fix. The targets are now DERIVED
+#: from the schema and this is the declared complement, so a new table is
+#: attested by default and skipping one takes a sentence.
 NOT_A_PROJECTION = {
     "ledger": "the canon itself. A tombstone marks a revision erased; deleting "
               "the row would destroy the audit trail that says so.",
@@ -233,8 +233,8 @@ def scrub(conn: sqlite3.Connection) -> dict:
        
     try:
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                                                                           
-                                                                     
+        # Outside any transaction, hence the isolation_level dance: sqlite3
+        # opens an implicit one for DML, and VACUUM inside it raises.
         prior, conn.isolation_level = conn.isolation_level, None
         try:
             conn.execute("VACUUM")
@@ -275,18 +275,18 @@ def purge_projections(conn: sqlite3.Connection) -> dict:
     pairs = [(r["memory_id"], r["revision"]) for r in
              conn.execute("SELECT memory_id, revision FROM tombstones")]
     receipts = {}
-                                                                           
-                                                                                 
-                                                                                 
-                                                          
+    # DERIVED, plus `vec_notes` by name: without the extension it is not in
+    # `sqlite_master` at all, and an index that is invisible because a library is
+    # missing must be reported UNVERIFIABLE rather than omitted from the receipt.
+    # Omission is what "attested" would then quietly mean.
     tables = projection_tables(conn)
     if "vec_notes" not in tables:
         tables.append("vec_notes")
     for table in sorted(tables):
         if table == "vec_notes" and not have_vec:
-                                                                              
-                                                                           
-                                                          
+            # Named precisely: the extension could not be loaded, which is NOT
+            # the same as the index being empty. An unverifiable backend is
+            # quarantined rather than counted as attested.
             receipts[table] = {"status": "UNVERIFIABLE",
                                "detail": "sqlite-vec is not loadable here, so this index "
                                          "cannot be purged or attested"}
@@ -398,19 +398,19 @@ def cmd_apply(conn: sqlite3.Connection) -> int:
             approved_by=APPROVED_BY)
         records += 1
         tombstoned += len(t["revisions"])
-                                                                         
-                                                                             
-                     
+    # Always, not only when this pass tombstoned something: an erasure is
+    # incomplete until no projection holds a tombstoned revision, whenever it
+    # was tombstoned.
     receipts = purge_projections(conn)
 
     with conn:
         ev = conn.execute("DELETE FROM events WHERE occurred_at < ?",
                           (cutoff(cfg["events_days"]),)).rowcount
-                                                                                 
-                                                                                
-                                                                              
-                                                                               
-                                                                            
+        # Two rules, because the table holds two kinds of thing. A fingerprint is
+        # 40 KB of FULL registry state and the only reader takes the latest two,
+        # so it is bounded by COUNT — kept by time it reaches ~177 MB, eight
+        # times the whole store. Everything else keeps the day horizon, and the
+        # `kind !=` is what stops one rule silently owning the other's rows.
         ob = conn.execute("DELETE FROM observations WHERE observed_at < ? AND kind != ?",
                           (cutoff(cfg["observations_days"]), FINGERPRINT_KIND)).rowcount
         fp = conn.execute(
@@ -419,9 +419,9 @@ def cmd_apply(conn: sqlite3.Connection) -> int:
             (FINGERPRINT_KIND, FINGERPRINT_KIND, cfg.get("fingerprints_keep", 3))).rowcount
         ob += fp
         dl = conn.execute("DELETE FROM deltas WHERE consumed_at IS NOT NULL").rowcount
-                                                                              
-                                                                               
-                                                                       
+        # The rule `volatile_counts` reports, applied. Kept identical to it on
+        # purpose: a `plan` that counts by one rule and an `apply` that deletes
+        # by another is a dry run that describes a different operation.
         mt = conn.execute(
             "DELETE FROM metrics WHERE at < ? AND rowid NOT IN"
             " (SELECT rowid FROM (SELECT rowid, row_number() OVER"
@@ -439,11 +439,11 @@ def cmd_apply(conn: sqlite3.Connection) -> int:
                  {"scrubbed": None, "detail": "nothing was removed, so there is "
                                               "nothing to scrub"})
 
-                                                                               
-                                                                                
-                                                                             
-                                                                         
-                                                                              
+    # A RECEIPT THAT OUTLIVES THE RUN. This module's own first sentence is that
+    # an erasure with no audit trail is indistinguishable from a bug — and the
+    # attestation the contract demands existed only on stdout, which the tick
+    # pipes into a log nothing reads on a schedule. Ledger rows had their
+    # tombstone; the volatile deletes and the projection receipts had nothing.
     report(tombstoned=tombstoned, records=records, events=ev, observations=ob,
            deltas=dl, metrics=mt, receipts=receipts, scrub=scrubbing)
 

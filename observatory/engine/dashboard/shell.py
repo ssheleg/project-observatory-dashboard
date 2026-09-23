@@ -17,9 +17,9 @@ from __future__ import annotations
 import json
 import re
 
-                                                                          
-                                                                           
-                                                                  
+#: (name, title, kind). `table` pages render one of the tab renderers into
+#: `#out`; the three others show the shell's own sections. Order is the nav
+#: order: the overview first, then what needs a person most often.
 PAGES: tuple[tuple[str, str, str], ...] = (
     ("index",    "Обзор",     "index"),
     ("findings", "Находки",   "findings"),
@@ -53,9 +53,9 @@ TITLE_SUFFIX = "Обсерватория"
 NAMES = tuple(p[0] for p in PAGES)
 TABLE_PAGES = tuple(p[0] for p in PAGES if p[2] == "table")
 
-                                                                            
-                                                                            
-                                                                              
+#: What a lite project row keeps on pages that only look projects UP — the
+#: domains page names a project, the creds page names an owner — but never
+#: render the table. Everything else in a row is the projects page's business.
 LITE_ROW_KEYS = ("id", "name", "anchor", "products", "tier", "lifecycle")
 
 
@@ -94,9 +94,9 @@ def counts_of(payload: dict) -> dict[str, int | str]:
     mcp = payload.get("mcp") or {}
     env = payload.get("env") or {}
     creds = payload.get("creds") or {}
-                                                                                
-                                                                               
-                                                                    
+    # THE INDEX AND HEALTH BADGES ARE THE TWO NUMBERS A PERSON OPENS FOR (D-05):
+    # what is critical, and what waits for them. Zero is shown as nothing — a
+    # «0» beside «Обзор» is noise, an absent badge is calm.
     health = payload.get("health") or {}
     return {
         "index": c.get("critical") or "",
@@ -153,8 +153,8 @@ def cards_html(payload: dict, counts: dict) -> str:
         "env": f"{counts['env'] or 0} секретных переменных",
         "mcp": f"{counts['mcp'] or 0} серверов",
         "traffic": _traffic_line(payload),
-                                                                              
-                                                                               
+        # TWO NUMBERS, because one of them is the reason to open the page: the
+        # observer's state, and how many rows are waiting for a person (S4/F9).
         "health": (_observer(health) + f" · ждут решения {health.get('proposed', 0)}"),
     }
     cards = []
@@ -203,8 +203,8 @@ def slice_for(page: str, payload: dict) -> dict:
         out["findings"] = None
     if page != "health":
         out["queue"] = []
-                                                                               
-                                                                         
+        # `health.wallet` is 85 KB of provider and model listings that only the
+        # health page draws; every other page reads the wallet's scalars.
         h = dict(payload.get("health") or {})
         w = h.get("wallet")
         if isinstance(w, dict):
@@ -212,8 +212,8 @@ def slice_for(page: str, payload: dict) -> dict:
             h["wallet"]["_on_health_page"] = True
         out["health"] = h
     if page == "index" and payload.get("findings"):
-                                                                        
-                                                                           
+        # THE INDEX SHOWS WHAT NEEDS A PERSON NOW (S12): the counts, the
+        # criticals, and a link to the rest. The findings page carries all.
         f = dict(payload["findings"])
         items = f.get("items") or []
         f["items"] = [{**x, "detail": ""} for x in items
@@ -224,13 +224,13 @@ def slice_for(page: str, payload: dict) -> dict:
     return out
 
 
-                                                                          
-                                                                              
-                                                                   
+#: Where the split pages keep the style and the script they all share. The
+#: single page keeps both inline — it is read by `design` and `smoke` as one
+#: file, and a self-contained page is the thing those checks check.
 ASSET_CSS = "app.css"
 ASSET_JS = "app.js"
-                                                                           
-                                                                           
+#: The line in the template after which everything is shared. Above it live
+#: `PAGE`, `TABLE_PAGES` and `D` — the three things that differ per page.
 SHARED_FROM = "// __SHARED_BELOW__"
 
 

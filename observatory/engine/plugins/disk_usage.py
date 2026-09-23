@@ -48,8 +48,8 @@ def walk_all(folders, seen: set[str]) -> int:
     for folder in folders:
         path = paths.DATA / folder
         real = str(path.resolve()) if path.exists() else ""
-                                                                                
-                                                                    
+        # A symlinked folder and its target are one place on disk. Counting both
+        # would double a project's footprint for a convenience link.
         if not real or real in seen or not path.is_dir():
             continue
         seen.add(real)
@@ -131,25 +131,25 @@ def main() -> int:
         folders = p.get("local_folders") or []
         if not folders:
             continue
-                                                                                
-                                               
+        # ONE `seen` ACROSS BOTH, so a folder that is both a declared home and a
+        # recorded extra clone is counted once.
         seen: set[str] = set()
         total = walk_all(folders, seen)
         extra = walk_all(worktrees_of(p["id"], relations, repos), seen)
         if total:
-                                                                               
-                                                                                
-                                                                                
-                                                                              
-                                                                              
+            # `disk.bytes` KEEPS ITS MEANING — the primary checkouts. Folding
+            # the worktrees into it would silently break the series: yesterday's
+            # value measured one thing and today's another, and a trend computed
+            # across that boundary is a fiction. The extra checkouts are their
+            # own metric, so both numbers stay comparable with their own past.
             print(json.dumps({"project_id": p["id"], "metric": "disk.bytes",
                               "at": at, "value": float(total)}))
         if extra:
             print(json.dumps({"project_id": p["id"], "metric": "disk.worktree_bytes",
                               "at": at, "value": float(extra)}))
-                                                                               
-                                                                                
-                                                        
+        # RECLAIMABLE, over every checkout: the question "what can I free" does
+        # not care which copy the bytes sit in. Measured across the whole estate
+        # in 34s, well inside the runner's 300s ceiling.
         recl = 0
         for folder in list(folders) + worktrees_of(p["id"], relations, repos):
             path = paths.DATA / folder

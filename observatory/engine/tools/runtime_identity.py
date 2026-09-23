@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-""                                                                            
+"""Explicitly create or inspect a local token/salt without printing its value.
 
-                                                                                
-                                                                            
-                                                                               
-                                                                           
-   
+Use init only for a new identity. Restore a lost token/salt from a trusted copy:
+a new token requires clients to reconnect; a new salt makes old fingerprints
+incomparable. Uses OBSERVATORY_STATE, or the legacy store directory by default.
+This command does not migrate a workspace or copy values from another root.
+"""
 from __future__ import annotations
 import argparse
 from pathlib import Path

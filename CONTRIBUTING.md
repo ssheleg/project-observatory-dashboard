@@ -35,3 +35,13 @@ features and unexecuted tests clearly labelled. Public copy must cite reviewed
 facts and never turn occurrence counts into unique-secret or breach counts.
 New public assets require an explicit path and content review before entering
 the release allowlist.
+
+## Comments and design notes
+
+This repository is the engine's upstream, so its comments and docstrings are the design record:
+explain *why* a function exists, which failure it guards against, and which document governs it.
+They must not name private projects, people, hosts, paths or credential values, and they must not
+cite decision records that live outside this repository. The first public export removed every
+comment; on 2026-09-23 3,049 lines were restored from the original sources, each one filtered for
+private identifiers and each file verified to have an unchanged syntax tree.
+

@@ -173,10 +173,10 @@ def test_the_token_exchange_needs_no_third_party_transport() -> None:
           "transport.requests" not in code0 and "import requests" not in code0,
           "the documented transport pulls in `requests`, which this venv "
           "does not have and a launchd tick would report as a broken plugin")
-                                                                           
-                                                                            
-                                                                      
-                                           
+    # THROUGH `code_only`, both of them. Written against the raw text these
+    # failed on the DOCSTRING and the COMMENT that explain the rules — the
+    # seventh and eighth time in this repository that an assertion was
+    # satisfiable by its own documentation.
     check("and the assertion never reaches an error message",
           "assertion" not in code0.split("except urllib.error.HTTPError")[1],
           "a signed assertion echoed into an exception is a credential in a log")
@@ -194,8 +194,8 @@ def test_the_token_exchange_needs_no_third_party_transport() -> None:
     except RuntimeError as exc:
         check("a key file with no private_key names the field",
               "private_key" in str(exc), str(exc))
-                                                                               
-                                                               
+    # The cache is the reason three plugins on one tick mint one token, and its
+    # expiry is the reason a long tick does not use a dead one.
     ga._CACHE[("K", "S")] = ("cached-token", 1e12)
     check("a live cache entry is returned without any exchange",
           ga.access_token(pathlib.Path("K"), "S", now=0) == "cached-token")
@@ -277,8 +277,8 @@ def test_the_cf_door_probes_with_the_plugins_own_query() -> None:
     check("and a token that can read analytics passes the probe",
           m.can_read_analytics("whatever", ["z-1"]) == "", "")
 
-                                                                              
-                                      
+    # zones_of + slug is where the label comes from — the provider's account
+    # name, never the person's typing.
     m._request = lambda path, token, payload=None, method=None: {
         "result": [{"id": "z-9", "name": "example.com",
                     "account": {"name": "Example Account"}}],

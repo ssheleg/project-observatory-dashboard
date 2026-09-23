@@ -95,9 +95,9 @@ def render(data: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-                                                                               
-                                                                                 
-                                                                      
+#: Two tick intervals. The tick exports on every run, so a row still unexported
+#: after two of them means the exporter is not running — while a row written in
+#: the last few minutes means only that the export is younger than it.
 GRACE_SECONDS = 3600
 
 

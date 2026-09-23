@@ -1,42 +1,42 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Five numbers on a project's row, three of them unreadable without a mouse.
 
                                                                     
 
-                                                          
+    70 packages · 92 МБ · 2.6 ГБ · 8 days · 6 tags
 
-                                                                                 
-                                                                          
-                                                                      
-                                                                     
-                                                                         
+* the two byte figures are `disk.bytes` and `disk.reclaimable_bytes` — what the
+  project COSTS and what deleting its package directories would GIVE BACK,
+  opposite meanings, distinguishable only by hovering for the `title`;
+* `8 days` is `release.days_since_last` — days of what, unlabelled;
+* `70 packages` and `6 tags` happen to read because their unit is a noun.
 
-                                                                               
-                                                                                 
-                                                                  
+92 of the 159 rows carry three or more metrics, so this is the common case, and
+it is the plugin seam's own output: **every metric a future plugin declares lands
+in this renderer**, which is the thing the operator asked to grow.
 
-                                                                              
-                                                                              
-                                                                       
-                                                                                
-                                 
+**The core may not name a plugin's metric.** That is the six-file problem this
+whole indirection exists to prevent — `dashboard/build_dashboard.py` already
+carries the scar, its own comment recording that the first version read
+`disk.bytes` explicitly and the plugin suite caught it. So a mapping from metric
+name to caption cannot live here.
 
-                                                                               
-                                                                                 
-                                                                            
-                                                                                   
-                                                 
+**So the plugin says it.** A metric declaration may carry `label`: the author's
+own short caption, beside `unit`, `means` and `role`, which already come from the
+manifest. When it is absent the renderer falls back to the metric's NAME —
+`disk.bytes 92 МБ`, verbose and unambiguous — so a plugin that declares nothing
+still reads, and no core file has learned a name.
 
-                                                                                       
-                                                                                        
-                                                                             
+**The label replaces the unit word rather than joining it.** "пакетов 70" reads;
+"пакетов 70 packages" does not. A declared label is the whole caption, which puts
+the whole caption in the hands of the person who knows what the number means.
 
-                                                                         
-                                                                                
-                                                                              
-                                                                             
-                                                          
-   
+**Russian, because the page is.** `unit` values are already English nouns
+rendered onto a Russian page (`70 packages`), so the page mixes today; a Russian
+caption is the improvement, and a manifest is configuration rather than prose.
+`unit` itself is left alone: it is stored in the `metrics` table beside every
+value and changing it would rewrite data to fix a caption.
+"""
 from __future__ import annotations
 import json, pathlib, re, subprocess, sys
 
@@ -65,11 +65,11 @@ def manifests() -> list[dict]:
     return [m for m in run_plugins.manifests() if not m.get("_broken")]
 
 
-                                                                                                                                                                                     
+# ─────────── the declaration ───────────────────────────────────────────
 
 def test_every_installed_metric_declares_a_label() -> None:
-    ""                                                                               
-                                                                                 
+    """Not a hard requirement of the seam — the renderer falls back to the name —
+    but the three plugins shipped here are the example the next author copies."""
     missing = []
     for m in manifests():
         for met in m.get("metrics", []):
@@ -91,8 +91,8 @@ def test_a_label_is_short_enough_to_sit_in_a_chip() -> None:
 
 
 def test_the_label_does_not_repeat_the_unit() -> None:
-    ""                                                                             
-                               
+    """"пакетов 70 packages" is what happens when the caption joins the unit
+    instead of replacing it."""
     bad = []
     for m in manifests():
         for met in m.get("metrics", []):
@@ -102,7 +102,7 @@ def test_the_label_does_not_repeat_the_unit() -> None:
     check("a caption does not contain its own unit", not bad, str(bad))
 
 
-                                                                                                                                                                       
+# ─────────── the payload carries it ────────────────────────────────────
 
 def test_the_payload_carries_a_caption_per_metric() -> None:
     page = fixture_page()
@@ -155,7 +155,7 @@ def test_the_core_still_names_no_plugin_metric() -> None:
           "one reader of the manifests, not a second glob")
 
 
-                                                                                                                                                                             
+# ─────────── the page renders it ───────────────────────────────────────
 
 def test_the_rendered_chip_shows_the_caption() -> None:
     import shutil
