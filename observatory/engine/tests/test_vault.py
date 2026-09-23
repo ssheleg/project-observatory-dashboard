@@ -35,6 +35,12 @@ def vault(store: pathlib.Path, *args: str, stdin: str = "") -> subprocess.Comple
                           capture_output=True, text=True, timeout=120)
 
 
+# Distinctive synthetic values: a check that a value is absent from a finding
+# must not trip on a random temporary path that happens to contain "v1".
+BOARD_V1 = "synthetic-board-value-5f0c1e"
+BOARD_V2 = "synthetic-board-value-9a73d4"
+
+
 def settlement_evidence() -> tuple[str, ...]:
     return ("--revocation-evidence", "fake-provider receipt revoke-old-version-7",
             "--consumer-evidence", "fixture consumers api and worker passed with replacement version")
@@ -213,7 +219,7 @@ def test_the_board_carries_an_open_leak_and_drops_a_settled_one() -> None:
     ""                                                                  
     import importlib.util
     s = fresh()
-    vault(s, "put", "demo", "prod", "API_TOKEN", stdin="v1")
+    vault(s, "put", "demo", "prod", "API_TOKEN", stdin=BOARD_V1)
     vault(s, "leak", "demo", "prod", "API_TOKEN", "--where", "planted for the board test")
     os.environ["OBSERVATORY_VAULT_DIR"] = str(s)
     try:
@@ -226,8 +232,8 @@ def test_the_board_carries_an_open_leak_and_drops_a_settled_one() -> None:
         check("the finding names the slot and the place, never the value",
               got and "demo/prod/API_TOKEN" in got[0]["title"]
               and "planted for the board test" in got[0]["detail"]
-              and "v1" not in json.dumps(got), str(got)[:200])
-        vault(s, "rotate", "demo", "prod", "API_TOKEN", stdin="v2")
+              and BOARD_V1 not in json.dumps(got), str(got)[:200])
+        vault(s, "rotate", "demo", "prod", "API_TOKEN", stdin=BOARD_V2)
         spec = importlib.util.spec_from_file_location("bf_v2", ROOT / "tools/build_findings.py")
         bf2 = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(bf2)

@@ -22,6 +22,13 @@
                                                                           
                                                                         
 
+                                                                         
+                                                                             
+                                                                         
+                                                                            
+                                                                                
+                 
+
                                                                                 
                          
    
@@ -119,6 +126,32 @@ def findings(doc: dict | None) -> list[dict]:
                        "tools/vault.py put <project> prod NAME` — on stdin, by name — and "
                        "it comes back with the encrypted store backup; the row stays until "
                        "the scan can see the slot"),
+        })
+
+                                                                                                                                                        
+                                                                              
+                                                                            
+                                                                            
+                                                                                  
+                                                                        
+    ns = doc.get("fingerprint_namespace") or {}
+    if ns.get("withheld"):
+        out.append({
+            "type": "remote.namespace_withheld",
+            "subject": "estate:remote-config",
+            "severity": "warning",
+            "title": (f"{ns['withheld']} production secret(s) cannot be compared with "
+                      f"this machine's"),
+            "detail": (f"{ns.get('reason') or 'the two scans do not share a fingerprint namespace'}. "
+                       "Both sides hold the variable and both hold a fingerprint. "
+                       "They were salted differently, so equal values would not produce "
+                       "equal fingerprints. They read as not compared rather than as "
+                       "differing — `differs` is the ordinary verdict here, and reporting "
+                       "it would make a changed salt indistinguishable from a healthy estate. "
+                       "Nothing about production changed; what changed is what this machine "
+                       "can prove about it."),
+            "action": (ns.get("action")
+                       or "re-read both inventories under one salt, then emit"),
         })
 
                                                                                                                   
