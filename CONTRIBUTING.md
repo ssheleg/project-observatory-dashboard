@@ -12,6 +12,12 @@ python tools/check_public_release.py --history
 python docs/site/check.py --self-test
 ```
 
+A maintainer who holds the private predecessor also passes
+`--private-denylist FILE`: a local JSON array of private names, never committed. Names this
+repository publishes on purpose, such as the author and the author's public projects, are listed
+with a reason in `tools/public-identifiers.json` and subtracted from that list. An entry there is a
+review decision. It is not a way to silence a finding, and an entry without a reason fails the check.
+
 Use synthetic fixtures and isolated temporary workspaces. Never run the full
 historical test directory indiscriminately against an operational home. The
 portable runner lists its supported suites and labels live provider checks
