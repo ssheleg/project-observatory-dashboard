@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77,<81"]
+requires = ["setuptools>=77,<85"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -42,7 +42,7 @@ project-observatory = "observatory.cli:main"
 packages = ["observatory"]
 
 [project.optional-dependencies]
-full = ["mcp==2.1.1", "jsonschema==4.26.0", "sqlite-vec==0.1.9", "google-auth==2.58.0"]
+full = ["mcp==2.2.0", "jsonschema==4.26.0", "sqlite-vec==0.1.9", "google-auth==2.58.0"]
 
 [tool.setuptools.package-data]
 observatory = ["engine/**/*", "engine/skill/.claude-plugin/*.json", "engine/skill/plugins/*/.claude-plugin/*.json"]
