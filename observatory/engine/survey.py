@@ -77,15 +77,26 @@ def ids_for_project(project_id: str) -> list[str]:
                                                                          
        
     try:
-        for p in _load("projects.json")["projects"]:
+        projects = _load("projects.json")["projects"]
+        for p in projects:
             if p["id"] == project_id:
-                return identity.ids_for(p)
+                return identity.ids_for(p, projects)
     except (OSError, ValueError, KeyError):
                                                                                
                                                                                 
                                                                                   
         pass
     return [project_id]
+
+
+def _identity_warnings(projects: list[dict], project_id: str | None = None) -> list[dict]:
+    conflicts = identity.former_conflicts(projects)
+    relevant = any(project_id is None or project_id == old or project_id in owners
+                   for old, owners in conflicts.items())
+    if not relevant:
+        return []
+    return [{'source':'identity', 'reason':
+             'Ambiguous links to old project identifiers were not followed; review the project/folder mapping.'}]
 
 
 def _tier_vocabulary() -> list[dict]:
@@ -257,7 +268,7 @@ def survey(scope: dict | None = None, include_external: bool = False,
     scope = scope or {"kind": "estate"}
     kind = scope.get("kind", "estate")
     projects, repos, members = _index()
-    degraded: list[dict] = []
+    degraded: list[dict] = _identity_warnings(projects, scope.get('value') if kind == 'project' else None)
 
     owned = None
     if conn is None:
@@ -368,11 +379,8 @@ def survey(scope: dict | None = None, include_external: bool = False,
     estate_work: dict | None = None
     if conn is not None:
         days = activity.active_window_days()
-        renamed_to: dict[str, str] = {}
-        for _p in (projects.values() if isinstance(projects, dict) else projects):
-            for _old in identity.ids_for(_p):
-                if _old != _p["id"]:
-                    renamed_to[_old] = _p["id"]
+        project_rows = list(projects.values()) if isinstance(projects, dict) else projects
+        renamed_to = identity.former_index(project_rows)
         try:
             recent = _recent_activity(conn, renamed_to, days)
             window = {"windowDays": days}
@@ -384,10 +392,7 @@ def survey(scope: dict | None = None, include_external: bool = False,
                                                                                 
                                                                          
                 try:
-                    known = set()
-                    for _p in (projects.values() if isinstance(projects, dict)
-                               else projects):
-                        known.update(identity.ids_for(_p))
+                    known = {p['id'] for p in project_rows} | set(renamed_to)
                     work = _estate_work(conn, first, known)
                 except sqlite3.Error as exc:
                     degraded.append({"source": "events",
@@ -525,7 +530,7 @@ def project_detail(project_id: str, timeline_limit: int = 10,
     if timeline_limit:
         tl = timeline(project_id, limit=timeline_limit)
         out["recentEvents"] = tl["events"]
-        out["degraded"] += tl["degraded"]
+        out["degraded"] += [d for d in tl["degraded"] if d not in out["degraded"]]
 
                                                                              
                                                                             
@@ -773,7 +778,10 @@ def timeline(project_id: str, since: str | None = None, limit: int = 100) -> dic
                 payload = {}
             rows.append({"kind": r["kind"], "ref": r["ref"], "actor": r["actor"],
                          "occurredAt": r["occurred_at"], "payload": payload})
-        degraded = []
+        try:
+            degraded = _identity_warnings(_load('projects.json')['projects'], project_id)
+        except (OSError, ValueError, KeyError):
+            degraded = []
         if not conn.execute("SELECT 1 FROM events LIMIT 1").fetchone():
             degraded.append({"source": "events",
                              "reason": "the event store is empty; run collectors/scan_events.py"})

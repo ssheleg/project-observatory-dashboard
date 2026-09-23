@@ -652,11 +652,12 @@
     {
       "path": "identity.py",
       "source_sha256": "e14c910186302d0c41540a4fbb6164176d964e5954bf7c12a265900c32af595e",
-      "export_sha256": "9806a9f410b97e437321c19154128598b587d61eb4daa6ce8899750d383ba201",
-      "bytes": 5085,
+      "export_sha256": "af9fb229a7ce30f1b2fa4bf53e36a99fb9d732bfd6350c251bbe6700ddad5cc7",
+      "bytes": 6312,
       "python_comments_removed": 7,
       "python_docstrings_removed": 9,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "leak_register.py",
@@ -1006,11 +1007,26 @@
     {
       "path": "survey.py",
       "source_sha256": "2c692bcd4b6deac11f6608cce06abe134b748382d7037e43a6d2034d193aac0f",
-      "export_sha256": "bac4511afa77122492084174b55877ce69ee9f31e38448b72b47df8269e46c55",
-      "bytes": 53363,
+      "export_sha256": "c58e4c4f4e2a6935001977ae5c512e3117bfe333eb473df71b427358280ca8f3",
+      "bytes": 53909,
       "python_comments_removed": 210,
       "python_docstrings_removed": 11,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
+    },
+    {
+      "path": "tests/dashboard_fixture.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "6972d68668b84b43d6031af9b5d9ac7e495aa5cfb55db80bc11e15cf5377ffc8",
+      "bytes": 4184
+    },
+    {
+      "path": "tests/emitter_fixture.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "93741b4f00640403c855015832a79c5a9874403147fbb455c69b17b0a1603a26",
+      "bytes": 2410
     },
     {
       "path": "tests/live_estate.py",
@@ -1039,12 +1055,19 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "2c35d1ea792c0c9f63355ddd09b702afb31349ddb21f4a6b9d41315ffbff74d7",
-      "bytes": 9648,
+      "export_sha256": "fbf64fe3062a06e526b6348f65c93c05cc86936dd51a65b99c86b31726814e8b",
+      "bytes": 9773,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/session_fixture.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "95d540021659d4fe2c40bce0f0e9740dcc5d0fa7ff20eb168b9917eb2e812ea1",
+      "bytes": 3179
     },
     {
       "path": "tests/source_reader.py",
@@ -1054,6 +1077,13 @@
       "python_comments_removed": 6,
       "python_docstrings_removed": 5,
       "tool_descriptions_retained": 0
+    },
+    {
+      "path": "tests/surface_fixture.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "614da5ce1cd1041e05e2d6a838b522177788201669da13aaa7bcf631acc6172c",
+      "bytes": 2343
     },
     {
       "path": "tests/test_ack.py",
@@ -1210,6 +1240,13 @@
       "python_comments_removed": 2,
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0
+    },
+    {
+      "path": "tests/test_project_identity.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "038ed812d252615f3247fa4e9500f17364902a2b36eb57d39433fa6ab7870308",
+      "bytes": 26462
     },
     {
       "path": "tests/test_provenance.py",
@@ -1430,8 +1467,8 @@
     {
       "path": "tools/build_findings.py",
       "source_sha256": "03136ce1f366d180307f7f0c17ab41a3de82631103750f081a6d79758569e0b3",
-      "export_sha256": "ada618c29c48303f0d87762d10183de4d2a8e091c489822967d518e83f6e74e6",
-      "bytes": 243998,
+      "export_sha256": "6ff169881341a746d08c74ef5a1017f7edb770b5410f91efc1b52f4de613e323",
+      "bytes": 244042,
       "python_comments_removed": 996,
       "python_docstrings_removed": 28,
       "tool_descriptions_retained": 0,
@@ -1914,7 +1951,7 @@
       "tool_descriptions_retained": 0
     }
   ],
-  "file_count": 233,
+  "file_count": 238,
   "excluded": [
     "git-history",
     "operator-registries",
