@@ -50,12 +50,12 @@ def test_a_nested_name_belongs_to_its_FIRST_segment() -> None:
     ""                                                                            
     m = load_collector()
     projects = [{"id": "project:skills", "name": "skills",
-                 "local_folders": ["sshlg-skills"]},
+                 "local_folders": ["example-skills"]},
                 {"id": "project:noddy", "name": "noddy", "local_folders": ["noddy"]}]
     index, _ = m.build_index(projects)
-    pid, rule = m.attribute("sshlg-skills/noddy", index)
+    pid, rule = m.attribute("example-skills/noddy", index)
     check("the first path segment wins", pid == "project:skills", f"{pid} by {rule}")
-    check("and the rule says which name it came from", "sshlg-skills/noddy" in rule, rule)
+    check("and the rule says which name it came from", "example-skills/noddy" in rule, rule)
 
 
 def test_scan_reports_unknown_and_excluded_without_overlap():

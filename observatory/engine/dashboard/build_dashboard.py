@@ -1490,7 +1490,7 @@ __NAV__
     <button class="chip-btn" data-f="drift" aria-pressed="false">объявлен живым, измерен мёртвым</button>
     <button class="chip-btn" data-f="owned" aria-pressed="false">только своё</button>
   </div>
-  <!-- D-21 (DEC-0248): a VIEW switch, not a filter. «правила» changes what each
+  <!-- D-21: a VIEW switch, not a filter. «правила» changes what each
        row shows, never which rows show — so it sits outside the filter group,
        and `narrowing()`, which reads chips inside `.seg` only, does not count
        it among the filters. -->
@@ -3488,7 +3488,7 @@ function renderDomains() {
     <p class="dmeta">Показано ${doms.length} из ${rows0.length} ·
       ${rows0.filter(d => !(d.projects || []).length).length} не привязано ни к одному проекту ·
       ${D.zones ? `${D.zones.length} зон Cloudflare в ${new Set(D.zones.map(z => z.account_label)).size} аккаунтах` : "Cloudflare не сканировался"} ·
-      цена продления здесь не измеряется (DEC-0210)</p>`;
+      цена продления здесь не измеряется</p>`;
 }
 
 const STATE_RU = { running: "работает", down: "упало", suspended: "приостановлено",

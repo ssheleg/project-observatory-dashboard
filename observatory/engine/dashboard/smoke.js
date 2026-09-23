@@ -16,7 +16,7 @@
 // earlier. So this file caught the regression unattended and named it, and its
 // report reached a log nobody reads: the tick ran smoke and did not REPORT it,
 // no receipt, no finding, no failed step. A verdict that outlives its log line
-// is what `tools/build_findings.py` can read (DEC-0167).
+// is what `tools/build_findings.py` can read.
 //
 // The receipt carries the checked page's OWN hash, because a clean verdict from
 // an hour ago says nothing about the build that replaced it — and a stale clean
@@ -60,7 +60,7 @@ function receipt(verdict, extra) {
 // EVERY script the page carries, in document order, inline and `src` alike —
 // which is what a browser executes. The single page holds one inline block; a
 // split page holds its own data inline and then loads the shared `app.js`
-// beside it (DEC-0232), and running only the inline half would report a blank
+// beside it, and running only the inline half would report a blank
 // page that renders perfectly.
 const SCRIPT = /<script(?:\s+src="([^"]+)")?\s*>([\s\S]*?)<\/script>/g;
 const parts = [];

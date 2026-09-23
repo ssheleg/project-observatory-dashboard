@@ -140,7 +140,7 @@ def test_the_spend_row_renders_at_all() -> None:
           "a browser deriving which month it is would be a second place to be wrong")
     check("and the label says WHOSE spend it is",
           "этим проектом" in src,
-          "the provider's counter measures a shared key (DEC-0075)")
+          "the provider's counter measures a shared key")
 
 
 def test_the_health_panel_shows_what_the_store_holds() -> None:

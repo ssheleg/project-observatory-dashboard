@@ -183,7 +183,7 @@ def table(data: dict) -> str:
               "trap, its file is run by a step of the `check` group, and the function is "
               "dispatched from its suite's `__main__`. It does not prove efficacy — that "
               "is established by watching a check reject a planted defect, and a guard "
-              "that has stopped being able to fire would pass every test here (DEC-0111). "
+              "that has stopped being able to fire would pass every test here. "
               "The last column names how efficacy IS established for each trap — "
               "`mutation` means `tools/trap_efficacy.py` puts the defect back and "
               "watches this guard fail; `self-driven` means the guard plants the "
