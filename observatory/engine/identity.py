@@ -63,6 +63,8 @@ def local_id(folder: str) -> str:
     return "project:" + local_key(folder)
 
 
+# Design and contract for ids, aliases and renames: docs/design/IDENTITY.md
+# (repository root). former_ids below is the one computed alias that exists today.
 def former_ids(project: dict) -> list[str]:
     """The ids this project would have carried before it was published.
 

@@ -293,11 +293,15 @@ for key in sorted(projs):
         if had and not has:
             cleared.append(f"{i}.{field} was {str(had)[:40]!r}, measurement says nothing")
     out_projs.append(e)
+    # Relation ids name the PROJECT ID, not the merge key: with an
+    # identity_overrides entry the id stays put across a rename while the key
+    # moves, and an edge id built from the key moved with it.
+    slug_id = i.split(":", 1)[1]
     for k in p["repos"]:
-        add_rel(f"relation:{key}:implemented-by:{k}".replace("/","-"),"implemented_by",i,"repository:"+k,SRC)
+        add_rel(f"relation:{slug_id}:implemented-by:{k}".replace("/","-"),"implemented_by",i,"repository:"+k,SRC)
     for s in p["sites"]:
         if s["confidence"]=="registry-confirmed":
-            add_rel(f"relation:{s['owned_domain']}:public-domain-of:{key}","public_domain_of",
+            add_rel(f"relation:{s['owned_domain']}:public-domain-of:{slug_id}","public_domain_of",
                     "domain:"+s["owned_domain"],i,SRC)
                                                                            
                                                                                 

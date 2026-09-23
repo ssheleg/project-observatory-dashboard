@@ -474,9 +474,31 @@ def test_ambiguous_history_stays_under_its_original_id() -> None:
                   any('no unambiguous project' in f['detail'] for f in memory))
 
 
+def test_an_overridden_project_keeps_its_relation_ids() -> None:
+    """With identity_overrides pinning a project id, its edges must be named by that id."""
+    sys.path.insert(0, str(ROOT / "tests"))
+    from emitter_fixture import seed
+    root = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-override-rel-")).resolve()
+    env = seed(root)
+    home = root / "home"
+    env = {**env, "OBSERVATORY_HOME": str(home)}
+    subprocess.run([sys.executable, str(ROOT / "observatory.py"), "init"], cwd=ROOT, env=env,
+                   capture_output=True, timeout=120, check=True)
+    (home / "config/identity_overrides.json").write_text(json.dumps({"overrides": {"fixture-a": "stable-a"}}))
+    p = subprocess.run([sys.executable, str(ROOT / "collectors/emit_registry.py")], cwd=ROOT, env=env,
+                       capture_output=True, text=True, timeout=120)
+    check("the emitter runs with an override", p.returncode == 0, (p.stdout + p.stderr)[-300:])
+    rels = json.loads((root / "registry/relations.json").read_text())["relations"]
+    mine = [r for r in rels if r.get("from") == "project:stable-a"]
+    check("the overridden project has its implemented_by edge", bool(mine), str(rels)[:300])
+    check("and the edge id names the pinned id, not the merge key",
+          all(r["id"].startswith("relation:stable-a:") for r in mine), str([r["id"] for r in mine]))
+
+
 if __name__ == "__main__":
     print("project identity — publishing a project detached its history\n")
-    for fn in (test_the_naming_rule_lives_in_one_place,
+    for fn in (test_an_overridden_project_keeps_its_relation_ids,
+               test_the_naming_rule_lives_in_one_place,
                test_a_projects_former_ids_are_derived_from_its_folders,
                test_the_index_maps_old_ids_to_the_project_that_holds_them_now,
                test_a_row_that_follows_a_publication_is_not_called_an_orphan,

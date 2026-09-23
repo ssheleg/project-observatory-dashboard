@@ -125,6 +125,17 @@ def targets(projects: list[dict], repos: dict[str, dict],
         out.append({"label": rid, "project_id": owner_of.get(rid), "repo_id": rid,
                     "path": local["path"], "created_on": repo.get("created_on") or "",
                     "name": repo.get("name_with_owner") or rid.split(":", 1)[1]})
+        # EVERY CHECKOUT, not only the primary one. A second clone or a worktree
+        # on another branch holds commits the primary does not; reading only
+        # `local.path` recorded none of them. The label stays the repository id,
+        # so a sha seen in two checkouts of ONE repository is not reported as
+        # history shared between repositories, and INSERT OR IGNORE keeps one row.
+        for extra in local.get("extra_checkouts") or []:
+            if extra.get("path") and extra["path"] != local["path"]:
+                out.append({"label": rid, "project_id": owner_of.get(rid), "repo_id": rid,
+                            "path": extra["path"], "created_on": repo.get("created_on") or "",
+                            "name": repo.get("name_with_owner") or rid.split(":", 1)[1],
+                            "checkout": extra.get("folder")})
     for p in projects:
         lo = p.get("local_only") or {}
         # `unpublished` is `is_git and no parseable remote` (collectors/merge.py),

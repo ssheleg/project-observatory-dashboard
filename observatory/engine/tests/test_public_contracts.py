@@ -109,6 +109,24 @@ assert r.requirement_error('integration:../bad')
         p=subprocess.run([sys.executable,'collectors/merge.py'],cwd=ROOT,env=self.env,text=True,capture_output=True,timeout=30)
         self.assertNotEqual(p.returncode,0)
 
+    def test_projects_that_slug_to_one_key_are_all_kept(self):
+        home=self.base/'collide-runtime'; self.env['OBSERVATORY_HOME']=str(home)
+        projects=self.base/'collide-projects'
+        for name in ('a b','a-b'):
+            (projects/name).mkdir(parents=True); (projects/name/'README.md').write_text('Synthetic '+name)
+        steps=[['observatory.py','init'],['collectors/scan_filesystem.py',str(home/'store/raw/local.json')],['collectors/merge.py'],['collectors/emit_registry.py']]
+        for index,step in enumerate(steps):
+            if index==1:
+                settings=home/'config/settings.json';d=json.loads(settings.read_text())
+                d['sources']['projects']=str(projects);settings.write_text(json.dumps(d))
+            p=subprocess.run([sys.executable,*step],cwd=ROOT,env=self.env,text=True,capture_output=True,timeout=30)
+            self.assertEqual(p.returncode,0,step[0]+': '+p.stderr)
+        public=json.loads((home/'registry/projects.json').read_text())
+        names=sorted(x['name'] for x in public['projects'])
+        self.assertEqual(names,['a b','a-b'],'both colliding projects survive the merge')
+        self.assertEqual(len({x['id'] for x in public['projects']}),2)
+        self.assertTrue(any(d.get('source')=='identity' and 'share the key' in d.get('reason','') for d in public['degraded']))
+
     def test_empty_registry_and_optional_sources(self):
         p=self.validate();self.assertEqual(p.returncode,0,p.stderr)
         self.assertIn('degraded_sources=2',p.stdout)
