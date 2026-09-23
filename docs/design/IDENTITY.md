@@ -102,6 +102,8 @@ precedence. Existing `former_ids` (local folder to published) remain an addition
 
 ## Out of scope for this slice
 
+- **Environments, accounts and deployments**: [DEPLOYMENTS.md](DEPLOYMENTS.md) (PB-004).
+
 - **Checkouts as entities** (`checkout:<repository>/<folder>`): PB-003b.
 - **Components**: several products in one repository, sub-directories of a monorepo. PB-003c; the
   product model stays N projects to 1 product until then.
