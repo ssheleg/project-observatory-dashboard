@@ -10,6 +10,7 @@ subtracted from the private list.
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import re
@@ -52,9 +53,25 @@ PATTERNS = {
 }
 
 
+@functools.lru_cache(maxsize=8)
+def _deny_pattern(deny: tuple[str, ...]) -> re.Pattern | None:
+    """One alternation for the whole private list, longest first, compiled once.
+
+    A regex per value per blob made a history scan with a few thousand values
+    take longer than the CI job it guards. Pass/fail is the same; a count may
+    differ only where two listed values match at one position.
+    """
+    values = sorted({v for v in deny if v}, key=len, reverse=True)
+    if not values:
+        return None
+    return re.compile(r"(?<![A-Za-z0-9_.-])(?:" + "|".join(map(re.escape, values)) + r")(?:\.git)?(?![A-Za-z0-9_.-])",
+                      re.IGNORECASE)
+
+
 def scan_text(text: str, deny: list[str]) -> dict[str, int]:
     hits = {kind: len(rx.findall(text)) for kind, rx in PATTERNS.items()}
-    hits["private-identifier"] = sum(len(re.findall(r"(?<![A-Za-z0-9_.-])" + re.escape(value) + r"(?:\.git)?(?![A-Za-z0-9_.-])", text, re.IGNORECASE)) for value in deny if value)
+    rx = _deny_pattern(tuple(deny))
+    hits["private-identifier"] = len(rx.findall(text)) if rx else 0
     return {kind: n for kind, n in hits.items() if n}
 
 
