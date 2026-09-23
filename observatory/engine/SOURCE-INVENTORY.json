@@ -1306,8 +1306,8 @@
     {
       "path": "tests/test_vault.py",
       "source_sha256": "7fdbb28115a9f017c42a7c292f00850b4b04ae14d4cb0b68bfbce9e801cf3be6",
-      "export_sha256": "de3a0879bc0ccffea23b454be40ddedb05669ce81eb2ac6ab3372ca35e0f3285",
-      "bytes": 25713,
+      "export_sha256": "4f10a74fdf4c8d5782cab1ef27b02e60c3d91bf1f34ef5a027573a76cb56577f",
+      "bytes": 25962,
       "python_comments_removed": 5,
       "python_docstrings_removed": 7,
       "tool_descriptions_retained": 0,
