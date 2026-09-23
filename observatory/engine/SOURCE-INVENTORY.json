@@ -22,8 +22,8 @@
     {
       "path": "agent/providers.py",
       "source_sha256": "e2d88a03c47dc5985b106877fc894951b0b5972f37bed90df0a0e54dd03caaaf",
-      "export_sha256": "e42332e984977c788b49ea0e3c4a712cc24f535ea377a94d57b7a6549449136b",
-      "bytes": 51346,
+      "export_sha256": "d3e4ec0979c8066b245376e605d3c42422d7af141f605e1b10cac909095dd005",
+      "bytes": 51342,
       "python_comments_removed": 168,
       "python_docstrings_removed": 24,
       "tool_descriptions_retained": 0

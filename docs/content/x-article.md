@@ -42,7 +42,7 @@ One reviewed cleanup in my setup recorded **202 value-replacement events** acros
 
 Reviewed cleanup: claude-mem SQLite, 66 value replacements; Chroma SQLite, 136. These are events, not unique keys or confirmed breaches.
 
-The evidence shows retained local copies; it does not show that an attacker obtained them. I've published the [aggregate and its limits](https://github.com/ssheleg/project-observatory-open-source/blob/main/docs/site/CASE-STUDY.md), keeping project names, credential values and raw records private.
+The evidence shows retained local copies; it does not show that an attacker obtained them. I've published the [aggregate and its limits](https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/site/CASE-STUDY.md), keeping project names, credential values and raw records private.
 
 I had been looking at where credentials were configured. Now I also had to look at the history left by using them. A memory store could hold a copy long after I had finished the task that put it there.
 
@@ -92,7 +92,7 @@ I wanted the next warning to come with context: which project it belonged to, wh
 
 ## Your projects, your workspace
 
-I've released the full Project Observatory engine as [open source](https://github.com/ssheleg/project-observatory-open-source). The code is shared. Each user supplies their own project directories, accounts and credentials, and keeps their inventory and observations in a private workspace.
+I've released the full Project Observatory engine as [open source](https://github.com/ssheleg/project-observatory-dashboard). The code is shared. Each user supplies their own project directories, accounts and credentials, and keeps their inventory and observations in a private workspace.
 
 The [getting-started section](https://observatory.sshlg.me/#start) includes a prompt for your coding agent to guide setup. Start with a directory you understand, inspect what the tool observes, and add integrations deliberately. Enter credentials locally through the documented setup, rather than pasting them into the conversation you're using to investigate copies.
 

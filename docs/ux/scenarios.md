@@ -22,3 +22,11 @@ The public reading update adds SITE-10 (editorial figures, navigation, static te
 alternatives) and SITE-11 (404 recovery) in [the site scenario base](../site/BRIEF.md).
 The user explicitly authorized the visual direction and autonomous implementation;
 reading outcomes remain unobserved until reader feedback exists.
+
+
+The dashboard landing refresh adds SITE-12 (first-screen agent prompt, pending,
+success, clipboard-denied and no-JavaScript paths), SITE-13 (repository rename
+compatibility) and SITE-14 (explicitly fictional dashboard illustration) in
+[the site scenario base](../site/BRIEF.md#dashboard-landing-refresh--2026-09-23).
+This bounded update was explicitly authorized by the operator; it does not change
+the private dashboard's O9 runtime capabilities.

@@ -53,6 +53,7 @@ jobs:
         run: |
           python docs/site/check.py --self-test
           python tools/build_article.py --check
+          node tools/check_site_interactions.cjs
       - name: Installed CLI sterile demo
         shell: bash
         run: |
