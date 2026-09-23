@@ -61,8 +61,8 @@
     {
       "path": "collectors/credentials_registry.py",
       "source_sha256": "5876b75923c191737b6162537db6ef2e004b45a944ff1a387d2055cfd0de98e2",
-      "export_sha256": "2705a40661d528641f8bed3491a7e6e558476fb3476e2c7e13917bac2e364850",
-      "bytes": 29585,
+      "export_sha256": "973aef4a2d8b3c4622a261b1de9e1e99f8cf8f34ea712b60513d06eeca54e276",
+      "bytes": 32151,
       "python_comments_removed": 104,
       "python_docstrings_removed": 12,
       "tool_descriptions_retained": 0,
@@ -71,8 +71,8 @@
     {
       "path": "collectors/emit_registry.py",
       "source_sha256": "ff8edc591196dd1278b0766ea8216973f5cc3951ff702b417bdb053305e8170d",
-      "export_sha256": "01604c45419bba195bd42c8ad9546af7b339dfc304aa225b22afcaaabb043a0d",
-      "bytes": 49392,
+      "export_sha256": "edf1ad06e5c7a8cb32f8ca0678669f554cd582633fa8d7450608a626d20f1eb3",
+      "bytes": 50614,
       "python_comments_removed": 213,
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
@@ -168,8 +168,8 @@
     {
       "path": "collectors/remote_registry.py",
       "source_sha256": "dea2b15760ca5391f2d9b27bdbd80e644b38d5b0095e46a825da8f13c252442e",
-      "export_sha256": "431ec9b7ee48f7cfaa2dd1086458730657439cd15b474174ea87fdcf6ff0c1b5",
-      "bytes": 10568,
+      "export_sha256": "437292606e1289519fc60082074f5cd979694198869c93eb7c42ddc2fe39402b",
+      "bytes": 11198,
       "python_comments_removed": 4,
       "python_docstrings_removed": 3,
       "tool_descriptions_retained": 0,
@@ -298,8 +298,8 @@
     {
       "path": "collectors/scan_remote_env.py",
       "source_sha256": "d7198c977ac36e4d4629e7228c4b3a931726e50dddde802f9c529e286ba78391",
-      "export_sha256": "b0825de0e1a94cd7bc852fbc2f668b7dc7e2232e2f769015e7062b73869ce1c9",
-      "bytes": 12741,
+      "export_sha256": "249ea6c3cf3505ae7b948e807d8951f165273ac538213dc8f53e6c57c376b5bb",
+      "bytes": 13927,
       "python_comments_removed": 12,
       "python_docstrings_removed": 4,
       "tool_descriptions_retained": 0,
@@ -348,7 +348,7 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "d6ec6721f9f82c8b626e11e214e428420413b7b2dd6696c9546f8fcbf1dbee11",
+      "export_sha256": "7abfcbf27108ba14488b7d44b91ad8314aee7725c9580f42c33cc1e06fe23178",
       "bytes": 6535,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
@@ -572,8 +572,8 @@
     {
       "path": "docs/COMPATIBILITY.md",
       "source_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "export_sha256": "e600f94b593a6a76c28c5ad1d696c388c5be908edaca7c59c4bda8ac3b91b6f8",
-      "bytes": 8986,
+      "export_sha256": "ea22570339e8154731b604794c36f92eac4f8b4aa66fc1fbfae67fefd76a6ed0",
+      "bytes": 9602,
       "upstream_modified": true
     },
     {
@@ -1149,8 +1149,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "7fd9cd61d43836f030261a3e6c70e0ba2345c3453cd798882acf80eaefc43eee",
-      "bytes": 10136,
+      "export_sha256": "66772f47ddb24fd16b0ec773a20cce550177bfe824bf5d7e544cc21a491a7531",
+      "bytes": 10159,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1240,6 +1240,13 @@
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/test_credential_bindings.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "9e01b256315b632d3d5401ffcb93a143473b2961adb85362969182dc4717046f",
+      "bytes": 3043
     },
     {
       "path": "tests/test_credential_doors.py",
@@ -2205,8 +2212,8 @@
     {
       "path": "tools/validate_registry.py",
       "source_sha256": "5210502420dcda1ff5ca5a3c090d3d9fb8f330cf38be8e1ace9710e1af2e5e74",
-      "export_sha256": "1a7a6136ae1619dfcdffec56088280101d4de19a43a2a19b6bcfb8949eeaeb74",
-      "bytes": 24510,
+      "export_sha256": "3c10a3d60ddbdc4460098b2849efb116a3f982044fc95e087d9a60108f548f62",
+      "bytes": 25135,
       "python_comments_removed": 60,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -2243,7 +2250,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 259,
+  "file_count": 260,
   "excluded": [
     "git-history",
     "operator-registries",

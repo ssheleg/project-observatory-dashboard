@@ -249,16 +249,24 @@ if stale:
     print(f"rebuilding {stale} derived relation(s) from the model; "
           f"keeping {len(authored)} authored one(s)")
 out_projs=[]; relations=list(authored); seen_rel={r["id"] for r in relations}
-seen_edge={(r["type"],r["from"],r["to"]) for r in relations}
-def add_rel(rid,typ,frm,to,refs,rule=None):
+seen_edge={(r["type"],r["from"],r["to"],r.get("deployment")) for r in relations}
+#: Fields a derived edge may carry beyond its endpoints (DEPLOYMENTS.md rule 5):
+#: where a credential is read and in which environment and deployment.
+EDGE_EXTRAS = ("binding", "environment", "deployment", "variable")
+def add_rel(rid,typ,frm,to,refs,rule=None,extra=None):
     # `rule` is the edge's provenance: WHY these two endpoints are linked
     # (a membership rule, a Heroku link rule, a credential path rule). It was
     # dropped here, so an edge in relations.json could not say why it existed.
-    if rid in seen_rel or (typ,frm,to) in seen_edge: return
+    extra={k:v for k,v in (extra or {}).items() if k in EDGE_EXTRAS and v}
+    # One pair may be linked twice when the second edge says something the first
+    # does not: a key held locally AND read at run time by one deployment.
+    key=(typ,frm,to,extra.get("deployment"))
+    if rid in seen_rel or key in seen_edge: return
     rel={"id":rid,"type":typ,"from":frm,"to":to,"source_refs":refs}
     if rule: rel["rule"]=rule
+    rel.update(extra)
     relations.append(rel)
-    seen_rel.add(rid); seen_edge.add((typ,frm,to))
+    seen_rel.add(rid); seen_edge.add(key)
 cleared: list[str] = []
 for key in sorted(projs):
     p=projs[key]; i=pid(key); prev=old_projects.get(i,{})
@@ -509,7 +517,7 @@ if CRED_SRC.is_file():
         paths.source_path("secret_store", paths.SECRETS) / 'projects'))
     credentials, _cedges = credentials_registry.records(_cscan, _vault, out_projs)
     for e in _cedges:
-        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"))
+        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"), e)
     _cdoc = credentials_registry.document(credentials, _cscan, OBS)
     _stamped("credentials.json", _cdoc)
     _ct = _cdoc["totals"]
@@ -587,6 +595,17 @@ print(f"environments.json: {_nt['environments']} environment(s), {_nt['deploymen
       f"assigned, {_nt['deployments_unassigned']} unassigned")
 for _dg in _env_doc["degraded"]:
     print(f"  degraded environments.json: {_dg['reason']}")
+
+# ---- run bindings (DEPLOYMENTS.md rule 5, PB-129) -------------------------
+# A production config var whose salted fingerprint equals a vault slot's current
+# value: that slot is read at run time by that deployment. Needs both scans.
+if REMOTE_SRC.is_file() and ENV_SRC.is_file() and CRED_SRC.is_file():
+    import credentials_registry as _cr
+    _serves = {e["from"]: e["to"] for e in _env_edges}
+    _run = _cr.run_edges(_rdoc, heroku_apps, {c["id"] for c in credentials}, _serves)
+    for e in _run:
+        add_rel(e["id"], e["type"], e["from"], e["to"], e["source_refs"], e.get("rule"), e)
+    print(f"run bindings: {len(_run)} vault slot(s) read at run time by a production app")
 
 endpoints = ({p["id"] for p in out_projs} | {r["id"] for r in out_repos}
              | {a["id"] for a in heroku_apps} | {c["id"] for c in credentials}

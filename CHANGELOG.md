@@ -3,6 +3,22 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.6 — 2026-09-24
+
+### Added
+
+- A credential edge says where its value is read. Every `credential_used_by` edge carries a
+  `binding`:
+  - `local`: a vault slot, a destination file, or a file inside the project, all on this machine.
+  - `unknown`: a curated edge that says the project uses the key but not where.
+  - `run`: a production config var whose salted fingerprint equals a vault slot's current value, so
+    that slot is read at run time by that deployment. The edge names the deployment and the variable.
+
+  An edge also carries `environment` when a real slot is filed under one. `run` edges need a
+  `remote-env` scan made with 0.3.6 or later, because the scan now also fingerprints the vault's
+  current values. `build` is part of the contract but nothing scans CI secrets yet. This is the third
+  slice of [docs/design/DEPLOYMENTS.md](docs/design/DEPLOYMENTS.md).
+
 ## 0.3.5 — 2026-09-24
 
 ### Added
