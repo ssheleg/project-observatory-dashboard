@@ -152,6 +152,13 @@ selection and a budget before enabling reasoning or embeddings. On macOS,
 jobs only after explicit scheduler opt-in; Linux can run the CLI under a
 supervisor chosen by the user. Do not create duplicate writers for one home.
 
+A launchd job does not inherit your shell. The installer writes the directories
+of the `PATH` it runs with (absolute, existing, not group- or world-writable)
+followed by the system directories into the job, so tools such as `claude`,
+`heroku` or `gh` resolve as they do in your terminal. After installing a tool
+in a new directory, run `tools/install_launchd.py install` and
+`tools/serverd.py --install` again.
+
 ## Upgrade, back up, restore
 
 Stop every writer, including old executables and background jobs. A lock in a

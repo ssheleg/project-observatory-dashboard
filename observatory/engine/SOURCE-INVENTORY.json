@@ -1455,11 +1455,12 @@
     {
       "path": "tests/test_workspace_scheduler.py",
       "source_sha256": "b09debadb7dd2e9321e374f70c79f387b5fbdaac10a16ff34d12ba1a0ce41a15",
-      "export_sha256": "fa3a7a5f23a47f92ff6b99cb4583e127b5cb767a8355dbb5a72158e557a404fb",
-      "bytes": 11120,
+      "export_sha256": "715a110c775f9b5247cba380821eb6921aa8689f048f4fe6b287ff17fef7c31c",
+      "bytes": 12027,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tests/test_workspace_upgrade.py",
@@ -1697,11 +1698,12 @@
     {
       "path": "tools/install_launchd.py",
       "source_sha256": "c0e56088fc4d10b81a9af377b0f97de4dabe6107c2d05fe5f8f2f4f9ca9adc23",
-      "export_sha256": "ee8102d275e6cb62ccc9518009452166e40be7e512cee243f5b2a233df294889",
-      "bytes": 5587,
+      "export_sha256": "85207017f7419a4ff4c613efd49f3510f6538159d02f46eba97642ff47869e3d",
+      "bytes": 6685,
       "python_comments_removed": 8,
       "python_docstrings_removed": 1,
-      "tool_descriptions_retained": 0
+      "tool_descriptions_retained": 0,
+      "upstream_modified": true
     },
     {
       "path": "tools/keyserver.py",
