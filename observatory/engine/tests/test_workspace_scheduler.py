@@ -69,6 +69,19 @@ class WorkspaceScheduler(unittest.TestCase):
         with patch.object(self.paths,'HOME',self.base / 'second'):
             self.assertNotEqual(original,self.launch.instance_label('tick'))
 
+    def test_launch_path_keeps_safe_user_directories(self):
+        base = Path(tempfile.mkdtemp(prefix='observatory-path-')).resolve()
+        user_bin, writable, missing = base / 'bin', base / 'shared', base / 'absent'
+        user_bin.mkdir(mode=0o755); writable.mkdir(); writable.chmod(0o777)
+        joined = os.pathsep.join([str(user_bin), 'relative/bin', str(writable), str(missing), str(user_bin)])
+        entries = self.launch.launch_path(joined).split(os.pathsep)
+        self.assertEqual(entries[0], str(user_bin), 'the installer\'s own tools come first')
+        self.assertEqual(entries.count(str(user_bin)), 1)
+        for bad in ('relative/bin', str(writable), str(missing)):
+            self.assertNotIn(bad, entries)
+        self.assertIn('/usr/bin', entries, 'system directories are always present')
+        self.assertEqual(self.launch.environment()['PATH'], self.launch.launch_path())
+
     def test_launch_build_does_not_create_logs(self):
         self.launch.build(1800)
         self.assertFalse(self.launch.LOG_DIR.exists())

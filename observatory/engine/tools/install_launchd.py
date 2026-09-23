@@ -7,7 +7,7 @@
                                                                              
    
 from __future__ import annotations
-import argparse, plistlib, subprocess, sys, os, pathlib, hashlib
+import argparse, plistlib, subprocess, sys, os, pathlib, hashlib, stat
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -29,9 +29,36 @@ def scheduler_allowed() -> bool:
     return configuration.enabled("scheduler", "features")
 
 
+SYSTEM_PATH = ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin")
+
+
+def launch_path(current: str | None = None) -> str:
+    """PATH for launchd jobs: the installing user's directories, then the system ones.
+
+    launchd starts jobs with a bare PATH, so tools the collectors call - `claude`
+    (MCP inventory), `heroku`, `gh`, `wrangler` - vanished whenever they lived in
+    ~/.local/bin or a version manager's directory. The installer's own PATH is
+    kept in its order, restricted to absolute, existing directories that are not
+    group- or world-writable (a writable PATH entry lets another account plant a
+    binary the job would run). See docs/ONBOARDING.md "Enable background ...".
+    """
+    out: list[str] = []
+    for entry in [*(current if current is not None else os.environ.get("PATH", "")).split(os.pathsep),
+                  *SYSTEM_PATH]:
+        if not entry or not os.path.isabs(entry) or entry in out:
+            continue
+        try:
+            info = os.stat(entry)
+        except OSError:
+            continue
+        if not stat.S_ISDIR(info.st_mode) or info.st_mode & 0o022:
+            continue
+        out.append(entry)
+    return os.pathsep.join(out)
+
+
 def environment() -> dict[str, str]:
-                                                                         
-    return {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    return {"PATH": launch_path(),
             "HOME": str(pathlib.Path.home()), "OBSERVATORY_HOME": str(paths.HOME)}
 
 

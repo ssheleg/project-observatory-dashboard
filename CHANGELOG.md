@@ -3,6 +3,14 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+### Fixed
+
+- launchd jobs written by `install_launchd.py` and `serverd.py --install` carry the installing
+  user's safe `PATH` directories, so collectors find `claude`, `heroku` and similar tools installed
+  outside the system directories; before, the MCP inventory degraded with "claude CLI not on PATH".
+
 ## 0.2.2 — 2026-09-23
 
 ### Fixed
