@@ -70,8 +70,9 @@ class AgentPluginTests(unittest.TestCase):
         fake.write_text(FAKE_CLAUDE.format(py=sys.executable))
         fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
         self.home = base / "workspace"
+        shipped = json.loads((ROOT / "skill/plugins/observatory-log/.claude-plugin/plugin.json").read_text())["version"]
         self.env = clean_env(CLAUDE_CONFIG_DIR=str(self.claude_home), CLAUDE_BIN=str(fake),
-                             OBSERVATORY_HOME=str(self.home))
+                             OBSERVATORY_HOME=str(self.home), FAKE_VERSION=shipped)
         self.run_cli("init")
 
     def tearDown(self):

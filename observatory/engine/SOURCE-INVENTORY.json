@@ -1165,8 +1165,8 @@
       "path": "tests/test_agent_plugin.py",
       "source_sha256": null,
       "upstream_modified": true,
-      "export_sha256": "9c5bdf363a3649e2ebb788f295b1c20e878f451545897ff3fba927129868d9b8",
-      "bytes": 10919
+      "export_sha256": "88d5557f751d869bc8c99bac8222150e1aab55369716bc98a1d7c39f1bd8c026",
+      "bytes": 11062
     },
     {
       "path": "tests/test_analytics_plugins.py",
