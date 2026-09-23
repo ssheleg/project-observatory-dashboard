@@ -49,7 +49,7 @@ def write(path: Path, text: str) -> None:
 
 
 def legacy_path(path: Path) -> Path:
-    ""                                                                                    
+    """Accept only the adopt command's relative sibling-admin alias; reject all others."""
     if not path.is_symlink():
         check(path)
         return path

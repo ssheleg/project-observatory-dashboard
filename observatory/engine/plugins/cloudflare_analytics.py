@@ -37,12 +37,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import paths                                            
 import hostmap                                                                  
 
-                                                                             
-                                                                             
-                                                                                 
-                                                                                
-                                                                               
-                                        
+#: THREE ACCOUNTS, not one. The operator holds zones under several Cloudflare
+#: logins and issued a token per account; a single-token plugin would measure
+#: whichever account happened to be first and report the rest as absent — which
+#: looks exactly like zero traffic. Every file in this directory is a token, and
+#: `tools/add_cloudflare_token.py` is what puts one there, named by the account
+#: Cloudflare itself reports.
 TOKEN_DIR = paths.source_path("secret_store", paths.SECRETS) / 'cloudflare-analytics.d'
 API = "https://api.cloudflare.com/client/v4"
 
@@ -52,10 +52,10 @@ def tokens() -> list[tuple[str, str]]:
     out = []
     if TOKEN_DIR.is_dir():
         for p in sorted(TOKEN_DIR.iterdir()):
-                                                                      
-                                                                               
-                                                                          
-                                                                              
+            # A `.meta.json` is the RECORD of a token, not a token. On
+            # 2026-09-13 the first issued token's record was read here and sent
+            # as a bearer value; it held no secret, and the header-echoing
+            # ValueError that followed is exactly the shape of the 09-12 leak.
             if (p.is_file() and not p.name.startswith(".")
                     and not p.name.endswith(".meta.json")):
                 v = p.read_text(encoding="utf-8").strip()
@@ -113,9 +113,9 @@ def day_bounds(today: datetime.date | None = None) -> tuple[str, str]:
     return y.isoformat(), y.isoformat()
 
 
-                                                                           
-                                                                              
-                                                                 
+#: Cloudflare's GraphQL answers `too many zones requested` above ten in one
+#: `zoneTag_in` — measured 2026-09-13 against the operator's 34- and 53-zone
+#: accounts, which reported zero traffic for exactly that reason.
 ZONES_PER_QUERY = 10
 
 
@@ -164,9 +164,9 @@ def rows_from(zone_list: list[dict], per_zone: dict[str, dict], day: str,
             continue
         pid = hostmap.resolve(z["name"], table)
         if pid is None:
-                                                                             
-                                                                            
-                                                                
+            # The NAME and the SIZE: 79 unmapped zones is a list nobody works
+            # through; 79 ranked by yesterday's requests is a list whose top
+            # five are worth an afternoon (measured 2026-09-13).
             unmapped.append({"zone": z["name"], "requests": stats["requests"]})
             continue
         rows.append({"project_id": pid, "metric": "web.requests_1d", "at": at,

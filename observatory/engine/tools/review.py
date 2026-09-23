@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                            
+"""The operator's queue: read what is proposed, and decide it.
 
                                                                                
                                                                          
@@ -8,26 +8,26 @@
                                                                               
                     
 
-                                                                                  
-                                                                                
-                                                                               
-                             
+Requiring a TTY does not stop a determined process — it can allocate one — and
+that is not the claim. The claim is that approval is an ACT, and an act that can
+happen as a side effect of a script is not one. An escape hatch flag would undo
+exactly this, so none exists.
 
-                                                          
+Reading is unrestricted: `list` and `show` change nothing.
 
-                                                                  
-                              
-                                                                                    
-                                                                       
-                                                                                 
+    review.py list [--kind session|observation] [--state proposed]
+    review.py show <memory-id>
+    review.py promote <memory-id> [--why …]      proposed -> observed -> supported
+    review.py reject <memory-id> --why …         proposed -> rejected
+    review.py tombstone <memory-id> --why …      erasure, and it leaves a trace
 
-                                                                                 
-                                                                               
-                                                                        
-                                                                          
-                                                                           
-                                                                                
-   
+    review.py accept-proposal <id> --why …       a REGISTRY proposal: the patch
+                                                 lands in the curation file the
+                                                 emitter reads, never in
+                                                 registry/*.json, which is
+                                                 rewritten whole every tick
+    review.py reject-proposal <id> --why …       the row stays with the reason
+"""
 from __future__ import annotations
 import argparse, json, pathlib, sqlite3, sys
 
@@ -61,19 +61,19 @@ def require_terminal(action: str) -> None:
 
 
 def shown(value, width: int = 0) -> str:
-    ""                                                                      
+    """A value, or a legible mark for its ABSENCE — never the word `None`.
 
-                                                                                
-                                                                               
-                                                                             
-                                                                             
-                  
+    `confidence` is nullable and NULL means "this is not a judgement": a session
+    record restates a `git status`, and `tools/record_turn.py` hardcoded 0.5 on
+    77 of them, in the one column a reviewer reads as a measurement. `why` is
+    nullable for the same kind of reason — most records have never needed a
+    revision note.
 
-                                                                              
-                                                                           
-                                                                                  
-                                              
-       
+    Two of the three consumers already did this, which is what says the design
+    intended NULL: the list view spelled it inline and the dashboard writes
+    `n.conf != null ? … : ""`. The digest and the single-record view printed the
+    raw value and would say `None`.
+    """
     if value is None:
         mark = "—"
     elif isinstance(value, float):
@@ -103,19 +103,19 @@ def cmd_list(conn, args) -> int:
 
 
 def report_proposals(conn) -> int:
-    ""                                                  
+    """REGISTRY proposals, which had no reader anywhere.
 
-                                                                                   
-                                                                                   
-                                                                                
-                                            
+    `observatory_propose` is declared surface — it is in the manifest and a probe
+    exercises it — and it writes into `proposals`, where nothing in the tick, the
+    dashboard or any CLI ever looked. A proposal nobody can see is worse than no
+    proposal: the caller was told it landed.
 
-                                                                               
-                                                                                
-                                                                             
-                                                                             
-                                               
-       
+    A function rather than a block at the end of the digest, because the digest
+    returns EARLY when no ledger conclusion is waiting — and a reader after an
+    early return is invisible again for exactly the case that matters most: a
+    proposal arriving on a quiet queue. Caught by its own test on 2026-09-07,
+    which planted one proposal and no memories.
+    """
     try:
         pending = conn.execute(
             "SELECT id, target_id, status, created_at, substr(patch_json, 1, 90) AS patch"
@@ -135,21 +135,21 @@ def report_proposals(conn) -> int:
 
 
 def cmd_digest(conn, args) -> int:
-    ""                                                                 
+    """The queue as something a person can face, and it WRITES NOTHING.
 
-                                                                            
-                                                                               
-                                                                                   
-                                                                                 
-                                                                         
+    Measured 2026-09-07: 106 conclusions waiting, all of kind `observation`,
+    growing about fifty a day, and the only way out is this tool at a terminal.
+    That is a volume problem rather than an adjudication one — nobody reads fifty
+    interpretations a day, so every one of them would leave by retention instead,
+    which `tools/corroborate.py` calls "not review" in its own docstring.
 
-                                                                                 
-                                                                          
-                                                                                
-                                                                               
-                                                                          
-                   
-       
+    What is deliberately NOT here is a `--yes`. `require_terminal` exists because
+    everything written by this tool is owned by `operator` — exempt from
+    retention and unsupersedable by any agent — and minting that from a script
+    would let anything with shell access forge it. A digest needs no authority:
+    it groups, counts and dates, so ONE human decision can cover many rows
+    instead of one.
+    """
     import json as _json
     import sqlite3 as _sq
                                                                            
@@ -181,8 +181,8 @@ def cmd_digest(conn, args) -> int:
     from collections import Counter as _Counter
 
     def _ord(stamp) -> float:
-        ""                                                                    
-                                                          
+        """A comparable moment, or the beginning of time. An unparseable stamp
+        must not sort as the newest thing in the queue."""
         try:
             return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(
                 tzinfo=timezone.utc).timestamp()
@@ -195,14 +195,14 @@ def cmd_digest(conn, args) -> int:
         by_project.setdefault(r["project_id"] or "(no project)", []).append(r)
 
     soon = []
-                                                                              
-                                                                           
-                                                                                
-                                                                              
-                                                                                
-                                                                            
-                                                                       
-                                              
+    # WHAT THE QUEUE RESTS ON, not only how big it is. Measured 2026-09-07: of
+    # 130 waiting records, 107 rested on nothing but the working tree's own
+    # rhythm — commits, dirty, clean — and this list was ordered by how many
+    # each project had produced, so one project's eighteen notes about its own
+    # commit rhythm sat above "the assistant-preview project has been deleted or
+    # absorbed". `estate.conclusion_class` reads the delta kinds each record
+    # cites, which is a fact about what it was built from rather than a
+    # judgement about what it says.
     import estate
     for pid, items in by_project.items():
         for r in items:
@@ -217,11 +217,11 @@ def cmd_digest(conn, args) -> int:
           + (f", except rows owned by {', '.join(_exempt)}, which it never "
              f"erases — those are marked `kept` and still wait for a decision."
              if (_exempt := _retention.exempt_owners()) else "."))
-                                                                           
-                                                                              
-                                                                                
-                                                                         
-                 
+    # AND HOW MUCH OF IT A CORRECTED POLICY WOULD NEVER HAVE MADE. Measured
+    # 2026-09-07: 43 of 123 observer records, a third of the queue, exist only
+    # because every tick appended one before `agent/observe.py` began correcting
+    # one per project per day on that same day. They are not 43 decisions
+    #.
     _fold = estate.fold_groups([dict(r) for r in rows])
     _extra = sum(len(g["fold"]) for g in _fold)
     if _extra:
@@ -232,9 +232,9 @@ def cmd_digest(conn, args) -> int:
     print()
 
     def _project_key(kv):
-        ""                                                                    
-                                                                                  
-                                                                           
+        """Structure first, then soonest to expire. A project is ranked by its
+        BEST class, so one structural note lifts the project it belongs to — the
+        operator is being pointed at a decision, not at a tidy grouping."""
         pid_, its = kv
         best = min((estate.conclusion_rank(_cls[r["memory_id"]]) for r in its),
                    default=99)
@@ -249,11 +249,11 @@ def cmd_digest(conn, args) -> int:
                     tzinfo=timezone.utc)
             except (TypeError, ValueError):
                 continue
-                                                                          
-                                                                             
-                                                                                 
-                                                                        
-                         
+            # THROUGH `retention.days_left`, which is the only reader that
+            # applied `owner_exempt`. This computed `horizon - age` for every
+            # row and printed a countdown for rows retention will never touch —
+            # a deadline on the operator's attention that does not exist
+            #.
             left = _retention.days_left(r["owner"], "proposed", r["created_at"])
             if left is None:
                 kept += 1
@@ -281,10 +281,10 @@ def cmd_digest(conn, args) -> int:
         newest = min(items, key=lambda r: (estate.conclusion_rank(_cls[r["memory_id"]]),
                                            -_ord(r["created_at"])))
         print(f"       {_cls[newest['memory_id']]}: {newest['gist']}")
-                                                                            
-                                                                                
-                                                                          
-                                
+        # NOT the raw value. A mechanical record carries NO confidence — a
+        # `git status` is not fifty per cent likely — and printing `None` in a
+        # column of real judgements reads as a broken field rather than an
+        # absent one.
         print(f"       {newest['memory_id']}  "
               f"confidence {shown(newest['confidence'])}")
     if soon:
@@ -349,23 +349,23 @@ def cmd_reject(conn, args) -> int:
 
 
 def cmd_reject_group(conn, args) -> int:
-    ""                                                                        
+    """Reject every record of one (project, day) group but its latest reading.
 
-                                                                              
-                                                                                    
-                                                                               
-                                                                                 
-                                    
+    ONE DECISION PER GROUP, not per record. Measured 2026-09-07: 43 of the 123
+    waiting observer records — a third of the whole queue — existed only because
+    every tick appended a new record before `agent/observe.py` began correcting
+    one per project per day on that same day. They are not 43 decisions; they are
+    23 decisions presented 43 times.
 
-                                                                               
-                                                                                
-                                                                                  
-                                                                   
+    `require_terminal` FIRST and unchanged. Everything written here is owned by
+    `operator`, and a batch path is exactly where such a guard gets weakened for
+    convenience — so it is not. The guard is about WHERE the command runs, and a
+    row count buys no exemption from it. There is still no `--yes`.
 
-                                                                               
-                                                                              
-                                                                       
-       
+    `superseded` would be the natural state and is unreachable: `proposed` goes
+    only to `observed` or `rejected` (`store/ledger.py`). So this rejects, and
+    the reason it writes says which policy made the record unnecessary.
+    """
     require_terminal("reject a whole group")
     import estate
     rows = [dict(r) for r in conn.execute(
@@ -426,20 +426,20 @@ def _proposal(conn, pid: str) -> dict:
 
 
 def cmd_proposal_accept(conn, args) -> int:
-    ""                                                                     
+    """Land an accepted proposal in the CURATION file, not in the registry.
 
-                                                                           
-                                                                       
-                                                                                
-                                                                           
-                                                                            
-                      
+    `registry/*.json` is rewritten whole from the model on every emit, so a
+    patch written there survives until the next tick and no longer. The
+    overrides files are what the emitter applies on top of what it measured, and
+    they are therefore where a human decision belongs — which is also why
+    `proposals.appliable()` derives the appliable field set from them rather
+    than restating it.
 
-                                                                        
-                                                                               
-                                                                               
-                                                                     
-       
+    Until this existed the queue had a reporter and no DECIDER: measured
+    2026-09-07, `review.py` could promote, reject and tombstone a LEDGER row by
+    `memory_id` and nothing anywhere could accept a registry proposal. A caller
+    was answered "proposed" for a row that could only ever be listed.
+    """
     require_terminal("accept a registry proposal")
     row = _proposal(conn, args.id)
     patch = json.loads(row["patch_json"] or "{}")
@@ -451,10 +451,10 @@ def cmd_proposal_accept(conn, args) -> int:
     evidence = (stored.get("evidence") if isinstance(stored, dict) else stored) or []
     why = proposals.refusal(row["target_id"], patch, evidence)
     if why:
-                                                                           
-                                                                      
-                                                                           
-                                                                               
+        # Re-checked at the decision, not trusted from the wire. A proposal
+        # queued before a curation file changed shape may no longer be
+        # appliable, and applying it anyway would write a field the emitter
+        # ignores — a decision with no effect, which is worse than a refusal.
         sys.exit(f"review: this proposal cannot be applied — {why}")
     prefix = next(p for p in proposals.LANDS_IN if row["target_id"].startswith(p))
     name, key = proposals.LANDS_IN[prefix]

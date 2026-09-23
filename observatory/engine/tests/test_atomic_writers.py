@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
-""                                                                          
+"""Fourteen writers did not use the module written for exactly their hazard.
 
-                                                                             
-                                                                                
-                                                                                
-                         
+`atomic.py` exists because three collectors wrote `json.dump(rows, open(path,
+"w"))`, which truncates the destination and only then begins serialising — and
+its docstring records what that already cost and that the disk sat at
+98% while it was written.
 
-                                                                                
-                                                                      
-                                                                
-                                                                             
-                                                                  
-                                                                              
-                                                                                
-                                                         
+Mapped every writer on 2026-09-08. Almost every artefact has exactly one writer,
+which is the strong half. The weak half: fourteen of them went through
+`Path.write_text`, and **five of those write TRACKED files** —
+`registry/findings.json` (the operator's queue), `registry/ledger.jsonl` (the
+export of the one table nothing can rebuild), `fabric-agent.json`,
+`docs/REGISTRY_SHAPE.md` and `fabric/probe-receipts.json`. A truncated tracked
+file is then COMMITTED by the tick's `commit-registry`. This machine has already
+run out of disk: 42 `No space left` errors on 2026-09-07.
 
-                                                                             
-                                                      
+Three of the five are not JSON, which is why `atomic.write_text` had to exist
+rather than the callers being pointed at `write_json`.
 
-                                                                             
-                                                                        
-                                                                              
-   
+And the sharpest one is not tracked at all: `wallet.json`, the spend journal,
+whose truncation is recorded rather than imagined — 500 events lost on
+2026-09-07 — was still written with `Path.write_text`.
+"""
 from __future__ import annotations
 import json
 import os
@@ -47,7 +47,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def half_write(dest: pathlib.Path, text: str) -> None:
-    ""                                                                         
+    """`Path.write_text`, interrupted — what the five tracked writers did."""
     with dest.open("w", encoding="utf-8") as fh:
         fh.write(text[:len(text) // 2])
         raise OSError(28, "No space left on device")
@@ -56,7 +56,7 @@ def half_write(dest: pathlib.Path, text: str) -> None:
 # ─────────── the two mechanisms, side by side ──────────────────────────
 
 def test_a_plain_write_that_stops_halfway_destroys_the_destination() -> None:
-    ""                                                                   
+    """The baseline, driven, so the fix is measured against something."""
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-atomic-"))
     dest = d / "queue.json"
     good = json.dumps({"findings": [{"id": "a"}, {"id": "b"}]}, indent=1)
@@ -141,8 +141,8 @@ TRACKED_SOURCES = ("tools/build_findings.py", "tools/export_ledger.py",
 
 
 def test_no_tracked_artefact_is_written_by_a_plain_write() -> None:
-    ""                                                                      
-                                      
+    """The five that were, named so the next reader can see the shape of the
+    class rather than one instance."""
     import subprocess
     TRACKED = {
         "tools/build_findings.py": "registry/findings.json",
@@ -171,7 +171,7 @@ def test_no_tracked_artefact_is_written_by_a_plain_write() -> None:
 
 
 def test_the_spend_journal_is_atomic_now() -> None:
-    ""                                                                     
+    """Its truncation is recorded, not imagined: 500 events, 2026-09-07."""
     sys.path.insert(0, str(ROOT / "tests"))
     import source_reader
     code = source_reader.code_keeping_strings(
@@ -185,7 +185,7 @@ def test_the_spend_journal_is_atomic_now() -> None:
 
 
 def test_every_caller_of_atomic_actually_binds_the_name() -> None:
-    ""                                                 
+    """The check the source sweep above could not make.
 
                                                                                  
                                                                                 
@@ -194,11 +194,11 @@ def test_every_caller_of_atomic_actually_binds_the_name() -> None:
                                                                                     
                         
 
-                                                                              
-                                                                              
-                                                                       
-               
-       
+    So this reads the binding, not the call: a module that names `atomic` must
+    import it. Static rather than an import of each module, because two of the
+    writers are collectors and importing one performs a live collection
+.
+    """
     import ast
     for rel in sorted(set(TRACKED_SOURCES)):
         tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
@@ -214,9 +214,9 @@ def test_every_caller_of_atomic_actually_binds_the_name() -> None:
 
 
 def test_the_manifest_stamper_can_actually_write() -> None:
-    ""                                                                         
-                                                                            
-              
+    """DRIVEN, because the gate only ever runs its `--check` half. A tool whose
+    write path no group executes is a tool whose write path nothing has ever
+    proved."""
     import shutil, subprocess
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-stamp-"))
     # A COPY of the real manifest in a temp tree: stamping the live one would

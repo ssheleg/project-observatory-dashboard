@@ -24,9 +24,9 @@ sys.path.insert(0, str(ROOT / "tests"))
 from test_portable_mcp import setup as portable_setup
 portable_setup()
 sys.path.insert(0, str(ROOT / "tests"))
-                                                                                
-                                                                            
-            
+# `tools`, so the recorder can be IMPORTED rather than grepped — which is what
+# the one-rule-two-readers check needs to compare two objects instead of two
+# spellings.
 sys.path.insert(0, str(ROOT / "tools"))
 import tmp as tmpdir              
 import estate                                                                  
@@ -117,8 +117,8 @@ def test_the_migration_drops_only_foreign_events() -> None:
         ("b", "project:external-one", "2026-01-01T00:00:00Z"),
         ("c", None, "2026-01-01T00:00:00Z"),
     ])
-                                                                                
-                                                                                
+    # The migration reads the REAL registry for ownership, so assert the rule it
+    # applies rather than re-creating a registry here: the rule is the contract.
     check("the rule keeps an owned project", estate.records_events("owned"))
     check("the rule drops an external project", not estate.records_events("external"))
     check("the rule keeps an unattributed row", estate.records_events(None))

@@ -7,11 +7,11 @@ the one that does NOT clean up — that is its whole difference from
 the live store is 22 MB and `test_erasure_bytes` copies it twice, the registry
 and `store/raw` go in whole elsewhere.
 
-                                                                                
-                                                                               
-                                                                                 
-                                                                              
-                                         
+**Measured 2026-09-07, and it is not theoretical.** One `./observatory.py check`
+run took the data volume from 607 MiB free to 317 MiB — about 290 MB per run,
+never returned. The volume reads 100% full, and the run before that one died with
+`no space left on device` before the shell could write its own working file. A
+gate that cannot run twice is not a gate.
 
                                                                            
                                                                               

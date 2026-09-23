@@ -60,7 +60,7 @@ sys.path.insert(0, str(ROOT))
 import atomic                                                       # noqa: E402
 import paths                                                        # noqa: E402
 
-                                                                         
+#: Re-fetching sooner than this learns nothing and re-exposes everything.
 MAX_AGE_HOURS = 24
 #: A bounded refusal: an estate of sixty applications is the size this was
 #: measured on, and a run that would walk a thousand is a configuration

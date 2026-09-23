@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-""                                                                         
+"""Google Search Console: clicks and impressions per property, per project.
 
-                                                                             
-                                                                                 
-                                                            
+Auth is a SERVICE ACCOUNT, not OAuth: OAuth needs a browser and a human every
+ninety days, a service account is a JSON key that signs its own JWTs — the only
+Google auth shape that survives a launchd tick. Setup, once:
 
                                                                  
                                                         
@@ -11,14 +11,14 @@
                                                                             
                                                                             
 
-                                                                             
-                                                                              
-                                           
+Until step 2 the manifest keeps this plugin `waiting`. Properties the account
+can see but the registry cannot attribute are reported on stderr, unmapped —
+the same contract as the Cloudflare plugin.
 
-                                                                           
-                                                                            
-                                                               
-   
+The window is the last complete UTC day, lagged by three: GSC data firms up
+about 48h behind, and a number that will be revised is worse than a number a
+day late (the same reasoning the tick applies to frozen weeks).
+"""
 from __future__ import annotations
 import datetime
 import json
@@ -43,13 +43,13 @@ SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 
 
 def token() -> str:
-    ""                                        
+    """A bearer token for this plugin's scope.
 
-                                                                          
-                                                                             
-                                                                             
-                                 
-       
+    Through `plugins/google_auth.py`, which does the JWT exchange over the
+    standard library: the documented `google.auth.transport.requests.Request`
+    needs `requests`, and a launchd tick would have reported that as a broken
+    plugin (measured 2026-09-12).
+    """
     return google_auth.access_token(KEY_FILE, SCOPE)
 
 
@@ -63,8 +63,8 @@ def _call(url: str, tok: str, payload: dict | None = None) -> dict:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
-                                                                          
-                                                       
+        # Status and url only — a header in an error message is how this
+        # repository leaked a credential on 2026-09-12.
         raise RuntimeError(f"gsc answered {e.code} for {url.split('?')[0]}") from None
     except OSError as e:
         raise RuntimeError(f"gsc unreachable: {type(e).__name__}") from None
@@ -77,7 +77,7 @@ def properties(tok: str) -> list[str]:
 
 
 def host_of(site_url: str) -> str:
-    ""                                                                           
+    """`sc-domain:example.com` and `https://example.com/` both -> example.com."""
     if site_url.startswith("sc-domain:"):
         return site_url[len("sc-domain:"):]
     return site_url.split("//", 1)[-1].strip("/")
@@ -99,7 +99,7 @@ def fetch_day(tok: str, site_url: str, day: str) -> dict:
 
 def rows_from(per_site: dict[str, dict], day: str,
               table: dict[str, str]) -> tuple[list[dict], list[str]]:
-    ""                                                                        
+    """(metric rows, unmapped site urls) — pure, testable without Google."""
     rows, unmapped = [], []
     at = f"{day}T00:00:00Z"
     for site_url, stats in sorted(per_site.items()):

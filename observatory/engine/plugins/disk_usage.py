@@ -20,7 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import paths                                                                    
 
-                                                                                     
+#: Machine-generated and reinstallable. Counting them measures a tool, not a project.
 SKIP = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", ".nuxt",
         "target", "build", "dist", ".gradle", "Pods", ".terraform", ".mypy_cache",
         ".pytest_cache", ".tox", ".DS_Store"}

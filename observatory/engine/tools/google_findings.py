@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-""                                                
+"""What the analytics inventory owes the operator.
 
-                                                                             
-                                                                                
-                                                                       
-                                                                                  
-                                                                     
+THE BOUNDARY RULE APPLIES HERE TOO, and it is the operator's own (2026-09-13,
+first given for Cloudflare zones): a property no project in this registry claims
+is one somebody else runs, or one the operator is not working on. So an
+unclaimed property is not a defect and never a warning — it is a COUNT the board
+states once, with the names, so the answer can be given in one place.
 
-                                                                          
-                                                                              
-                                                                                
-                                                                      
-                                                  
+What makes the count worth stating at all is the traffic behind it. Thirty
+properties with no users is a tidy-up nobody needs; thirty properties carrying
+three and a half million people in a month is an estate whose busiest product is
+invisible to the system that is supposed to know what exists (measured
+2026-09-14, and the reason this rule was written).
 
-                                                                              
-   
+NO TIMESTAMP INSIDE A FINDING: the dates quoted are the document's.
+"""
 from __future__ import annotations
 
 #: Named by name up to this many, as everywhere else on this board.

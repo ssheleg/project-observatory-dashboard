@@ -52,29 +52,29 @@ import argparse, collections, json, math, pathlib, re, subprocess, sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-                                                                             
-                                                                                
-                                                                          
-                                                                               
-                                                                             
-  
-                                                           
-  
-                                                                       
-                                                                        
-                                                                      
-                                      
-  
-                                                                         
-                                                                 
+#: Shannon entropy DIVIDED BY its own ceiling, `log2(len)`. The first version
+#: used raw bits per character with a floor of 4.3 — and a real AWS key sailed
+#: through, because its body is exactly sixteen characters and the maximum
+#: entropy of a sixteen-character string is log2(16) = 4.0. The floor was above
+#: the ceiling: unreachable by construction, for a shape AWS defines exactly.
+#:
+#: Normalised, the separation is real. Measured 2026-09-07:
+#:
+#:     this repository's fixture   0.72      random 32-char body   0.91
+#:     'your-key-goes-here…'      0.74      random 48-char body   0.89
+#:     'placeholder' x4           0.57      random 64-char body   0.87
+#:     'x' x32                    0.00
+#:
+#: 0.78 sits below every real body's minimum over 4000 draws (0.796 at 48
+#: characters, 0.806 at 32) and above every placeholder measured.
 NORMALISED_FLOOR = 0.78
 
-                                                                                
-                                                                              
-                                                                            
-                                                                            
-                                                                         
-                                                                               
+#: THE LIMIT OF THE METHOD, and it is why `EXACT_SHAPES` exists. Over 4000 draws
+#: a real sixteen-character AWS body's minimum normalised entropy is 0.725 and
+#: its first percentile 0.789 — which OVERLAPS the fixture at 0.72 and the
+#: placeholder at 0.74. No entropy measure can separate those distributions,
+#: because sixteen characters do not hold the information to. So a short,
+#: structurally exact vendor shape is decided by its PREFIX and never measured.
 MIN_BODY = 24
 
 #: Shapes a vendor defines precisely enough that the prefix alone is the answer.
@@ -101,21 +101,21 @@ PATTERNS = [
         r"['\"]([A-Za-z0-9_\-+/=]{20,})['\"]")),
 ]
 
-                                                                              
-                                                                        
-                                                                            
-                                                                          
-                                                                     
-                                                                                
-                                                                               
-                                                                               
-                                                                           
-                                                                               
-                                                                             
-            
-  
-                                                                               
-                                      
+#: Files whose content is deliberately key-SHAPED, each with the reason. Empty
+#: on purpose: `tests/test_key.py` composes its fixture at runtime so no
+#: key-shaped literal exists in the tree at all, which is a stronger posture
+#: than an allowlist — it makes every third-party scanner agree too. The
+#: mechanism stays because the next fixture may not have that option.
+#: path -> why a literal there is not a credential. Empty until 2026-09-08, when
+#: committing this scanner and its test turned the gate red: `check_secrets.py`
+#: carries the DETECTION PATTERN for a private-key header and `test_secrets.py`
+#: carries a truncated placeholder of one, with `MII...` where key material
+#: would be. Neither is a credential, and a permanently red secrets gate is one
+#: people stop reading — the exact failure this file exists to prevent, one
+#: level up.
+#:
+#: A reason per entry rather than a bare set: an exemption list without reasons
+#: becomes the place credentials hide.
 ALLOWLIST: dict[str, str] = {
     "tools/check_secrets.py":
         "this file IS the scanner; the literals here are its detection patterns, "
@@ -256,16 +256,16 @@ def main() -> int:
         out = subprocess.run(
             ["git", "log", f"-{a.history}", "-p", "--no-color", "--unified=0"],
             cwd=ROOT, capture_output=True, text=True, timeout=600)
-                                                                            
-                                                                         
-                                                                                
-                                                                                
-                                                                             
-                                                                       
-         
-                                                                             
-                                                                               
-                  
+        # THE FILE EACH LINE CAME FROM, kept. The first version concatenated
+        # every added line of N commits into one string and scanned it as
+        # `history(last N)` — so the per-file allowlist above could not apply,
+        # and a private-key-header match, which carries no entropy score, was an
+        # unconditional credential with no way to be exempted. Committing the
+        # scanner itself then turned this gate red for ever.
+        #
+        # `git log -p` names the file in a `+++ b/<path>` header, so the walk
+        # tracks it and each hit is attributed the way the tree path attributes
+        # its own.
         per_file: dict[str, list[str]] = {}
         current = "history(unattributed)"
         for line in out.stdout.splitlines():

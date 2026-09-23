@@ -39,9 +39,9 @@ import configuration
 #: agent-sync arbitrates per key, so a shared name is what makes it exclusive.
 REGISTRY_KEY = "registry"
 
-                                                                                
-                                                                                 
-                                                                                 
+#: The tick's identity, stable across runs on purpose. A fresh id per tick would
+#: strand the lease of a crashed one until its 45-minute TTL; ticks never overlap
+#: because launchd will not start a second copy of a label that is still running.
 TICK_IDENTITY = "observatory-tick"
 
 _PLUGIN = pathlib.Path.home() / ".claude/plugins/cache/agent-sync/agent-sync"

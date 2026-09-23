@@ -1,41 +1,41 @@
 #!/usr/bin/env python3
-""                                                                          
+"""What a step ACTUALLY opens, measured by running it — not by reading it.
 
-                                                                               
-                                                                               
-                                                                                 
-                                                                             
-                                  
+`tests/test_pipeline.py` orders the two orchestrators against a declared graph:
+each step names the files it writes and the files it reads, and two derivations
+keep the declaration honest — what the script's source names in four spellings,
+and what its command line hands it. Both read TEXT, and both said so: neither
+sees a path built into a variable.
 
-                                                                       
-                                                                              
-                                                                        
-                                                                              
+Four steps fall entirely into that blind spot. `dashboard`, `validate`,
+`scan-events` and `scan-fs` contain no file access either derivation can read,
+so their entries rest on the author's word — named in the handoff four
+iterations running and deferred every time, which is its own kind of evidence.
 
-                                                                            
-                                                                              
-             
+This settles them by a third technique: run the step with every path-opening
+door wrapped, and write down what came through. Sources are ranked by how much
+they can lie:
 
-                                               
-                                                                                 
-                                                                              
-                                                                             
-                                                                              
-                                                                                  
+    read/written by name          measured here
+    read through a subprocess     NOT measured — `git` and `node` are opened by
+                                  this process but read their own files, and a
+                                  wrapper in this interpreter cannot see them
+    read by a C extension         NOT measured, for the same reason; sqlite is
+                                  wrapped at `connect`, which is the file it opens
 
-                                                                         
-                                                                             
-                                                                      
+So a clean report means "nothing undeclared passed through Python", never
+"nothing undeclared happened". That distinction is the whole reason this file
+exists rather than a sentence in a docstring saying the four are fine.
 
-                                                                      
-                                                         
-                                                                               
+    tools/trace_opens.py dashboard              # one step, redirected
+    tools/trace_opens.py dashboard validate     # several
+    tools/trace_opens.py --all                  # every step the graph declares
 
-                                                                             
-                                                                               
-                                                                            
-                
-   
+**Not a gate step.** It EXECUTES collectors, which take minutes and touch the
+estate's checkouts; the invariant it measures moves when a step's code changes,
+not when the data does. Run it when a step gains a file access, and when the
+graph is edited.
+"""
 from __future__ import annotations
 import argparse
 import builtins
@@ -67,15 +67,15 @@ REFUSED: dict[str, str] = {
     "commit-projection": "makes a git commit in the operator's wiki",
 }
 
-                                                                        
-                                                                     
-  
-                                                                            
-                                                                             
-                                                                          
-                                                                                
-                                                                              
-                     
+#: A step that WOULD act on the world, and the environment that makes it
+#: harmless — with the reason, because "it is safe now" is a claim.
+#:
+#: Three steps sat in `REFUSED` until 2026-09-09 for want of this table, and
+#: each already had its safe path built and tested: the vault is redirectable
+#: like every other artefact, and both spenders degrade when no credential
+#: resolves — a degradation this repository drives in four suites. Refusing to
+#: measure something the code already knows how to do safely is a gap invented
+#: rather than found.
 SAFE_MODE: dict[str, tuple[dict[str, str], str]] = {
     "project": ({"OBSERVATORY_VAULT": "<work>/vault"},
                 "the projection is written into a temporary vault, not the "
@@ -198,7 +198,7 @@ def declared() -> dict[str, dict[str, list[str]]]:
 
 
 def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
-    ""                                                            
+    """Execute one step in a CHILD, with the artefacts redirected.
 
                                                                               
                                                                           
@@ -210,12 +210,12 @@ def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
                                                                            
                                                                                
 
-                                                                                
-                                                                       
+    A child imports `paths` fresh, so the redirect binds. The wrappers travel to
+    it through `--child`, which installs them and then runs the script.
 
-                                                                              
-                                                                            
-       
+    `OBSERVATORY_REGISTRY` is deliberately NOT redirected: the registry is the
+    input the graph is about, and it is read, never written, by these steps.
+    """
     script = next((c for c in cmd if isinstance(c, str) and c.endswith(".py")), None)
     if script is None:
         return {"step": step, "skipped": "no python script in the command"}
@@ -228,12 +228,12 @@ def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
     for f in (ROOT / "store/raw").glob("*"):
         if f.is_file():
             shutil.copy2(f, work / "raw" / f.name)
-                                                                           
-                                                                               
-                                                                            
-                                                                        
-                                                                              
-                               
+    # THE STORE TOO, and it is not an optimisation. A step's file access is
+    # DATA-dependent: against an empty database `dashboard` skipped every panel
+    # that needs one and read seven files instead of thirteen, so the report
+    # came back clean about a step that reads the wallet and four plugin
+    # receipts in real life. A sandbox that changes which branch runs measures
+    # the sandbox (2026-09-09).
     if (ROOT / "store/observatory.db").is_file():
         shutil.copy2(ROOT / "store/observatory.db", work / "t.db")
     shutil.copytree(paths.REGISTRY, work / "registry", dirs_exist_ok=True)
@@ -273,24 +273,24 @@ def run(step: str, cmd: list[str], work: pathlib.Path) -> dict:
 
 
 def written_by_anyone(decl: dict) -> list[str]:
-    ""                                                                             
+    """Every path some step declares as a write — the only paths that can invert.
 
-                                                                              
-                                                                           
-                                                                             
-                                                                              
-                                          
-       
+    The graph orders READERS after WRITERS, so an undeclared read of a file no
+    step writes cannot produce an inversion: nothing upstream can change it
+    mid-pipeline. `findings` reads all 119 test suites to count what the gate
+    covers, and reporting those as defects buried the four reads that mattered
+    under 133 that could not (2026-09-09).
+    """
     return sorted({w for io in decl.values() for w in io["writes"]})
 
 
 def compare(step: str, seen: dict, decl: dict) -> list[str]:
-    ""                                                   
+    """Every disagreement, in the graph's own vocabulary.
 
-                                                                                  
-                                                                                
-                 
-       
+    A declaration covers a path when it names it or names a DIRECTORY above it —
+    `store/raw/gh` stands for the files inside it, and the graph is deliberately
+    coarse there.
+    """
     say = decl.get(step) or {"reads": [], "writes": []}
     out: list[str] = []
     # THE STORE IS NOT IN THE GRAPH, on purpose: "every writer touches it and
@@ -310,8 +310,8 @@ def compare(step: str, seen: dict, decl: dict) -> list[str]:
     for p in seen.get("reads", []):
         if p in exempt:
             continue
-                                                                                 
-                                                                    
+        # A file the step writes is one it may also read back; the graph is about
+        # dependencies between STEPS, so a self-read is not an edge.
         if covered(p, say["reads"]) or covered(p, say["writes"]):
             continue
         if covered(p, produced):
@@ -330,12 +330,12 @@ def compare(step: str, seen: dict, decl: dict) -> list[str]:
 
 
 def child(argv: list[str]) -> int:
-    ""                                                                    
+    """Install the wrappers, run one script, write down what came through.
 
-                                                                                
-                                                                                 
-                          
-       
+    This is the half that must be a separate process: the wrappers only see what
+    happens after `install()`, and the redirects only bind for a `paths` that has
+    not been imported yet.
+    """
     REDIRECTS[:] = _canonical()
     install()
     script, rest = argv[0], argv[1:]

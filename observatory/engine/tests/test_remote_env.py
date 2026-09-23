@@ -246,8 +246,8 @@ def test_a_secret_that_exists_only_at_the_provider_is_counted_not_copied() -> No
 
 def test_the_document_carries_no_fingerprint_and_no_value() -> None:
     rr = load("collectors/remote_registry.py", "remote_registry")
-                                                                            
-                                                                    
+    # ONE salt on both sides, or the comparison is refused before it is made
+    # and this test would be measuring the refusal instead.
     ns = "fp1:feedfacefeedface"
     scan = {"scanned_at": "2026-09-14T00:00:00Z", "provider": "heroku", "retired": [],
             "fingerprint_namespace": ns,

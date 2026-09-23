@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-""                                                     
+"""What counts as this estate's OWN work, in one place.
 
-                                                                               
-                                                                                     
-                                                                              
-                                                                                 
-                                                                             
-                                                                 
+Two components answer that question and until 2026-09-06 only one of them asked
+it. `tools/record_turn.py` — the companion plugin's recorder — refused to write a
+session record for anything but an `owned` or `work-bitbucket` project, on the
+grounds that "a third-party clone is somebody else's history, and a `why` written
+about it is noise the dashboard carries forever". `collectors/scan_events.py`
+applied no such rule and recorded every commit in every checkout.
 
                                                                            
                                                                                    
@@ -14,10 +14,10 @@
                                                                                
             
 
-                                                                     
-                                                                             
-                                                                         
-   
+One rule, two readers. The same shape as the retention horizon, which
+`store/retention.json` holds for both the collector and the pruner after they
+spent a live tick deleting and re-inserting each other's rows (trap T25).
+"""
 from __future__ import annotations
 
                                                                      
@@ -38,11 +38,11 @@ RECORDED_OWNERSHIP = frozenset({"owned", "work-bitbucket", "local-only"})
 
 
 def records_events(ownership: str | None) -> bool:
-    ""                                                         
+    """True when a project's commits belong in the event store.
 
-                                                                              
-                                                                               
-                                                
+    `None` means the repository is attached to no project. Those are recorded:
+    an unattributed checkout is a gap in the registry, and dropping its history
+    would hide the gap instead of showing it."""
     return ownership is None or ownership in RECORDED_OWNERSHIP
 
 
@@ -52,13 +52,13 @@ def why_excluded(ownership: str) -> str:
 
 
 def undeclared_owner_reason(owners: list[str], repos: int, checked_out: int) -> str:
-    ""                                                                        
+    """What an organisation the listing returned and `OWNED_ORGS` omits COSTS.
 
-                                                                            
-                                                                           
-                                                                                 
-                                                                            
-                                   
+    **Here because the sentence is about ownership, and because it has to be
+    testable.** `collectors/merge.py` runs at module level — importing it
+    performs a live collection — so a function defined there can only be driven
+    by running the collector, which is how its first version came to state a
+    consequence nobody had checked.
 
                                                                              
                                                                                
@@ -69,10 +69,10 @@ def undeclared_owner_reason(owners: list[str], repos: int, checked_out: int) -> 
                                                                           
                                                                          
 
-                                                                      
-                                                                              
-                
-       
+    Never auto-declared: which organisations are the operator's is the
+    operator's fact, and a script that minted it would make "owned" mean "seen
+    by a token".
+    """
     who = ", ".join(owners)
     head = (f"the GitHub listing returned {repos} repositor"
             f"{'y' if repos == 1 else 'ies'} under {who}, which OWNED_ORGS in "
@@ -94,27 +94,27 @@ def undeclared_owner_reason(owners: list[str], repos: int, checked_out: int) -> 
             "a collector's")
 
 
-                                                                                                                                                                 
- 
-                                                                               
-                                                                              
-                                                                              
-  
-                                                                             
-                                                                              
-                                                                                
-                                                                        
-                                                                                 
-                                                                                  
-                                   
-  
-                                                                           
-                                                                               
-                                                                           
-                                                                               
-                                                                             
-                                                                              
-                                                                         
+# ─────────────────── what a waiting conclusion RESTS ON ──────────────────────
+#
+#: The three delta kinds an ordinary working day produces. A developer commits,
+#: the tree goes dirty, the tree goes clean, and `last_activity_on` moves with
+#: them — that oscillation is the working rhythm, not news about the estate.
+#:
+#: Measured 2026-09-07 over the 130 records genuinely waiting for a decision:
+#: **107 rest on nothing but these three**, and one project alone had eighteen
+#: notes about its own commit rhythm sitting at the top of the operator's queue,
+#: because `tools/review.py digest` sorted projects by how many each had
+#: produced. The seventeen that rest on something else — a project appearing or
+#: vanishing, an owner changing, a repository or a stack arriving — are the ones
+#: a person is actually needed for.
+#:
+#: `last_activity_on-changed` belongs HERE rather than among the structural
+#: kinds, and that was checked by reading rather than assumed: the nine records
+#: carrying all three read "a single commit was made while the working tree
+#: became dirty". It accompanies ordinary work. It appears beside the anomalies
+#: too ("the commit count increased tenfold in three days"), which is why the
+#: anomalies are not separated out here — no mechanical signal distinguishes
+#: them, and inventing one would be a judgement wearing a rule's clothes.
 ROUTINE_DELTA_KINDS = frozenset({
     "commits-changed", "dirty-changed", "last_activity_on-changed",
 })
@@ -127,22 +127,22 @@ _RANK = {"structural": 0, "unclassified": 1, "routine": 2}
 
 
 def conclusion_class(evidence_json: str | None) -> str:
-    ""                                                                       
+    """`structural`, `routine` or `unclassified`, from what the record cites.
 
-                                                                             
-                                                                               
-                                                                               
-                                                                            
-                                                                              
-                                                     
+    A FACT rather than a judgement: `evidence_json` records the delta kinds a
+    conclusion was built from, so this reads what it rests on and never what it
+    says. Confidence was measured as the alternative and rejected — among the
+    restatements 0.95, 0.9, 0.9, 0.85, 0.7, 0.6, and among the lifecycle and
+    anomaly conclusions 0.9, 0.9, 0.85, 0.7, 0.6. Orthogonal, so sorting by it
+    would have looked principled and changed nothing.
 
-                                                                  
-                                    
+    THREE OUTCOMES. Unreadable, absent, or placeholder evidence is
+    `unclassified`, never `routine`.
 
-                                                                    
-                                                                
-                               
-       
+    One rule, two readers: `tools/review.py digest` orders by it and
+    `ledger.review_backlog` reports the split, the same shape as
+    `RECORDED_OWNERSHIP` above.
+    """
     import json as _json
     try:
         items = _json.loads(evidence_json or "[]")
@@ -162,54 +162,54 @@ def conclusion_class(evidence_json: str | None) -> str:
 
 
 def conclusion_rank(klass: str) -> int:
-    ""                                                                       
+    """Sort key for a class. An unknown name sorts last rather than first."""
     return _RANK.get(klass, max(_RANK.values()) + 1)
 
 
-                                                                                                                               
- 
-                                                                               
-                                                                                 
-                                                                                
-                                                                            
-                                                                             
-                                                                           
- 
-                                                                              
- 
-                                                           
-                                         
-                                                               
- 
-                                                                              
+# ──────────── records a corrected policy would never have created ────────────
+#
+# `agent/observe.py` keeps ONE record per project per day and CORRECTS it — a
+# new revision, not a new record — since 2026-09-07. Before that day every tick
+# appended. Measured the same day: 23 (project, day) groups still held more than
+# one waiting record and 43 records existed that the policy would never have
+# made, a third of the operator's whole queue, all of them from 09-04, 05 and
+# 06 and none from 09-07. The rule holds; this is what the fix left behind.
+#
+# The key below is the policy's OWN, read from its query rather than inferred:
+#
+#     project_id = ? AND kind = 'observation' AND owner = ?
+#       AND substr(created_at, 1, 10) = ?
+#       AND memory_id NOT IN (SELECT memory_id FROM tombstones)
+#
+# Four parts. A fold on three of them would merge what the policy keeps apart.
 
 
-                                                                              
-                                                                  
-  
-                                                                                
-                                                                          
-                                                                                  
-                                                                                 
-                                                                         
-                                                                               
-                                                   
-  
-                                                                               
-                                                                              
-                           
+#: (kind, owner) pairs whose writer keeps ONE record per project per DAY. Only
+#: these may be folded, and the default is therefore "not folded".
+#:
+#: The first version of `fold_groups` had no such scope and folded every waiting
+#: record. Measured immediately: it grouped 2 `session` records written by
+#: `agent:claude-code` and 1 `estate-history` record — and the session policy is
+#: one record per SESSION, not per day, so two sessions in one day are
+#: two legitimate records and folding them would destroy exactly what the
+#: four-part key was written to protect. `estate-history`'s policy was not read
+#: at all, which is its own reason not to touch it.
+#:
+#: A writer added here must have had its policy READ first. The safe default is
+#: the empty case, and this list carries its reason like every other exemption
+#: list in this repository.
 ONE_PER_DAY_WRITERS = frozenset({
     ("observation", "agent:observer"),
 })
 
 
 def residue_key(record: dict) -> tuple:
-    ""                                          
+    """The policy's grouping key for one record.
 
-                                                                                
-                                                                             
-                                                      
-       
+    A record with no readable date gets a key of its own — its `memory_id` —
+    rather than joining the group of some other record's day. A row cannot be
+    folded into a day it cannot be shown to belong to.
+    """
     stamp = record.get("created_at")
     day = str(stamp)[:10] if isinstance(stamp, str) and len(str(stamp)) >= 10 else None
     if day is None:
@@ -218,25 +218,25 @@ def residue_key(record: dict) -> tuple:
 
 
 def fold_groups(records: list[dict]) -> list[dict]:
-    ""                                                                         
+    """Groups holding more than one record, with which survives and which fold.
 
-                                                                                   
-                                                                                 
-                                                                                
-                                                                        
+    Returns `[{"key": …, "keep": memory_id, "fold": [memory_id, …]}]`, only for
+    groups with two or more. The survivor is the LATEST reading: each record of a
+    day restates the project's state at its moment, and the policy that replaced
+    this behaviour corrects one record so that only the latest survives.
 
-                                                                               
-                                                                                 
-                                                                                   
-                                                                                
-              
+    **What folding loses, stated rather than hidden.** The earlier records of a
+    day are different moments — the tree went dirty, the work was committed, it
+    went dirty again — and keeping only the last discards those readings. That is
+    precisely what the current policy does every day. Reproducing its outcome is
+    the point.
 
-                                                                           
-                                                                                  
-                                                                             
-                                                                             
-                         
-       
+    This function DECIDES NOTHING. `proposed` can only become `observed` or
+    `rejected` (`store/ledger.py`'s transition table — `superseded` is reachable
+    from `supported` and `contested` alone), and both are owned by `operator`
+    behind `require_terminal`. So the fold is a proposal for one decision per
+    group, never a sweep.
+    """
     buckets: dict[tuple, list[dict]] = {}
     for r in records:
         buckets.setdefault(residue_key(r), []).append(r)

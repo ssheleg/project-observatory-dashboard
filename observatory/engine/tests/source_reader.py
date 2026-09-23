@@ -52,8 +52,8 @@ def code_only(src: str) -> str:
     lines = src.splitlines(keepends=True)
     grid = [list(l) for l in lines]
     prose_tokens = {tokenize.COMMENT, tokenize.STRING}
-                                                                       
-                                                
+    # Python 3.11 represents complete f-strings as STRING. Python 3.12+
+    # exposes their string fragments separately.
     prose_tokens.update(getattr(tokenize, name) for name in
                         ('FSTRING_START', 'FSTRING_MIDDLE', 'FSTRING_END')
                         if hasattr(tokenize, name))
@@ -77,7 +77,7 @@ def appears_in_code(src: str, needle: str) -> bool:
 
 
 def code_lines(src: str, needle: str) -> list[int]:
-    ""                                                                         
+    """1-indexed lines where `needle` appears in code, for an error message."""
     hits = []
     for tok in tokenize.generate_tokens(io.StringIO(src).readline):
         if tok.type in (tokenize.COMMENT, tokenize.STRING):

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-""                                                                              
+"""The vault's contract, driven — including the two refusals that matter most.
 
-                                                                            
-                                                                               
-                                                                               
-                                                                               
-                                             
-   
+Everything runs against a scratch store through `OBSERVATORY_VAULT_DIR`; the
+machine's real secrets directory is never touched. The two properties worth the
+most here are refusals: an inject into a repository whose `.env` is committable
+must not write, and a leak record without a place must not append — both were
+designed first and the tool grew around them.
+"""
 from __future__ import annotations
 import json
 import os
@@ -70,9 +70,9 @@ def test_put_list_rotate_and_the_archive() -> None:
     slot = s / "demo/prod/DB_URL"
     check("the file is mode 600", oct(slot.stat().st_mode & 0o777) == "0o600",
           oct(slot.stat().st_mode & 0o777))
-                                                                              
-                                                                               
-                                                                           
+    # The umask says 755 and `mkdir` obeys it, so until 2026-09-14 every value
+    # sat 600 inside a directory anyone could list — the store's parent being
+    # 700 was the only thing in the way. A store's own directories say 700.
     dirs = {str(d.relative_to(s.parent)): oct(d.stat().st_mode & 0o777)
             for d in (s, s / "demo", s / "demo/prod")}
     check("every directory from the store down is mode 700",
@@ -173,7 +173,7 @@ def test_a_leak_of_a_key_the_store_never_held_is_still_recorded() -> None:
 
 
 def test_a_leak_rotated_at_the_provider_is_settled_by_hand_with_evidence() -> None:
-    ""                                                                      
+    """`settle` — the verb that did not exist on 2026-09-14."""
     store = fresh()
     vault(store, "leak", "example-app", "prod", "DATABASE_URL", "--where", "a traceback in a transcript")
     p = vault(store, "rotate", "example-app", "prod", "DATABASE_URL", stdin="new-value")
@@ -192,8 +192,8 @@ def test_a_leak_rotated_at_the_provider_is_settled_by_hand_with_evidence() -> No
 
 
 def test_every_movement_lands_in_the_journal_and_hand_moves_are_recordable() -> None:
-    ""                                                                     
-                                                                 
+    """The movements journal: the tools write it; `moved` is for
+    what was done outside them; nothing in it is ever a value."""
     store = fresh()
     vault(store, "put", "alpha", "prod", "API_TOKEN", stdin="value-one")
     vault(store, "rotate", "alpha", "prod", "API_TOKEN", stdin="value-two")
@@ -216,7 +216,7 @@ def test_every_movement_lands_in_the_journal_and_hand_moves_are_recordable() -> 
 
 
 def test_the_board_carries_an_open_leak_and_drops_a_settled_one() -> None:
-    ""                                                                  
+    """The rule in build_findings, driven through a planted register."""
     import importlib.util
     s = fresh()
     vault(s, "put", "demo", "prod", "API_TOKEN", stdin=BOARD_V1)
@@ -254,12 +254,12 @@ def test_the_board_carries_an_open_leak_and_drops_a_settled_one() -> None:
 
 
 def test_an_unreadable_register_is_reported_not_read_as_empty() -> None:
-    ""                                                                           
+    """`secret.register_unreadable` — empty and unreadable are different facts.
 
-                                                                              
-                                                                        
-                                                                
-       
+    An unreadable register reads as empty, and empty is indistinguishable from
+    nothing ever having leaked — the inversion this repository refuses
+    everywhere. Planted: a register that is not JSON.
+    """
     import importlib.util
     s = fresh()
     s.mkdir(parents=True, exist_ok=True)
@@ -280,11 +280,11 @@ def test_an_unreadable_register_is_reported_not_read_as_empty() -> None:
 
 
 def test_an_old_retired_archive_is_reported() -> None:
-    ""                                                                         
+    """`secret.retired_unrevoked` — a live credential in a file named 'dead'.
 
-                                                                            
-                                                                            
-       
+    `rotate` says out loud that the retired value works until revoked at the
+    provider. An archive a month later means that sentence was not acted on.
+    """
     import subprocess as _sp
     s = fresh()
     vault(s, "put", "demo", "prod", "API_TOKEN", stdin="v1")
@@ -399,7 +399,7 @@ def test_moved_settlement_and_legacy_readers_preserve_scope() -> None:
 
 
 def test_the_mandatory_rules_ship_as_a_skill() -> None:
-    ""                                                                         
+    """The rules bind agents only if they arrive in the session's skill set."""
     skill = ROOT / "skill/plugins/observatory-log/skills/handling-secrets/SKILL.md"
     check("the skill exists in the shipped plugin", skill.is_file(), str(skill))
     body = skill.read_text(encoding="utf-8")

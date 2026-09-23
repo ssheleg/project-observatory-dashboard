@@ -1,61 +1,61 @@
 #!/usr/bin/env python3
-""                                                    
+"""Project Observatory — the deterministic pipeline.
 
-                                                                   
-                                                                                           
-                                                                             
-                                                             
-                                                    
-                                                                        
-                                                                             
-                                                                                  
-                                                                       
-                                                      
-                                       
-                                
-                                   
-                                                           
-                                                                        
-                                                                              
-                                                                    
-                                                                                       
-                                                                     
-                                                                        
-                                                                                    
-                                                                                  
-                                                               
-                                                                                    
-                                                                        
-                                                                         
-                                    
-                                                                                        
-                                                                                       
-                                                                                      
-                                                  
-                                         
-                                                                
-                                                    
-                                                                                  
-                                                                              
-                                                                  
-                                                 
-                                                                        
-                                                                  
-                                                                         
-                                                                                    
-                                                   
-                                                        
-                                                                
-                                                  
-                                                            
-                                         
+    setup      create .venv (the MCP server's shebang points at it)
+    deps       install the pinned MCP SDK and sqlite-vec — mcp==2.1.1, the only line that
+               speaks protocol revision 2026-07-28. The LLM provider needs no
+               SDK: OpenRouter is HTTP and urllib reaches it.
+    scan       collect: filesystem, GitHub, the wiki
+    env        every .env under the estate, as names and never as values
+    leaks      hunt the estate's OWN values in transcripts, logs and the tree
+    use        tools/use_secret.py run <project> <NAME> -- <cmd>: a secret reaches
+               a command's environment and never the agent's transcript
+    merge      build the model from what was collected
+    emit       write the typed registry
+    validate   gate the registry
+    dashboard  render the HTML view
+    project    write the read-only projection into the wiki
+    commit-projection  commit it there under a lease, or explain why not
+    links      audit the wiki's wikilinks; non-zero if any resolves to nothing
+    design     check the dashboard against the SHELEG Workbench pack
+    smoke      execute the dashboard's script against a stub DOM; blank page = non-zero
+    findings   rebuild registry/findings.json from the typed registry
+    notify     notify once about findings that are new or have got worse
+    corroborate  promote a proposal whose claim a machine can independently re-check
+    export-ledger  write registry/ledger.jsonl — the only copy outside the store
+    ledger-current  non-zero if that export is behind the store
+    review     the operator's queue; writes need a terminal (tools/review.py --help)
+    scan-events  read commits out of every local checkout into the store
+    probes     run the declared Fabric probes against the live MCP server
+    test       planted trap fixtures
+    test-ledger  the write path's invariants — owner guard, CAS, lifecycle, tombstones
+    test-skill   the companion plugin, including the SessionStart hook it must NOT ship
+    test-agent   the agent's deterministic half: the client-side ceiling and its three
+                 degradations. No model is called.
+    snapshot     fingerprint the registry
+    deltas       write what moved since the previous fingerprint
+    pending      what the agent has not consumed yet
+    agent        interpret the deltas — one of two steps that can spend anything
+    index        build the derived projections from the outbox (the other one)
+    reindex      drop both projections and rebuild them from canon
+    index-status what is indexed, what is pending
+    chain        which models would be used, with live prices and health
+    wallet       what has been spent, against all three guardrails
+    key          whether a key is resolvable, and where it was looked for
+    revoke       list the account's keys; tools/revoke_key.py --tail <t> revokes one
+    models       refresh the provider catalogue now
+    tick         one full cycle, the way launchd runs it
+    validate-plugin  both `claude plugin validate --strict` runs
+    test-wire  drive mcp/server.py over real stdio
+    check      validate + fabric + test + test-wire + probes
+    all        every step above, in order
 
-                                                                           
-                                                                               
-                                                                                  
-                                                                                
-                                                                           
-   
+Two steps can SPEND: `agent` interprets deltas through a model, and `index`
+embeds what it wrote. Everything else is deterministic and free. This paragraph
+said the opposite — "no model participates" and "the LLM layer is not built yet"
+— for three days after the agent was scheduled and spending, fifty lines above
+the table that lists it. `tools/check_docs.py` now fails on both sentences.
+"""
 from __future__ import annotations
 import hashlib
 import json, os, re, sqlite3, subprocess, sys
@@ -74,14 +74,14 @@ except configuration.ConfigurationError as _exc:
     print(f"Observatory: {_exc}", file=sys.stderr)
     raise SystemExit(2) from None
 
-                                                                                
-                                                                             
-                                                                                   
-                                                                               
-                                                                               
-                                                                            
-                                                                                
-                           
+# ONE interpreter for the whole pipeline. Until 2026-09-05 the steps were split:
+# `sys.executable` for merge, emit, projection and validation — which under
+# `./observatory.py` is Homebrew's python3.14 — and `.venv/bin/python` (3.12) for
+# everything else, while tools/tick.sh ran ALL of them under the venv. The same
+# code therefore ran on two interpreters depending on who started it. It worked
+# only because those four files are stdlib-only; the day one of them needs a
+# third-party import it breaks on one path and not the other, and the difference
+# is invisible from either.
 PY = str(ROOT / ".venv" / "bin" / "python")
 if not Path(PY).exists():                                                       
     PY = sys.executable
@@ -89,9 +89,9 @@ STEPS = {
     "setup":     ["uv", "venv", ".venv"],
     "deps":      ["uv", "pip", "install", "--python", ".venv/bin/python",
                   "mcp==2.1.1", "jsonschema", "sqlite-vec",
-                                                                              
-                                                                                 
-                                                           
+                  # google-auth signs the service-account JWTs the GSC and GA4
+                  # plugins need; a launchd tick cannot do an OAuth browser dance
+                  #. Pure-python, no build step.
                   "google-auth"],
     "chain":     [PY, "agent/providers.py", "chain"],
     "wallet":    [PY, "agent/providers.py", "wallet"],
@@ -107,11 +107,11 @@ STEPS = {
     "scan-mcp":  [PY, "collectors/scan_mcp.py", "store/raw/mcp.json"],
     "openrouter": [PY, "collectors/scan_openrouter.py", "store/raw/openrouter.json"],
     "env":       [PY, "collectors/scan_env.py", "store/raw/env.json"],
-                                                                       
-                                                                         
+    # Gated to once a day inside the scan itself: every run pulls every
+    # production secret of every application into one process.
     "remote-env": [PY, "collectors/scan_remote_env.py", "store/raw/remote-env.json"],
-                                                                         
-                                                                            
+    # Cached for twelve hours inside the scan: thirty-eight properties is
+    # seventy-six calls and a minute, and analytics settle daily.
     "google":    [PY, "collectors/scan_google.py", "store/raw/google.json"],
     "leaks":     [PY, "tools/scan_leaks.py"],
     "use":       [PY, "tools/use_secret.py", "--help"],
@@ -196,9 +196,9 @@ STEPS = {
     "test-project-secrets": [PY, "tests/test_project_secrets.py"],
     "test-reveals": [PY, "tests/test_reveals.py"],
     "test-store-modes": [PY, "tests/test_store_modes.py"],
-                                                                         
-                                                                               
-                                                                               
+    # THE COMPANION'S MEMORY, scrubbed of the estate's values:
+    # claude-mem's own redactor knows key SHAPES, not this estate's values, and
+    # 26 of them sat in its summaries. Runs after `leaks`, which measures them.
     "scrub-companion": [PY, "tools/scrub_companion.py"],
     "test-scrub": [PY, "tests/test_scrub.py"],
     "test-session-start": [PY, "tests/test_session_start.py"],
@@ -209,9 +209,9 @@ STEPS = {
     "test-signature": [PY, "tests/test_signature.py"],
     "test-env": [PY, "tests/test_env_inventory.py"],
     "test-use-secret": [PY, "tests/test_use_secret.py"],
-                                                                             
-                                                                             
-                                                   
+    # NODE, like `smoke`, and for the same reason: the only honest check of a
+    # tab is to render it, and the page's script is JavaScript. It drives the
+    # built page rather than the source.
     "test-env-tab": ["node", "tests/env_tab_check.js", "docs/projects-dashboard.html"],
     "test-keyserver": [PY, "tests/test_keyserver.py"],
     "test-store-faults": [PY, "tests/test_store_faults.py"],
@@ -335,63 +335,63 @@ GROUPS = {
     "scan":  ["scan-fs", "scan-gh", "scan-vault", "scan-sessions"],
     "local": ["scan-fs", "merge", "emit", "validate", "scan-events",
               "findings", "dashboard", "smoke-pages"],
-                                                                                  
-                                                                                  
-                                                                                  
-                                                                             
-                                                                                 
-                                                                                   
-                                                                                 
-                                                                              
-                            
+    # `dashboard` is IN the gate, not assumed before it: `design` and `smoke` both
+    # read docs/projects-dashboard.html, which git ignores — so on a fresh clone
+    # the gate failed on an artefact no step of it built. Building an ignored file
+    # is not a tree change; the gate proves that itself (NON_MUTATING below).
+    # `contract` runs LAST. It verifies a REMOTE state — the published contract
+    # surface — and the only remedy is a human running `--publish`, so sitting it
+    # third meant one pending human step hid 648 local assertions behind an early
+    # exit. A gate should report everything it can before it reports what only
+    # somebody else can fix.
     "check": ["validate", "fabric", "ledger-current", "dashboard", "design", "smoke", "smoke-pages", "test-pages",
               "test", "test-ledger", "test-skill", "test-agent", "test-key", "test-install-key", "test-vault", "test-analytics", "test-doors", "test-surfaces", "test-mcp-inventory", "test-ack", "test-serverd", "test-skill-check", "test-index",
               "test-retention", "test-tick", "test-pipeline", "test-time", "test-events", "test-fingerprints", "test-export", "test-degradations", "test-emit", "test-ancestry", "test-provenance", "test-activity", "test-rollup", "test-plugins", "test-dashboard", "test-queue", "test-wire-contract", "docs-current", "test-docs", "test-dead-data", "test-projection", "test-tick-repo", "test-identity", "test-render", "test-sessions", "test-indexer-load", "test-corroboration", "test-tick-failures", "test-notification", "test-hook", "test-interpretation", "test-render-page", "test-recall", "test-validator", "test-domain-probe", "paths-current", "secrets", "test-secrets", "test-write-surface", "test-receipt", "test-interp-contract", "test-provider", "test-search", "test-mirror", "test-erasure-scope", "test-collector-state", "test-delivery", "test-freshness", "test-project-surface", "test-metric-series", "test-companion", "test-footprint", "test-budget", "test-agent-queue", "test-lost-projects", "test-estate-history", "test-cause", "test-clone-sync", "test-fixture-sweep", "test-unpublished", "test-checkout", "test-truncation", "test-key-shape", "test-identity-drift", "test-confidence", "test-standdown", "test-dark-cost", "test-stale-expected", "test-agent-faults", "test-integrity", "test-release", "test-portfolio", "test-omission", "test-ledger-ids", "test-provider-health", "test-store-faults", "test-heroku", "test-openrouter", "test-credentials", "test-keyserver", "test-env", "test-remote-env", "test-google", "test-project-secrets", "test-reveals", "test-store-modes", "test-backup-store", "test-plugin-pair", "test-publish-contract", "test-scrub", "test-session-start", "test-recovery", "test-signature", "test-env-tab", "test-use-secret", "use", "test-gate-skips", "test-block", "test-lever", "test-queue-order", "test-residue", "test-stale-collapse", "test-labels", "test-work-tiles", "test-attribution", "test-handoff", "test-site-kinds", "test-at-stake", "test-shape", "test-unobservable", "test-blank-page", "test-witness", "test-horizon", "test-recount", "test-git-locale", "test-foreign", "test-rdap-keys", "test-wire-alive", "test-absent-fields", "test-wire-inputs", "test-atomic", "test-two-surfaces", "test-companion-faults", "test-fold", "test-remedy", "test-listings", "test-merge", "test-erasure", "test-rollup-sessions", "test-scan-ids", "trap-map", "test-trap-map", "test-trap-efficacy", "test-finding-rules", "test-tracer", "plugins-check", "test-plugin-report", "test-fs-scan", "validate-plugin", "test-wire",
               "probes-check", "contract"],
     "all":   ["scan-fs", "scan-gh", "scan-vault", "scan-sessions", "remotes", "scan-bb", "domains", "heroku", "scan-cloudflare", "scan-mcp", "openrouter", "env", "remote-env", "google", "leaks", "scrub-companion", "merge", "emit", "validate",
               "scan-events", "plugins", "rollup", "corroborate", "export-ledger", "lost",
-                                                                              
-                                                                              
-                                                                                 
-                                                                            
-                                                                                
-                                                         
+              # `index` BEFORE the page, and the position is a measurement: it
+              # charges the wallet through the provider boundary, and the page
+              # reports the wallet. Traced 2026-09-09 — until then nothing knew
+              # the indexer wrote that file, so `all` published a page whose
+              # spend figure predated the spend of the same run. `tools/tick.sh`
+              # already had the pair the right way round.
               "index", "findings", "dashboard", "smoke", "notify", "commit-registry", "project", "commit-projection", "fabric", "links",
               "snapshot", "deltas", "test", "test-ledger", "test-skill", "test-agent", "test-key", "test-index", "test-retention",
               "validate-plugin", "test-wire", "probes", "test-gate-purity",
-                                                                            
-                                                                         
-                                                                              
-                                                                               
-                                                                    
-                                                                              
-                                                                                
-                                                                                
-                                                                               
-                                                                   
+              # LAST, and the position is the whole point. `contract` is red
+              # whenever the published revision is behind, which only the
+              # operator can clear — and it sat at #24 of 40, so a fail-fast
+              # group left the sixteen steps after it unrun on every invocation
+              # for the whole of this session, `probes`, `test-key`,
+              # `test-index`, `test-retention`, `test-wire`, `validate-plugin`
+              # and `test-gate-purity` among them. All were green when driven by
+              # hand; the hole cost nothing THAT time. `check` had it
+              # last already. A step whose red belongs to somebody else goes at
+              # the end of a group that stops at the first failure.
               "contract"],
 }
 
 
-                                                                              
-                                                                                   
-                                                                                  
-                                                                               
-                                                                
-                                                                                  
-                                        
+#: Groups that answer "is this tree good?" and must therefore not change it. A
+#: gate that writes cannot be used to decide whether the tree is clean — and this
+#: one did, twice: `probes` rewrote `fabric/probe-receipts.json` on every run, and
+#: trap T32 rebuilt `registry/findings.json` against the live registry. After a
+#: gate like that, `git status` answers a question nobody asked.
+#: Files git ignores are not tree changes: building `docs/projects-dashboard.html`
+#: is what a gate over a page has to do.
 NON_MUTATING = {"check"}
 
-                                                                               
-                                                                         
-                                                                
-                                                                                
-                                                                              
-                                                                            
-                                                   
-  
-                                                                              
-                                                                                 
+#: Tracked paths that NO step of a NON_MUTATING group writes, so a change under
+#: one of them during such a group is somebody else's — in practice the
+#: scheduled tick, whose `emit`, `findings`, `export-ledger` and
+#: `commit-registry` steps are the only writers of the registry and none of them
+#: is in `check`. Verified rather than assumed: of the registry's writers only
+#: `dashboard` appears in the group, and it writes a gitignored page already
+#: declared in `IGNORED_WRITES_ALLOWED`.
+#:
+#: A prefix list, not a blanket: naming the paths is what lets the verdict say
+#: whose change it was instead of accusing the gate of a rewrite it did not make.
 GROUP_WRITES_NOTHING_UNDER = ("registry/",)
 
                                                                            
@@ -486,7 +486,7 @@ def unavailable_step(name: str, public: bool) -> str:
 
 
 def capabilities() -> dict[str, str]:
-    ""                                                                              
+    """Each requirement, and why it is absent when it is. Empty string = present."""
     import shutil
     sys.path.insert(0, str(ROOT))
     import paths
@@ -498,31 +498,31 @@ def capabilities() -> dict[str, str]:
     }
 
 
-                                                                             
-                                                                                
-                                                                           
-                                                                     
-  
-                                                                            
-                                                                           
-                                                                        
+#: A suite announcing that a BLOCK of assertions did not run. Anchored at the
+#: line start, because a PASS line may name the marker while asserting something
+#: about it: `PASS  a SKIP line is printed when node is absent` is a passed
+#: assertion, not a skipped one, and an unanchored search counted it.
+#:
+#: Two words, because the suites use two: 39 sites print `SKIP` and 10 print
+#: `NOTE` (measured 2026-09-07 across 27 suites). Both drop assertions; the
+#: verbatim line is kept so a reader can tell which they are looking at.
 SKIP_MARKER = re.compile(r"^\s+(SKIP|NOTE)\s")
 
 
 def run(step: str, *, offline: bool = False) -> tuple[int, list[str]]:
-    ""                                                                      
+    """Run one step, streaming its output, and report the blocks it skipped.
 
-                                                                              
-                                                                                 
-                                                                           
-                                                                     
-                                                                 
+    STREAMED rather than captured. A 99-step gate whose output only appears at
+    the end is a gate nobody watches, so the lines are printed as they arrive and
+    counted on the way past. `stdin` is left inherited, which is what keeps
+    `tools/review.py`'s `require_terminal` guard working — it reads
+    `sys.stdin.isatty()`, and piping stdout does not touch stdin.
 
-                                                                                
-                                                                         
-                                                                                  
-                                                                            
-       
+    Why the skips are returned at all: `_run_group` was rigorous about a skipped
+    STEP and blind to a skipped BLOCK inside one. A suite could drop nine
+    assertions, print its reason, exit 0, and be counted as passed — measured on
+    identical code as three different PASS totals in one session.
+    """
     print(f"\n\033[1m── {step}\033[0m", flush=True)
     skips: list[str] = []
     child_environment = dict(os.environ)
@@ -549,9 +549,9 @@ def run(step: str, *, offline: bool = False) -> tuple[int, list[str]]:
 #: `store/raw/`: putting it there would have cost that ban its first
 #: exception, and the ban is what catches an unredirected fixture.
 IGNORED_WRITES_ALLOWED = {
-                                                                                
-                                                                             
-                                                                        
+    # The split pages and their smoke receipts: built by `dashboard`,
+    # executed by `smoke-pages`, gitignored like the single page for the same
+    # reason — generated, and regenerated by the gate that reads them.
     **{f"docs/dashboard/{_pg}.html": "a split page built by the dashboard step, "
        "read by smoke-pages and test-pages; gitignored, regenerated by the gate"
        for _pg in ("index", "findings", "projects", "domains", "heroku", "creds", "env", "mcp", "traffic", "health")},
@@ -621,11 +621,11 @@ FOREIGN_WRITES_IGNORED = {
         "functions redirect OBSERVATORY_SCRATCH",
 }
 
-                                                                            
-                                                                                  
-                                                                              
-                                                                                
-                                                                             
+#: Tables whose ROW COUNT must not move while a NON_MUTATING group runs. The
+#: file's BYTES legitimately do — WAL checkpointing, page reuse, `secure_delete`
+#: and a migration applied by any read-write connect all rewrite pages without
+#: changing a single fact — so hashing the database would report a mutation on
+#: every run and teach the reader to ignore it. The counts are the invariant.
 WATCHED_TABLES = ("ledger", "deltas", "events", "observations", "metrics",
                   "proposals", "project_week", "outbox", "tombstones", "scans")
 
@@ -633,14 +633,14 @@ WATCHED_TABLES = ("ledger", "deltas", "events", "observations", "metrics",
 #: session on this machine ends a turn — `tools/record_turn.py`'s own owner.
 FOREIGN_ROW_WRITER = "agent:claude-code"
 
-                                                                                
-                                                                             
-                                                                                
-                                                                              
-                                                                                
-                                                                                
-                                                                               
-                                                                               
+#: Row counts that must EXCLUDE that writer, and why. This is the row-count half
+#: of `FOREIGN_WRITES_IGNORED`: a neighbouring session ending a turn mid-gate
+#: moved `ledger` and `outbox` from 183 to 184 and the purity verdict reported a
+#: mutation the group under test had not made (measured 2026-09-07; the re-run
+#: was green, which is the tell — a guarantee that fails on a race teaches the
+#: reader to re-run rather than to look). The recorder is invoked by a Stop hook
+#: and by no step of any group, so excluding it removes no coverage: the suites
+#: that DRIVE it redirect `OBSERVATORY_DB` and are checked for that separately.
 FOREIGN_ROWS_EXCLUDED = {
     "ledger": "SELECT count(*) FROM ledger WHERE owner IS NOT ?",
     # `outbox` carries no owner of its own; a row is traced to the ledger row it
@@ -652,25 +652,25 @@ FOREIGN_ROWS_EXCLUDED = {
 
 
 def ignored_state() -> tuple[dict[str, str], dict[str, int]]:
-    ""                                                                    
+    """(hash per file under the scratch dir, row count per watched table).
 
-                                                                                
-                                                                                  
-                                                                 
-                                                                           
-                                                                      
-                                                                                
-                                                                           
-                                                                                
-       
+    THE HALF `git status` CANNOT SEE, and the reason this exists. `NON_MUTATING`
+    promised that a gate answering "is this tree good?" does not change it — and
+    it was enforced by `git status` alone, while `store/raw/` and
+    `store/observatory.db` are gitignored. Measured 2026-09-07: the `check`
+    group wrote ELEVEN of them, including the live `agent.json`, whose
+    `halted_by` then told the operator the interpretation layer was stopped by a
+    mode-644 key file in a test's temp directory that no longer exists. The
+    finding an operator reads carried a fixture's outcome as the estate's state.
+    """
     files: dict[str, str] = {}
-                                                                            
-                                                                                 
-                                                                              
-                                                                            
-                                                                             
-                                                                             
-                                                                        
+    # THE JOURNALS TOO. `store/logs/*.jsonl` are the security record — who
+    # revealed what, which command ran with which secret — and until 2026-09-14
+    # they were outside this hash, so a suite that started a keyserver and hit
+    # `/api/reveal` left rows in the live audit and the gate stayed green. A
+    # gate that answers "is this tree good?" may not write the record either.
+    # `tick.log`/`tick.err` stay out: launchd writes them and the lease keeps
+    # the tick away during a run, so a change there is not this group's.
     watched = list(paths.SCRATCH.rglob("*")) + list((paths.STATE / "logs").glob("*.jsonl"))
     for p in sorted(set(watched)):
         if p.is_file():
@@ -699,20 +699,20 @@ def ignored_state() -> tuple[dict[str, str], dict[str, int]]:
 
 def culprit_of(appeared: list[str], vanished: list[str],
                changed_files: list[str]) -> str:
-    ""                                                                    
+    """Who moved the tree — as a decision that can be driven on its own.
 
-                                                                               
-                                                                                
-                                                                               
-                                                                                
-                                                                                
-                                                            
+    Three cases, and the third read as the first for as long as there were two:
+    with the status line set unchanged, `appeared` and `vanished` are BOTH empty
+    and `not vanished` named the gate — for a file another process rewrote in
+    place. A scheduled tick rewriting `registry/findings.json` mid-run therefore
+    came out as the gate mutating the tree, which is the wrong-cause failure the
+    vanished-case comment was written to prevent.
 
-                                                                              
-                                                                             
-                                                                                
-                                         
-       
+    Extracted from `main()` so it could be tested without planting a change in
+    the repository's own tracked files: a driven check on the real tree would
+    have to modify and restore one, and a test that edits tracked files to prove
+    a point is a worse risk than the bug.
+    """
     if appeared:
         return "the gate itself"
     if vanished:
@@ -727,24 +727,24 @@ def culprit_of(appeared: list[str], vanished: list[str],
 
 
 def tree_state() -> tuple[str, set[str], dict[str, str]] | None:
-    ""                                                                           
+    """(digest, the set of status lines, a digest PER FILE), or None outside git.
 
-                                                                              
-                                                                             
-                                                                               
-                                                                               
-                                          
+    The status lines alone are NOT enough, and a planted mutation proved it: a
+    gate that appends to a file which is ALREADY modified leaves ` M path` on
+    both sides, so the set is identical and the change is invisible. The digest
+    covers the content of every tracked change; the line set is kept because it
+    is what names the paths in the report.
 
-                                                                                
-                                                                                
-                                                                               
-                                                                              
-                                                                                
-                                                                                  
-                                                                                 
-                                                                                 
-                        
-       
+    **And the whole-tree digest alone was not enough either.** When the line set
+    matched, the report said only "a file that was ALREADY modified was modified
+    again — `git diff HEAD` says which" and then named the GATE as the cause,
+    because the culprit rule read an empty `vanished` set as "not the tick". A
+    scheduled tick rewriting `registry/findings.json` mid-run therefore came out
+    as the gate mutating the tree — the exact wrong-cause failure the rule above
+    it was written to prevent, one case over. The per-file digests are
+    split out of the one `git diff HEAD` already taken, so naming the files costs
+    no extra subprocess.
+    """
     st = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT,
                         capture_output=True, text=True)
     if st.returncode != 0:
@@ -757,7 +757,7 @@ def tree_state() -> tuple[str, set[str], dict[str, str]] | None:
         if line.startswith("diff --git "):
             if path is not None:
                 per_file[path] = hashlib.sha256("".join(chunk).encode("utf-8")).hexdigest()[:16]
-                                                                                  
+            # `diff --git a/x b/x` — the b-side, which is the path as it is now.
             parts = line.split(" b/", 1)
             path = parts[1].strip() if len(parts) == 2 else line.strip()
             chunk = []
@@ -813,8 +813,8 @@ def main(argv: list[str]) -> int:
             print(f"Observatory: {exc}", file=sys.stderr)
             return 2
         paths.tighten()
-                                                                                  
-                                                                            
+    # `--expect-skipped a,b` pins which steps this environment may skip. CI passes
+    # it; a person leaves it off and gets the summary without the assertion.
     expect_skipped = None
     for a in argv[2:]:
         if a.startswith("--expect-skipped="):
@@ -871,7 +871,7 @@ def main(argv: list[str]) -> int:
 
 
 def _tick_stamp() -> str:
-    ""                                                                        
+    """When the scheduled tick last finished, or "" — never an exception."""
     try:
         return json.loads((paths.SCRATCH / "tick.json").read_text(
             encoding="utf-8")).get("finished_at") or ""
@@ -883,13 +883,13 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
                attributable: bool = True) -> int:
     before = tree_state() if name in NON_MUTATING else None
     before_ignored = ignored_state() if name in NON_MUTATING else None
-                                                                            
-                                                                                  
-                                                                              
-                                                                             
-                                                                                
-                                                                              
-                                     
+    # THE TICK RUNS EVERY THIRTY MINUTES, and a long `check` overlaps it. On
+    # 2026-09-12 a sweep reported three reds — a search index rebuilt mid-query,
+    # a rollup read between its delete and its insert, a file scanned while it
+    # was being written — and every one passed on a re-run seconds later. A
+    # false red is not a small cost in a repository whose whole argument is that
+    # a red means something; the tick's receipt is stamped here so the verdict
+    # can say which reds to distrust.
     tick_before = _tick_stamp()
     caps, skipped = capabilities(), {}
     block_skips: dict[str, list[str]] = {}
@@ -905,12 +905,12 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
         if blocks:
             block_skips[step] = blocks
         if code != 0:
-                                                                              
-                                                                              
-                                                                            
-                                                                           
-                                                                            
-                                                                                
+            # RECORDED, NOT RETURNED. This returned here — before the purity
+            # verdict below — so a group with any failing step never checked
+            # whether it had changed the tree. `contract` has failed for the
+            # whole of this session (rev-4 is unpublished), which means the
+            # purity guarantee had not been evaluated once in all that time:
+            # the seventh instance of the early-return class in this repository.
             print(f"\n\033[31mFAILED at {step} (exit {code})\033[0m", file=sys.stderr)
             if tick_before and _tick_stamp() != tick_before:
                 print(f"\033[33m  the scheduled tick finished DURING this run "
@@ -951,18 +951,18 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
         for s, why in skipped.items():
             print(f"  {s}: {why}")
 
-                                                                                
-                                                                                 
-                                                                                 
-                                                                           
-                                                                                
-                                               
-     
-                                                                                 
-                                                                                 
-                                                                           
-                                                                               
-                                                                              
+    # THE THIRD KIND OF NOT-RUN, and it was the largest and the only silent one.
+    # The two reports above cover a step this machine cannot run and an assertion
+    # block a suite skipped; a step the group never REACHED was reported nowhere,
+    # because the loop breaks at the first failure — which is right for a
+    # pipeline, where running `emit` on a model `merge` could not build is worse
+    # than stopping, and wrong to leave unsaid.
+    #
+    # Measured 2026-09-08: `check` broke at `test-truncation` (#74 of 128) and at
+    # `test-handoff` (#98), leaving 54 and 30 steps unrun while each summary said
+    # "1 failed"; `all` had `contract` at #24 of 40 and it has been red all
+    # session, so sixteen steps had not run once. All were green when driven by
+    # hand — which is the point: the hole cost nothing THAT time.
     if unreached:
         shown = unreached[:12]
         print(f"\n\033[33m{len(unreached)} of {len(steps)} step(s) never ran — the "
@@ -971,9 +971,9 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
         print("  " + ", ".join(shown)
               + (f", and {len(unreached) - len(shown)} more" if len(unreached) > len(shown) else ""))
 
-                                                                          
-                                                                                 
-                                                                        
+    # CI pins the set it expects to skip. Without this a step that quietly
+    # becomes machine-coupled leaves CI's coverage without anything saying so —
+    # the run stays green and simply stops checking that step, for ever.
     if expect_skipped is not None:
         want, got = set(expect_skipped) - {""}, set(skipped)
         if want != got:
@@ -991,12 +991,12 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
             # A gate that reports the wrong cause is a gate people argue with.
             appeared_now = sorted(after[1] - before[1])
             vanished_now = sorted(before[1] - after[1])
-                                                                                 
-                                                                                 
-                                                                              
-                                                                                
-                                                                      
-                         
+            # THE THIRD CASE, which read as the first. When the line set matches,
+            # both sets are empty and `not vanished_now` named the GATE — for a
+            # file another process rewrote in place. Now the changed files are
+            # NAMED from the per-file digests, and a change confined to paths no
+            # step of this group writes is reported as somebody else's
+            #.
             changed_files = sorted(
                 k for k in set(before[2]) | set(after[2])
                 if before[2].get(k) != after[2].get(k))
@@ -1016,17 +1016,17 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
                       "so the digest changed for a reason this cannot name — "
                       "`git status` and `git diff HEAD` are what it compares.",
                       file=sys.stderr)
-                                                                                
-                                                                               
-                                                                                 
-                                                                        
+            # NOT A RETURN. The ignored half below is the part git cannot see at
+            # all, and skipping it here made this branch the eighth instance of
+            # the early-return class the purity contract exists to refuse — the
+            # verdict must be REACHED on every path, including this one.
             tree_dirty = True
 
-                                                                                 
-                                                                             
-                                                                                 
-                                                                              
-                                                                          
+    # THE IGNORED HALF, which the check above cannot see at all. `store/raw/` and
+    # `store/observatory.db` are gitignored, so a gate that wrote them stayed
+    # green — and it did: eleven files, measured 2026-09-07, including the live
+    # `agent.json` whose `halted_by` then told the operator the interpretation
+    # layer was stopped by a mode-644 key file in a test's temp directory.
     if before_ignored is not None:
         files_after, rows_after = ignored_state()
         files_before, rows_before = before_ignored
@@ -1038,15 +1038,15 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
                  for t in set(rows_before) | set(rows_after)
                  if rows_before.get(t) != rows_after.get(t)}
         if touched or moved:
-                                                                                  
-                                                                                    
-                                                                                
-                                                                                
-                                                                         
-                                                                           
-                                                                                
-                                                                                  
-                                                                            
+            # THE VERDICT MAY NOT CLAIM MORE THAN THE RUN ESTABLISHED. Without the
+            # registry lease another writer — the tick, every 1800 seconds — can
+            # work inside this window, and then "the group wrote these" is false
+            # about files the run itself proved it could not attribute. Measured
+            # 2026-09-08: a tick took the lease first, the gate proceeded
+            # unprotected as designed, and the verdict named fifteen of the
+            # tick's own receipts as the group's impurity. The report
+            # stays and the exit stays non-zero — erring toward reporting is the
+            # existing choice — but the sentence now matches the evidence.
             print(f"\n\033[31m" + (
                   f"The {name} group wrote artefacts git cannot see. A gate "
                   f"that answers 'is this tree good?' must not change it, and these are "
@@ -1066,10 +1066,10 @@ def _run_group(name: str, steps: list[str], expect_skipped: list[str] | None,
                   "`tools/build_findings.py` reads, so a fixture's outcome becomes "
                   "the estate's reported state.", file=sys.stderr)
             return 1
-                                                                               
-                                                                               
-                                                                                
-                                                          
+    # THE TRACKED-TREE VERDICT, decided AFTER the ignored half has been checked
+    # too. It used to `return 1` on the spot, which skipped the part git cannot
+    # see and skipped the line below saying the checks ran — so a tick landing
+    # mid-gate hid the purity verdict entirely.
     if tree_dirty:
         print("\n\033[31mthe tracked tree moved during the run, reported above\033[0m",
               file=sys.stderr)

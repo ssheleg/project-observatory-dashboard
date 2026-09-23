@@ -21,13 +21,13 @@ OWNED_ORGS = set(ownership.get("organizations", []))
 WORK_ORGS = set(ownership.get("work_organizations", []))
 degraded: list[dict] = []
 OWNED_DOMAINS={d["name"] for d in json.load(open(paths.REGISTRY/"domains.json"))["domains"]}
-                                                                          
-                                                                                
-                                                                               
-                                                                      
-                                                                              
-                                                                          
-                                                                           
+# The Heroku chain (a zone's host -> the app serving it -> its project) is
+# joined in emit_registry.py, not here: the app->project link is computed there,
+# and reading the previous emit's projection from the merge was a read that ran
+# before its writer — a cycle the pipeline graph refuses.
+# Zone names the estate holds (store/raw/cloudflare_zones.json, scanned before
+# the merge): an env or nginx line naming one of them is the project's own
+# surface; naming anything else is the project CONSUMING a provider's host.
 try:
     ZONE_NAMES={z["name"] for z in json.load(open(paths.SCRATCH/"cloudflare_zones.json"))["zones"]}
 except (OSError, ValueError, KeyError):
@@ -44,9 +44,9 @@ gh={}
 for f in sorted((SP/"gh").glob("*.json")):
     if f.name.startswith("_"): continue
     for r in json.load(open(f)): gh.setdefault(r["nameWithOwner"], r)
-                                                                              
-                                                                           
-                                                  
+# Through `local_scan`, which accepts the bare list the scan used to write and
+# the object it writes now. A reader that crashed on one shape would turn a
+# shape change into a half-hour outage.
 local={l["folder"]: l for l in local_scan.folders(SP/"local.json")}
 if (SP / "vault.json").is_file():
     vault={v["folder"]: v for v in json.loads((SP / "vault.json").read_text())}
@@ -104,11 +104,11 @@ for k,r in gh.items():
         "topics":[t["name"] for t in (r.get("repositoryTopics") or [])],
         "default_branch":(r.get("defaultBranchRef") or {}).get("name") or "",
         "local":None,"source":"github-api"}
-                                                                            
-                                                                                  
-                                                                              
-                                                             
-                                                     
+#: Everything this run could not measure, in the shape every other collector
+#: uses. `merge.py` had NO degradation channel at all — measured 2026-09-07 with
+#: `grep -c degraded` — and it is the one collector whose output every other
+#: module reads. See `PREVIOUS_TRANSFERS` for what that cost.
+# Preserve optional-input degradation gathered above.
 
                                                                            
                                                                            
@@ -233,23 +233,23 @@ for folder,l in local.items():
         repos[k]["default_branch"]=rm.get("default_branch") or ""
     lr={"folder":folder,"path":l["path"],"symlink":l["symlink"],"kinds":l["kinds"],
         "sync":rm.get("sync") if rm.get("reachable") else ("unreachable" if rm else ""),
-                                                                                   
-                                                                                    
-                                                                                 
-                                                                            
-                                                                 
-                                                                             
-                                                              
+        # A DATE, and renamed to say so. `store/raw/remotes.json` keeps the precise
+        # instant — it is not committed — and this is the boundary where a run's
+        # clock becomes a fact in a tracked file. At second resolution it changed
+        # for ~174 repositories on every tick, which is what made `git diff`
+        # never empty: measured 2026-09-07 in one commit subject,
+        # `remote_checked_at x174`. Its ONLY reader wanted the day anyway —
+        # `tools/build_findings.py` truncated it with `[:10]`.
         "remote_head":rm.get("remote_head",""),
         "remote_checked_on":(rm.get("checked_at") or "")[:10],
         "branch":l.get("branch",""),"last_commit":l.get("last_commit",""),
         "commits":int(l.get("commits") or 0),"dirty":l.get("dirty",0),
         "readme":l["readme"],"homepage_hits":l["homepage_hits"]}
-                                                                              
-                                                                             
-                                                                                
-                                                                        
-                 
+    # HOW MUCH IS AT STAKE, carried only when the probe measured it. Absent is
+    # not zero: a state asserting work on this disk with a count of zero is a
+    # contradiction, so `collectors/scan_remotes.at_stake` omits the keys rather
+    # than reporting a reassurance, and this passes the omission through
+    #.
     for key, out_key in (("unpushed", "unpushed"), ("newest_on", "unpushed_newest_on"),
                          ("nothing_exclusive", "nothing_exclusive")):
         if rm.get(key) is not None:
@@ -325,10 +325,10 @@ for folder,l in local.items():
 # ---------- projects anchored on vault folders ----------
 ORG_BY_LOWER={o.lower():o for o in OWNED_ORGS}
 projects={}
-                                                                              
-                                                                               
-                                                                             
-             
+# THE SLUG LIVES IN `identity.py` NOW, with the rule for how a folder-anchored
+# project is named — because that name CHANGES when the project is published,
+# and a second spelling of an id rule is how one project ends up with two ids
+#.
 slug = identity.slug
 for folder,v in vault.items():
     projects[folder]={"key":slug(folder),"name":folder,"anchor":"vault-folder",
@@ -429,8 +429,8 @@ for owner,ks in sorted(left.items()):
         projects[owner]={"key":slug(owner),"name":owner,"anchor":"organisation",
             "vault":None,"repos":sorted(ks),"rules":[f"{k}: organisation with no vault note" for k in ks],"sites":[]}
     else:
-                                                                                  
-                                                                            
+        # `ks` is already free of retired repositories — filtered once above, so
+        # the rule lives in one place instead of being re-stated per branch.
         for k in ks:
             projects[k]={"key":slug(k.replace("/","-")),"name":repos[k]["name"],"anchor":"repository",
                 "vault":None,"repos":[k],"rules":[f"{k}: standalone repository"],"sites":[]}
@@ -530,11 +530,11 @@ for p in projects.values():
     dates=[repos[k]["pushed_at"] for k in p["repos"] if repos[k]["pushed_at"]]
     dates+= [repos[k]["local"]["last_commit"] for k in p["repos"] if repos[k]["local"] and repos[k]["local"]["last_commit"]]
     if p.get("local_only") and p["local_only"]["mtime"]: dates.append(p["local_only"]["mtime"])
-                                                                      
-                                                                                   
-                                                                              
-                                                                           
-                                                                               
+    # AND ITS OWN LAST COMMIT. For a folder with no remote there is no
+    # `pushed_at` and no repository row, so `mtime` was the only candidate here —
+    # and it is `null` for every one the scan measured. A git repository knows
+    # when it was last committed to; asking the filesystem instead answered
+    # "unknown" for the three most recently worked-on projects on this machine.
     if p.get("local_only") and p["local_only"].get("last_commit"):
         dates.append(p["local_only"]["last_commit"])
                                                                                
@@ -571,25 +571,25 @@ for p in projects.values():
 dups={}
 for k,r in repos.items(): dups.setdefault(r["name"].lower(),[]).append(k)
 duplicates=sorted([v for v in dups.values() if len(v)>1], key=lambda v:v[0])
-                                                                              
-                                                                                   
-                                                                            
-                                                                                 
-                                                                               
-                                                                               
-                                                                         
-                                                                                
- 
-                                                                                
-                                                                       
+# THE OWNER SET IS HARDCODED HERE AND DISCOVERED THERE. `scan_github.owners()`
+# asks the API — "nothing is hardcoded, because an org added tomorrow must appear
+# without editing this file" — and then this file decides ownership from a
+# literal. The two agree today, measured 2026-09-07: ten owners on disk, the same
+# ten in `OWNED_ORGS`. The drift is latent and its consequence is not small: an
+# organisation created tomorrow would have every repository classed `external`,
+# and `estate.py` refuses to record a session for anything but `owned` or
+# `work-bitbucket` — so work on a new org would stop being recorded, silently.
+#
+# NOT auto-added. Which organisations are the operator's is the operator's fact,
+# and a script that mints it would make "owned" mean "seen by a token".
 _discovered={r["owner"] for r in repos.values() if r["host"]=="github"}
 _undeclared=sorted(o for o in _discovered if o not in OWNED_ORGS
                    and any(k in gh for k in repos if repos[k]["owner"]==o))
 if _undeclared:
-                                                                               
-                                                                              
-                                                                                
-                                                              
+    # THE SENTENCE LIVES IN `estate.py`, and the count of CHECKOUTS is why. The
+    # first version stated "estate.py will refuse to record sessions for them"
+    # whatever the case, and the live case had no checkout at all — nothing to
+    # lose, and an alarm spent on a classification.
     _und_repos = [k for k, r in repos.items() if r["owner"] in _undeclared]
     _und_cloned = sum(1 for k in _und_repos if repos[k]["local"])
     degraded.append({"source": "ownership",
@@ -635,13 +635,13 @@ if moved:
     for was, real in sorted(moved.items()):
         print(f"  {was} -> {real}")
 out["transfers_followed"] = moved
-                                                                             
-                                                                             
-                                                                                
-                                                                          
-                                                                            
-                                                                          
-                                       
+#: The folder whose `origin` still points at the old address, so a reader has
+#: something to act on rather than a pair of names. A transfer is followed on
+#: every tick and, until this ran, recorded for nobody: `transfers_followed` was
+#: written into the model and read by NOTHING (measured 2026-09-07 — the
+#: neighbouring `duplicate_repo_names` has a reader in the emitter, this had
+#: none). The remedy is one command and the operator cannot run it without
+#: knowing which checkout to run it in.
 out["stale_remotes"] = [
     {"was": was, "now": real,
      "folder": (repos.get(real, {}).get("local") or {}).get("folder", ""),

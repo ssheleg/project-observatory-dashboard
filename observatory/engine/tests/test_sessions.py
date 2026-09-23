@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-""                                                                    
+"""Session attribution and ingestion over a synthetic estate.
 
-                                                                                 
-                                                                                  
-                                                                        
-   
+Historical live counts remain in Git history; they are not installation criteria.
+The scanner and store are real. Only their source data and locations are fixtures.
+Lost-project finding remedies are driven by tests/test_lost_projects.py.
+"""
 from __future__ import annotations
 import importlib, importlib.util, json, pathlib, sqlite3, subprocess, sys, tempfile
 from unittest.mock import patch
@@ -193,16 +193,16 @@ def test_emitter_preserves_session_date_and_citation():
 
 
 def test_session_events_cannot_inflate_a_rollup() -> None:
-    ""                                              
+    """DRIVEN, because the SQL no longer answers it.
 
-                                                                               
-                                                                         
-                                                                                
-                                                                               
-                                                                               
-                                                                                
-                                                      
-       
+    This asserted `"WHERE kind='commit'" in src` — a fact about how the query
+    was spelled, which stopped being true when the rollup learned to read
+    sessions as their own columns. The INVARIANT it was protecting is
+    unchanged and is what matters: a session must never be counted as a commit.
+    So it is now measured on a fixture instead of read off the source, which is
+    also the only version that would have caught the reverse mistake — a query
+    naming both kinds and adding them into one column.
+    """
     import importlib
     from store import rollup
     importlib.reload(rollup)

@@ -165,7 +165,7 @@ def test_the_run_report_carries_the_loss() -> None:
     settings = json.loads(settings_path.read_text())
     settings.setdefault("features", {})["agent"] = True
     settings_path.write_text(json.dumps(settings))
-                                                                         
+    # An empty synthetic queue exercises the real no-spend report writer.
     result = subprocess.run([PY, "agent/observe.py"], cwd=ROOT,
                             env=dict(os.environ), capture_output=True, text=True,
                             timeout=30)

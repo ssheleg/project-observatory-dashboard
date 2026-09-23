@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-""                                                                
+"""Record what a turn changed in a watched repository. Facts only.
 
-                                                                                  
-                                                                                
-                
+Called by the observatory-log plugin's Stop hook. Standard library only — a hook
+is a bad place to discover a missing dependency, so nothing here imports outside
+the interpreter.
 
-                                                                               
-                                                                              
-                                                                                
-                                 
+One record per session, corrected as the work grows: the second turn supersedes
+the first by compare-and-swap rather than appending a near-duplicate. `why` is
+never written here. The hook cannot know it, and inventing it would be the exact
+failure the whole design refuses.
 
-                                                      
-                                                                         
-                                                                            
-                                                                                  
-                                                
-   
+Prints a JSON object on stdout for the hook to act on:
+    {"recorded": true, "memoryId": …, "revision": …, "hasWhy": false,
+     "project": "project:…", "files": 3, "insertions": 40, "deletions": 5}
+Any refusal is `{"recorded": false, "reason": …}` — never a traceback, because
+the caller is a hook that must degrade silently.
+"""
 from __future__ import annotations
 import argparse, json, re, sqlite3, subprocess, sys, pathlib
 from datetime import datetime, timezone
@@ -59,24 +59,24 @@ _cwd = ""
 
 
 def out(payload: dict) -> int:
-    ""                                                                     
+    """Print the result for the hook, and leave a receipt for the findings.
 
-                                                                             
-                                                                           
-                                                                    
-                                                                                 
-                                                                          
-                                                                               
-                  
-       
+    **The silence this closes.** `ask-why.py` says nothing when `recorded` is
+    false, the hook discards stderr, and the hook is *designed* to be quiet
+    about work that is not its business — so a genuine failure was
+    indistinguishable from a quiet turn. Measured 2026-09-07: roughly seventy-two
+    Stop hooks in one session each raised `IllegalTransition` and reported
+    nothing, and the only sign was a ledger row that had stopped moving fifteen
+    hours earlier.
+    """
     print(json.dumps(payload, ensure_ascii=False))
     reason = payload.get("reason") or ""
-                                                                              
-                                                                                
-                                                                                
-                                                                                
-                                                                             
-                               
+    # THE SESSION, because this file is SHARED. Every session of every watched
+    # project on the machine writes it — 49 Claude processes were running when
+    # that was measured — so the last writer wins and a reader must be able to
+    # tell whose turn the reason describes. Without it `companion.not_recording`
+    # says "the companion could not record the last turn it tried" and cannot
+    # say which one.
     payload = {**payload,
                "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                "session": _session_id or "",
@@ -92,13 +92,13 @@ def out(payload: dict) -> int:
         print(f"the record-turn receipt could not be written: "
               f"{type(exc).__name__}: {exc}", file=sys.stderr)
 
-                                                                             
-                                                                             
-                                                                                  
-                                                                           
-                                                                           
-                                                                          
-                                                              
+    # AND THE DURABLE HALF, because the receipt above is a SLOT. It holds one
+    # turn, every session on this machine writes it, and the board is rebuilt
+    # every 1800 seconds — so a fault was reported only if it happened to be the
+    # newest turn on the whole machine when the tick ran. The incident that
+    # produced `companion.not_recording` survived because it was permanent;
+    # a transient fault, which is the class this machine actually has, was
+    # erased by the next quiet turn of any project.
     if payload["fault"]:
         try:
             import companion_faults                                                 
@@ -119,16 +119,16 @@ def out(payload: dict) -> int:
 
 
 def _fault(exc: BaseException) -> int:
-    ""                                                                 
+    """The one place an exception becomes a receipt, for both handlers.
 
-                                                                             
-                                                                             
-                                                                                 
-                                                                                  
-                                                                                
-                                                                               
-                                                                 
-       
+    A `sqlite3` error ALSO goes to `store_faults`, which is where free space,
+    WAL size and the holder count at the moment of failure are captured. This
+    recorder is the machine's most frequent store-toucher — every turn of every
+    session opens the database — and it was the one caller that module was never
+    wired into. A domain refusal such as `IllegalTransition` is deliberately not
+    filed there: every reader of that log reports that the STORE failed, and an
+    `lsof` per turn per session would be telemetry about nothing.
+    """
     if isinstance(exc, sqlite3.Error):
         try:
             import store_faults                                                     
@@ -148,7 +148,7 @@ def git(cwd: pathlib.Path, *args: str) -> str:
 
 
 def repo_id_for(cwd: pathlib.Path) -> tuple[str | None, str | None]:
-    ""                                                                             
+    """Map a checkout to a registry repository id, by remote first then by path."""
     try:
         repos = json.loads((paths.REGISTRY / "repositories.json").read_text(encoding="utf-8"))
     except Exception:
@@ -185,12 +185,12 @@ records_events = estate.records_events
 
 
 def _knowledge_age(top: pathlib.Path) -> dict:
-    ""                                                                     
+    """Days since the code graph was built and the wiki notes were touched.
 
-                                                                             
-                                                                               
-                                                       
-       
+    The graph's age is measured from the checkout itself; the wiki's from the
+    vault scan's receipt, because the recorder must not walk the vault on every
+    turn. Both degrade to None — absent is not stale.
+    """
     import datetime as _dt
     out: dict = {"graphAgeDays": None, "wikiAgeDays": None}
     gj = top / "graphify-out" / "graph.json"
@@ -218,7 +218,7 @@ def _knowledge_age(top: pathlib.Path) -> dict:
 
 
 def project_for(repo_id: str) -> tuple[str | None, str | None]:
-    ""                                                                     
+    """Return (project_id, ownership) for a repository, or (None, None)."""
     import paths
     try:
         rels = json.loads((paths.REGISTRY / "relations.json").read_text(encoding="utf-8"))
@@ -234,7 +234,7 @@ def project_for(repo_id: str) -> tuple[str | None, str | None]:
 
 
 def diff_facts(cwd: pathlib.Path) -> dict:
-    ""                                                                    
+    """What changed, from git rather than from anything the agent says."""
     porcelain = [l for l in git(cwd, "status", "--porcelain").splitlines() if l.strip()]
     numstat = [l for l in git(cwd, "diff", "HEAD", "--numstat").splitlines() if l.strip()]
     ins = dele = 0
@@ -269,9 +269,9 @@ def main() -> int:
     ap.add_argument("--cwd", required=True)
     ap.add_argument("--session-id", default="")
     args = ap.parse_args()
-                                                                               
-                                                                                
-                                                                               
+    # BEFORE THE FIRST GUARD, not beside the one that checks it. The assignment
+    # sat after the git-repository check, so the earliest returns — the common
+    # case on an unwatched directory — wrote a receipt with an empty session.
     global _session_id, _cwd
     _session_id = args.session_id or ""
     _cwd = args.cwd or ""
@@ -303,14 +303,14 @@ def main() -> int:
     evidence = [{"uri": f"repo:{repo_id}", "head": facts["head"], "branch": facts["branch"]},
                 {"uri": "git:status --porcelain", "files": facts["files"][:40]}]
 
-                                                                               
-                                                                          
-                                                                            
-                                                                               
-                                                                               
-                                                                              
-                                                                            
-                                                              
+    # A row with no session id can never be REVISED: the prior-row lookup below
+    # is keyed on the session, so every turn would mint a fresh `proposed`
+    # memory and the "unchanged since the last turn" guard could never fire.
+    # One long session already holds twenty revisions of one memory; without an
+    # id that would have been twenty memories in the review queue, each needing
+    # a decision. Refusing is the honest answer, and the hook now resolves its
+    # interpreter before reading the payload so an empty id means the CALLER
+    # omitted it rather than the parse having failed silently.
     if not args.session_id:
         return out({"recorded": False,
                     "reason": "no session id: a row keyed to no session cannot be "
@@ -322,11 +322,11 @@ def main() -> int:
     try:
         prior = None
         if args.session_id:
-                                                                               
-                                                                              
-                                                                              
-                                                                              
-                                                                                
+            # `NOT IN tombstones`, because a record an erasure has closed takes
+            # no further revisions and this hook runs on every turn
+            # of every session. Without it the append would raise and the hook
+            # would report `recorded: false` for the rest of the session; with
+            # it the turn starts a fresh record, which is what an erasure means.
             row = conn.execute(
                 "SELECT l.memory_id, l.revision, l.why, l.statement, l.state"
                 " FROM ledger l JOIN (SELECT memory_id, MAX(revision) r FROM ledger"
@@ -335,27 +335,27 @@ def main() -> int:
                 " WHERE l.memory_id NOT IN (SELECT memory_id FROM tombstones)"
                 " ORDER BY l.revision DESC LIMIT 1", (args.session_id,)).fetchone()
             prior = row if row and row["memory_id"] else None
-                                                                            
-         
-                                                                                 
-                                                                              
-                                                                                    
-                                                                        
-                                                                      
-                                                                                
-                                                                               
-                                                                               
-                                                                             
-                                                                                
-                                                                     
-         
-                                                                                
-                                                                             
-                                                                              
-                                                                                 
-                                                                             
-                                                                                 
-                                              
+        # A PROMOTED RECORD IS FINISHED, as far as this writer is concerned.
+        #
+        # **The defect this closes was silent and total.** `tools/corroborate.py`
+        # promotes a `proposed` session row to `observed` once it can re-check
+        # the commit sha — which is exactly its job — and the next turn's append
+        # then asked for `state="proposed"` on an `observed` record. The
+        # lifecycle refuses that edge, correctly, so `L.append` raised
+        # `IllegalTransition: observed -> proposed`, the handler below turned it
+        # into `recorded: false`, `ask-why.py` says nothing on a false, and the
+        # hook's stderr is discarded. Measured 2026-09-07: **once a session was
+        # corroborated the companion stopped recording it for ever** — this
+        # session's own record sat at revision 2 from 20:12 the previous evening
+        # while roughly seventy-two Stop hooks ran and wrote nothing.
+        #
+        # Revising it in place at its CURRENT state would be worse than the bug:
+        # the new statement describes work the corroborator never checked, so
+        # keeping `observed` would claim a corroboration the text never got. A
+        # fresh `proposed` record is what an automated writer is allowed to make,
+        # and the link to what came before travels in `provenance` — not in
+        # `supersedes`, which would say the earlier record is no longer true when
+        # it is still true about earlier work.
         continues = None
         if prior is not None and (prior["state"] or "") != "proposed":
             continues = prior["memory_id"]
@@ -374,13 +374,13 @@ def main() -> int:
             expected_revision=prior["revision"] if prior else None,
             project_id=project_id, session_id=args.session_id or None,
             function="episodic", scope="project", state="proposed",
-                                                                              
-                                                                                   
-                                                                            
-                                                                            
-                                                                            
-                                                                                
-                                                                      
+            # NO CONFIDENCE, deliberately. This record restates a `git status`
+            # — "166 files changed, +14051/-809" — and a fact anyone can re-run
+            # in a second is not fifty per cent likely. `confidence=0.5` was
+            # hardcoded on 77 rows and `./observatory.py digest` prints that
+            # number beside real judgements from 0.01 to 0.95, so a reviewer
+            # read a fabricated measurement as a writer's own doubt. NULL is the
+            # honest third answer: THIS IS NOT A JUDGEMENT.
             confidence=None, evidence=evidence,
             provenance=[{"source": "observatory-log/Stop", "measured": True,
                          **({"continues": continues} if continues else {})}])
@@ -391,14 +391,14 @@ def main() -> int:
                     "project": project_id, "files": len(facts["files"]),
                     "insertions": facts["insertions"], "deletions": facts["deletions"],
                     "unpushed": len(facts["unpushed"]),
-                                                                                  
-                                                                               
-                                                                                  
-                                                                               
-                                                                              
-                                                                              
-                                                                               
-                                 
+                    # Knowledge freshness AT THE MOMENT OF WORK — the one moment
+                    # an agent can act on it for free, being already inside the
+                    # project. The board's aggregated rows (`project.graph_stale`,
+                    # `project.wiki_stale`) tell the operator later; this tells
+                    # the agent NOW, and the ask-why hook turns it into words.
+                    # None means "does not apply": a project with no graph has
+                    # not adopted graphify, and that is a choice, not staleness
+                    #.
                     **_knowledge_age(pathlib.Path(top or cwd))})
     except Exception as exc:
         return _fault(exc)

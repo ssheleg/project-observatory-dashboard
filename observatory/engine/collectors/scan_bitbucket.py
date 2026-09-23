@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """List a Bitbucket workspace, or say precisely why it could not be listed.
 
-                                                                       
+WHAT IS AND IS NOT REACHABLE WITHOUT A CREDENTIAL, measured 2026-09-05:
 
                                                                    
                                                         

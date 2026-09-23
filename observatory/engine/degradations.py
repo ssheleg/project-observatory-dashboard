@@ -44,12 +44,12 @@ def collector(name: str) -> list[dict]:
         return list(doc)
     return list(doc.get("degraded") or [])
 
-                                                                              
-                                                                            
-                                                                               
-                                                                             
-                                                                             
-         
+#: Receipts whose degradations already have a TAILORED reader, and must not be
+#: reported twice. Declared rather than inferred: `model.json`'s own rule in
+#: `tools/build_findings.py` names the remedy for a `gh` authentication failure
+#: and deduplicates on (source, reason) after a 400-char cut swallowed one of
+#: three sources. A generic row beside it would say the same thing
+#: worse.
 OWN_READER = {
     "model.json": "tools/build_findings.py builds `model.degraded` with the "
                   "remedy for a `gh` failure and its own deduplication",
@@ -59,14 +59,14 @@ OWN_READER = {
 def every_collector() -> dict[str, list[dict]]:
     """Every receipt in the scratch that carries a `degraded` list, DERIVED.
 
-                                                                              
-                                                                               
-                                                                              
-                                                                            
-                                                                            
-                                                                         
-                                                                            
-                                                           
+    **Measured 2026-09-08: two of six had a reader, and they were in different
+    surfaces.** `model.json` reached the operator's board, `bitbucket.json` and
+    `domains_live.json` reached the wire, and `sessions.json` and `local.json`
+    reached nobody — while `sessions.json` held a live degradation at that
+    moment. So a collector could report honestly that claude-mem's store was
+    unreadable or that its shape had moved, and the estate would lose its
+    session half in silence: exactly the state `collectors/scan_sessions.py`
+    exists to prevent, reached by the back door.
 
     Derived from the directory rather than listed, so a collector added tomorrow
     is surfaced by default and skipping one takes a sentence in `OWN_READER`.

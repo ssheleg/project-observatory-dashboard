@@ -59,18 +59,18 @@ RULES: list[tuple[re.Pattern[str], str, str]] = [
      "the same, spelled out"),
     (re.compile(r'ROOT\s*/\s*"registry"'), "paths.REGISTRY",
      "the canonical fact base; a sandboxed registry must be redirectable"),
-                                                                                
-                                                                                
-                                                                              
-                                                                              
-                                              
+    # THE SAME BASE, SPELLED AS A RELATIVE STRING. The rule above matches a path
+    # built from ROOT and missed `Path("registry/projects.json")` entirely — a
+    # plugin written from `plugins/README.md` on 2026-09-08 used exactly that,
+    # because the document said the script runs "from the repository root" and
+    # never that a resolver exists.
     (re.compile(r'(?:Path|open)\(\s*f?"registry/'), "paths.REGISTRY",
      "the registry as a relative string; a sandboxed registry must be "
      "redirectable however the path is spelled"),
-                                                                              
-                                                                               
-                                                                                
-                                        
+    # THE ESTATE ROOT, which had no rule at all while `paths.DATA` existed for
+    # it. The same plugin resolved it as `Path.home() / "DATA"`, which is right
+    # on this machine and on no other, and the gate that exists to catch exactly
+    # that said 0 violations.
     (re.compile(r'home\(\)\s*/\s*"DATA"'), "paths.DATA",
      "the estate root; a machine that keeps its projects elsewhere is the case "
      "the resolver exists for"),

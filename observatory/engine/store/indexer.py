@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-""                                                                 
+"""Build the derived projections: a vector index and a lexical one.
 
-                                                                            
-                                                                                 
-                        
+**These carry no canonical meaning.** Losing them is a rebuild, never a data
+loss — which is why `rebuild` exists and is tested, rather than being a comment
+promising it would work.
 
-                                                                              
-                                                                            
-                                                                           
-                                                                             
-                 
+The outbox is what makes this safe. A ledger append and its outbox row are one
+transaction, so this consumes the outbox rather than scanning the ledger: no
+index write can precede a committed revision, and the work is idempotent by
+(memory_id, revision, projection_version) so a crash mid-run costs one repeat
+and nothing else.
 
-                                                            
-                                                                                  
-                                                                          
-   
+    python3 store/indexer.py index      # consume the outbox
+    python3 store/indexer.py rebuild    # drop the projections, rebuild from canon
+    python3 store/indexer.py status     # what is indexed, what is pending
+"""
 from __future__ import annotations
 import argparse, json, sqlite3, sys, pathlib
 from datetime import datetime, timezone
@@ -38,8 +38,8 @@ def now() -> str:
 
 
 def load_vec(conn: sqlite3.Connection) -> bool:
-    ""                                                                           
-                                                                                 
+    """True when sqlite-vec loaded. False degrades to the lexical index alone —
+    a machine without the extension still gets search, just not by similarity."""
     try:
         import sqlite_vec
     except ImportError:
@@ -76,21 +76,21 @@ def ensure_vec_table(conn: sqlite3.Connection, dims: int) -> None:
 
 
 def indexable(conn: sqlite3.Connection, memory_id: str, revision: int) -> sqlite3.Row | None:
-    ""                                                                         
-               
+    """A revision worth indexing: it exists, it has text, and its RECORD is not
+    tombstoned.
 
-                                                                               
-                                                                               
-                                            
+    A tombstoned record is skipped rather than indexed and later purged — the
+    contract requires an erasure to reach the projections, and the cheapest way
+    to honour that is never to put it there.
 
-                                                                            
-                                                                               
-                                                                            
-                                                                       
-                                                               
-                                                                            
-                                                                           
-                                                   
+    **The join is on `memory_id` alone.** It matched `(memory_id, revision)`
+    until 2026-09-07, which let an erased record re-enter this index through an
+    unconsumed outbox row for an OLDER revision — and `retention.py`'s own
+    exemption for `outbox` rests on this function refusing exactly that
+    ("a pending row cannot re-index erased text — verified in
+    `store/indexer.py`, not assumed"). Record-wide is also what every reader
+    means by a tombstone: `ledger.live()`, `survey.search`, `review.py` and
+    `build_findings.py` all join on `memory_id`."""
     return conn.execute(
         "SELECT l.memory_id, l.revision, l.statement, l.why, l.project_id, l.state"
         " FROM ledger l LEFT JOIN tombstones t"
@@ -108,16 +108,16 @@ def text_of(row: sqlite3.Row) -> str:
 
 def index_batch(conn: sqlite3.Connection, rows: list[sqlite3.Row], have_vec: bool,
                 dims: int) -> tuple[int, float, int, bool]:
-    ""                                                                             
+    """Embed and write one batch. Returns (written, cost, tokens, vectors_written).
 
-                                                                            
-                                                                          
-                                                                        
-                                                                           
-                                                                            
-                                                                            
-                                                                            
-                                                                          
+    The fourth value is what `cmd_index` needs to decide whether the batch's
+    outbox rows may be consumed. Before it existed, a provider failure was
+    caught here, the lexical index was written, and the rows were marked
+    consumed anyway — so "writing the lexical index only" stopped being a
+    degradation of THIS RUN and became a permanent hole. Measured 2026-09-07
+    against a 200-row queue with the provider failing from the second batch:
+    200 lexical rows, 64 vectors, an empty outbox, and a final line claiming
+    "indexed 200 revision(s)". Nothing would ever have retried the 136."""
     if not rows:
         return 0, 0.0, 0, True
     written, cost, tokens = 0, 0.0, 0
@@ -165,11 +165,11 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
         print("sqlite-vec is not loadable here — the lexical index is built, the vector "
               "one is not. `./observatory.py deps` installs it.", file=sys.stderr)
 
-                                                                              
-                                                                               
-                                                                             
-                                                                                  
-                                                                               
+    # `<=`, not `=`. Equality meant a row enqueued under an older contract was
+    # invisible rather than in need of re-projection, so the queue could report
+    # itself empty while holding every revision the estate has. A row stamped
+    # ABOVE this code's version is a different matter — that is an indexer older
+    # than the store it is pointed at, and it is reported rather than consumed.
     ahead = conn.execute(
         "SELECT count(*) FROM outbox WHERE consumed_at IS NULL"
         " AND projection_version > ?", (PROJECTION_VERSION,)).fetchone()[0]
@@ -278,9 +278,9 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
         print(f"  {len(held_seqs)} revision(s) kept in the queue: the lexical index has "
               f"them, the vector one does not, and a later run will embed them",
               file=sys.stderr)
-                                                                              
-                                                                               
-                                                                                 
+    # NO SILENT CAP. The run used to say "indexed 500" and stop, with 700 rows
+    # still queued and nothing in the output to say so — measured 2026-09-07.
+    # A caller reading that line would reasonably conclude the queue was drained.
     if still:
         print(f"  {still} revision(s) still queued — this run was capped at {limit}. "
               f"Run `./observatory.py index` again until it reports the outbox empty."
@@ -293,11 +293,11 @@ def cmd_index(conn: sqlite3.Connection, limit: int) -> int:
 
 
 def cmd_rebuild(conn: sqlite3.Connection) -> int:
-    ""                                                   
+    """Drop both projections and rebuild from the ledger.
 
-                                                                          
-                                                                        
-       
+    This is the invariant, not a convenience: a derived projection must be
+    rebuildable without changing canonical identity or revision history.
+    """
     have_vec = load_vec(conn)
     cfg = providers.config()["embedding"]
     with conn:

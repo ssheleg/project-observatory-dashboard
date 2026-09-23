@@ -56,10 +56,10 @@ PROJECTION_LAG_HOURS = 6
 #: different questions and one of them may need to move without the other.
 INTERPRETATION_LAG_HOURS = 6
 
-                                                                       
-                                                                              
-                                                                              
-                                                                          
+#: How long the wiki's copy may lag before a standing refusal becomes a
+#: finding. Twenty-four hours because a refusal is usually an operator working
+#: in their own wiki and finishing the same day; a mirror that has not tracked
+#: the registry for a full day has stopped tracking it. Forty-eight ticks.
 PROJECTION_COMMIT_HOURS = 24
 #: Four ticks. `deltas.diffed_through` advances on every SUCCESSFUL diff, even
 #: one that found nothing, so a cursor that has not moved while fingerprints
@@ -68,18 +68,18 @@ PROJECTION_COMMIT_HOURS = 24
 #: rather than two, because a manual `snapshot` between ticks legitimately puts
 #: the pair out of step for one interval.
 DELTA_DIFF_HOURS = 2
-                                                                             
-                                                                           
-                                                                            
-                                                                                  
-                                                                         
+#: Free space, in MiB, below which this system stops being able to do its own
+#: work. Two levels because the consequences differ: at the warning level a
+#: VACUUM (which rewrites the whole store beside itself) may not fit; at the
+#: critical level a collector cannot write its output at all — which happened on
+#: 2026-09-07 at 06:39, when four scans died in one tick on `[Errno 28]`.
 DISK_WARNING_MIB, DISK_CRITICAL_MIB = 5120, 1024
-                                                                            
-                                                                                 
-                                                                              
-                                                                            
-                                                                              
-                                  
+#: Six missed ticks, and a day. The tick runs every thirty minutes, so three
+#: hours without a scan is not a slow run — it is a scheduler that has stopped.
+#: NOTHING detected this before 2026-09-07: `tick.step_failed` needs a step to
+#: fail, and a tick that never starts has no steps. For a system whose whole
+#: subject is watching, "the watcher stopped" is the one thing it must be able
+#: to say about itself.
 SCAN_WARNING_HOURS, SCAN_CRITICAL_HOURS = 3, 24
 
 #: Tick steps whose failure is worse than a degradation, and why. Anything not
@@ -155,9 +155,9 @@ def _remote_asked() -> str:
 
 REMOTE_ASKED = _remote_asked()
 
-                                                                               
-                                                                                
-                                                                             
+#: Owners retention never erases, read from the same file that enforces it. Two
+#: of the three readers of the horizon ignored this list, so both the digest and
+#: the expiry finding could put a deadline on a row that has none.
 EXEMPT_OWNERS = tuple(json.loads(
     (paths.config_file("retention.json")).read_text(encoding='utf-8')
 )['ledger'].get('owner_exempt') or ())
@@ -187,21 +187,21 @@ GROWTH_MIB_PER_DAY = 100
                                       
 FIXTURE_LEAK_GIB = 1.0
 
-                                                                                 
-                                                                              
-                                                                                    
-                                                                          
+#: Below this, a shape verdict is stated plainly; at or above it the finding says
+#: the reading may already be stale. `./observatory.py key` is operator-run by
+#: design — the tick cannot see these variables — so the observation ages on its
+#: own and the finding must not assert a fortnight-old reading as current.
 KEY_SHAPE_HEDGE_DAYS = 3.0
 
-                                                                               
-                                                                               
-                                           
+#: Skips before the gap is worth saying. One is the design working — the next
+#: tick is thirty minutes away. Two means an hour, which is when "the dashboard
+#: is current" stops being true.
 TICK_SKIPS_BEFORE_WARNING = 2
 
-                                                                               
-                                                                               
-                                                                               
-                                              
+#: After this, an `ok` verdict is reported as a statement about the past rather
+#: than about now. Twelve hours is twenty-four ticks: long enough that a single
+#: missed cycle says nothing, short enough that a stalled tick shows up here as
+#: well as in `tick.standing_down`.
 INTEGRITY_STALE_HOURS = 12.0
 
 
@@ -212,29 +212,29 @@ INTEGRITY_STALE_HOURS = 12.0
                                              
 RECLAIMABLE_ROLE = "footprint.reclaimable.bytes"
 
-                                                                            
-                                                                          
-                                                                          
-                                                                               
-                                                                          
-                                                                               
-                                                                    
+#: The ROLE a metric plays, not the metric's name. `plugins/README.md` opens
+#: with "Adding one touches no file outside this directory", and the first
+#: version of `disk_culprits()` broke that promise in the same change that
+#: tested it: it named `disk.bytes` in SQL, so this core file knew one plugin's
+#: vocabulary and a replacement plugin could not take the question over. A
+#: manifest declares `"role": "footprint.bytes"` on the metric that answers it,
+#: and this resolves the name from whatever is installed.
 FOOTPRINT_ROLE = "footprint.bytes"
 
-                                                                      
-                                                                            
-                                                                              
-                 
+#: Whether a project has ever shipped. Resolved by ROLE for the reason
+#: `FOOTPRINT_ROLE` above exists, applied to a metric added a day later: the
+#: portfolio finding asks the question and must not learn which plugin answers
+#: it.
 RELEASE_COUNT_ROLE = "release.count"
 
 
-                                                         
-                                                                               
-                                                                                
-                                                                            
-                                                                                
-                                                                                
-                               
+#: One row per clone state, and the set is CLOSED against
+#: `scan_remotes.STATES` by `tests/test_clone_sync.py` — because the previous
+#: version was a `.get()` whose miss was a `continue`, and `ahead` fell into it.
+#: Eight clones, this repository among them, held commits that existed on no
+#: remote and produced no finding at all, while `local-only-branch` — the same
+#: fact where the branch has no remote counterpart — was a warning telling the
+#: operator to push.
 SYNC_FINDINGS = {
     "local-only-branch": ("warning", "has a branch that exists on no remote",
                           "work here survives only this disk",
@@ -274,9 +274,9 @@ SYNC_FINDINGS = {
                 "check that the clone is not empty or corrupt"),
 }
 
-                                                                              
-                                                                             
-                                                     
+#: The states that deliberately produce nothing. Exactly one: `current` is the
+#: common case and a finding per healthy clone is noise. Anything else absent
+#: from `SYNC_FINDINGS` raises `clone.unknown-state`.
 SYNC_SILENT = frozenset({"current"})
 
 #: The states that mean "there are commits here and on no remote". Spelled out
@@ -409,10 +409,10 @@ def disk_culprits() -> tuple[list[str], list[str]]:
             "SELECT project_id, value FROM metrics WHERE metric = ?"
             "   AND at = (SELECT MAX(at) FROM metrics WHERE metric = ?)"
             " ORDER BY value DESC LIMIT 5", (metric, metric)) if r[1] >= 5e8]
-                                                                              
-                                                                           
-                                                                               
-                                 
+        # TWO SAMPLES, and the second-newest rather than "yesterday": a missed
+        # period leaves a hole, and comparing against whatever the previous
+        # sample actually is describes the interval that exists rather than the
+        # one that was scheduled.
         rows = c.execute(
             "SELECT a.project_id, a.value - b.value AS delta FROM metrics a"
             " JOIN metrics b ON b.project_id = a.project_id AND b.metric = a.metric"
@@ -493,17 +493,17 @@ STORE_FAULT_DAYS = 7.0
 #: record is a hole in the ledger that nothing else will ever fill.
 COMPANION_FAULT_DAYS = 7.0
 
-                                                                              
-                                                                             
-                                                                
+#: How many sessions, projects and reasons a lost-turn finding names before it
+#: says how many it did not. A systemic fault is every session at once, and a
+#: finding that prints forty-nine ids is a finding nobody reads.
 COMPANION_LISTED = 6
 
 #: The owner every interpretation is written under.
 AGENT_OWNER = "agent:observer"
 
 
-                                                                                 
-                                                                                 
+#: How many uncovered skip sites the finding lists before it says how many it did
+#: not. Forty-eight is a wall of text on a page that also carries sixty findings.
 SKIP_SITES_LISTED = 5
 
 
@@ -797,16 +797,16 @@ def gate_skip_findings(sites: list[dict]) -> list[dict]:
                                                                                 
     skips = [s for s in sites if s.get("kind_of_site", "skip") == "skip"]
     notes = len(sites) - len(skips)
-                                                                             
-                                                                                
-                                                                        
+    # ONLY `none`. A skip waiting on a machine capability — no store, node,
+    # `sqlite-vec` — is completely explained, and no judgement a person writes
+    # moves it: fourteen of the thirty-two were of that kind.
     uncovered = [s for s in skips if s.get("cover_kind", "none") == "none"]
-                                                                               
-                                                                                  
-                                                                                
-                                                                               
-                                                                                 
-                                                                    
+    # JUDGED AND STILL OPEN, reported separately rather than folded into either
+    # side. A `[gap: …]` site has been examined, its property IS assertable, and
+    # what would close it is written down — so counting it as unexamined would
+    # discard the judgement, and counting it as covered would be a lie. A class
+    # that leaves the headline must appear somewhere or it leaves silently, which
+    # is the rule this file applies to every other count.
     gaps = [s for s in skips if s.get("cover_kind") == "gap"]
     if not uncovered and not gaps:
         return []
@@ -985,13 +985,13 @@ def merge_findings(deg: list[dict]) -> list[dict]:
        
     if not deg:
         return []
-                                                              
-                                                                               
-                                                                            
-                                                                           
-                                                                          
-                                                                           
-                            
+    # SOURCE AND REASON, deduplicated on the PAIR. This joined
+    # `sorted({d["reason"] …})` — a set of reasons — so `d["source"]` was
+    # discarded entirely and a finding titled "3 source(s) unmeasured" named
+    # none of the three, while two addresses failing the same way collapsed
+    # into one line and one of them vanished. The 400-char cut then landed
+    # on whichever reason sorted last, and the `ownership` reason ENDS with
+    # the remedy.
     why = clipped("; ".join(sorted({f"{d.get('source', '?')} — {d['reason']}"
                                     for d in deg})), 1200)
     seen: list[str] = []
@@ -1500,9 +1500,9 @@ def collect() -> list[dict]:
     _ed = paths.REGISTRY / "env-inventory.json"
     out.extend(env_findings.findings(
         json.loads(_ed.read_text(encoding="utf-8")) if _ed.is_file() else None))
-                                                                             
-                                                                                
-                                                         
+    # WHAT GOOGLE SEES. The estate's busiest product was invisible
+    # here until the properties were inventoried: the join is measured, and what
+    # it cannot join is a count with the names beside it.
     import google_findings
     _gd = paths.REGISTRY / "google-properties.json"
     out.extend(google_findings.findings(
@@ -1512,9 +1512,9 @@ def collect() -> list[dict]:
                                                                                
     import reveal_findings
     out.extend(reveal_findings.findings(paths.STATE / "logs" / "keyserver.jsonl"))
-                                                                             
-                                                                             
-                                                                               
+    # WHERE AGENTS ACTUALLY WORKED that the registry never joined:
+    # the SessionStart hook writes each such folder to `sessions-seen.jsonl`;
+    # this reads it back as one row, minus the folders a tick has joined since.
     import session_findings
     _pj = paths.REGISTRY / "projects.json"
     _known = {f for p in (json.loads(_pj.read_text(encoding="utf-8")).get("projects") or [] if _pj.is_file() else [])
@@ -1563,13 +1563,13 @@ def collect() -> list[dict]:
             d = days_until(exp)
             if d is not None and d <= SOON_WARNING:
                 auto = (owned[host].get("namecheap") or {}).get("auto_renew")
-                                                                               
-                                                                                
-                                                                                 
-                                                                                 
-                                                                            
-                                                                          
-                                                                       
+                # Auto-renewal decides the severity, and getting this backwards
+                # is how a list of deadlines becomes noise. Measured 2026-09-05:
+                # 50 of 53 domains renew automatically, 2 do not, 1 is unrecorded
+                # — the opposite of what a single sampled row suggested. A date
+                # that renews itself is worth listing and not worth alarming
+                # about; an unrecorded flag is treated as "not automatic",
+                # because the safe error here is one reminder too many.
                 renews = auto is True
                 out.append({
                     "type": "domain.expiring", "subject": f"domain:{host}",
@@ -1586,9 +1586,9 @@ def collect() -> list[dict]:
                                  if auto is False else
                                  "not recorded, so it is assumed not to renew"),
                     "deadline": exp,
-                                                                              
-                                                                             
-                                                                 
+                    # NOT "confirm the card" for a domain that serves nothing:
+                    # that is an instruction to keep paying, printed beside a
+                    # finding suggesting the opposite.
                     "action": ("decide before then — point it somewhere, or turn "
                                "auto-renew off at the registrar"
                                if renews and dark else
@@ -1597,12 +1597,12 @@ def collect() -> list[dict]:
                     "evidence": [f"registry:domain-liveness.json#{host}",
                                  f"registry:domains.json#{host}"]})
 
-                                                                            
-                                                                                
-                                                                             
-                                                                              
-                                                                                
-                                                                  
+        # NO STATUSES IS NOT "NOT ON HOLD". The record now names the foreign
+        # keys RDAP did not answer (`unread`), and `status` among them means the
+        # hold check has nothing to read — not a clean bill. Before this, a
+        # rename upstream would have emptied `statuses` for all 49 domains and
+        # the CRITICAL `domain.hold` row would have vanished with no degradation
+        # anywhere, because the fetch itself succeeded.
         verdict = hold_verdict(m)
         if verdict == "unreadable":
             unread_status.append(about)
@@ -1615,10 +1615,10 @@ def collect() -> list[dict]:
                                     "expires_on": m.get("expires_on"), "hosts": []})
             held[about]["hosts"].append(host)
 
-                                                                                  
-                                                                              
-                                                                            
-                                                                            
+        # `is False`, not `not …`. `resolves: None` means the probe could not be
+        # performed, and treating that as "it serves nothing" is how a missing
+        # `dig` turned fourteen dark domains into fifty-three. An
+        # unmeasured host gets its own finding below, which says what it is.
         if dark:
                                                                           
                                                                            
@@ -1697,16 +1697,16 @@ def collect() -> list[dict]:
             "severity": "warning",
             "title": f"{c['folder']} still points at {c['was']}, which moved to "
                      f"{c['now']}",
-                                                                              
-                                                                             
-                                                                          
-                                                                         
-                                                                                
-                                                                               
-                                                                                
-                                                                               
-                                                                               
-                         
+            # WHY THE OPERATOR SHOULD CARE, not why the system does. This said
+            # the merge "has to follow the transfer on every tick to keep the
+            # phantom out of the registry" — true, and an account of the
+            # system's own bookkeeping. The operator's stake is measured:
+            # `tests/test_merge_membership.py` recorded 174 repositories instead
+            # of 172 with `gh` off PATH, one phantom anchoring a project of its
+            # own. A cached answer in `store/raw/model.json` prevents that today
+            # — and that file is gitignored scratch, so a fresh clone of this
+            # repository on a machine without `gh` has no cache to fall back on
+            #.
             "detail": f"The address was transferred. GitHub redirects it, so "
                       f"`git fetch` keeps working and nothing reports the change. "
                       f"Until the remote is repointed, this address is correct in "
@@ -1757,15 +1757,15 @@ def collect() -> list[dict]:
                           "`./observatory.py commit-projection`",
                 "evidence": ["store/raw/commit-projection.json#outcome"]})
 
-                                                                       
-                                                                                
-                                                                                   
-                                                                               
-                                                                                 
-                                                   
-     
-                                                                                 
-                                                              
+    # THE CAUSE, NOT FOUR SYMPTOMS. On 2026-09-07 the volume filled and
+    # `scan-fs`, `scan-gh`, `scan-vault` and `scan-sessions` all exited 1 in the
+    # same tick — so this file raised four `tick.step` findings, each pointing at
+    # a healthy collector, and the one fact that explained all of them appeared
+    # nowhere. Free space is a fact about the HOST, and this system's own ability
+    # to measure anything depends on it.
+    #
+    # Whether to free the space is the operator's decision and this does not make
+    # it: a finding is how a decision is handed over honestly.
     try:
         free_mib = shutil.disk_usage(ROOT).free // (1024 * 1024)
     except OSError as exc:
@@ -1827,12 +1827,12 @@ def collect() -> list[dict]:
                     + ". Deleting these frees the space and a reinstall restores "
                       "them, which is why the footprint above excludes them.")
 
-                                                                            
-                                                                                 
-                                                                                
-                                                                              
-                                                                            
-                                                                          
+    # THE LEVER, WHETHER OR NOT THE VOLUME IS DANGEROUS. Everything above is
+    # gated behind `DISK_WARNING_MIB` — an absolute 5 GiB — so on 2026-09-07,
+    # with 13.30 GiB free and 38.28 GiB reclaimable, the estate measured a lever
+    # worth 288% of the remaining space and mentioned it nowhere. This rule is
+    # the comparison rather than a level, and it passes `disk_low` so it can
+    # point at that row instead of repeating what it endangers.
     _rec_total = None
     _rec_metric = metric_for_role(RECLAIMABLE_ROLE)
     if _rec_metric and paths.DB.is_file():
@@ -1859,12 +1859,12 @@ def collect() -> list[dict]:
         _free_bytes, _rec_total, reclaimable_holders(),
         disk_low=any(f["type"] == "host.disk_low" for f in out))
 
-                                                                          
-                                                                                                         
-                                                                               
-                                                                                 
-                                                                                 
-                                                                                
+    # THIS PROJECT'S OWN LITTER, REPORTED SO THE DISK FINDING STOPS LYING.
+    # `host.disk_low` above names the largest holders under the configured project directory, so a volume
+    # filled by leaked test fixtures in the system temp dir reads as somebody's
+    # repository being too big — and it did, out loud, on 2026-09-07 before the
+    # 13,833 `observatory-*` directories holding 22.3 GiB were counted. Read from
+    # the sweeper's receipt so this file makes no second measurement of its own.
     fx = paths.SCRATCH / "fixtures.json"
     if fx.is_file():
         try:
@@ -1954,20 +1954,20 @@ def collect() -> list[dict]:
             if n < 2 and row.get('verdict') != 'ambiguous-project':
                 continue
             name = row["name"]
-                                                                          
-                                                                              
-                                                                             
-                                                                      
-                                                                            
-                                                                     
-                                                                       
-                                                                    
-                                                                          
-                                                                               
-                                                                                   
-                                                                                   
-                                                                                 
-                                                               
+            # THREE FACTS, not one ambiguous warning. The old text offered
+            # two readings — "a project the registry has never seen" or "not
+            # a project at all" — and the live estate held a THIRD that was
+            # neither: a project this machine HAD, worked on across 69
+            # sessions, whose folder existed on 2026-06-03 and is now absent
+            # from the disk, the archives and the registry alike. The
+            # collector now carries the verdict and the folder its work
+            # touched, so each case names its own remedy.
+            # IS THE FACT KEPT? `tools/record_lost_projects.py` writes one
+            # `proposed` conclusion per lost project, so the perishable half of
+            # this finding — evidence living only in a store this system does not
+            # own — may already be resolved. What remains then is a decision with
+            # no deadline, and a warning nothing the system can close is one that
+            # teaches the operator to skip the list.
             kept = kept_records.get(name)
             verdict = row.get("verdict") or "no-path-recorded"
             folders = row.get("folders") or []
@@ -2044,18 +2044,18 @@ def collect() -> list[dict]:
                 "detail": detail, "action": action,
                 "evidence": ["store:raw/sessions.json#unattributed", "SRC-0012"]})
 
-                                                                    
-                                                                          
-                                                                           
-                                                                                
-                                                                                
-                                                                          
-                                                                         
-                                                                              
-                                                                               
-                                                                              
-                                                                                
-                                                     
+    # A SHARED KEY, SPENT BY SOMEBODY ELSE. This is a fact about the
+    # environment, not a defect of the estate — and it is the operator's
+    # decision, so it is handed over rather than acted on. Until
+    # 2026-09-07 the same fact was an automatic STOP: the daily and monthly caps
+    # were measured against the KEY, so 104.80 credits of a neighbour's spending
+    # disabled this system's agent, indexer and semantic search while this
+    # project had spent 0.000001 and the key had 178 of 300 credits left.
+    # THE MODEL CHAIN'S HEALTH. Both documents are read HERE and passed in, so
+    # `provider_findings()` can be driven over states this machine has not been
+    # in — the live pair is `{}` plus a recent run, the good state, which is
+    # exactly the input that cannot exercise a rule. None means "did not parse",
+    # and the rule treats that differently from `{}`.
     _ph = paths.STATE / "provider-health.json"
     _health: dict | None = None
     if _ph.is_file():
@@ -2078,10 +2078,10 @@ def collect() -> list[dict]:
             _agent = None
     out += provider_findings(_health, _agent)
 
-                                                                           
-                                                                            
-                                                                             
-                                                                       
+    # WHERE ASSERTIONS CAN VANISH. Read through the measurer rather than by
+    # grepping here: two readers of one convention with two regexes is how a
+    # report and a CLI start disagreeing, and the first version of that regex
+    # reported 0 of 49 because it could not read a two-literal message.
     try:
         sys.path.insert(0, str(paths.ROOT / "tools"))
         import skip_sites
@@ -2150,13 +2150,13 @@ def collect() -> list[dict]:
         # can be bought and the outer backstop stops everything.
         low = (remaining is not None and limit
                and float(remaining) < 0.2 * float(limit))
-                                                                               
-                                                                                     
-                                                                                
-                                                                            
-                                                                                
-                                                                                 
-                                                                                
+        # SPENT is not "low", and it earns its own grade. On 2026-09-07 the key
+        # reached 300.0538 of 300 — of which this project's journal held 0.1185 —
+        # and the finding stayed a warning while its own detail already said "at
+        # zero this system stops with it". A prediction that does not change
+        # grade when it comes true is one nobody has to act on, and what stopped
+        # is not cosmetic: `agent` and `index` are the only two steps that spend,
+        # so the interpretation layer is down until the reset or a separate key.
         spent = remaining is not None and float(remaining) <= 0
         # ONE derivation, shared with the symptom below. `limit_reset` is a word
         # ("monthly"), never a date, so a block the system knows is temporary said
@@ -2333,11 +2333,11 @@ def collect() -> list[dict]:
                           "observatory-log@observatory-log`",
                 "evidence": ["store/raw/skill-sessions.json"]})
 
-                                                                             
-                                                                        
-                                                                               
-                                                                                 
-                      
+    # A RETIRED VALUE THAT NOBODY REVOKED. `vault.py rotate` archives the old
+    # value and says out loud that it keeps working until revoked at its
+    # provider. The archive sitting there a month later means that sentence was
+    # read and not acted on — a live credential in a file whose name says it is
+    # dead.
     vault_dir = pathlib.Path(os.environ.get(
         "OBSERVATORY_VAULT_DIR",
         paths.source_path("secret_store", paths.SECRETS) / "projects"))
@@ -2368,12 +2368,12 @@ def collect() -> list[dict]:
                 "action": "revoke at each provider, then delete the archive file",
                 "evidence": ["the vault's *.retired-* files"]})
 
-                                                                              
-                                                                              
-                                                                               
-                                                                  
-                                                                               
-                               
+    # TRAFFIC ON A HOST NO PROJECT CLAIMS. An analytics plugin that measured a
+    # zone or property the registry cannot attribute reports it in its receipt
+    # note; this surfaces it as ONE row naming the hosts, because the remedy is
+    # a registry edit (claim the host on a project's `sites`, or a
+    # public_domain_of relation) and the operator should make it once, not read
+    # it per plugin.
     _pl = paths.SCRATCH / "plugins.json"
     if _pl.is_file():
         try:
@@ -2386,12 +2386,12 @@ def collect() -> list[dict]:
             if "unmapped" in note or "unmappable" in note:
                 _unmapped.append(f"{pl.get('id')}: {note}")
         if _unmapped:
-                                                                                      
-                                                                               
-                                                                                   
-                                                                      
-                                                                              
-                                                                     
+            # THE OPERATOR'S WORD, WHERE THERE IS ONE. `collectors/host_boundary.json`
+            # names the hosts the operator has spoken about — "backend host",
+            # "main site, leave it", "pending, material coming" — so this row can
+            # separate what is outside BY DECISION from what is merely
+            # unclassified. The second list is the only one that still wants a
+            # word; the first is the estate's edge, drawn.
             _bf = paths.config_file("host_boundary.json")
             try:
                 _boundary = json.loads(_bf.read_text(encoding="utf-8")).get("hosts", {})
@@ -2406,9 +2406,9 @@ def collect() -> list[dict]:
             _pending = {h: _boundary[h] for h in _seen if _boundary.get(h, {}).get("status") == "pending"}
             _unclassified = sorted((h for h in _seen if h not in _boundary),
                                    key=lambda h: -_seen[h])
-                                                                             
-                                                                              
-                                                           
+            # The note lists only its top twelve; the TOTAL is in its header.
+            # A title that counted the listed ones alone said "4 unclassified"
+            # over 79 unmapped zones (measured 2026-09-13).
             _total = sum(int(n) for n in re.findall(r"unmapp\w+ \w+ \((\d+)\)",
                                                     " ".join(_unmapped)))
             parts = []
@@ -2440,10 +2440,10 @@ def collect() -> list[dict]:
                            "or adopt the host onto a project when work begins here"),
                 "evidence": ["store/raw/plugins.json#note", "collectors/host_boundary.json"]})
 
-                                                                          
-                                                                              
-                                                                   
-                                                                
+    # THE MCP SERVERS THE AGENTS ARE TOLD TO REACH. The gateway
+    # that held them is off; each agent's own config holds them now, and these
+    # rows are the only place a dead server, a key in a URL, or the
+    # observatory's own server going unregistered would be said.
     _mf = paths.REGISTRY / "mcp-servers.json"
     if _mf.is_file():
         try:
@@ -2498,19 +2498,19 @@ def collect() -> list[dict]:
                           "<checkout>/.venv/bin/python <checkout>/mcp/server.py",
                 "evidence": ["registry/mcp-servers.json#own_declared"]})
 
-                                                                            
-                                                                                
-                                                                                
-                                                                           
-                                                                               
-                                                                           
-                                                                     
+    # A LEAKED SECRET THAT NOBODY ROTATED. `tools/vault.py leak` is the rule
+    # the observatory's skill makes mandatory: an agent that sees a secret value
+    # where it does not belong records the sighting. The register is append-only
+    # and holds names and places, never values; a `rotate` of the same slot
+    # appends a settlement. What is left — a leak with no settlement — is a
+    # credential KNOWN to be exposed and still in service, which is the one
+    # state this rule exists to make impossible to forget.
     vault_leaks = pathlib.Path(os.environ.get(
         "OBSERVATORY_VAULT_DIR",
         paths.source_path("secret_store", paths.SECRETS) / "projects")) / "leaks.jsonl"
-                                                                              
-                                                                            
-                                                          
+    # The provider's config trail (names only) — read once, used by the leak
+    # rows' rotation hint below AND by `secret.moved_unrecorded` after them,
+    # which is why it lives outside the leaks-file branch.
     _hk_trail: dict[str, list] = {}
     _hkf = paths.SCRATCH / "heroku.json"
     if _hkf.is_file():
@@ -2635,14 +2635,14 @@ def collect() -> list[dict]:
                        "if nobody here did, that is a change to explain"),
             "evidence": [str(vault_leaks.parent / "movements.jsonl"), "store/raw/heroku.json#config_releases"]})
 
-                                                                          
-                                                                                
-                                                                         
-                                                                               
-                                                                                   
-                                                                 
-                                                                              
-                                                                   
+    # THE COMPANION IS NOT RECORDING, and its whole design is to be quiet.
+    # `skill/plugins/observatory-log` runs a Stop hook in every session of every
+    # watched project; it exits 0 in silence for anything that is not its
+    # business, `ask-why.py` said nothing on any failure, and the hook discards
+    # stderr. So a total failure looked exactly like a quiet afternoon — measured
+    # 2026-09-07, roughly seventy-two turns of one session raised
+    # `IllegalTransition: observed -> proposed` and the only sign was a ledger
+    # row that had stopped moving fifteen hours earlier.
     rt = paths.SCRATCH / "record-turn.json"
     slot = {}
     if rt.is_file():
@@ -2658,13 +2658,13 @@ def collect() -> list[dict]:
         lost, unread = [], 0
     out += companion_findings(lost, slot, unread)
 
-                                                                               
-                                                                             
-                                                                              
-                                                                              
-                                                                                
-                                                                              
-                                      
+    # THE INSTALLED COPY IS NOT THIS REPOSITORY, which is how a fix to the hook
+    # can have no effect at all. A plugin whose marketplace source is a local
+    # `directory` is COPIED into `~/.claude/plugins/cache/...` at install time
+    # and the harness runs the copy — so the edit that fixed the recorder at
+    # 04:22 on 2026-09-07 was still not running at 11:30, and the divergence was
+    # visible nowhere. Same family as the plain-copy-shadows-a-plugin trap the
+    # machine's own CLAUDE.md records.
     installed = COMPANION_INSTALL
     hook = ROOT / "skill/plugins/observatory-log/hooks/record-turn.sh"
     if installed.is_dir() and hook.is_file():
@@ -2729,15 +2729,15 @@ def collect() -> list[dict]:
                       "by hand",
             "evidence": ["store/observatory.db#scans.started_at"]})
 
-                                                                           
-                                                                             
-                                                                          
-                                                                                  
-                                            
-     
-                                                                             
-                                                                               
-                                                    
+    # A BROKEN WIKILINK, from the receipt the audit now leaves. The wiki is
+    # written by `tools/commit_projection.py` on every tick and read by every
+    # `wiki-*` skill, so a link that resolves to nothing is a fact about a
+    # surface this system maintains — and until 2026-09-07 the only way to learn
+    # it was to type the command.
+    #
+    # `vault-absent` is NOT a finding. The wiki lives on one machine; a clone
+    # elsewhere legitimately has none, and raising there would be reporting the
+    # checker's own reach as a defect of the estate.
     vl = paths.SCRATCH / "vault-links.json"
     if vl.is_file():
         try:
@@ -2777,13 +2777,13 @@ def collect() -> list[dict]:
                 "action": "`./observatory.py links`",
                 "evidence": ["store/raw/vault-links.json#ran_at"]})
 
-                                                                              
-                                                                               
-                                                                               
-                                                                               
-                                                                            
-                                                                               
-                          
+    # THE DIFF HAS STOPPED, which nothing could say before the cursor existed.
+    # `snapshot` and `diff` are two steps: the first keeps writing fingerprints
+    # and the second can stop — a `diff` that raises, a step removed from the
+    # tick, a store locked at the wrong moment — and the visible effect is an
+    # agent with nothing to do, which looks exactly like a quiet estate. The
+    # cursor advances on every successful diff, so its age answers the question
+    # directly.
     cur = newest = None
     if paths.DB.is_file():
         try:
@@ -2821,19 +2821,19 @@ def collect() -> list[dict]:
                           "why the step stopped",
                 "evidence": ["store/observatory.db#cursors.deltas.diffed_through"]})
 
-                                                                          
-                                                          
-     
-                                                                                
-                                                                              
-                                                                    
-                                                                                 
-                                                                                
-                                                                            
-                                                                         
-     
-                                                                                
-                                     
+    # A MODEL ANSWERING BADLY, as a number rather than a console line. Two
+    # shapes, and they need different remedies:
+    #
+    #   malformed  — `worth_recording: true` with an empty interpretation. The
+    #                answer contradicts itself; the deltas stay unconsumed, so
+    #                the work is not lost but it is not done either.
+    #   unreasoned — a decline with an empty `why_not`. The judgement is usable
+    #                and the delta IS consumed, so nothing will ever revisit it:
+    #                the change is recorded as needing no note, with no note
+    #                saying why. The first live run did this eight times.
+    #
+    # Read from `store/raw/agent.json`, so a run that ended in a guardrail still
+    # reports what it managed to see.
     ag = paths.SCRATCH / "agent.json"
     if ag.is_file():
         try:
@@ -2850,8 +2850,8 @@ def collect() -> list[dict]:
                                                                               
                                                       
         faults = [x for x in (adoc.get("faults") or []) if isinstance(x, dict)]
-                                                                            
-                                        
+        # Kinds that already have a finding of their own are left to it: one
+        # cause, stated once.
         elsewhere = {"malformed", "credential"}
         mine = [x for x in faults if (x.get("kind") or "") not in elsewhere]
         n_failed = int(adoc.get("failed") or 0)
@@ -2916,14 +2916,14 @@ def collect() -> list[dict]:
                           "prompt's `why_not` rule is not landing",
                 "evidence": ["store/raw/agent.json#unreasoned"]})
 
-                                                                               
-                                                                            
-                                                                          
-                                                                       
-                                                                          
-                                                                                
-                                                                               
-                           
+        # A RECORD ITS READER CANNOT READ. The third shape of a bad answer, and
+        # the one that is invisible in a count of successes: the run reports
+        # `recorded`, the row is well-formed and carries a reason, and the
+        # sentence is in a language nobody who reads this ledger reads.
+        # Measured 2026-09-07 across 112 waiting records: one Chinese, two
+        # Russian, every other record English. It occupies the review
+        # queue and cannot be judged, which is why it is a finding and not only
+        # a line on stderr.
         alien = int(adoc.get("not_english") or 0)
         if alien:
             out.append({
@@ -2972,13 +2972,13 @@ def collect() -> list[dict]:
                 c.close()
         except sqlite3.Error:
             ids, counts = set(), {}
-                                                                               
-                                                                           
-                                                                                  
-                                                      
-                                                                              
-                                                                               
-                                                            
+        # TWO DIFFERENT FACTS, and they were one finding. An id absent from the
+        # registry is either a subject that is GONE — a typo, a dissolved
+        # project — or one the registry can still point at: publishing a project
+        # RENAMES it (`project:local-<folder>` becomes
+        # `project:<owner>-<name>`), and the rows written before that keep the
+        # old name. Measured 2026-09-07: two of the five "orphans" were exactly
+        # that, both promoted during one session.
         followed = identity.former_index(
             reg("projects.json").get("projects", []))
         renamed = sorted(o for o in (ids - known) if o in followed)
@@ -3091,12 +3091,12 @@ def collect() -> list[dict]:
                               f"plugins/{p['id']}.json",
                     "evidence": ["store/raw/plugins.json#plugins"]})
             elif cls == "stale":
-                                                                              
-                                                                               
-                                                                            
-                                                                               
-                                                                                
-                                                       
+                # THE SERIES STOPPED, and `not_due` used to say this was fine.
+                # A plugin can be installed, healthy, exiting zero and skipping
+                # every tick while its newest sample gets older — which is
+                # exactly how a metric layer goes quiet without anyone noticing
+                #. The age is in PERIODS so one number reads the same
+                # for a daily plugin and an hourly one.
                 age = p.get("seriesAgePeriods")
                 out.append({
                     "type": "plugin.stale", "subject": f"plugin:{p['id']}",
@@ -3199,26 +3199,26 @@ def collect() -> list[dict]:
                                                                                  
     out += merge_findings(degradations.collector("model.json"))
 
-                                                                             
-                                                                                 
-                                                                       
-                                                                               
-                                                                              
-                                                                                
-                                                                        
-                                                                              
-                                                      
-     
-                                                                                 
-                                                                              
-                                                                         
-                                                                               
-                                                                              
-                                                                        
-                                                          
-     
-                                                                               
-                                                                         
+    # EVERY OTHER COLLECTOR'S OWN WORDS, and until 2026-09-08 four of six had
+    # nowhere to say them. `model.json` reached the board through the rule above;
+    # `bitbucket.json` and `domains_live.json` reached the WIRE through
+    # `survey._collector_degradation`; `sessions.json` and `local.json` reached
+    # nobody — and `sessions.json` held a live degradation at that moment. A
+    # collector could report that claude-mem's store was unreadable, or that its
+    # shape had moved, and the estate would lose the session half of its
+    # activity in silence: the state `collectors/scan_sessions.py` was written
+    # to prevent, reached by the back door.
+    #
+    # INFO, and the choice is deliberate. The collector's own reason is the whole
+    # content, and six of the seven live ones are RDAP saying it has no record
+    # for a TLD outside its system — structural, explained, and not the
+    # operator's to fix. A warning there would teach the reader to skip the row
+    # that matters. Where a degradation IS urgent it has its own rule with its
+    # own remedy: `model.degraded` is a warning, and a missing Bitbucket
+    # credential is an operator decision already recorded.
+    #
+    # ONE ROW PER RECEIPT, not per entry: six RDAP 404s are one story about one
+    # collector, and six rows would be six decisions where there is none.
     for receipt, rows in sorted(degradations.every_collector().items()):
         pairs = sorted({f"{d.get('source', '?')} — {str(d.get('reason', '')).strip()}"
                         for d in rows if isinstance(d, dict)})
@@ -3267,10 +3267,10 @@ def collect() -> list[dict]:
         out.append({
             "type": "domain.hold", "subject": f"domain:{name}", "severity": "critical",
             "title": f"{name} is on registrar hold",
-                                                                                 
-                                                                                 
-                                                                                
-                                                                       
+            # THE PRESSURE, WHICH THE SAME RECORD ALREADY HELD. A hold with eight
+            # months of registration left and one expiring next week are the same
+            # sentence and different decisions, and the expiry sat unread in the
+            # very object this row quotes its statuses from.
             "detail": f"RDAP status: {', '.join(info['statuses'])}. The registrar has "
                       f"withdrawn it from DNS, which darkens "
                       f"{', '.join(darkened)}." + _hold_pressure(info.get("expires_on")),
@@ -3332,11 +3332,11 @@ def collect() -> list[dict]:
                      if rel.get("type") == "implemented_by"}
     ownership_of_project = {p["id"]: p.get("ownership")
                             for p in reg("projects.json").get("projects", [])}
-                                                                          
-                                                                               
-                                                                              
-                                                                       
-                 
+    # A PROJECT NOTHING CAN WATCH. `related` is every project a repository
+    # relation names, whatever the relation's type: a project pointed at by any
+    # of them is observable through it, and narrowing to `implemented_by` here
+    # would call a project blind because its link is worded differently
+    #.
     out += declared_alive_measured_dead(reg("projects.json").get("projects", []))
     out += unobservable_projects(
         reg("projects.json").get("projects", []),
@@ -3351,22 +3351,22 @@ def collect() -> list[dict]:
             continue
         own = ownership_of_project.get(owner_of_repo.get(r["id"]))
         nwo = r["id"].split(":", 1)[1]
-                                                                                
-                                                                                
-                                                                                
-                                                                              
-                                                                              
-                                                                               
-                                                                                 
-                                                       
+        # TWO CLOCKS, AND THE ROW HELD ONE. What the remote has is asked at most
+        # every six hours (about ninety network round trips); how far ahead this
+        # checkout is now is a local `rev-list` and is recounted every tick. The
+        # sentence printed one date for both, so a figure three hours old read
+        # as today's — measured on this very repository: 47 against git's 61
+        #. The remote's instant is quoted from the scan's own report
+        # rather than stored per repository, because a second-resolution stamp on
+        # 174 rows is what made `git diff` never empty.
         where = (f"(the remote was last asked {REMOTE_ASKED}, "
                  f"branch {loc.get('checked_out_branch') or '?'})")
         rule = SYNC_FINDINGS.get(state)
         if rule is None:
-                                                                           
-                                                                             
-                                                                                
-                                                                   
+            # NOT A `continue`. An unlisted state reaching this loop is how
+            # `ahead` came to mean "say nothing" — nobody judged it benign,
+            # nobody listed it, and both surfaces skipped it in silence. A fault
+            # this code can see belongs in the findings.
             out.append({
                 "type": "clone.unknown-state", "subject": r["id"],
                 "severity": "warning",
@@ -3388,24 +3388,24 @@ def collect() -> list[dict]:
         if state == "stale" and own == "external":
             why += (", and this is a copy of somebody else's repository: falling "
                     "behind upstream is expected of a copy rather than news")
-                                                                        
-                                                                               
-                                                                                 
-                                                                                
-                                                                            
-                                                                                    
-                                                                           
-                                                                        
+        # `stale` IS COLLECTED, NOT EMITTED. Fourteen of them existed on
+        # 2026-09-07, every one `info`, every one saying in its own detail that
+        # "nothing here is at risk", and every one already a `sync=stale` chip on
+        # its project's row. The page shows forty findings and names how many it
+        # omits, so those fourteen were spending fourteen visible
+        # slots on rows whose action — "pull when you next work here" — asks for
+        # no decision, pushing fourteen rows that DO ask into the tail. One
+        # aggregate row keeps the fact and returns the slots.
         if state == "stale":
             _stale_names.append((nwo, own))
             continue
-                                                                              
-                                                                            
-                                                                              
-                                                                              
-                                                                                  
-                                                                        
-                      
+        # HOW MUCH AND HOW OLD, when the probe measured it. Ten rows asked the
+        # operator to push or delete a branch while withholding both, so one
+        # holding a single typo from an hour ago read exactly like one holding
+        # forty-four commits of a feature branch from March. Absent
+        # rather than zero when it could not be counted — a state asserting work
+        # on this disk and counting none of it is a contradiction, not a
+        # reassurance.
         stake = ""
         n = loc.get("unpushed")
         if isinstance(n, int) and n > 0:
@@ -3417,11 +3417,11 @@ def collect() -> list[dict]:
                         if loc.get("unpushed_newest_on") else "")
                      + ".")
         elif state == "local-only-branch":
-                                                                            
-                                                                                 
-                                                                                
-                                                                               
-                                                                   
+            # NO COMMIT IS EXCLUSIVE, and the row must say so. The branch is
+            # unpublished, which is what the state means — but two of them were
+            # measured with every commit already reachable from some remote ref,
+            # and for those the sentence "work here survives only this disk" is
+            # simply false. Measured 2026-09-08: 2 of 6.
             stake = (" No commit here is exclusive to this disk, though: every one "
                      "is reachable from some remote ref, so what is unpublished is "
                      "the branch NAME rather than any work.")
@@ -3453,14 +3453,14 @@ def collect() -> list[dict]:
     quiet_tiers = {t["id"] for t in activity.tiers()
                    if t["id"] != activity.tiers()[0]["id"]}
     shipped_none: dict[str, dict] = {}
-                                                                               
-                                                                 
-                                                                               
-                                                                            
-                                                                               
-                                                                             
-                                                                                
-                                             
+    # WHICH metric answers "has this ever shipped", asked of the MANIFESTS. The
+    # first version read `metric = 'release.tags'` here, and both
+    # `tests/test_metric_series.py` and the plugin's own suite caught it in the
+    # same run: a core file naming a plugin's metric is the six-file problem
+    # this seam exists to remove. It took one iteration to reintroduce, after a
+    # manifest I wrote had argued no role was needed because "nothing in this
+    # repository asks how long since a release" — true when written, false the
+    # moment this finding existed.
     release_metric = metric_for_role(RELEASE_COUNT_ROLE)
     # `paths.DB`, not the local `db` — that name is bound further down in this
     # function, and reading it here made the whole block an UnboundLocalError
@@ -3478,9 +3478,9 @@ def collect() -> list[dict]:
                 c.close()
         except sqlite3.Error:
             latest = []
-                                                                              
-                                                                           
-                                                                       
+        # A project with NO reading is absent, not a zero: the plugin measures
+        # only projects with a checkout here, so counting the unmeasured as
+        # unreleased would report a fact nobody established.
         never = {pid for pid, value in latest if (value or 0) == 0}
         for p in reg("projects.json").get("projects", []):
             if p["id"] not in never:
@@ -3670,13 +3670,13 @@ def collect() -> list[dict]:
                 "evidence": ["store/key-shapes.json",
                              "agent/providers.py#KEY_SHAPES"]})
 
-                                                                          
-                                                                               
-                                                                                   
-                                                                             
-                                                                              
-                                                                               
-                                                         
+    # THE OTHER CHECKOUTS, which the merge used to reduce to folder names.
+    # `merge.py` refuses to let a worktree displace a real checkout and demotes
+    # it — correctly, since a worktree is a directory an agent deletes when it is
+    # done — but everything measured about it died there, and ten `codex/*`
+    # branches of one project existed on no remote with nothing able to say so
+    #. ONE finding per repository: ten rows for one agent's leftovers
+    # is how a findings list stops being read.
     for r in reg("repositories.json").get("repositories", []):
         loc = r.get("local") or {}
         risky = [x for x in (loc.get("extra_checkouts") or [])
@@ -3706,12 +3706,12 @@ def collect() -> list[dict]:
                        "deliberately"),
             "evidence": [f"registry:repositories.json#{r['id']}"]})
 
-                                                                            
-                                                                       
-                                                                               
-                                                             
-                                                                               
-                                                         
+    # A GIT REPOSITORY WITH NO REMOTE AT ALL — the strongest form of "this
+    # survives only this disk", and it raised nothing. Findings iterate
+    # `repositories.json`, and a checkout with no remote has no `owner/name` to
+    # be keyed by, so `merge.py` records it as a project with
+    # `local_only.unpublished` instead. Measured 2026-09-07: 219 commits across
+    # three of them, all committed to that day.
     for p in reg("projects.json").get("projects", []):
         lo = p.get("local_only") or {}
         if not lo.get("unpublished"):
@@ -3742,17 +3742,17 @@ def collect() -> list[dict]:
                       "this one is meant to live on this disk only",
             "evidence": [f"registry:projects.json#{p['id']}"]})
 
-                                                                                 
-                                                                               
-                                                                           
-                                                                                 
-                                                                                  
-                                                                          
-                                                                               
-                                                                       
-                                                                             
-                                                                               
-                                               
+    # `paths.DB`, not an inlined path — the fourth tool this session found with
+    # the store hardcoded, so `OBSERVATORY_DB` could not point it at a fixture.
+    # THE INTERPRETATION LAYER, STALLED. The agent leaves deltas unconsumed
+    # whenever it cannot run — a missing credential, a reached ceiling, a model
+    # that failed every attempt — and says so on stdout, which the tick swallows
+    # into a log. Measured 2026-09-07: it had been halted since 01:30 by a
+    # ceiling on a SHARED key another consumer had taken to 36.03 of 2.00, with
+    # 77 deltas queued, and nothing outside `tick.log` said a word. The
+    # collectors are unaffected, so the estate's FACTS stay current while its
+    # narrative silently stops — which is why this is a warning rather than a
+    # critical, and why it must be said at all.
     agentf = paths.SCRATCH / "agent.json"
     if agentf.is_file():
         try:
@@ -3901,13 +3901,13 @@ def collect() -> list[dict]:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"  corroboration.json unreadable: {exc}", file=sys.stderr)
             cdoc = {}
-                                                                                
-                                                                   
-                                                                                
-                                                                              
-                                                                             
-                                                                          
-                                                       
+        # A CONTRADICTION, and only that. This row carried both a witness saying
+        # the work is gone and a question nobody could ask, because
+        # `check_session` had two outcomes for three states — and every one of
+        # the four rows on the board on 2026-09-08 was of the second kind: the
+        # commit sat on `remotes/origin/<the very branch the row named>`, and
+        # the local branch had merely been deleted after being pushed. The
+        # unaskable bucket is the row below.
         for row in cdoc.get("refused", []):
             out.append({
                 "type": "work.unverifiable",
@@ -3954,13 +3954,13 @@ def collect() -> list[dict]:
                 "FROM ledger GROUP BY memory_id) m ON l.memory_id = m.memory_id "
                 "AND l.revision = m.rev WHERE l.state = 'proposed'").fetchone()[0]
 
-                                                                               
-                                                                         
-                                                                              
-                                                                                  
-                                                                   
-                                                                                 
-                                                             
+            # AND ITS SHAPE. A count says how long the queue is; the split says
+            # whether it is worth an evening. Measured 2026-09-07: of 130
+            # waiting records 107 rested on nothing but the working tree's own
+            # rhythm — commits, dirty, clean — and 17 on something structural.
+            # Read through `estate.conclusion_class`, the same rule
+            # `tools/review.py digest` orders by, so the board and the CLI cannot
+            # come to describe one queue two ways.
             shape: dict[str, int] = {}
             residue = residue_groups = 0
             try:
@@ -3979,9 +3979,9 @@ def collect() -> list[dict]:
                 for w in waiting:
                     k = estate.conclusion_class(w["evidence_json"])
                     shape[k] = shape.get(k, 0) + 1
-                                                                             
-                                                                            
-                                                           
+                # AND HOW MANY THE CORRECTED POLICY WOULD NOT HAVE MADE. Same
+                # function the digest folds by, so the board cannot report a
+                # different number from the CLI.
                 _groups = estate.fold_groups(waiting)
                 residue = sum(len(g["fold"]) for g in _groups)
                 residue_groups = len(_groups)
@@ -4000,11 +4000,11 @@ def collect() -> list[dict]:
                 " LEFT JOIN tombstones t ON t.memory_id = l.memory_id"
                 " WHERE t.memory_id IS NULL AND l.state = 'proposed'"
                 "   AND l.created_at < ?"
-                                                                         
-                                                                              
-                                                                              
-                                                                              
-                                                                                
+                # STRUCTURAL, as in `store/retention.py`'s own query: the
+                # exempt owners are inlined rather than passed by a caller who
+                # might forget. This query did forget, so a row retention will
+                # never touch could be announced as "will be erased unreviewed
+                # within 14 days" — a deadline that does not exist.
                 f"   AND l.owner NOT IN ({','.join('?' * len(EXEMPT_OWNERS))})",
                                                                                   
                                                                                   
@@ -4017,9 +4017,9 @@ def collect() -> list[dict]:
                 ).strftime("%Y-%m-%dT%H:%M:%SZ"), *EXEMPT_OWNERS)).fetchone()
             c.close()
         except sqlite3.Error as exc:
-                                                                         
-                                                                          
-                                                              
+            # Named, not vanished. A handler here hid a closed-connection
+            # bug twice in one sitting: the finding simply never appeared,
+            # which is indistinguishable from a healthy queue.
             print(f"  ledger unreadable: {type(exc).__name__}: {exc}", file=sys.stderr)
             n, soon = 0, None
         if n >= REVIEW_BACKLOG:
@@ -4051,17 +4051,17 @@ def collect() -> list[dict]:
                              f"looked — except rows owned by "
                              f"{', '.join(EXEMPT_OWNERS)}, which it never erases "
                              f"because nothing could re-derive them."),
-                                                                              
-                                                                           
-                                                                                
-                                                                      
-                                                                               
-                                                                        
-                                                                       
-                                                                               
-                                                                          
-                                                                               
-                                                                                
+                # WHY THE DIGEST WILL SAY SOMETHING ELSE. This figure is as of
+                # the last time the queue CHANGED — `built_at` is carried
+                # forward when nothing moved, because a committed file must be a
+                # function of the facts and not of the clock — while
+                # `review.py digest` recounts from the store at print time. The
+                # observer adds rows between ticks, so the two differ by
+                # minutes, and a reader comparing them takes that for a
+                # disagreement: measured 2026-09-08, they were 125 and 127 half
+                # an hour apart and IDENTICAL when computed at one instant
+                #. The stamp cannot go in this sentence — it would
+                # make the document differ every tick and defeat the rule above.
                 "action": "./observatory.py digest — the queue grouped by project, "
                           "structural first, with what retention will erase and when",
                 "evidence": ["store:ledger"]})
@@ -4171,20 +4171,20 @@ def main(argv: list[str]) -> int:
                  "`first_seen` is the only value carried forward; delete this file "
                  "and every finding looks new today. Operator acknowledgements live "
                  "in collectors/finding_acks.json, outside the rebuild."),
-                                                                         
-                                                                             
-                                                                              
-                                                                         
-                                                                            
-                                                                                
-                                                                              
-                     
-         
-                                                                             
-                                                                            
-                                                                                
-                                                                          
-                                                        
+        # WHEN THE CONTENT LAST CHANGED, not when this ran. It used to be
+        # `now()` unconditionally, and that one field made the whole registry
+        # differ from itself on every tick: `git diff` was never empty, so the
+        # tick's "the registry is clean — nothing to commit" branch was
+        # unreachable and the estate collected 48 commits a day whose entire
+        # content was a one-second timestamp bump under a constant subject line.
+        # Measured 2026-09-07: two consecutive runs, two differing lines, both
+        # this field.
+        #
+        # A committed file must be a function of the FACTS, not of the clock.
+        # "When did the observer last run" is run metadata and already lives
+        # where run metadata belongs — `scans.finished_at` in the store, which
+        # is what the dashboard's health panel shows as freshness. Stamped
+        # BELOW, once the rest of the document is known.
         "built_at": None,
         "counts": {s: sum(1 for f in findings if f["severity"] == s and not f.get("acked"))
                    for s in ("critical", "warning", "info")},

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                 
+"""Fixture-only scheduler, launchd plans, workspace locks and private Git tests."""
 from __future__ import annotations
 import importlib
 import json

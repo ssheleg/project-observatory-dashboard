@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-""                                                
+"""A value of ours, seen where it does not belong.
 
-                                                                              
-                                                                                  
-                                                                               
-                                                                                 
-                                                              
+`tools/scan_leaks.py` measures; this decides what reaches the board. The split
+matters here more than anywhere else on it: the scanner is allowed to be noisy —
+a sighting costs a line — and `leaks.jsonl`, the operator's debt register, is
+not. So nothing here writes that register. A hit leaves as a finding carrying the
+exact `tools/vault.py leak` command, and a person confirms it.
 
-                                                                           
-                                                                             
-                                                                              
-                                                                                
-                                            
-   
+TWO SEVERITIES, because a text match cannot tell them apart and a name can.
+A Cloudflare account id is thirty-two hex characters — shape-identical to a
+secret, and public by design. A `*_SECRET`, `*_TOKEN`, `*_KEY` or `*_PASSWORD`
+is not. Both are reported; only the second is critical, and the row says why the
+first is there at all rather than hiding it.
+"""
 from __future__ import annotations
 import re
 
@@ -25,7 +25,7 @@ IDENTIFIER = re.compile(r"(_ID$|_SID$|ACCOUNT_ID|PROJECT_ID|CLIENT_ID|_PUBLIC|"
 
 
 def _where(path: str) -> str:
-    ""                                                                    
+    """A place a reader can recognise, without the machine's full path."""
     if "/.claude/projects/" in path:
         rest = path.split("/.claude/projects/", 1)[1]
         return "session transcript " + rest
@@ -93,7 +93,7 @@ def sightings(doc: dict | None) -> list[dict]:
 
 
 def unscanned(doc: dict | None) -> list[dict]:
-    ""                                                         
+    """What the scanner could not read. Absent is not clean."""
     notes = (doc or {}).get("not_scanned") or []
     if not notes:
         return []

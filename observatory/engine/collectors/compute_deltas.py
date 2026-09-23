@@ -8,9 +8,9 @@ Why fingerprints rather than a git diff of registry/*.json: git sees only what
 was committed, and the interesting moment is often before that. A fingerprint is
 taken on every scan, committed or not.
 
-                                                                                                                                
-                                                                                
-                                                                                   
+Why one row per scan rather than one per project: 159 projects (measured 2026-09-08; 157 when this was written) times every scan
+is a table that grows for no reason. The whole map is small — a few fields per
+project — and diffing two maps is what produces the per-project rows that matter.
 
 Run `snapshot` after an emit, then `diff` to fill the `deltas` table:
 
@@ -140,10 +140,10 @@ def fingerprints_kept(conn) -> list:
 
 
 def cmd_snapshot(conn) -> int:
-                                                                                 
-                                                                          
-                                                                                
-                                                                              
+    # A timestamp at second resolution is not unique: a launchd tick and a manual
+    # run landing in the same second collided on the primary key. Verified
+    # 2026-09-04, and the fix now lives in `store.db.scan_id` — it was applied
+    # here and in `scan_events` and forgotten in `scan_sessions` (2026-09-08).
     scan_id = store_db.scan_id("fingerprint", now())
     fp = fingerprints(conn)
     with conn:
@@ -199,12 +199,12 @@ def pair(conn) -> tuple[object, object, list[str], int]:
         return None, to_row, ["only one fingerprint on record"], 0
     by_scan = {r["scan_id"]: i for i, r in enumerate(kept)}
     if through is None:
-                                                                                  
-                                                                                
-                                                                          
-                                                                                
-                                                                                 
-                                                                        
+        # NEVER DIFFED, so "since we last looked" has no answer — and the honest
+        # substitute is the OLDEST state still on record, not the second-newest.
+        # `kept[-2]` was the first version of this line and it loses every
+        # generation before it: three snapshots on a fresh store produced deltas
+        # for the last pair only, which is the same silent loss the cursor exists
+        # to close, one case over. Same rule as the pruned branch below.
         from_row = kept[0]
     elif through in by_scan:
         from_row = kept[by_scan[through]]
@@ -252,19 +252,19 @@ def cmd_diff(conn) -> int:
             elif after is None:
                 kinds = [("project-disappeared", before, None)]
             else:
-                                                                             
-                                                                        
-                                                                     
-                                                                            
-                                                                          
-                                                                                 
-                                                                              
-                                                          
-                 
-                                                                          
-                                                                               
-                                                                              
-                                      
+                # Over the UNION OF KEYS PRESENT, not over FIELD_MEANING. The
+                # loop used to iterate the meaning table, so a field the
+                # fingerprint records and the table does not know was
+                # undiffable: `name` was exactly that, and a renamed project
+                # produced ZERO deltas while this command printed "nothing
+                # moved — the agent will not be called". A reassurance in place
+                # of an event. Measured 2026-09-07 by driving a rename through
+                # `cmd_diff` on a fixture: 0 rows written.
+                #
+                # Iterating the data instead means the next field added to
+                # `fingerprints()` is diffable the day it is added; the meaning
+                # is what a test then demands, and a missing one is a red gate
+                # rather than silence.
                 kinds = [(f"{f}-changed", before.get(f), after.get(f))
                          for f in sorted(set(before) | set(after))
                          if before.get(f) != after.get(f)]

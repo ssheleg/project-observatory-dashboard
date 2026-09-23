@@ -1,4 +1,4 @@
-""                                                                              
+"""Local upgrade coordination and WAL-aware rollback snapshots (macOS/Linux)."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -11,18 +11,18 @@ import time
 
 
 def readonly_uri(target: Path) -> str:
-    ""                                                                           
+    """Avoid creating empty WAL/SHM files when a checkpointed store is inspected.
 
-                                                                              
-                                                                             
-       
+    A nonempty WAL must remain visible. Its read-only reader may reconstruct a
+    shared-memory index, but never changes database or committed WAL content.
+    """
     wal = Path(str(target) + "-wal")
     immutable = not wal.exists() or wal.stat().st_size == 0
     return target.resolve().as_uri() + "?mode=ro" + ("&immutable=1" if immutable else "")
 
 
 def preflight(target: Path) -> None:
-    ""                                                                             
+    """Reject newer or altered histories before opening the database for writes."""
     if not target.exists():
         return
     from store import migrate
@@ -35,7 +35,7 @@ def preflight(target: Path) -> None:
 
 @contextmanager
 def upgrade_lock(target: Path, timeout: float = 30):
-    ""                                                                          
+    """Stable flock file: never unlink a lock another waiter may have opened."""
     lock_path = target.with_name(target.name + ".upgrade.lock")
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
@@ -56,7 +56,7 @@ def upgrade_lock(target: Path, timeout: float = 30):
 
 
 def verify_database(conn: sqlite3.Connection) -> None:
-    ""                                                                               
+    """Check a copied store; load only the installed sqlite-vec package if needed."""
     import re
     schemas = [row[0] or "" for row in conn.execute("SELECT sql FROM sqlite_master WHERE type='table'")]
     if any(re.search(r"\bUSING\s+vec0\b", sql, re.IGNORECASE) for sql in schemas):
@@ -77,7 +77,7 @@ def verify_database(conn: sqlite3.Connection) -> None:
 
 
 def backup(conn: sqlite3.Connection, target: Path) -> Path:
-    ""                                                                                
+    """Snapshot committed WAL content, verify it, retain it until explicit cleanup."""
     directory = target.parent / "migration-backups"
     if directory.is_symlink():
         raise RuntimeError("Migration backup directory must not be a symbolic link")

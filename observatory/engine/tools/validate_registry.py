@@ -22,7 +22,7 @@ def resolve_ref(ref):
     p=Path(ref)
     if p.is_absolute(): return p, None
     return None, f"reference must start with 'registry:' or 'vault:': {ref}"
-                                                                            
+# Optional evidence belongs to the user, never a dated source-tree snapshot.
 RAW = paths.NAMECHEAP_EXPORT
 SNAPSHOT = paths.source_path("cloudflare_snapshot", paths.HOME / "unconfigured/cloudflare-snapshot.json")
 RX=re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
@@ -111,11 +111,11 @@ def main():
         # Silence about why is how an unresolved link becomes a permanent shrug.
         if not a.get("project") and not a.get("unlinked_reason"):
             errors.append(f"unlinked heroku app says nothing about why: {a['id']}")
-                                                                               
-                                                                                
-                                                                                   
-                                                                                  
-                                    
+    # A CURATED LINK IS A FACT WITH A HALF-LIFE. `collectors/heroku_links.json`
+    # names project ids, and an id is DERIVED from a folder or a repository name
+    # — rename either and the row stops matching, the application quietly becomes
+    # unlinked, and the human's evidence is lost with no signal. Trap T11's shape,
+    # found by the 2026-09-09 audit.
     links_path=paths.config_file("heroku_links.json")
     if links_path.is_file():
         sys.path.insert(0,str(ROOT/"collectors"))
@@ -137,10 +137,10 @@ def main():
     # run, and this adds the shape check beside it.
     creds=load("credentials.json")["credentials"] if (INV/"credentials.json").is_file() else []
     ci=uniq(creds,"id","credentials",errors) if creds else set()
-                                                                              
-                                                                                
-                                                                            
-                                              
+    # FIVE KINDS SINCE 2026-09-14: `project-secret-file` is a key a
+    # project keeps in its OWN `secrets/` folder — ten of them on this estate,
+    # and no inventory had seen one. A closed set is the point: a sixth kind
+    # arrives here deliberately or not at all.
     KINDS={"llm-api-key","project-secret","leaked-untracked","machine-secret",
            "project-secret-file"}
     for c in creds:
@@ -179,7 +179,7 @@ def main():
                 if n not in pnames and not n.startswith("project:"):
                     errors.append(f"credential_owners names project {n!r}, which the registry does not hold")
 
-                                                                              
+    # ---- products and zones -------------------------------------
     prods=load("products.json")["products"] if (INV/"products.json").is_file() else []
     pri=uniq(prods,"id","products",errors) if prods else set()
     if prods:
@@ -296,12 +296,12 @@ def main():
         for sid, fields in evidence_of.items():
             if has_measurement and "registry:domain-liveness.json" in fields and sid not in refs:
                 errors.append(f"domain-liveness.json is measured by {sid} but does not cite it")
-                                                                                
-                                                                                 
-                                                                              
-                                                                              
-                                                                             
-                                                 
+    # THE PHANTOM INVARIANT, guarded where it can stop the tick. `stale-remotes`
+    # records a transferred address; the whole point of following the transfer is
+    # that the OLD name never becomes a repository. So the new name must be in
+    # the registry and the old one must not — if that inverts, the merge has
+    # admitted a repository that belongs to nobody, and this validator is the
+    # only step that can stop it being committed.
     stale_path = INV/"stale-remotes.json"
     if stale_path.exists():
         stale=json.loads(stale_path.read_text(encoding="utf-8"))

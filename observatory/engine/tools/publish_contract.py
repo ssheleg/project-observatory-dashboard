@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Validate the bundled MCP wire schemas or check their public release bytes.
 
-                                                                              
-                                                                             
-                                                                            
-                                                                               
-                                                                              
-   
+The manifest in the source tree is portable. --local-manifest writes a private
+installation-specific copy beneath OBSERVATORY_HOME; never publish that copy.
+--check performs anonymous HTTP reads. --local checks bundled files offline.
+External host admission is unverified; these checks establish local consistency
+and publication equality only. The package release pipeline publishes schemas.
+"""
 from __future__ import annotations
 import argparse
 import copy
@@ -39,7 +39,7 @@ def revision() -> int:
 
 
 def staged(rev: int | None = None) -> dict[str, str]:
-    ""                                                                     
+    """Reviewed schema and fixture text keyed by its path below fabric/."""
     return {f"{dest}/{path.name}": path.read_text(encoding="utf-8")
             for source, dest, pattern in PUBLISHABLE
             for path in sorted((ROOT / source).glob(pattern))}

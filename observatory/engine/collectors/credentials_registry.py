@@ -42,10 +42,10 @@ import paths
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OWNERS = paths.config_file('credential_owners.json')
-                                                                               
-                                                                             
-                                                                               
-                                                    
+#: The operator's half of S9: what a credential is FOR, who answers for it, and
+#: how often it should be rotated. Written only by `tools/sign_credential.py`
+#: and by the doors' auto-signature; merged here so the page and the board read
+#: one record rather than two files (plan v2, T-07).
 ANNOTATIONS = pathlib.Path(os.environ.get(
     "OBSERVATORY_ANNOTATIONS",
     paths.config_file('credential_annotations.json')))
@@ -93,9 +93,9 @@ def load_owners() -> list[dict]:
         doc = json.loads(OWNERS.read_text(encoding="utf-8"))
         rows = doc.get("owners", [])
     except (OSError, ValueError, AttributeError) as exc:
-                                                                          
-                                                                             
-                                 
+        # Recorded, not raised: the emit finishes and the board says which
+        # register it could not read, rather than the whole registry stopping
+        # on one file.
         _register_problem(OWNERS, exc)
         return []
     return [r for r in rows
@@ -164,27 +164,27 @@ def from_vault(store: pathlib.Path) -> list[dict]:
     return out
 
 
-                                                                             
-                                                                              
-                                                                           
-                                                                        
-                                                                           
-                                                                        
-                                    
-  
-                                                                              
-                                                                       
+#: The machine's shared secret store — the third class of credential, after
+#: OpenRouter keys and vault slots. These are the files collectors and plugins
+#: authenticate WITH: two Google service accounts, one Cloudflare token per
+#: account, the gateway's own upstream keys. They were invisible to this
+#: registry until 2026-09-12, which meant the estate could not answer "what
+#: does this machine hold, and what reads it" — the question the whole
+#: projection exists for.
+#:
+#: Names, sizes and dates only. Never a value, and never a read of the content
+#: beyond what a service-account file states about itself in the clear.
 MACHINE_STORE = paths.source_path("secret_store", paths.SECRETS)
-                                                                           
-                                                                           
-                                                                        
-                                                                                
-                                                                      
+#: Readers this registry knows by hand — the ones that are NOT plugins. A
+#: plugin's reader is derived instead, from the `path:` requirement its own
+#: manifest already declares: naming a plugin's id in a core file is the
+#: coupling `tests/test_metric_series.py` forbids, and it is right to, because a
+#: hand-written map goes stale the day a plugin is renamed.
 MACHINE_READERS = {
     "openrouter": "agent/providers.py",
     "openrouter-provisioning": "tools/install_key.py",
-                                                                             
-                                                         
+    # The two credential doors: each stash is read by its door and
+    # nothing else — that is the door's whole contract.
     "openrouter-admin": "tools/openrouter.py",
     "openrouter-issued.json": "tools/openrouter.py",
     "cloudflare-admin": "tools/cloudflare.py",
@@ -238,9 +238,9 @@ def from_machine_secrets(store: pathlib.Path | None = None) -> list[dict]:
         if p.name == "projects":
             continue
         if p.is_dir():
-                                                                              
-                                                                                  
-                                                                            
+            # A directory of per-account tokens is ONE capability with several
+            # holders — counted as one credential carrying its own holder count,
+            # because three Cloudflare logins are not three kinds of access.
             files = [c for c in sorted(p.iterdir())
                      if c.is_file() and not c.name.startswith(".")
                      # a .meta.json is the RECORD of a holder, not a holder
@@ -507,10 +507,10 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
                       "rule": rule, "source_refs": refs})
 
     for c in creds:
-                                                                                
-                                                                  
-                                                                                 
-                                                   
+        # BOTH VAULT-SHAPED KINDS. `leaked-untracked` exists precisely because a
+        # leak has no slot, and the first version asked only about
+        # `project-secret` — so the records invented FOR the leaks were the one
+        # set that could never be marked as leaked.
         slot = (c["id"].split("credential:vault/", 1)[-1]
                 if c["kind"] in ("project-secret", "leaked-untracked") else None)
         leak = open_leaks.get(slot) if slot else None
@@ -559,11 +559,11 @@ def records(scan: dict, store: pathlib.Path, projects: list[dict]) -> tuple[list
                     edge(c["id"], pid, "curated", ["SRC-0014"])
         c["used_by"] = sorted(e["to"] for e in edges if e["from"] == c["id"])
         if not c["used_by"] and not c.get("unclaimed_reason"):
-                                                                                
-                                                                               
-                                                                             
-                                                                         
-                         
+            # `not c.get(...)` because a record may already know a BETTER reason
+            # than this one: a machine secret names the code that authenticates
+            # with it, which is the thing that breaks when it is rotated, and
+            # overwriting that with the generic sentence lost information
+            #.
             c["unclaimed_reason"] = (
                 "no vault path and no curated row names a project for it — a shared "
                 "account's membership cannot be measured, and guessing it would send "

@@ -88,10 +88,10 @@ def test_a_daily_cadence_is_a_calendar_day() -> None:
 
 
 def test_a_late_recording_does_not_delay_the_next_period() -> None:
-    ""                                                                        
-                                                                              
-                                                                              
-                                                       
+    """THE MEASURED DEFECT. A sample for the 6th, written at 23:04 on the 6th:
+    the elapsed-hours gate blocked the 7th's sample until 23:04 on the 7th, so
+    the series had a 47-hour hole every day and the dashboard's "latest value"
+    was up to two days old while reading as current."""
     R = runner()
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-cadence-"))
     os.environ["OBSERVATORY_DB"] = str(d / "observatory.db")

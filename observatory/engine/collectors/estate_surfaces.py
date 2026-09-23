@@ -31,11 +31,11 @@ CURATED_PRODUCTS = paths.config_file('products.json')
 BOUNDARY = paths.config_file('host_boundary.json')
 SRC = ["SRC-0016"]
 
-                                                                          
-                                                                                
-                                                                               
-                                                                                 
-                                                                
+#: How strongly each kind of site evidence speaks, lowest number wins. The
+#: operator's word beats anything measured; among measurements, a config file in
+#: a LOCAL checkout beats a GitHub homepage field, which beats Bitbucket, which
+#: beats a mention in a wiki note — the operator's priority order (2026-09-13):
+#: "first what is on this machine, then GitHub, then Bitbucket".
 EVIDENCE_RANK = (
     ("operator-claim", 0),
     ("repo-config:", 1),
@@ -220,11 +220,11 @@ def zone_rows(scan: dict, domains: list[dict], projects: list[dict],
         elif name in prod_of or any(name.endswith("." + dm) for dm in prod_of):
             standing = "product"
         elif readable and z.get("records") is not None and not targets:
-                                                                           
-                                                                      
-                                                                             
-                                                                           
-                                                          
+            # DORMANT: the DNS was read and neither the apex nor www points
+            # anywhere. 56 of the 70 "unclassified" zones were this on
+            # 2026-09-14 — parked names, not projects nobody spoke about. A
+            # word the operator owes is a different debt from a domain that
+            # serves nothing, so the two are not one list.
             standing = "dormant"
         else:
             standing = "unclassified"

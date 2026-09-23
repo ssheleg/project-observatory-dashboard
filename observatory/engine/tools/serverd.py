@@ -233,9 +233,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._json({"error": "only local browser origins are accepted"}, 403)
             return
         route = self.path.split("?", 1)[0].rstrip("/") or "/"
-                                                                             
-                                                                               
-                                                                      
+        # THE SPLIT PAGES: `/dashboard/<name>.html` from the built
+        # directory, names from the shell's whitelist only — a path with `..`
+        # or a name the shell does not know is 404, never a file read.
         if route.startswith("/dashboard/"):
             name = route[len("/dashboard/"):]
             sys.path.insert(0, str(ROOT / "dashboard"))

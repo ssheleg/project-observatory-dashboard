@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-""                                                       
+"""How many local branches each project's checkouts hold.
 
-                                                                               
-                                                                           
-                                                                          
-                                                                               
-                                                                                
-                                                                            
-           
-   
+**Written from `plugins/README.md` alone, as an experiment, and the first draft
+inlined two canonical paths because the document never said otherwise.** It
+resolved the estate root as `Path.home() / "DATA"` and the registry as the
+relative string `"registry/projects.json"` — both of which the repository has
+resolvers for, both of which `tools/check_paths.py` missed, and neither of which
+the README mentions. The document and the gate were fixed in the same change
+.
+"""
 from __future__ import annotations
 import json
 import pathlib
@@ -21,7 +21,7 @@ import paths
 
 
 def branches(folder: pathlib.Path) -> int | None:
-    ""                                                                     
+    """Local branches in one checkout, or None when git will not answer."""
     try:
         p = subprocess.run(["git", "-C", str(folder), "branch", "--list"],
                            capture_output=True, text=True, timeout=30)

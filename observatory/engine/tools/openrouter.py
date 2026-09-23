@@ -202,11 +202,11 @@ def cmd_adopt(label: str) -> int:
     rc = stash_value(private_io.read(private_io.legacy_path(LEGACY)).strip(), label,
                      origin=f"adopted from {LEGACY.name}")
     if rc == 0:
-                                                                           
-                                                                                   
-                                                                         
-                                                                                
-                                                                              
+        # FIVE OTHER READERS know the legacy path (install_key, revoke_key,
+        # keyserver, scan_leaks, scan_openrouter — measured by grep, 2026-09-13);
+        # deleting it would break all five in the same minute. A relative
+        # symlink keeps one canonical value and every reader: they see whichever
+        # account was adopted first, exactly what they saw when there was one.
         LEGACY.unlink()
         LEGACY.symlink_to(pathlib.Path("openrouter-admin") / slug(label))
         print("the legacy path is now a symlink into the stash — its five "

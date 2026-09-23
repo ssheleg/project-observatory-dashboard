@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-""                                                                                     
+"""`registry/google-properties.json` — every analytics property, joined to a project.
 
-                                                                                
-                                                                                
-                                                                            
-                                                                           
-                                                                             
-                                                                              
-                                                           
+THE JOIN IS MEASURED BEFORE IT IS DECLARED, which is what changed on 2026-09-14.
+A hand-written mapping file named five properties; the service account could see
+thirty-eight, and GA4 itself knows what each one is about — every property
+declares its web streams (a host) and its app streams (a bundle id). So the
+first question is no longer "what did somebody write down" but "what does the
+property say it measures", and the host goes through `plugins/hostmap.py`, the
+same join the domains and the Cloudflare zones already use.
 
-                                                                         
+FIVE RULES, IN EVIDENCE ORDER, and each row carries the one that made it:
 
-                                                                                
-                                                                                
-                                                                   
-                                                                               
-                                                                                
-                                                                          
-                                                       
+    declared     the operator's `plugins/config/ga4_properties.json` — a human
+                 decision outranks a measurement, and it is how a property whose
+                 host this estate does not own gets attached anyway
+    stream-host  a web stream's host resolves to a project through the registry
+    app-id       an app stream's bundle id ends in a project's own name, exactly
+    name         the property's display name IS a project's name or folder
+    —            nothing matched, and the row says so
 
-                                                                             
-                                                                               
-                                                                              
-                                                                               
-                                             
-   
+WHAT AN UNMATCHED PROPERTY MEANS — the operator's own rule, first given for
+Cloudflare zones and the same here: a property with no project in this registry
+is a product somebody else runs, or one this operator is not working on. It is
+not a defect; the board states the count once and names them, and the answer is
+a line in the mapping file or nothing at all.
+"""
 from __future__ import annotations
 import pathlib
 import re
@@ -46,8 +46,8 @@ CONSOLES_PATH = paths.config_file('google_consoles.json')
 
 
 def consoles(path: pathlib.Path = CONSOLES_PATH) -> dict[str, str]:
-    ""                                                                         
-                                                                            
+    """The four templates, or empty strings for any the file does not carry —
+    a missing address is a row without a link, never a crash of the emit."""
     import json
     keys = ("ga4_report", "ga4_admin", "search_console_site", "cloud_project")
     try:
@@ -62,12 +62,12 @@ def _fill(template: str, **parts: str) -> str | None:
 
 
 def _norm(s: str) -> str:
-    ""                                                            
+    """A name reduced to what two spellings of one thing share."""
     return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
 
 
 def declared_map(path: pathlib.Path) -> dict[str, dict]:
-    ""                                                           
+    """The operator's own file, which keeps working unchanged."""
     import json
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
@@ -77,12 +77,12 @@ def declared_map(path: pathlib.Path) -> dict[str, dict]:
 
 
 def boundary(path: pathlib.Path) -> dict[str, dict]:
-    ""                                                                
+    """The operator's own word on which hosts are outside this estate.
 
-                                                                              
-                                                                                
-                                               
-       
+    The same file the Cloudflare zones read. A property whose every
+    host is declared outside is not an unanswered question — it is an answered
+    one, and the board must not keep asking it.
+    """
     import json
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
@@ -97,7 +97,7 @@ def boundary(path: pathlib.Path) -> dict[str, dict]:
 
 
 def match(prop: dict, declared: dict, host_owner, names: dict[str, str]) -> tuple[str | None, str, str]:
-    ""                                                  
+    """(project id, rule, evidence) for one property."""
     d = declared.get(prop["property"])
     if d and d.get("project"):
         return d["project"], "declared", f"collectors/… ga4_properties.json: {d.get('_why', 'operator')}"
@@ -120,9 +120,9 @@ def match(prop: dict, declared: dict, host_owner, names: dict[str, str]) -> tupl
 
 
 def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[dict]:
-    ""                                                                         
-                                                                               
-                           
+    """One row per property. `hostmap.build()` reads the registry itself, which
+    is why this takes the project list only: the host join is the estate's, not
+    a second copy of it."""
     import hostmap
     table = hostmap.build()
     def owner_of(host: str):

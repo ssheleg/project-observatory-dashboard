@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-""                                                                           
+"""What each project costs to keep running, sampled so the number has a past.
 
-                                                                             
-                                                                                
-                                                                               
-                                    
+The registry recomputes `monthly_cost` on every emit and keeps no history, so
+"did this get more expensive" had no answer — only today's figure with nothing
+beside it. One row per project per day turns that into a series the dashboard's
+own spark already knows how to draw.
 
-                                                                        
-                                                                          
-                                                                          
-                                                                               
-                                                 
+WHY A PLUGIN AND NOT A CORE FILE. `plugins/README.md` is explicit that a
+measurement taken at an instant belongs beside `events` rather than in the
+registry, and that adding one must touch no file outside this directory. A
+hosting bill is exactly that shape: it accumulates, it is not a fact about what
+EXISTS, and it will be joined by other providers.
 
-                                                                                 
-                                                                               
-                                                                              
-                                               
-   
+WHAT IT DOES NOT DO. It never decides which project an application belongs to —
+`collectors/heroku_registry.py` did that under rules that carry their evidence,
+and this reads the answer. A plugin that re-derived the link would be a second
+opinion nobody asked for and no rule behind it.
+"""
 from __future__ import annotations
 import json, pathlib, sys
 from datetime import datetime, timezone
@@ -34,9 +34,9 @@ def main() -> int:
         return 0
     apps = json.loads(doc.read_text(encoding="utf-8")).get("apps", [])
 
-                                                                                
-                                                                                
-                                      
+    # THE DAY, not the instant. `every_hours: 24` buckets by calendar day in UTC
+    #, so a second sample inside one day would collide on the primary
+    # key rather than refine anything.
     at = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
 
     cost: dict[str, float] = {}

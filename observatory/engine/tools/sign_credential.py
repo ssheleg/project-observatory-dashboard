@@ -57,11 +57,11 @@ def today() -> str:
 
 
 def load() -> dict:
-    ""                                                                           
-                                                                              
-                                                                               
-                                                                              
-                                                                               
+    """The register, or a fresh one when there is none yet — and a REFUSAL when
+    there is one that will not read. The first version answered a corrupt file
+    with an empty document, so the next `set` would have written one annotation
+    over every other signature the file held. A file that exists and cannot be
+    parsed is the operator's to open, not this tool's to replace."""
     if not FILE.is_file():
         return {"schema_version": 1, "note": "", "annotations": {}}
     try:

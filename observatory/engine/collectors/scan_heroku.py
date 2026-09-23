@@ -44,9 +44,9 @@ import atomic
 import paths              
 
 API = "https://api.heroku.com"
-                                                                           
-                                                                              
-                                                                     
+#: The Deploy tab's GitHub link is NOT in the Platform API. It lives on the
+#: dashboard's own service, and it is the only thing that says where a running
+#: application is deployed FROM. Nineteen of the fifty-nine have one.
 KOLKRABBI = "https://kolkrabbi.heroku.com"
 WORKERS = 10
 TIMEOUT = 60
@@ -233,9 +233,9 @@ def scan_app(app: dict, tok: str) -> dict:
     rels = get(f"{API}/apps/{aid}/releases", tok,
                extra={"Range": f"version ..; max={RELEASE_WINDOW}, order=desc"})
     gh = get(f"{KOLKRABBI}/apps/{aid}/github", tok, accept="application/json")
-                                                                               
-                                                                              
-                                                                                
+    # CUSTOM DOMAINS, because a zone's CNAME says `xyz.herokudns.com` and never
+    # the app's name: the only way from a domain to the application serving it
+    # is Heroku's own list of which hostnames it accepts for the app.
     doms = get(f"{API}/apps/{aid}/domains", tok)
     row["domains"] = (sorted(d["hostname"] for d in doms
                              if isinstance(d, dict) and d.get("kind") == "custom" and d.get("hostname"))

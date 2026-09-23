@@ -86,16 +86,16 @@ SECRET_NAME = re.compile(
     r"_DSN$|DATABASE_URL|CONN(ECTION)?_?STR|CLIENT_?SECRET|SIGNING|"
     r"_SALT$|SESSION|COOKIE|WEBHOOK|_PAT$|_KEY$|^KEY$|BEARER|AUTH)", re.I)
 
-                                                                           
-                                                                                
-                   
-  
-                                                                                
-                                                                                
-                                                                                
-                                                                            
-                                                                               
-         
+#: Values that are obviously not live. A project full of these is a project
+#: waiting for credentials, which the reuse view reads as a question rather than
+#: as an inventory.
+#:
+#: TWO PATTERNS, because the first version was one and anchored at both ends —
+#: so `your-gemini-api-key` did not match `^your[-_ ]?$` and was then classified
+#: `secret` by its NAME. That is not a rounding error: it reported 152 committed
+#: `.env.example` templates as files carrying live credentials, which is the
+#: shape of an alarm nobody can act on. A lead-in is a prefix; an exact word is
+#: exact.
 PLACEHOLDER_LEAD = re.compile(
     r"^(your|my|the|some|todo|tbd|changeme|change[-_]me|replace|example|dummy|"
     r"sample|placeholder|insert|fill|enter|add|put|paste|abc123|foo|bar|any)"
@@ -293,7 +293,7 @@ def parse(text: str) -> tuple[list[tuple[str, str]], int]:
 
 
 def env_files(root: pathlib.Path) -> list[pathlib.Path]:
-    ""                                                                           
+    """Every candidate under the estate, breadth-limited and exclusion-pruned."""
     found: list[pathlib.Path] = []
     stack = [(root, 0)]
     while stack:

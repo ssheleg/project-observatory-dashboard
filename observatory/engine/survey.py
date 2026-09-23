@@ -24,12 +24,12 @@ def _load(name: str) -> dict:
     return json.loads((paths.REGISTRY / name).read_text(encoding="utf-8"))
 
 
-                                                                             
-                                                                          
-                                                                               
-                                                                                
-                                                                            
-                                                     
+#: One reader for every collector's `degraded` list, in `degradations.py`. It
+#: moved out of this file when `tools/build_findings.py` became its second
+#: caller: the previous time a rule about collector output lived in two places,
+#: the two disagreed about the shape and the GitHub degradations reached nobody.
+#: Kept as a module-level name here because the survey's own call sites read
+#: better for it and every test in the tree names it.
 _collector_degradation = degradations.collector
 
 
@@ -217,12 +217,12 @@ def _project_view(p: dict, repos: dict, members: dict) -> dict:
     for src, dst in (("description", "description"), ("description_source", "descriptionSource"),
                      ("local_folders", "localFolders"), ("stack", "stack"),
                      ("last_activity_on", "lastActivityOn"), ("has_vault_note", "hasVaultNote"),
-                                                                                 
-                                                                              
-                                                                              
-                                                                          
-                                                                                  
-                                                                             
+                     # THE MEASUREMENT, beside the declared state. `lifecycle` is
+                     # 157 active of 160 and answers "what did the owner say";
+                     # `activity_tier` answers "when did it last move", and 27
+                     # projects disagree. A host rendering the estate from
+                     # `lifecycle` shows almost everything as active, which is the
+                     # brief's headline question answered wrongly.
                      ("activity_tier", "activityTier"),
                      # WHERE WORK WAS DONE when no commit was made — SRC-0012's
                      # whole reason, and 57 projects carry one.
@@ -337,19 +337,19 @@ def survey(scope: dict | None = None, include_external: bool = False,
     page = selected
     next_cursor = None
     if cursor:
-                                                                       
-                                                                                 
-                                                                                
-                                                                             
-                                                                           
-                                                                                
-                                                                 
-         
-                                                                          
-                                                                              
-                                                                            
-                                                                               
-                                                         
+        # A CURSOR THAT NAMES NO POSITION, said out loud. The filter is
+        # `p["id"] > cursor`, so a string that sorts before every id — anything
+        # not starting with `project:` — passes the whole list through and the
+        # walk SILENTLY RESTARTS. Measured 2026-09-08: `cursor="!!! not an id
+        # !!!"` with `limit=5` returned page one again, so a host holding a
+        # stale or corrupted cursor would receive projects it had already walked
+        # with nothing to tell it apart from progress.
+        #
+        # A degradation rather than a refusal, because the answer is still
+        # useful and this file reports rather than raises everywhere else. And
+        # the check is the SHAPE, not membership: a well-formed cursor whose
+        # project has been deleted between two pages is legitimate — the walk
+        # must continue after it, which `>` already does.
         if not str(cursor).startswith("project:"):
             degraded.append({"source": "cursor",
                              "reason": f"cursor {str(cursor)[:40]!r} is not a "
@@ -420,11 +420,11 @@ def survey(scope: dict | None = None, include_external: bool = False,
     seen_repos = all_views_repos or {r["id"] for v in views for r in v["repositories"]}
     owners = {o for p in selected for o in p.get("owners", [])}
 
-                                                                              
-                                                                                  
-                                                                                
-                                                                               
-                                           
+    # The reason is READ from the collector, not asserted here. It was a fixed
+    # string — "no API listing is configured" — which was true until
+    # collectors/scan_bitbucket.py existed and would have gone on being reported
+    # unchanged the day a credential appeared. A degradation notice that cannot
+    # stop being true is not a measurement.
     thin = sum(1 for i in seen_repos
                if repos[i]["host"] == "bitbucket"
                and repos[i].get("discovered_by") == "local-remote-only")
@@ -441,9 +441,9 @@ def survey(scope: dict | None = None, include_external: bool = False,
                                        f"bitbucket collector has not run against this "
                                        f"registry yet"})
 
-                                                                                
-                                                                                 
-                                               
+    # Same rule as the bitbucket notice: a surface nobody measured is
+    # named as unmeasured. Silence would let a caller read "no dead sites" out of
+    # "no scan", and those are opposite claims.
     if any(p.get("sites") for p in selected):
         if not (paths.SCRATCH / "domains_live.json").is_file():
             degraded.append({"source": "domains",
@@ -452,11 +452,11 @@ def survey(scope: dict | None = None, include_external: bool = False,
         else:
             degraded.extend(_collector_degradation("domains_live.json"))
 
-                                                                           
-                                                                                
-                                                                               
-                                                                             
-                 
+    # THE GITHUB LISTING, which nothing had ever reported. Its failures are
+    # per-owner and the collector keeps the previous file when one fails, so the
+    # answer is not wrong — it is OLDER than it looks, and a caller comparing
+    # two surveys would see repositories appear and disappear with nothing to
+    # explain it.
     for d in _collector_degradation("gh/_degraded.json"):
         degraded.append({"source": d.get("source", "github"),
                          "reason": f"{d.get('reason', 'the listing failed')} — the "
@@ -482,12 +482,12 @@ def survey(scope: dict | None = None, include_external: bool = False,
     return result
 
 
-                                                                        
-                                                                                 
-                                                                                
-                                                                              
-                                                                                
-                                      
+#: The tombstone rule, as SQL, in ONE place. Every read of the ledger is
+#: record-wide and `dashboard/build_dashboard.py`'s notes query had no
+#: tombstone join at all — so an erased conclusion would have been rendered on
+#: the operator's page while `live()`, the search and the review queue all hid
+#: it. Both readers use this fragment now, because a rule spelled out twice is a
+#: rule that will be spelled out once.
 LIVE_LEDGER_JOIN = (
     " JOIN (SELECT memory_id, MAX(revision) r FROM ledger GROUP BY memory_id) m"
     "   ON m.memory_id = l.memory_id AND m.r = l.revision"
@@ -532,9 +532,9 @@ def project_detail(project_id: str, timeline_limit: int = 10,
         out["recentEvents"] = tl["events"]
         out["degraded"] += [d for d in tl["degraded"] if d not in out["degraded"]]
 
-                                                                             
-                                                                            
-                                       
+    # EVERY id this project's history may be under, not only its current one.
+    # Publishing a project renames it, and the rows written before that stay
+    # keyed to the old name.
     pids = ids_for_project(project_id)
 
     try:
@@ -551,16 +551,16 @@ def project_detail(project_id: str, timeline_limit: int = 10,
                     f" FROM project_week WHERE project_id IN ({_marks(pids)})"
                     "   AND week_start >= date('now', ?) ORDER BY week_start",
                     (*pids, f"-{weeks * 7} days")):
-                                                                             
-                                                                              
-                                                 
+                # NULL is carried through as null, never as 0: a row computed
+                # before the session columns existed cannot say "no sessions",
+                # only "not measured".
                 out["activity"]["weeks"].append(
                     {"weekStart": r["week_start"], "commits": r["commits"],
                      "sessions": r["sessions"], "workedDays": r["worked_days"],
                      "activeDays": r["active_days"], "authors": r["authors"],
-                                                                                
-                                                                                 
-                                                                          
+                     # `frozen_at` is a TIMESTAMP, not a flag: a frozen week can
+                     # never be completed, and a reader needs to know when it was
+                     # closed to judge what is missing from it.
                      "frozenAt": r["frozen_at"]})
             wk = out["activity"]["weeks"]
             out["activity"]["totals"] = {
@@ -577,15 +577,15 @@ def project_detail(project_id: str, timeline_limit: int = 10,
                     "reason": f"no weekly rollup for this project in the last {weeks} "
                               f"week(s); `./observatory.py rollup` computes it"})
 
-                                                                                
-                                                                          
-                              
-                                                                            
-                                                                              
-                                                                                 
-                                                                              
-                                                                              
-                                                      
+            # LATEST PER METRIC, and the metric names come from the data. A core
+            # file naming a plugin's metric is the defect the plugin suite
+            # exists to catch.
+            # THE PREVIOUS SAMPLE BESIDE THE LATEST ONE. A metric layer that
+            # reports only the newest value answers "how big" and never "which
+            # way" — and `plugins/disk-usage.json`'s stated reason is precisely
+            # the second question. `previous` is null when there is
+            # only one sample, which is the honest answer rather than a change
+            # of zero: no trend has been measured yet.
             for r in conn.execute(
                     "SELECT m.metric, m.unit, m.value, m.at, m.source,"
                     "       (SELECT value FROM metrics q WHERE q.project_id = m.project_id"
@@ -738,14 +738,14 @@ def credentials(project_id: str) -> dict:
 
 
 def timeline(project_id: str, since: str | None = None, limit: int = 100) -> dict:
-                                                                               
-                                                                              
-                                                                             
-                                                                  
-                                                                          
-                                                                               
-                                                                               
-                                      
+    # A STORE THAT WILL NOT OPEN IS A DEGRADATION, not a traceback. This had no
+    # guard at all: `store/observatory.db` was found CORRUPT on 2026-09-06 —
+    # 434 MB with no SQLite header — and in that state this function raised
+    # `DatabaseError: file is not a database` straight out through
+    # `project.timeline` and, because `project_detail` calls it first, out
+    # through `project.detail` as well. Found 2026-09-07 by a test that planted
+    # a corrupt file rather than a missing one; a missing store was handled and
+    # a broken one was not.
     try:
         conn = store_db.connect()
     except sqlite3.Error as exc:
@@ -763,13 +763,13 @@ def timeline(project_id: str, since: str | None = None, limit: int = 100) -> dic
             args.append(since)
         sql += " ORDER BY occurred_at DESC LIMIT ?"
         args.append(limit)
-                                                                              
-                                                                                    
-                                                                               
-                                                                                
-                                                                              
-                                                                             
-                     
+        # CAMEL CASE, AND THE PAYLOAD PARSED. `dict(r)` handed the store's own
+        # column names to the wire — `occurred_at`, `payload_json` — while every
+        # other field this server returns is camelCase, and the payload arrived
+        # as a JSON *string* the caller had to parse itself. Both were invisible
+        # while nothing validated this tool's output; publishing a schema over
+        # them would have made the store's serialisation part of the contract
+        #.
         rows = []
         for r in conn.execute(sql, args):
             try:

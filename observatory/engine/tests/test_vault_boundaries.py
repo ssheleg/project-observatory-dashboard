@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                            
+"""Synthetic vault filesystem and accidental secret-output boundary checks."""
 from __future__ import annotations
 import concurrent.futures
 import contextlib

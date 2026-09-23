@@ -72,11 +72,11 @@ def test_an_old_proposed_row_is_tombstoned_not_deleted() -> None:
     check("the ledger row survives",
           conn.execute("SELECT count(*) FROM ledger WHERE memory_id = ?",
                        (r["memoryId"],)).fetchone()[0] == 1)
-                                                                             
-                                                                                
-                                                                             
-                                                                             
-                                           
+    # `fetchone()` returns None when NOTHING was tombstoned, and this used to
+    # index straight into it — so the case the assertion exists for (retention
+    # pruned nothing at all, which is trap T6 itself) came out as a TypeError
+    # rather than as a named failure. Found by re-introducing the defect with
+    # `tools/trap_efficacy.py`, 2026-09-08.
     row = conn.execute("SELECT reason, approved_by FROM tombstones WHERE memory_id = ?",
                        (r["memoryId"],)).fetchone()
     check("a tombstone names the reason and who approved it",
@@ -99,12 +99,12 @@ def test_a_young_row_is_untouched() -> None:
 
 def test_operator_rows_are_exempt_at_any_age() -> None:
     conn, L, R = fresh()
-                                                                               
-                                                                               
-                                                                                
-                                                                              
-                                                                               
-                                                                         
+    # Built the way an operator row actually ARISES: an agent proposes, and the
+    # operator promotes it, which appends a revision under their ownership. The
+    # ledger no longer mints a brand-new operator-owned row from nothing — the
+    # operator's authority applies to records that already exist, and creating
+    # one out of thin air is the forgery `_check_owner` now refuses.
+    # The exemption being tested here is unchanged and still has to hold.
     r = L.append(conn, owner="agent:observer", statement="the operator said so",
                  state="proposed", confidence=0.5)
     r = L.transition(conn, r["memoryId"], to_state="observed", owner=L.OPERATOR,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                           
+"""Ask DNS and RDAP what is actually true of every domain the registry names.
 
                                                                             
                                                                                   
@@ -14,15 +14,15 @@
                                                                                
                         
 
-                                                                                
-                                                                               
-                                                                            
-                                                                     
+WHAT IT DOES NOT DO. It never overwrites what the operator transcribed. Measured
+facts land in `live` and `rdap`; where they disagree with the transcription the
+disagreement is NAMED, not resolved. A collector that silently corrected the
+operator would destroy the only record of what was believed and when.
 
-                                                                                
+Credential-free: public DNS and public RDAP. Not part of the thirty-minute tick.
 
-                                                                   
-   
+    scan_domains.py store/raw/domains_live.json [--only <host> ...]
+"""
 from __future__ import annotations
 import concurrent.futures as cf
 import shutil
@@ -51,7 +51,7 @@ def now() -> str:
 
 
 def registrable(host: str) -> str:
-    ""                                                                                   
+    """The name a registrar actually holds — RDAP answers for that, not a subdomain."""
     parts = host.strip(".").lower().split(".")
     if len(parts) >= 3 and ".".join(parts[-2:]) in TWO_LABEL_SUFFIXES:
         return ".".join(parts[-3:])
@@ -59,22 +59,22 @@ def registrable(host: str) -> str:
 
 
 def dig(host: str, rtype: str) -> tuple[list[str], str | None]:
-    ""                                                                        
+    """Records, and the reason there are none when that reason is not the DNS.
 
-                                                                           
-                                                                              
-                                                                               
-                                                                           
-                                                                              
-                                                                               
-                             
+    It used to return `[]` for both "this host has no such record" and "dig
+    could not run" — the same value for a measurement and for the absence of
+    one. That is the exact shape AGENTS.md rule 7 forbids, in the one collector
+    that reaches outside this machine, and it is not a small conflation: an
+    empty A record makes a domain `dark`, `domain.dark` says it "is being paid
+    for and serves nothing", and `site.dead` is CRITICAL — "a published claim
+    that is currently false".
 
-                                                                           
-                                                                       
-                                                                        
-                                                                          
-                                                                             
-       
+    Measured 2026-09-07 by running this collector with `dig` and `curl` off
+    PATH: **all 58 hosts came back `resolves: false, dark: true`** with
+    `degraded` naming only RDAP. Fourteen dark domains would have become
+    fifty-three, three critical findings would have become dozens, and the
+    emitter would have committed every one of them to the canonical registry.
+    """
     try:
         r = subprocess.run(["dig", "+short", "+time=5", "+tries=2", rtype, host],
                            capture_output=True, text=True, timeout=15)
@@ -90,13 +90,13 @@ def dig(host: str, rtype: str) -> tuple[list[str], str | None]:
 
 
 def http_status(host: str) -> tuple[int, str | None]:
-    ""                                          
+    """The status, and the reason there is none.
 
-                                                                               
-                                                                              
-                                                                              
-                                                                         
-       
+    The docstring here used to read "0 means the connection never completed —
+    which is what a dark domain looks like", which admitted the conflation and
+    called it a feature. A site that is down and a `curl` that is missing look
+    identical from the outside and mean opposite things about the estate.
+    """
     try:
         r = subprocess.run(["curl", "-sL", "-o", "/dev/null", "-w", "%{http_code}",
                             "--max-time", "12", f"https://{host}"],
@@ -114,15 +114,15 @@ def http_status(host: str) -> tuple[int, str | None]:
 
 
 def rdap(name: str, attempt: int = 0) -> tuple[dict, str]:
-    ""                                                                        
+    """One RDAP lookup, with the failure modes told apart rather than blurred.
 
-                                                                        
-                                                                          
-                                                                                    
-                                                                         
-                                                                            
-                                  
-       
+    The first version reported every HTTP error as "this TLD has no RDAP
+    service". Run against 58 hosts it produced that sentence for a wall of
+    **429**s — rate limiting caused by its own concurrency — and the message was
+    the only evidence anyone would have had. A classifier that maps every
+    failure to one cause is worse than no message: it explains, confidently,
+    something that did not happen.
+    """
     req = urllib.request.Request(RDAP + name, headers={
         "Accept": "application/rdap+json", "User-Agent": "project-observatory"})
     try:
@@ -185,13 +185,13 @@ def rdap(name: str, attempt: int = 0) -> tuple[dict, str]:
 
 
 def probe(host: str) -> tuple[str, dict]:
-    ""                                                                       
+    """Three outcomes, not two: resolves, does not resolve, WAS NOT MEASURED.
 
-                                                                           
-                                                                 
-                                                                              
-                                                                     
-       
+    `resolves: None` is the third, and it is what stops a failed probe from
+    being read as a dark domain. Every consumer that asks `if not
+    h.get("resolves")` would otherwise treat "we could not look" as "it serves
+    nothing" — `tools/build_findings.py` did, at critical severity.
+    """
     (ns, ns_err) = dig(host, "NS")
     (a, a_err) = dig(host, "A")
     (cname, cn_err) = dig(host, "CNAME")
@@ -242,10 +242,10 @@ def main(argv: list[str]) -> int:
     if not hosts:
         sys.exit("scan_domains: nothing to probe")
 
-                                                                                
-                                                                               
-                                                                              
-                                                                                
+    # PREFLIGHT. A missing `dig` is one fact about this machine, not fifty-eight
+    # facts about the estate — and writing 58 false rows over a good liveness
+    # file is worse than not writing: the collectors' own rule is that missing
+    # input must read as "not measured this run", never as "measured and empty".
     missing = [tool for tool in ("dig", "curl") if shutil.which(tool) is None]
     if missing:
         print(f"scan_domains: {', '.join(missing)} not on PATH — REFUSING to scan. "
@@ -270,11 +270,11 @@ def main(argv: list[str]) -> int:
             else:
                 whois[name] = data
 
-                                                                             
-                                                                               
-                                                                                 
-                                                                            
-                                                                          
+    # A SUCCESSFUL FETCH THAT ANSWERED NOTHING is still a gap, and it used to
+    # leave no trace: the record carried `statuses: []` and the hold check read
+    # a clean bill. Grouped by the missing key rather than one row per domain —
+    # a rename upstream affects every domain at once, and 49 identical lines
+    # would bury the one case where a single TLD omits a field.
     by_key: dict[str, list[str]] = {}
     for name, rec in whois.items():
         for key in rec.get("unread") or []:

@@ -67,10 +67,10 @@ VAULT = pathlib.Path(os.environ.get(
 SESSIONS = pathlib.Path(os.environ.get(
     "OBSERVATORY_SESSIONS", paths.SESSIONS))
 
-                                                                               
-                                                                                
-                                                                                
-                      
+#: Below this a value is not searched for. A twelve-character password produces
+#: matches on prose; the rule this protects is that a report nobody can trust is
+#: a report nobody reads. Short values are COUNTED and named in `skipped`, never
+#: dropped in silence.
 MIN_LEN = 12
 
 

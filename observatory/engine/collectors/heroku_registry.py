@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-""                                                                         
+"""Turn what Heroku said into typed records, and tie each one to a project.
 
-                                         
+TWO JOBS, AND THE SECOND IS THE HARD ONE.
 
-                                                                            
-                                                                             
-                                                                              
-                                                                         
-                                                                              
-                        
+The first is arithmetic: a scan row becomes a registry record with a derived
+`state`, so that "is this thing running" is answered in ONE place rather than
+re-derived by every reader. Five states, and the pairs that look alike are the
+reason there are five: `suspended` is Heroku's decision and `down` is the
+application's own crash; `resources-only` pays for a database with no dyno and
+`idle` pays for nothing.
 
                                                                              
                                                                              
@@ -17,30 +17,30 @@
                                                                                
                                                        
 
-                                                                           
-                                                                           
-                                                                        
-                                                                                
-                                     
-                                                                               
-                                                                                 
-                                                                   
-                                                                    
-                                                                               
-                                                                     
+  `heroku-github-link`  Heroku's own Deploy tab names a repository, and the
+                        registry already ties that repository to a project.
+  `heroku-remote`       a folder holds `git.heroku.com/<app>.git` in its
+                        `.git/config`, and the registry already ties that folder
+                        to a project.
+  `heroku-remote-nested` the same, for a checkout that sits INSIDE a folder the
+                        registry ties to a project — containment on disk, which
+                        is measured, not a name that looks similar.
+  `verified`            a human resolved it and left the evidence in
+                        `collectors/heroku_links.json` — the mechanism rule 2
+                        names for the cases measurement cannot reach.
 
-                                                                                
-                                                                                
-                                             
-   
+An application no rule reaches is UNLINKED and says so. That is a finding, not a
+gap to paper over with a guess: five of them are applications whose source lives
+in a GitHub account this machine cannot read.
+"""
 from __future__ import annotations
 import json, pathlib, sys
 
-                                                                               
-                                                                               
-                                                                   
-                                                                              
-                                                                                
+# NOTHING RUNS AT IMPORT. This file is a transformer, not a collector: it takes
+# a scan and the registry and returns records. A module-level `sys.path.insert`
+# plus `import paths` made it indistinguishable from a collector to
+# `tests/test_gate_purity.py`, whose rule is that a suite importing one runs a
+# live collection — so the estate root is resolved where it is needed instead.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import paths                                            
 
@@ -53,14 +53,14 @@ OLD_STACKS = {"heroku-18", "heroku-20", "heroku-22"}
 
 
 def state_of(app: dict) -> str:
-    ""                                                                        
+    """The one derivation of "is this running", so no reader invents a second.
 
-                                                                               
-                                                                           
-                                                                           
-                                                                              
-                                          
-       
+    Order matters. `suspended` outranks everything because Heroku has taken the
+    application away and the formation still says what it WOULD run. `down`
+    means scaled and nothing up — the application's own crash, which is a
+    different remedy from a suspension. `resources-only` is the expensive one:
+    no dyno, but a database still billing.
+    """
     if app.get("suspended"):
         return "suspended"
     if app.get("scaled", 0) > 0:
@@ -69,7 +69,7 @@ def state_of(app: dict) -> str:
 
 
 def _repo_owner_index(repos: list[dict], relations: list[dict]) -> dict[str, str]:
-    ""                                                                                   
+    """`name_with_owner` (lowercased) -> project id, through the registry's own edges."""
     by_id = {r["id"]: r for r in repos}
     out: dict[str, str] = {}
     for rel in relations:
@@ -82,7 +82,7 @@ def _repo_owner_index(repos: list[dict], relations: list[dict]) -> dict[str, str
 
 
 def _data_root() -> pathlib.Path:
-    ""                                                                              
+    """The estate root, resolved on use — env-overridable like everything here."""
     root = pathlib.Path(__file__).resolve().parents[1]
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
@@ -91,7 +91,7 @@ def _data_root() -> pathlib.Path:
 
 
 def _folder_index(projects: list[dict]) -> dict[str, str]:
-    ""                                                                          
+    """Absolute folder path -> project id, for every folder a project claims."""
     data = _data_root()
     out: dict[str, str] = {}
     for p in projects:
@@ -101,13 +101,13 @@ def _folder_index(projects: list[dict]) -> dict[str, str]:
 
 
 def load_verified() -> dict[str, dict]:
-    ""                                                                
+    """Hand-verified app -> project links, each carrying its evidence.
 
-                                                                             
-                                                                              
-                                                                                
-                                                  
-       
+    Rule 2 allows a link measurement cannot make ONLY with a human's evidence
+    beside it, and this is where that evidence lives. A row with no `evidence`
+    is refused rather than trusted: an unsourced hand link is the guess the rule
+    exists to forbid, wearing a curator's clothes.
+    """
     if not LINKS.is_file():
         return {}
     doc = json.loads(LINKS.read_text(encoding="utf-8"))
@@ -120,17 +120,17 @@ def load_verified() -> dict[str, dict]:
 
 def curated_link_errors(links_doc: dict, project_ids: set[str],
                         app_names: set[str] | None = None) -> list[str]:
-    ""                                                                     
+    """What is wrong with the curated links, as strings the gate can print.
 
-                                                                          
-                                                                             
-                                                                       
+    A PURE FUNCTION so the rule can be watched failing on a planted defect
+    without writing into the operator's tree — `tools/validate_registry.py`
+    calls it over the live files, and the suite calls it over fixtures.
 
-                                                                         
-                                                                              
-                                                                            
-                                                          
-       
+    A curated link is a fact with a half-life: the project id it names is
+    DERIVED from a folder or repository name, so renaming either kills the row
+    silently and the application reads as unlinked with the human's evidence
+    lost. Found by the 2026-09-09 audit; trap T11's shape.
+    """
     out: list[str] = []
     for row in links_doc.get("links", []):
         app_name = row.get("app")
@@ -150,7 +150,7 @@ def curated_link_errors(links_doc: dict, project_ids: set[str],
 
 def link(app: dict, repo_index: dict, folder_index: dict,
          verified: dict) -> tuple[str | None, str | None, str | None]:
-    ""                                                                                 
+    """(project id, rule, (kind, sentence)) — a link, or the reason there is none."""
     gh = (app.get("github") or "").lower()
     if gh and gh in repo_index:
         return repo_index[gh], "heroku-github-link", None
@@ -169,11 +169,11 @@ def link(app: dict, repo_index: dict, folder_index: dict,
     row = verified.get(app["name"])
     if row:
         return row["project"], "verified", None
-                                                                            
-                                                                               
-                                                                                
-                                                                         
-                                       
+    # THE REASON COMES IN TWO SIZES ON PURPOSE. The sentence is for a reader
+    # who has stopped on one row; the kind is for a screen showing fifty, where
+    # the same sentence printed fifteen times is not fifteen facts — it is one
+    # fact and fourteen lines of noise, which is the defect `clone.stale`
+    # already paid for once.
     if app.get("github"):
         return None, None, ("external-repo", f"Heroku deploys it from {app['github']}, "
                             f"which is not a repository this registry holds")
@@ -186,7 +186,7 @@ def link(app: dict, repo_index: dict, folder_index: dict,
 
 def records(scan: dict, projects: list[dict], repos: list[dict],
             relations: list[dict]) -> tuple[list[dict], list[dict]]:
-    ""                                                                           
+    """The registry's Heroku records, and the project->app edges they justify."""
     repo_index = _repo_owner_index(repos, relations)
     folder_index = _folder_index(projects)
     verified = load_verified()

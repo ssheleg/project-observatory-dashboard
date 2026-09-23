@@ -105,12 +105,12 @@ Rules, and they are not stylistic:
   proper names and quoted evidence in their original language."""
 
 
-                                                                            
-                                                                             
-                                                                                 
-                                                                         
-                                                                               
-                                                                               
+#: Above this share of non-Latin LETTERS, a statement is not in English. The
+#: threshold is wide because the live data has no middle: measured 2026-09-07
+#: across 112 waiting records, three sat at 98–100% non-Latin (one Chinese, two
+#: Russian) and every other record at 0%. Half leaves room for an English
+#: sentence quoting a Cyrillic project name or a Chinese repository description
+#: — which is a real thing in this estate and must not be flagged.
 FOREIGN_LETTER_SHARE = 0.5
 
 
@@ -234,12 +234,12 @@ def main() -> int:
 
     conn = store_db.connect()
     try:
-                                                                             
-                                                                                  
-                                                                              
-                                                                              
-                                                                             
-                           
+        #: One entry per project the agent could not interpret. The COUNT was
+        #: already in the report and read by nothing — the other `rec["failed"]`
+        #: in tools/build_findings.py belongs to retention's receipt — and a
+        #: number saying "3 projects failed" sends the reader to a log to find
+        #: out what happened, which is the journey the report exists to spare
+        #: them.
         faults: list[dict] = []
 
         def note_fault(pid: str, kind: str, reason) -> None:
@@ -253,12 +253,12 @@ def main() -> int:
                            "reason": (f"{type(reason).__name__}: {reason}"
                                       if isinstance(reason, BaseException)
                                       else str(reason))[:200]})
-                                                                              
-                                                                               
-                                                                               
-                                                                                 
-                                                                               
-                                                                                
+            # AND DURABLY, for a store fault. `agent.json#faults` is one run's
+            # report and the next run overwrites it; the four store failures of
+            # 2026-09-05..07 were each visible for thirty minutes and then only
+            # as a line in the tick log, with the machine's state — free space,
+            # WAL size, holders — never recorded at all. `store_faults` never
+            # raises, so this cannot turn a handled fault into an unhandled one.
             if kind == "store":
                 store_faults.record("agent", reason if isinstance(reason, BaseException)
                                     else None,
@@ -306,25 +306,25 @@ def main() -> int:
                 "unconsumed": left["n"] if left else 0,
                 "projects_unconsumed": left["projects"] if left else 0,
                 "oldest_unconsumed_scan": (left["since"] if left else None),
-                                                                         
-                                                                             
-                                                                              
-                                                                              
-                                                                                
-                                                                             
-                                                                           
-                                                                             
-                                                        
+                # WHOSE WORK WAS READ, and whose was not. The report said
+                # "recorded 3, skipped 17" and named nobody — so a run that
+                # served the same twenty projects every time, leaving the rest
+                # for ever, produced a receipt indistinguishable from one that
+                # was working through a backlog. Starvation has to be visible in
+                # the record or it is only visible in a complaint.
+                # A RECORD ITS READER CANNOT READ occupies the review queue
+                # and cannot be judged, so the count belongs beside the other
+                # two shapes of a bad answer.
                 "not_english": foreign,
                 "projects_handled": handled or [],
                 "projects_waiting": waiting or [],
                 "waiting_count": len(waiting or [])})
 
-                                                                               
-                                                                                 
-                                                                              
-                                                                          
-                                                                    
+        # `rowid` COMES TOO, because the queue is served oldest-first below and
+        # `deltas` carries no timestamp of its own — `from_scan`/`to_scan` name
+        # the fingerprints, and `rowid` is monotonic in insertion order, which
+        # is exactly the question "which of these arrived first" (the same
+        # property `compute_deltas` relies on for its own ordering).
         rows = [dict(r) for r in conn.execute(
             "SELECT rowid AS seq, id, subject_id, kind, before_json, after_json"
             " FROM deltas WHERE consumed_at IS NULL ORDER BY rowid")]
@@ -341,17 +341,17 @@ def main() -> int:
         by_project: dict[str, list] = {}
         for r in rows:
             by_project.setdefault(r["subject_id"], []).append(r)
-                                                                                 
-                                                                                  
-                                                                            
-                                                                             
-                                                                             
-                                                                  
-                                                                             
-                                                                            
-         
-                                                                            
-                                                                        
+        # OLDEST FIRST, not alphabetically. `sorted(by_project)[:limit]` took the
+        # alphabetically first 20 of however many were waiting — and the head of
+        # the alphabet is re-filled constantly, because the busiest projects
+        # keep producing deltas. So a project whose name sorts late was NEVER
+        # interpreted: measured 2026-09-07, 22 projects were waiting behind a
+        # limit of 20, the oldest delta was fifteen hours old, and
+        # `interpretation.halted` had been lit for exactly that long. A queue
+        # served in any order but arrival order starves its tail.
+        #
+        # The tiebreak is the project id, so two projects whose oldest delta
+        # arrived in the same transaction still order deterministically.
         order = sorted(by_project, key=lambda pid: (min(r["seq"] for r in by_project[pid]), pid))
         projects = order[:args.limit]
         waiting = order[args.limit:]
@@ -397,11 +397,11 @@ def main() -> int:
             return 0
 
         recorded = failed = skipped = malformed = unreasoned = foreign = 0
-                                                                            
-                                                                               
-                                                                                
-                                                                                
-                                            
+        # THE CHAIN'S OWN LOSSES, in the report a reader opens. A configured
+        # model missing from the catalogue is skipped rather than fatal — the
+        # point of a chain is surviving one model leaving — but it was skipped
+        # SILENTLY, so a three-model chain could become one and the only visible
+        # sign would be the bill.
         retired_models: list[str] = []
         try:
             _chain, _lvl, _prov = providers.resolve_chain()
@@ -459,17 +459,17 @@ def main() -> int:
             model_used, spent_here = result["model"], result["cost"]
             ids = [d["id"] for d in by_project[pid]]
 
-                                                                         
-                                                                              
-                                                                            
-                                                                      
-                                                                          
-                                                                                
-                                                                             
-                      
-             
-                                                                              
-                                                                               
+            # AN ANSWER THAT CONTRADICTS ITSELF is a model failure, not a
+            # conclusion. `worth_recording: true` with an empty interpretation
+            # would have appended a blank row for an operator to adjudicate:
+            # the schema requires the four KEYS and cannot express the
+            # cross-field rule, because OpenAI's `strict: true` structured
+            # outputs accept a subset of JSON Schema without `if`/`then`. So the
+            # runtime is the only place this can live, and until now it lived
+            # nowhere.
+            #
+            # The deltas stay UNCONSUMED: the change was not interpreted, so a
+            # later run — possibly a healthier model — should see it again.
             if parsed.worth_recording and not parsed.interpretation:
                 malformed += 1
                 note_fault(pid, "malformed", "the answer contradicted its own schema")
@@ -483,40 +483,40 @@ def main() -> int:
                     conn.executemany("UPDATE deltas SET consumed_at = ? WHERE id = ?",
                                      [(now(), i) for i in ids])
                 skipped += 1
-                                                                            
-                                                                               
-                                                                                
-                                                                               
-                                                                               
-                                                  
-                 
-                                                                                 
-                                                                                 
-                                                                               
-                                                                            
-                                                               
+                # A DECLINE WITH NO REASON IS COUNTED, not only printed. The
+                # schema's own comment says `why_not` is required "so a decline
+                # has to say something" — and `required` does not forbid `""`,
+                # which is exactly the defect that comment describes: the first
+                # live run declined eight projects with an empty reason. Making
+                # the key required did not fix it.
+                #
+                # It is NOT treated as malformed. The judgement — nothing worth
+                # recording — is usable, and re-asking would likely produce the
+                # same answer while the queue stalled. So the delta is consumed
+                # and the gap becomes a number the run reports, which is the
+                # difference between a console line and a fact.
                 if not (parsed.why_not or "").strip():
                     unreasoned += 1
                 print(f"  {pid}: declined — {parsed.why_not or 'NO REASON GIVEN (a gap)'}")
                 continue
-                                                                                   
-                                                                               
-                                                                                
-                                                                                 
-                                                                           
-                                                                                  
-                                                                               
-                                        
-             
-                                                                                  
-                                                                                
-                                                                                 
-                                                                                
-                                     
+            # ONE record per project per DAY, corrected — not a new one per tick.
+            # Measured 2026-09-07: 106 proposed conclusions sat in 63 (project,
+            # day) buckets, one project holding TEN separate rows about a single
+            # day, and the queue was growing about fifty a day while the only way
+            # out is an operator at a terminal. That is not an adjudication
+            # problem, it is a volume one — nobody reads fifty interpretations a
+            # day, so they would all leave by retention, which `corroborate.py`
+            # itself calls "not review".
+            #
+            # The pattern is already proven here: `tools/record_turn.py` keeps one
+            # record per SESSION and corrects it by compare-and-swap as the work
+            # grows, for the same reason. Append-only is preserved —
+            # a correction is a new REVISION, not a new record, so every earlier
+            # reading stays readable.
             try:
                 prior = conn.execute(
-                                                                                
-                                                                                   
+                    # A tombstoned record takes no further revisions,
+                    # and correcting one would raise inside the agent's write loop.
                     "SELECT memory_id, MAX(revision) AS revision, statement FROM ledger"
                     " WHERE project_id = ? AND kind = 'observation' AND owner = ?"
                     "   AND substr(created_at, 1, 10) = ?"
@@ -557,18 +557,18 @@ def main() -> int:
                 skipped += 1
                 print(f"  {pid}: unchanged since this morning's reading — not re-recorded")
                 continue
-                                                                              
-                                                                          
-                                                                       
-                                                                               
-                                                    
-                                                                             
-                                                                              
-                                                                           
-                                                                                 
-                                                                              
-                                                                               
-                                                           
+            # ONE value, computed once and used by both the write and the log.
+            # The log printed `parsed.confidence` while the row stored the
+            # capped figure, so a model returning 1.0 produced the line
+            # `confidence 1.00` over a row holding 0.95 — a journal reporting
+            # something other than what was written.
+            # A THIRD SHAPE OF A BAD ANSWER, counted rather than refused. The
+            # system prompt now pins English and gives the reason; a prompt is
+            # advice to a model, so the outcome is measured. It is recorded
+            # anyway — the content may be right, the deltas must be consumed so
+            # the queue does not loop on a model that keeps answering the same
+            # way, and `unreasoned` set that precedent: a usable judgement with
+            # a gap is counted, not thrown away.
             if non_latin_share(parsed.interpretation) > FOREIGN_LETTER_SHARE:
                 foreign += 1
                 print(f"  {pid}: NOT IN ENGLISH — recorded, and counted; every "
@@ -588,12 +588,12 @@ def main() -> int:
                     # through, because the only check was that the source contained
                     # a min() call — a test that read the code instead of the data.
                     confidence=stored_confidence,
-                                                                                
-                                                                       
-                                                                            
-                                                                             
-                                                                                  
-                                                                     
+                    # `deltas` is what the row CONSUMED; `movements` is what the
+                    # model actually read. They were the same number by
+                    # assumption and were not: the prompt carried the oldest
+                    # twelve of 41 while this said 41. Folded, the
+                    # first is true again — and the second is recorded beside it
+                    # so a reader can still tell the two facts apart.
                     provenance=[{"source": "agent/observe", "model": model_used,
                                  "cost_credits": round(spent_here, 8),
                                  "selection_level": result["selection_level"],
@@ -617,23 +617,23 @@ def main() -> int:
                 break
 
         w = providers.wallet_state()
-                                                                                 
-                                                                                   
-                                                                                 
-                                                                                 
-                                                                                 
-                                                                                
-                                                                                 
+        # THE RUN'S OUTCOME AS A FACT. Everything below this line went to stdout,
+        # which the tick swallows into `store/logs/tick.log` — and the log is not
+        # something a person reads. Measured 2026-09-07: the interpretation layer
+        # had been halted since 01:30 by a ceiling belonging to a SHARED key that
+        # another consumer had taken to 36.03 of 2.00, with 77 deltas queued, and
+        # nothing anywhere told the operator. The collectors were unaffected, so
+        # the estate's facts stayed current while its narrative silently stopped.
         report(halted_by, recorded, skipped, failed, malformed, unreasoned,
                retired_models, handled=list(projects), waiting=list(waiting),
                foreign=foreign)
         print(f"\nrecorded {recorded} · skipped {skipped} · failed {failed}")
-                                                                            
-                                                                             
-                                                                            
-                                                                            
-                                                                           
-                                                                          
+        # THE FIGURES THAT DECIDED, which are this project's own.
+        # This printed `w['today']` — the KEY's daily total — beside this
+        # project's ceiling, so the line read "110.82 of 2.00 credits today"
+        # immediately after the guardrail had correctly PERMITTED the run. A
+        # summary that contradicts the decision it reports is worse than no
+        # summary; the key's figure belongs beside it, named as the key's.
         print(f"wallet: {w['local_today']:.6f} of {w['daily_ceiling']:.2f} "
               f"{w['denomination']} today, "
               f"{w['local_month']:.4f} of {w['monthly_ceiling']:.2f} this month, "

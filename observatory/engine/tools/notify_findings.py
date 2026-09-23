@@ -31,7 +31,7 @@ import atomic
 
 FINDINGS = paths.REGISTRY / "findings.json"
 KIND = "finding.notified"
-                                                                 
+#: The other half of once-only: the record that an episode ENDED.
 CLEARED = "finding.cleared"
 
 
@@ -156,11 +156,11 @@ def main(argv: list[str]) -> int:
     due = [f for f in doc["findings"]
            if f["severity"] in levels and not f.get("acked")]
 
-                                                                                
-                                                                                
-                                                                           
-                                                                            
-                                                                      
+    # `paths.DB`, not `paths.STORE / "observatory.db"`. The literal bypassed the
+    # `OBSERVATORY_DB` override, so nothing could redirect this tool — and its
+    # own first test wrote a fixture notification into the LIVE event store
+    # before the line was noticed (2026-09-07; the row was removed by hand).
+    # `tools/run_probes.py` keeps the literal on purpose and says why.
     db = paths.DB
     if not db.is_file():
         print("notify_findings: no event store; refusing to send without a way to "
@@ -182,10 +182,10 @@ def main(argv: list[str]) -> int:
     def ref_of(f: dict) -> str:
         return f"{f['id']}@{f['severity']}#{episode(con, f['id'])}"
 
-                                                                   
-                                                                                  
-                                                                              
-              
+    # LEGACY REFS. The fifteen rows written before 2026-09-07 carry
+    # `<id>@<severity>` with no episode, which IS episode 0 — read any other way
+    # they would all re-notify at once, which is the noise this file exists to
+    # prevent.
     def already(f: dict) -> bool:
         r = ref_of(f)
         return r in seen or (r.endswith("#0") and r[:-2] in seen)
@@ -221,17 +221,17 @@ def main(argv: list[str]) -> int:
     sent, detail = notify(f"Observatory — {head}", body)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-                                                                               
-                                                                                  
-                                                                               
-                                                                              
-                                                                             
-                                                
-     
-                                                                               
-                                                                                 
-                                                                                
-                           
+    # RECORDED ONLY IF IT WAS DELIVERED. This inserted the event either way and
+    # said so out loud — "FAILED — recorded anyway" — which meant one failed
+    # `osascript` marked a critical finding as notified FOR EVER: the dedup key
+    # is `(kind, ref)`, so the next run sees it in `seen` and stays silent. In
+    # the one tool whose entire purpose is telling a human, a failure to tell
+    # them was written down as having told them.
+    #
+    # This has not bitten on this machine — all twelve recorded notifications
+    # carry `delivered: true` (measured 2026-09-07) — but the path is reachable
+    # from launchd, where a job not attached to an Aqua session cannot reach the
+    # window server at all.
     if sent:
         for f in fresh:
             ref = ref_of(f)

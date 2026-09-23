@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-""                                                                          
+"""Execute the probes declared in fabric-agent.json against the live server.
 
-                                                                              
-                                                                             
-                                                                             
-                                                                            
-                             
-   
+Reads the declarations rather than restating them: a probe that exists only in
+this file would drift from the manifest a host actually reads. Output goes to
+fabric/probe-receipts.json, and every assertion carries its own verdict — a
+probe reported as passing while one of its assertions was never evaluated is
+the failure mode this guards.
+"""
 from __future__ import annotations
 import asyncio, atexit, argparse, hashlib, json, os, shutil, subprocess, sys, pathlib, tempfile
 from datetime import datetime, timezone
@@ -26,7 +26,7 @@ CAPS = MANIFEST["capabilities"]
 
 
 def source_of(uri: str) -> pathlib.Path:
-    ""                                                                         
+    """Resolve only this release's allowlisted bundled schemas and fixtures."""
     from publish_contract import PREFIX, staged
     if not uri.startswith(PREFIX):
         raise AssertionError("Probe URI does not belong to this bundled release")
@@ -37,7 +37,7 @@ def source_of(uri: str) -> pathlib.Path:
 
 
 def schema_for(cap: dict) -> dict:
-    ""                                                                 
+    """Load the output schema a capability declares, by its own URI."""
     return json.loads(source_of(cap["outputSchema"]).read_text())
 
 
@@ -80,32 +80,32 @@ def ledger_max_revision() -> int:
 
 
 def side_effect_verdict(before, after, later) -> dict:
-    ""                                                            
+    """Whether the CALL wrote, or something else did while it ran.
 
-                                                                             
-                                                                                 
-                                                                              
-                                                                            
-                                                             
-                                                                               
-                                         
+    The side-effect ceiling of an `effect: none` capability was proved by two
+    readings — before and after — and failed on any difference. The scheduled
+    tick writes the ledger and commits the registry every thirty minutes, so a
+    tick landing inside that window made a read-only capability look like it
+    wrote. Observed 2026-09-08: `test-receipt` failed through
+    `ledger_max_revision` minutes after the tick released its lease, and passed
+    on the next run with nothing changed.
 
-                                                                               
-                                                                             
-                                                                               
-                                                      
+    That mattered more than the same class in `tests/test_traps.py`,
+    because this verdict is published: `fabric/probe-receipts.json` is what a
+    Fabric host reads to decide whether to trust this agent, so a false FAIL on
+    a side-effect ceiling is a lie about the contract.
 
-                                                                              
-                                                                           
-                                                                         
-                                                                               
-                       
+    THREE OUTCOMES, from three readings. Unchanged is a PASS. Changed and then
+    settled is attributable to the call and still a FAIL. Changed and STILL
+    moving with no call in between means something other than the call is
+    writing, which proves nothing either way — so the verdict is INCONCLUSIVE
+    and names the tick.
 
-                                                                        
-                                                                               
-                                                                                
-                                       
-       
+    A HEURISTIC, and the note says so: a tick write that both starts and
+    finishes between the second and third readings would still be attributed to
+    the call. That is strictly better than attributing every concurrent write to
+    it, which is what two readings did.
+    """
     assertion = ("registry git status and ledger max revision are "
                  "unchanged after the call")
     if before == after:
@@ -131,7 +131,7 @@ async def call_record(session, args: dict) -> dict:
 
 async def assess_record(session, args: dict, out_schema: dict,
                         scratch_db: pathlib.Path | None = None) -> list[dict]:
-    ""                                                             
+    """One verdict per declared assertion, in declaration order."""
     a: list[dict] = []
 
     def say(text: str, ok: bool, note: str = "") -> None:
@@ -223,15 +223,15 @@ async def call(session, args: dict) -> dict:
 
 
 def coverage(probe: dict, results: list[dict]) -> dict:
-    ""                                              
+    """Compare the assertion TEXTS, not their count.
 
-                                                                                
-                                                                              
-                                                                            
-                                                                                 
-                                                                              
-                                           
-       
+    Counting was the whole check until 2026-09-05, and it cannot see the failure
+    it exists to catch: an assertion reworded in the manifest leaves the count
+    at four while the runner goes on evaluating the sentence that used to be
+    there. Measured that day — `degraded names bitbucket…` was rewritten, the
+    receipt still read "4/4 assertions evaluated", and the stale predicate was
+    the only reason anything failed at all.
+    """
     declared = list(probe["assertions"])
     evaluated = [r["assertion"] for r in results]
     missing = [a for a in declared if a not in evaluated]
@@ -248,14 +248,14 @@ def coverage(probe: dict, results: list[dict]) -> dict:
 
 
 def assess_detail(data: dict, OUT_SCHEMA: dict, requested: dict | None = None) -> list[dict]:
-    ""                                                                    
+    """`project.detail` — the capability that did not exist until rev-4.
 
-                                                                          
-                                                                          
-                                                                              
-                                                                               
-                                                      
-       
+    `observatory_project` was a REQUIRED FEATURE of `estate.survey`, whose
+    published output schema it could not satisfy: measured 2026-09-07, the
+    server's answer was rejected with `'project' was unexpected`. Three tools,
+    one schema, and the two that were never probed were the two that failed —
+    which is what an unprobed required feature is for.
+    """
     a: list[dict] = []
 
     def say(text: str, ok: bool, note: str = "") -> None:
@@ -321,7 +321,7 @@ def assess_timeline(data: dict, OUT_SCHEMA: dict) -> list[dict]:
 
 
 def assess(pid: str, data: dict, OUT_SCHEMA: dict, requested: dict | None = None) -> list[dict]:
-    ""                                                             
+    """One verdict per declared assertion, in declaration order."""
     a: list[dict] = []
 
     def say(text: str, ok: bool, note: str = "") -> None:
@@ -415,12 +415,12 @@ def params_for(scratch: pathlib.Path | None) -> StdioServerParameters:
 
 
 async def run_read_capability(cap: dict) -> list[dict]:
-    ""                                                                         
+    """A second read capability, against the LIVE store and asserting no write.
 
-                                                                               
-                                                                           
-                                 
-       
+    The registry fingerprint and the ledger's highest revision are taken around
+    every call, because `effect: none` is a claim and a probe that does not
+    check it is a claim repeated.
+    """
     out_schema = schema_for(cap)
     receipts = []
     async with stdio_client(params_for(None)) as (read, write):
@@ -438,13 +438,13 @@ async def run_read_capability(cap: dict) -> list[dict]:
                 assessor = READ_ASSESSORS[probe["id"]]
                 results = (assessor(data, out_schema, args) if assessor is assess_detail
                            else assessor(data, out_schema))
-                                                                         
-                                                                             
-                                                                              
-                                                                            
-                                                                             
-                                                                               
-                                                                          
+                # THE MANIFEST'S OWN WORDING, verbatim. The first version
+                # appended a sentence of its own — "the call wrote nothing:
+                # `effect: none`" — which `coverage()` correctly reported as
+                # evaluated-but-not-declared: a probe checking more than the
+                # published prose says is a contract that understates itself,
+                # and `tests/test_conformance_receipt.py` failed on it the same
+                # minute. The assertion is declared beside the others now.
                 results.append(side_effect_verdict(before, after, later))
                 cov = coverage(probe, results)
                 receipts.append({
@@ -456,12 +456,12 @@ async def run_read_capability(cap: dict) -> list[dict]:
 
 
 async def call_tool_for(session, cap: dict, args: dict) -> dict:
-    ""                                                                       
+    """Call the ONE tool a capability declares, with the fixture's arguments.
 
-                                                                                
-                                                                          
-                                    
-       
+    The tool name comes from `requiredFeatures` rather than from a literal here:
+    a capability that declares one tool and is probed against another is a
+    receipt about the wrong subject.
+    """
     features = [f for f in cap["profile"]["requiredFeatures"] if f.startswith("tool:")]
     if len(features) != 1:
         raise AssertionError(
@@ -469,12 +469,12 @@ async def call_tool_for(session, cap: dict, args: dict) -> dict:
             f"this way must declare exactly one, or the receipt cannot say which "
             f"answer it validated")
     name = features[0].split(":", 1)[1]
-                                                                              
-                                                                                   
-                                                                             
-                                                                                 
-                                                                             
-                                                                             
+    # THE FIXTURE, VERBATIM. This translated camelCase into the snake_case the
+    # tools used to take, and stripped any `_`-prefixed key — so the receipt said
+    # 31/31 about a payload no host would ever send, and could not see that a
+    # host sending the DECLARED shape got the whole estate instead of one project
+    #. The wire publishes the contract's own names now, so a probe
+    # that still rewrote the input would be measuring this runner.
     res = await session.call_tool(name, dict(args))
     return json.loads(res.content[0].text)
 
@@ -509,11 +509,11 @@ async def run_write_capability(cap: dict) -> tuple[list[dict], str]:
     return receipts, negotiated
 
 
-                                                                             
-                                                                              
-                                                                              
-                                                                          
-                                                                    
+#: probe id -> the assessor for it. A read capability's probes are dispatched
+#: BY NAME rather than by the capability's position in the list, which is what
+#: `CAPS[0]` / `CAPS[1:]` did until rev-4 split one capability into three: the
+#: two new read capabilities would have been probed as WRITE capabilities,
+#: against a scratch store and an assessor for a different contract.
 READ_ASSESSORS = {
     "detail-carries-every-section": assess_detail,
     "timeline-answers-in-camel-case-with-parsed-payloads": assess_timeline,
@@ -562,14 +562,14 @@ async def run() -> dict:
     for cap in write_caps:
         extra, _ = await run_write_capability(cap)
         receipts.extend(extra)
-                                                                            
-                                                                             
-                                                                                 
-                                                                            
-                                                                        
-                                                                              
-                                                                              
-                                                           
+    # WHAT THIS WAS MEASURED AGAINST, in the receipt rather than only in the
+    # prose beside it. `fabric/FABRIC-CONFORMANCE.md` says "Contract 0.1.0 at
+    # 20a818e6…, Provider revision 4" and the receipt recorded neither — so a
+    # host reading `probe-receipts.json` had to take the document's word for
+    # which contract those assertions were measured under, and `--check`
+    # compared only `manifestContentHash`: a receipt taken against a DIFFERENT
+    # contract revision passed silently. Three fields, from the two files that
+    # pin them, so the evidence can be tied to its subject.
     lock = json.loads((ROOT / "fabric-contract.lock.json").read_text(encoding="utf-8"))
     return {"ranAt": now(),
             "capabilities": [c["name"] for c in CAPS],
@@ -587,7 +587,7 @@ async def run() -> dict:
 
 
 def select_fixture_home(base: pathlib.Path) -> None:
-    ""                                                                       
+    """Explicit synthetic workspace, isolated from ambient path overrides."""
     import configuration
     import importlib
     import workspace
@@ -617,11 +617,11 @@ if __name__ == "__main__":
         select_fixture_home(options.fixture_home)
     except (RuntimeError, OSError):
         parser.error("An initialized, isolated synthetic fixture home is required")
-                                                                              
-                                                                             
-                                                                               
-                                                                                
-                                                                            
+    # `--check` runs every probe and writes NOTHING. The receipts are a dated,
+    # published artefact — `fabric/FABRIC-CONFORMANCE.md` cites them — so
+    # refreshing them is a deliberate act, not something a gate does on the way
+    # past. Rewriting them on every run meant a clean tree could not survive its
+    # own gate, and after that `git status` answers a question nobody asked.
     CHECK = options.check
     drift = []
     RECEIPTS = paths.STATE / "probe-receipts.json"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""                                                                                
+"""Ask every remote whether the local checkout is still current — no credential.
 
                                                                        
                                                                              
@@ -11,24 +11,24 @@
                                                                                
                                                                                 
 
-                                                                            
-                                                                            
-                                                                              
-                                                                              
-                                                    
+WHAT IT COSTS AND WHAT IT REFUSES TO DO. One `git ls-remote` per repository,
+run concurrently. It **never fetches**: a fetch would write objects into the
+operator's repository, and an observatory that mutates what it observes is not
+one. The price is that `behind` and `diverged` cannot always be told apart —
+distinguishing them needs the remote commit locally.
 
-                                                                             
-                                                                         
-                                                                               
-                                                                
-                                                                               
-                                                    
+**But the half of that question worth paying for is answerable anyway**, from
+`refs/remotes/origin/<branch>` the clone already holds: whether there are
+commits here that the remote did not have at the last fetch — work that would
+die with the disk. So the ambiguous case splits into `stale` and
+`unpushed-and-remote-moved`, and `behind-or-diverged` is kept for the one place
+nothing local can answer it: no tracking ref to ask.
 
-                                                                         
-                                                                            
+Not part of the thirty-minute tick: it is the only collector that makes a
+network call per repository, and staleness does not change minute to minute.
 
-                                                                
-   
+    scan_remotes.py store/raw/remotes.json [--only <folder> ...]
+"""
 from __future__ import annotations
 import concurrent.futures as cf
 import json, os, pathlib, subprocess, sys
@@ -60,13 +60,13 @@ def git(args: list[str], cwd: pathlib.Path | None = None, timeout: int = 10):
         return 124, "", f"timed out after {timeout}s"
 
 
-                                                                        
-                                                                                   
-                                                                              
-                                                                                
-                                                                           
-                                                                               
-                                             
+#: Every state this collector can put in `sync`. PUBLISHED, because both
+#: consumers — the findings table and the dashboard's chip map — look the state
+#: up and skip a miss in silence, so an unlisted state reaches neither surface
+#: and nobody is told. `ahead` lived in that gap: eight clones held commits that
+#: existed nowhere else and raised no finding. `unreachable` and
+#: `unknown` are set by `merge.py` and `probe` rather than here, and are listed
+#: because the consumers must cover them too.
 STATES = frozenset({
     "current", "ahead", "behind", "behind-or-diverged", "diverged",
     "local-only-branch", "stale", "unpushed-and-remote-moved",
@@ -75,21 +75,21 @@ STATES = frozenset({
 
 
 def tracking_state(path: pathlib.Path, local_sha: str, branch: str) -> str | None:
-    ""                                                                        
+    """Does this clone hold commits the remote did not have at the last fetch?
 
-                                                                                 
-                                                                           
-                                                                           
-                                                                           
+    Asked of `refs/remotes/origin/<branch>` — a ref the clone ALREADY holds, so
+    no network call and, more to the point, no write into a repository this
+    system only watches. That is what makes it askable at all: the caller's
+    refusal to fetch is about mutating the subject, not about the question.
 
-                                                                              
-                                                                               
-                                                     
+    Three answers, and the third is why this can return None: with no tracking
+    ref the question genuinely needs a fetch, and the caller then keeps its old
+    honest ambiguity instead of guessing a direction.
 
-                                                                                
-                                                                                
-                                                                      
-       
+    What it does NOT claim: that the CURRENT remote lacks these commits. The ref
+    is as old as the last fetch, and a force-push could have rewritten what came
+    after it. The finding says "as of the last fetch" for that reason.
+    """
     if not branch or branch == "HEAD":
         return None
     ref = f"refs/remotes/origin/{branch}"
@@ -102,7 +102,7 @@ def tracking_state(path: pathlib.Path, local_sha: str, branch: str) -> str | Non
 
 def sync_state(path: pathlib.Path, local_sha: str, remote_sha: str,
                branch: str = "") -> str:
-    ""                                                
+    """Direction, or an honest refusal to guess it."""
     if not remote_sha:
         return "local-only-branch"
     if local_sha == remote_sha:
@@ -130,26 +130,26 @@ AT_RISK_STATES = ("ahead", "unpushed-and-remote-moved", "local-only-branch",
 
 def at_stake(path, state: str, local_sha: str, remote_sha: str,
              branch: str = "") -> dict:
-    ""                                                            
+    """How many commits are at stake and when the newest was made.
 
-                                                                          
-                                                                                
-                                                                        
-                           
+    Ten `clone.*` rows asked the operator to push or delete a branch while
+    withholding both — one may hold a single typo from an hour ago and another
+    forty-four commits of a feature branch from March, and the rows read
+    identically.
 
-                        
+    The range per state:
 
-                                                   
-                                                         
-                                                                               
-                                                                               
+        ahead                      remote_sha..HEAD
+        unpushed-and-remote-moved  the tracking ref..HEAD
+        local-only-branch          HEAD --not --remotes, since no remote has it
+        diverged                   remote_sha..HEAD, the local side of the fork
 
-                                                                                
-                                                                                   
-                                                                               
-                                                                                
-                               
-       
+    ABSENT, NEVER ZERO. A count that cannot be obtained is omitted, because zero
+    unpushed commits means "nothing at stake" — the OPPOSITE of what every one of
+    these states asserts — and an unknown reported as zero would turn the row
+    into a reassurance. Same rule as every other measurement here: measured, not
+    measured, or could not ask.
+    """
     if state not in AT_RISK_STATES:
         return {}
     if state == "local-only-branch":
@@ -169,12 +169,12 @@ def at_stake(path, state: str, local_sha: str, remote_sha: str,
         return {}
     n = int(out.strip())
     if n <= 0:
-                                                                               
-                                                                               
-                                                                               
-                                                                                 
-                                                                                
-                     
+        # MEASURED AS NOTHING, which is not the same as unmeasured — and `{}`
+        # for both was the conflation this repository removes wherever it finds
+        # it. Two `local-only-branch` checkouts hold no commit that some remote
+        # lacks: the branch NAME is unpublished, no work is. A reader that cannot
+        # tell this from "the probe did not run" reports the second as the first
+        #.
         return {"nothing_exclusive": True}
     got: dict = {"unpushed": n}
     code, when, _ = git(log, cwd=path)
@@ -215,9 +215,9 @@ def probe(rec: dict) -> tuple[str, dict]:
     state = sync_state(path, local_sha, branch_sha, branch) if local_sha else "unknown"
     out.update(reachable=True, default_branch=default_branch, remote_head=remote_head,
                branch=branch, branch_remote_sha=branch_sha, sync=state)
-                                                                             
-                                                                              
-                                                                
+    # HOW MUCH IS AT STAKE, for the states that assert work on this disk. The
+    # state is already known here and the checkout is already open, so this is
+    # one read-only walk beside a network round trip.
     out.update(at_stake(path, state, local_sha, branch_sha, branch))
     return folder, out
 

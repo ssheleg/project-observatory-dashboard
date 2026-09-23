@@ -165,15 +165,15 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
                  b["first"], b["last"], now_iso()))
             written += 1
 
-                                                                          
-                                                                                
-                                                    
-         
-                                                                               
-                                                                             
-                                                                           
-                                                                              
-                                        
+        # THE ROWS THE FOLD SUPERSEDED, and only those. A week now counted
+        # under the project's current id must not also sit under its former one,
+        # or every aggregate reader counts it twice.
+        #
+        # GUARDED BY THE COUNTERPART'S EXISTENCE. Deleting a row whose week has
+        # NOT been recomputed under the new id would lose it — a frozen row
+        # whose events retention has since pruned holds numbers nothing can
+        # reproduce. Those are kept and counted, so the gap is a number rather
+        # than a silent loss.
         superseded = kept_unfolded = 0
         for old, new in sorted(former.items()):
             for (week,) in conn.execute(
@@ -213,10 +213,10 @@ def refresh(conn: sqlite3.Connection, *, today: date | None = None) -> dict:
 def status(conn: sqlite3.Connection) -> str:
     total, frozen = conn.execute(
         "SELECT COUNT(*), COUNT(frozen_at) FROM project_week").fetchone()
-                                                                        
-                                                                               
-                                                                                
-                                                                     
+    # `COUNT(sessions)` counts non-NULL, so this is "rows that carry the
+    # measure" — and the difference from `total` is rows that predate it. Two
+    # numbers rather than a sum, because a NULL and a zero mean different things
+    # and one line reporting "0 sessions" over both would erase that.
     measured = conn.execute("SELECT COUNT(sessions) FROM project_week").fetchone()[0]
     worked_only = conn.execute(
         "SELECT COUNT(*) FROM project_week WHERE commits = 0 AND sessions > 0").fetchone()[0]

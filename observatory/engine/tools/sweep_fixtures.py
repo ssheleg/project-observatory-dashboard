@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-""                                                                      
+"""Sweep the test fixtures this project leaves when a process is killed.
 
-                                                                         
-                                                                                
-                                                                             
-                                                                     
-                                                                              
-                                                                             
-                                                                                 
-                                                                               
-                                                                    
+**Measured 2026-09-07, and it stopped the work.** The volume holding this
+repository reached 0 bytes free mid-run — `no space left on device` out of the
+gate. The cause was **13,833 `observatory-*` directories in `$TMPDIR` holding
+22.3 GiB**, 11,550 of them created that day. `tests/tmp.py` registers
+`shutil.rmtree` with `atexit` and it works: a suite run by hand leaks nothing,
+and the whole `check` group leaks nothing. What leaks is a process that never
+reaches its `atexit` handlers — killed by a harness timeout, by an out-of-space
+crash, by a session ending. That is not a defect any one file carries, which is
+exactly why remembering to clean up by hand was never going to hold.
 
                                                                            
                                                                               
@@ -18,16 +18,16 @@
                                                                              
                                               
 
-                                                                          
-                                                                               
-                                                                                
-                                                                                
-                                     
+WHAT IT WILL NOT TOUCH. Only directories matching `observatory-*` directly
+inside the temp root, and only those untouched for `--older-than` hours (six by
+default). A live gate run's fixtures are minutes old, so the floor is what keeps
+this from deleting the working set of a concurrent run — the one way a sweeper
+becomes worse than the leak it fixes.
 
-                                                                   
-                                                                         
-                                                      
-   
+    sweep_fixtures.py                  sweep, and write the receipt
+    sweep_fixtures.py --dry-run        measure and report, remove nothing
+    sweep_fixtures.py --older-than 24  raise the floor
+"""
 from __future__ import annotations
 import argparse, os, pathlib, shutil, sys, tempfile, time
 from datetime import datetime, timezone
@@ -49,9 +49,9 @@ def now_z() -> str:
 
 
 def subtree_bytes(d: pathlib.Path) -> tuple[int, int]:
-    ""                                                                         
-                                                                             
-                                           
+    """(bytes, files) under `d`, counting what is readable and skipping what is
+    not — a fixture whose permissions were part of a test must not stop the
+    measurement of everything beside it."""
     total = files = 0
     for root, _, names in os.walk(d, onerror=lambda e: None):
         for n in names:
@@ -65,7 +65,7 @@ def subtree_bytes(d: pathlib.Path) -> tuple[int, int]:
 
 def survey(root: pathlib.Path, older_than_h: float, now: float | None = None
            ) -> tuple[list[dict], list[dict]]:
-    ""                                                                       
+    """(stale, fresh) — every fixture directory, split by the age floor."""
     now = time.time() if now is None else now
     stale: list[dict] = []
     fresh: list[dict] = []

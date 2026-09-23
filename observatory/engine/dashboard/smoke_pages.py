@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-""                                                                          
-                                                                       
+"""Execute every split page's script against the stub DOM — the same check
+`dashboard/smoke.js` runs on the single page, once per page.
 
-                                                                           
-                                                                            
+A page that carries only its own data slice is exactly where a renderer can
+reach for a key the slice does not hold, and nothing static can see that."""
 from __future__ import annotations
 import pathlib
 import subprocess

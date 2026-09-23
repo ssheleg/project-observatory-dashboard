@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-""                                                                                     
+"""The skill-version handshake: a session says what it read, and learns if it is stale.
 
-                                               
-                                                                                 
+    tools/skill_check.py handling-secrets 0.3.0
+    tools/skill_check.py --report            # what sessions have reported lately
 
-                                                                           
-                                                                            
-                                                                                 
-                                                                             
-                                                                           
-                                                                               
+WHY. A Claude Code session snapshots its skills at START and never re-reads
+them: `claude plugin update` refreshes the installed copy, but every session
+already running keeps the text it loaded — silently. So two agents can obey two
+different versions of a MANDATORY rule set and neither knows. The remedy is a
+handshake the skill itself makes obligatory: on first use in a session, the
+agent runs this tool with the version printed in the SKILL.md it actually read.
 
-                             
+WHAT IT DOES with that claim:
 
                                                                              
                                                
@@ -21,12 +21,12 @@
                                                                                  
                                                      
 
-                                                                             
-                                                                          
-                                                                             
-                                                                             
-                                                              
-   
+BACKWARD COMPATIBILITY POLICY, enforced by wording here and versioning there:
+the tools a skill names (`vault.py`, `install_key.py`) keep old invocation
+shapes working within a MAJOR version; a skill's PATCH/MINOR bump means added
+or clarified text (an old session is safe, just poorer); a MAJOR bump means a
+rule changed meaning, and this tool says so in stronger words.
+"""
 from __future__ import annotations
 import argparse
 import datetime

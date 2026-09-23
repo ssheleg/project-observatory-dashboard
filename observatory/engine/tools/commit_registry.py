@@ -66,22 +66,22 @@ def may_write(root: pathlib.Path) -> tuple[bool, str]:
     return False, (p.stderr.strip() or p.stdout.strip() or "denied by agent-sync")
 
 
-                                                                               
-                                                                                   
-                                                                                  
-            
-  
-                                                                          
-                                                                                 
-                                                                                  
-                                                                                 
-                                                                                   
-                                                        
-                                                                                
-                                                                                
-                                                                              
-                                                                               
-                                                                    
+#: Fields whose movement is not worth a line in a commit subject. They are real
+#: measurements asked only in the PRESENT tense — "how much uncommitted work sits
+#: in this checkout right now" — and nothing keeps their history because nothing
+#: needs it.
+#:
+#: Verified rather than assumed, because the first version of this comment
+#: claimed their history lived in `events` and `project_week` and that was false:
+#: `project_week` holds `commits`, `active_days` and `authors`, and `events` holds
+#: `commit` and `finding.notified`. Which is exactly why `commits` is NOT in this
+#: set — its history IS kept, per-event and per-week, so a change in it is a fact
+#: about the estate rather than a reading of the moment.
+#: `extra_checkouts` joins them for the same reason `extra_clones` was here, one
+#: level deeper: an agent committing inside a worktree moves `commits`, `branch`
+#: and `dirty` in that list, and a background committer that treats every such
+#: move as a reason to commit would write a registry commit per agent turn. The
+#: worktrees themselves appear and vanish within the hour.
 VOLATILE = {"uncommitted_files", "files", "mtime", "extra_clones",
             "extra_checkouts"}
 

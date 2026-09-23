@@ -231,32 +231,32 @@ def from_store() -> dict:
         out["queue"] = []
         out["degraded"] = (out["degraded"] or "") + f" очередь не прочиталась: {type(exc).__name__}"
     try:
-                                                                            
-                                                                                
+        # Twenty-six weeks: half a year is the longest span a sparkline this
+        # size can show without becoming a smear, and the rollup keeps the rest.
         for r in conn.execute(
                 "SELECT project_id, week_start, commits, sessions, worked_days"
                 " FROM project_week"
                 " WHERE week_start >= date('now', '-182 days') ORDER BY week_start"):
-                                                                                
-                                                                              
-                                                                              
-                                          
+            # `s` and `d` may be NULL: a row computed before the session columns
+            # existed. Carried through as null rather than 0 so the
+            # page can tell "no work" from "not measured" — the reason those
+            # columns are nullable at all.
             out["weeks"].setdefault(r["project_id"], []).append(
                 {"w": r["week_start"], "c": r["commits"],
                  "s": r["sessions"], "d": r["worked_days"]})
-                                                                           
-                                                                                
-                                                                          
-                                                                           
-                                   
-                                                                          
-                                                                                    
-                                                                                   
-                                                                               
-                                                                              
-                                                                             
-                                                                               
-                        
+        # EVERY metric, by name and unit, never a name this file knows. The
+        # first version read `disk.bytes` explicitly and the plugin suite caught
+        # it: a core file naming a plugin's metric is the six-file problem
+        # returning one row at a time. The manifest declares the unit; this
+        # renders whatever arrives.
+        # THE CAPTIONS, from the manifests, through the plugin layer's own
+        # reader. Five numbers sat on a project's row — `70 packages · 92 МБ ·
+        # 2.6 ГБ · 8 days · 6 tags` — and three were a guess without a mouse:
+        # the two byte figures are what the project COSTS and what deleting its
+        # package directories GIVES BACK, opposite meanings told apart only by
+        # a `title` attribute. A map from metric name to caption may not live
+        # here (the six-file problem), so the plugin declares it and this reads
+        # it.
         labels: dict[str, str] = {}
         try:
             sys.path.insert(0, str(paths.ROOT / "collectors"))
@@ -272,17 +272,17 @@ def from_store() -> dict:
                                          
             print(f"  metric captions unavailable: {type(exc).__name__}: {exc}",
                   file=sys.stderr)
-                                                                             
-                                                              
-                                                                                 
-                                                                                 
-                                                                               
-                                                                            
-                                                                              
-         
-                                                                             
-                                                                                 
-                                                              
+        # THE PREVIOUS VALUE, because retention keeps it for exactly this and
+        # nothing was showing it. `store/retention.json` holds
+        # `metrics_keep_per_series: 2` with the reason written beside it — "the
+        # newest, plus one so a reader can see whether it moved" — and the page
+        # rendered only the newest, so the second row was kept for a reader who
+        # had no way to read it. Measured 2026-09-09: 911 metric rows, seven
+        # series, two or three samples each, and no movement visible anywhere.
+        #
+        # ABSENT, never zero: a series with one sample carries no `p` at all,
+        # and the script renders nothing rather than "+0" — a first measurement
+        # and an unchanged one are different facts.
         rows = list(conn.execute(
             "SELECT project_id, metric, unit, value, at FROM metrics"
             " ORDER BY project_id, metric, at DESC"))
@@ -316,14 +316,14 @@ def from_store() -> dict:
             bucket.append({"at": r["occurred_at"][:10], "who": r["actor"] or "",
                            "what": (pay.get("subject") or "")[:110],
                            "repo": pay.get("repo") or ""})
-                                                                                   
-                                                                               
-                                                                   
-                                                                             
-                                                                                
-                                                                        
-                                                                              
-                                                                            
+        # What the observatory CONCLUDED, with its confidence and its state — the
+        # agent proposes and never asserts (AGENTS.md rule 3), so a reader must
+        # see `proposed` beside the sentence or the caveat is lost.
+        # THE TOMBSTONE JOIN, and this query had none. Every other
+        # read of the ledger is record-wide — `live()`, the search, the review
+        # queue, `build_findings` — so an erased conclusion was hidden
+        # everywhere EXCEPT the one surface a person looks at. The fragment is
+        # shared with `survey.project_detail` rather than spelled out again.
         import survey as survey_mod
         for r in conn.execute(
                 "SELECT l.project_id, l.created_at, l.statement, l.state, l.confidence"
@@ -351,11 +351,11 @@ def from_store() -> dict:
                 "SELECT COUNT(*) FROM ledger l JOIN (SELECT memory_id, MAX(revision) r"
                 " FROM ledger GROUP BY memory_id) m ON m.memory_id=l.memory_id"
                 " AND m.r=l.revision WHERE l.state='proposed'").fetchone()[0],
-                                                                                
-                                                                              
-                                                                                
-                                                                             
-                                                        
+            # Registry proposals are a DIFFERENT queue from ledger memories, and
+            # it had no reader anywhere: `observatory_propose` is declared MCP
+            # surface, it writes here, and neither this page nor any CLI looked.
+            # A caller told its patch landed, in a table nobody reads, is the
+            # dead-data shape this pass exists to close.
             "registry_proposals": conn.execute(
                 "SELECT COUNT(*) FROM proposals WHERE status='proposed'").fetchone()[0],
         }
@@ -370,12 +370,12 @@ def from_store() -> dict:
         if lag and lag["n"]:
             out["health"]["projection_lag"] = lag["n"]
             out["health"]["projection_oldest"] = lag["oldest"]
-                                                                             
-                                                                             
-                                                                               
-                                                                               
-                                                                             
-                                       
+        # THE ALWAYS-ON SERVER, from its own heartbeat. Three states, spelled
+        # apart: beating (age and what it watches), silent (installed and not
+        # reporting — `server.silent` on the board says the same louder), and
+        # absent (never ran here / turned off) — the page says which, because
+        # "no row" would read as "no server exists" on a machine where one is
+        # supposed to be up.
         import datetime as _dt
         sd = paths.SCRATCH / "serverd.json"
         if sd.is_file():
@@ -399,9 +399,9 @@ def from_store() -> dict:
     finally:
         conn.close()
 
-                                                                              
-                                                                              
-                                                                      
+    # The wallet and the provider's health are FILES, not tables, and they are
+    # the half `docs/ARCHITECTURE.md:114` promised would be on this page: "the
+    # agent degrades to collectors-only and SAYS SO IN THE DASHBOARD".
     for key, name in (("wallet", "wallet.json"), ("provider", "provider-health.json")):
         f = paths.STATE / name
         if f.is_file():
@@ -643,13 +643,13 @@ def build():
     _rf = paths.REGISTRY / "remote-env.json"
     REMOTE = json.loads(_rf.read_text(encoding="utf-8")) if _rf.is_file() else None
 
-                                                                               
-                                                                              
-                                                                                
+    # THE WHOLE DOMAIN LIST, not just the ones a project claims. 53 registered,
+    # 9 on a project row: the rest were a tile with a number and no way to see
+    # WHICH. The same omission Heroku had until it got a tab (audit 2026-09-09).
     DOMAINS = load("domains.json")["domains"]
-                                                                               
-                                                                               
-                                                 
+    # WHAT THE ESTATE HOLDS AND HOW IT GROUPS. Both are projections;
+    # a fresh clone without a Cloudflare scan simply has no zones, and the page
+    # says so rather than showing an empty table.
     _zf = paths.REGISTRY / "cloudflare-zones.json"
     ZONES = load("cloudflare-zones.json")["zones"] if _zf.is_file() else None
     _mf = paths.REGISTRY / "mcp-servers.json"
@@ -694,13 +694,13 @@ def build():
             "tier": project.get("activity_tier", ""),
             "note": project.get("canonical_page", "") if project.get("has_vault_note") else "",
             "rules": project.get("membership_rules", []),
-                                                                               
-                                                                           
-                                                                              
-                                                    
-                                                                               
-                                                                               
-                                                                            
+            # `vault_notes`, and it is called `wiki_notes` here for one reason:
+            # the store's own conclusions were also written to `r["notes"]`
+            # twenty lines below, so the second assignment replaced this COUNT
+            # with a LIST and the wiki chip rendered
+            # "[object Object],[object Object] зам." on every row that had a
+            # note. One word for two populations, and the page said so out loud
+            # (2026-09-09). Seen by opening the page, which is why it lived.
             "wiki_notes": project.get("vault_notes", 0),
             # Measured liveness, folded in per host. A homepage that does not
             # resolve is the one fact about a site an operator must not have to
@@ -719,10 +719,10 @@ def build():
                 "checked_out": (repos[i].get("local") or {}).get("checked_out_branch", ""),
                 "dirty": (repos[i].get("local") or {}).get("uncommitted_files", 0),
                 "sync": (repos[i].get("local") or {}).get("sync", ""),
-                                                                              
-                                                                                
-                                                                                
-                                                                                
+                # HOW MUCH IS AT STAKE. The count reached the registry and the
+                # findings and stopped short of the page — the same enumerated
+                # key list that lost it in `emit_registry.py`, one layer further
+                # on. `None` when the probe could not count, never 0.
                 "unpushed": (repos[i].get("local") or {}).get("unpushed"),
                 "unpushedOn": (repos[i].get("local") or {}).get("unpushed_newest_on"),
                 "nothing_exclusive": (repos[i].get("local") or {}).get("nothing_exclusive"),
@@ -740,8 +740,8 @@ def build():
         # WHAT HAPPENED, first, because the estate's inventory answers a
         # different question and answered it alone until now.
         **work_stats(),
-                                                                             
-                                                                      
+        # WHAT IS AT RISK, beside what happened. Registry-derived rather than
+        # store-derived, which is why it is not inside `work_stats()`.
         **at_risk_total(repos),
         "projects": len(rows),
         "repositories": len(repos),
@@ -765,14 +765,14 @@ def build():
         "archived": sum(1 for r in rows if r["lifecycle"] == "archived"),
         "archived_repos": sum(1 for r in repos.values() if r.get("archived")),
         "domains": len(domains),
-                                                                              
-                                                                               
-                                                                           
-                                                                                  
-                                                                            
-                                                                              
-                                                                      
-                                     
+        # THE SAME OMISSION AS `inactive_repos`, one subject over, and it went
+        # unnoticed until the page was asked what it hides. A domain no project
+        # claims has no row to sit in, so of 53 registered domains the page
+        # showed nine and printed "53" beside them — the operator's assets, most
+        # of them costing a renewal a year, counted and not listed. Measured
+        # 2026-09-09. The count is the honest half of what a page can do here;
+        # which of them matter is `domain.dark`, `domain.expiring` and
+        # `domain.hold` on the board.
         "domains_no_row": len(domains - {s["host"] for r in rows for s in r["sites"]}),
         "owners": len({r["owner"] for r in rows}),
         # THE COUNT OF WHAT IS RUNNING, beside the count of what exists. An
@@ -812,12 +812,12 @@ def build():
         r["metrics"] = store["metrics"].get(r["id"], [])
         r["timeline"] = store["timeline"].get(r["id"], [])
         r["notes"] = store["notes"].get(r["id"], [])
-                                                                                
-                                                                              
-                                                                          
-                                                                                  
-                                                                                  
-                                      
+    # THE QUEUE, READ-ONLY. 401 revisions sit `proposed` and the default outcome
+    # for every one of them is expiry at 90 days; the only door was a terminal
+    # command, so the operator could not even SEE what was waiting without
+    # opening one. Deciding still needs the terminal — `tools/review.py` refuses
+    # a write without one on purpose — but a queue nobody can look at is a queue
+    # nobody works (audit 2026-09-09).
     PAYLOAD = {"runtime": {"projects": str(paths.DATA), "secrets": str(paths.source_path("secret_store", paths.SECRETS)), "engine": str(paths.ROOT), "home": str(paths.HOME), "python": sys.executable, "scratch": str(paths.SCRATCH)}, "rows": rows, "stats": stats, "owners": owners, "dups": dups,
                           "queue": store.get("queue") or [],
                           "digest": store.get("digest"),
@@ -827,14 +827,14 @@ def build():
                           # shows them anyway teaches that silencing does nothing.
                           "findings": (_findings_panel(FINDINGS)
                                        if FINDINGS else None),
-                                                                               
-                                                                         
-                                                                                
-                                                                             
-                                                                      
-                                                                        
-                                                                               
-                                                                          
+                          # TWO DIFFERENT FACTS, and the page showed the weaker
+                          # one as its headline. `updated_on` is when the
+                          # registry's CONTENT last changed; `last_scan` is when
+                          # the estate was last MEASURED. A reader asking "is
+                          # this current?" wants the second, and until
+                          # 2026-09-07 the first was a hardcoded literal
+                          # (`OBS="2026-09-03"`) so the headline was a constant
+                          #. Both are shown now, each labelled.
                           "heroku": HEROKU,
                           "creds": CREDS,
                           "env": ENVD,
