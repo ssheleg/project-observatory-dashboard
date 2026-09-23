@@ -23,7 +23,8 @@ future-version refusal. Preserve unknown optional configuration fields. Changes
 to MCP input/output schemas and metric plugin requirements need explicit
 compatibility tests. Keep the old portable command namespace working.
 
-A change to the complete engine updates its source inventory in the same review.
+A change to the complete engine updates its source inventory in the same review:
+run `python tools/update_inventory.py` (CI runs it with `--check`).
 The initial inventory also records the sanitized extraction from its private
 predecessor; never copy that predecessor's Git history or operational documents.
 Dependency constraint updates require the Python/OS CI matrix, not just a local
