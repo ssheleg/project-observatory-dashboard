@@ -83,6 +83,52 @@ class KeyserverBoundaryTests(unittest.TestCase):
         self.assertEqual(self.effects, [])
         self.assertFalse(keyserver.AUDIT.exists())
 
+    def test_a_declared_caller_is_a_label_never_an_authority(self):
+        # docs/design/ACCESS.md: `X-Observatory-Caller` is what the client says it
+        # is. Without the token it opens nothing; with it, every name gets the
+        # same rights, and the name is only written beside the action.
+        code, _, _ = self.request(headers={"X-Observatory-Token": "", "X-Observatory-Caller": "operator"})
+        self.assertEqual(code, 401)
+        self.assertEqual(self.effects, [])
+        seen = []
+        with patch.dict(keyserver.ACTIONS, {"probe": lambda body: seen.append(keyserver._CALLER.get()) or {"ok": True}}):
+            for name in ("operator", "agent:some-session", "unnamed"):
+                self.assertEqual(self.request(headers={"X-Observatory-Caller": name})[0], 200)
+        self.assertEqual(seen, ["operator", "agent:some-session", "unnamed"])
+        # A raw client can put anything in the header; the journal gets one token.
+        forged = keyserver.caller_name('x\n{"by":"root"} ' + "y" * 200)
+        self.assertNotIn("\n", forged)
+        self.assertLessEqual(len(forged), 80)
+
+    def test_a_cors_preflight_is_never_granted(self):
+        # A cross-origin page can send the token header only after a preflight;
+        # the keyserver answers none, so the browser never sends the action.
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
+        conn.request("OPTIONS", "/api/probe", headers={
+            "Origin": "http://attacker.invalid", "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "x-observatory-token"})
+        response = conn.getresponse()
+        headers = {k.lower() for k, _ in response.getheaders()}
+        conn.close()
+        self.assertGreaterEqual(response.status, 400)
+        self.assertNotIn("access-control-allow-origin", headers)
+        self.assertEqual(self.effects, [])
+
+    def test_another_workspaces_token_is_refused(self):
+        # Two workspaces, two servers, two tokens: a page or agent holding one
+        # workspace's token gets nothing from the other.
+        other = keyserver.Server(("127.0.0.1", 0), keyserver.Handler, "-".join(("a", "second", "workspace", "token")))
+        thread = threading.Thread(target=other.serve_forever, daemon=True)
+        thread.start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", other.server_address[1], timeout=3)
+            conn.request("POST", "/api/probe", body=b"{}", headers={"X-Observatory-Token": self.token})
+            self.assertEqual(conn.getresponse().status, 401)
+            conn.close()
+        finally:
+            other.shutdown(); other.server_close(); thread.join(timeout=2)
+        self.assertEqual(self.effects, [])
+
     def test_rebinding_host_cannot_obtain_page_token(self):
         with patch.object(keyserver.Handler, "_page_for") as page:
             for host in ("evil.invalid", "localhost.evil.invalid", "127.0.0.1:1", "localhost", ""):
