@@ -3,6 +3,20 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+### Fixed
+
+- `tools/trap_efficacy.py` ran in no public installation. It crashed when the private trap registry
+  (`docs/knowledge-pack.md`) was absent, when a trap id was not `T<n>`, and when a self-driving suite
+  was missing. It also wrote its report into the engine directory. It now says what it can't measure,
+  sorts both id populations, and writes to `store/raw/trap-efficacy.json`. In this distribution it
+  measures 3 caught, 1 missed (T25, whose guard is vacuous without a real estate) and 3 self-driven,
+  and it reports 32 as inconclusive because their guards are not shipped.
+- The T20 anchor now points at the public `tests/test_retention.py`, and T33, whose subject and
+  guard are private, is no longer declared. `tests/test_trap_anchors.py` fails the day a source
+  anchor goes stale.
+
 ## 0.3.8 — 2026-09-24
 
 ### Fixed

@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import pathlib
 import shutil
 import sqlite3
@@ -94,14 +95,11 @@ MUTATIONS: list[dict] = [
                  '      "id": "relation:example-app:implemented-by:example-org-example-app",'),
      "why": "one more repository attached to a project whose rules never name it "
             "— the adoption that took 36"},
-    # The CURATED status file, not the emitted registry: the guard reads
-    # `collectors/repo_status.json`, so a registry-copy mutation never reached
-    # it and reported MISSED for a guard that was working. Measured 2026-09-08,
-    # and it is the reason the harness now demands that a mutation be VISIBLE
-    # where the guard looks before a verdict means anything.
-    {"trap": "T33", "subject": "source", "file": "collectors/repo_status.json",
-     "find": '"status": "inactive"', "replace": '"status": "active"',
-     "why": "a retirement that only recolours the row leaves the row"},
+    # T33 (a retirement that only recolours the row) is not declared here: its
+    # subject, a curated `repo_status.json` naming an inactive repository, and
+    # its guard suite ship only with the private predecessor. A declaration
+    # whose anchor is absent reports INCONCLUSIVE on every run and proves
+    # nothing (PB-134; porting the guard is PB-135).
     {"trap": "T35", "subject": "registry", "file": "ledger.jsonl",
      "find": "\n", "replace": "\n", "sql": None, "truncate": True,
      "why": "an export that carries only its header is not a backup"},
@@ -307,10 +305,12 @@ MUTATIONS: list[dict] = [
              " '2026-09-08T00:00:00Z', 'project-internal')"],
      "why": "the check that grepped for a min() call stayed green while a real "
             "run wrote confidence exactly 1.0"},
-    {"trap": "T20", "subject": "source", "file": "tests/test_index.py",
-     "find": '_CACHED = ("survey", "providers", "store.indexer", "store.ledger", "store.db", "store",',
-     "replace": '_CACHED = ("survey", "providers", "store.indexer", "store.ledger", "store.db",',
-     "step": "test-index",
+    # Retargeted to the public suite that pops the same modules (PB-134): the
+    # private `tests/test_index.py` is not in this distribution.
+    {"trap": "T20", "subject": "source", "file": "tests/test_retention.py",
+     "find": '"store.db", "store", "paths", "ret_t", "led_t")',
+     "replace": '"store.db", "paths", "ret_t", "led_t")',
+     "step": "test-retention",
      "why": "popping the submodule and not the package leaves `from store import "
             "db` reading the previous test's database — and it takes two tests "
             "in one process to show, which is why this one runs the whole suite"},
@@ -484,6 +484,15 @@ def run_one(mut: dict, guard: tuple[str, str]) -> tuple[str, str]:
         restore(mut)
 
 
+def trap_order(trap: str) -> tuple:
+    """T1 < T2 < T10, then the finding-rule population (`R-…`) by name.
+
+    `int(t[1:])` was the key, and an `R-` id made every run without arguments
+    raise ValueError before measuring anything."""
+    m = re.fullmatch(r"T(\d+)", trap)
+    return (0, int(m.group(1)), "") if m else (1, 0, trap)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or 'Run isolated diagnostic probes.').splitlines()[0])
     ap.add_argument("traps", nargs="*", help="only these traps (default: all declared)")
@@ -491,11 +500,15 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv[1:])
 
     by_trap, declared = guards()
-    want = args.traps or sorted({m["trap"] for m in MUTATIONS}, key=lambda t: int(t[1:]))
+    if not declared:
+        print("no trap registry in this distribution (docs/knowledge-pack.md): only mutations "
+              "that name their own guard (`step` or `guard`) are measured; the rest report "
+              "INCONCLUSIVE rather than a verdict")
+    want = args.traps or sorted({m["trap"] for m in MUTATIONS}, key=trap_order)
     plan = [m for m in MUTATIONS if m["trap"] in want]
 
     if args.list:
-        for t in sorted(declared, key=lambda x: int(x[1:])):
+        for t in sorted(declared, key=trap_order):
             kind = ("mutation" if any(m["trap"] == t for m in MUTATIONS)
                     else "self-driven" if t in SELF_DRIVEN else "NOT DECLARED")
             print(f"  {t:5} {kind}")
@@ -555,8 +568,13 @@ def main(argv: list[str]) -> int:
         results.append((mut["trap"], verdict, f"{gs[0][1]}: {detail}"))
         print(f"  {verdict:13} {mut['trap']:5} {detail[:110]}")
 
-    for trap, (rel, marker) in sorted(SELF_DRIVEN.items(), key=lambda kv: int(kv[0][1:])):
+    for trap, (rel, marker) in sorted(SELF_DRIVEN.items(), key=lambda kv: trap_order(kv[0])):
         if trap not in want and args.traps:
+            continue
+        if not (ROOT / rel).is_file():
+            # The self-driving suite is not part of this distribution (PB-135).
+            results.append((trap, "INCONCLUSIVE", f"{rel} is not in this distribution"))
+            print(f"  INCONCLUSIVE  {trap:5} {rel} is not in this distribution")
             continue
         present = marker in (ROOT / rel).read_text(encoding="utf-8")
         results.append((trap, "SELF-DRIVEN" if present else "INCONCLUSIVE",
@@ -570,11 +588,15 @@ def main(argv: list[str]) -> int:
 
     n = {v: sum(1 for _, x, _ in results if x == v)
          for v in ("CAUGHT", "MISSED", "SELF-DRIVEN", "INCONCLUSIVE")}
-    unmeasured = len(declared) - len({t for t, _, _ in results})
+    unmeasured = max(0, len(declared) - len({t for t, _, _ in results}))
     print(f"\n{n['CAUGHT']} caught, {n['MISSED']} MISSED, {n['SELF-DRIVEN']} self-driven, "
           f"{n['INCONCLUSIVE']} inconclusive; {unmeasured} of {len(declared)} trap(s) "
           f"carry no efficacy claim at all")
-    (ROOT / "store/raw/trap-efficacy.json").write_text(json.dumps(
+    # The workspace's scratch store, not the engine directory: an installed
+    # engine is read-only code (paths.refuse_home_inside_code).
+    import paths
+    paths.SCRATCH.mkdir(parents=True, exist_ok=True)
+    (paths.SCRATCH / "trap-efficacy.json").write_text(json.dumps(
         {"results": [{"trap": t, "verdict": v, "detail": d} for t, v, d in results],
          "unmeasured": unmeasured, "declared": len(declared)},
         indent=2, ensure_ascii=False), encoding="utf-8")

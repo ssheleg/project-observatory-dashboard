@@ -57,6 +57,11 @@ MARKER = re.compile(r"^\s*Traps?:\s*(T\d+(?:\s*,\s*T\d+)*)\s*(?:—.*)?$", re.M)
 def declared() -> dict[str, str]:
     """Every trap the pack declares, id -> its bold title."""
     out: dict[str, str] = {}
+    if not PACK.is_file():
+        # The registry of recorded failures ships only with the private
+        # predecessor (PB-134, PB-135). No pack declares nothing; it is not a
+        # failure of this distribution, and main() says which it is.
+        return out
     for tid, title in re.findall(r"^\| (T\d+) \| \*\*(.+?)\.\*\*", PACK.read_text("utf-8"), re.M):
         out[tid] = title
     return out
@@ -211,6 +216,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--check", action="store_true", help="exit non-zero on any drift")
     ap.add_argument("--write", action="store_true", help="regenerate the table in the pack")
     args = ap.parse_args(argv[1:])
+    if not PACK.is_file():
+        print(f"no trap registry: {PACK.relative_to(ROOT)} is not part of this distribution, "
+              f"so there is no declared trap to map (tests still declare their own)")
+        return 0
     data, drift = report()
     if args.write:
         changed = write(data)
