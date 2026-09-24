@@ -348,7 +348,7 @@
     {
       "path": "configuration.py",
       "source_sha256": "69575bf4b71bf590301f5dde7f87c26e19be4c96ed0f93647897a20c14574202",
-      "export_sha256": "5a0527cedd32d4d4befa3aa9be005e6b663612f1628d69644db6799bb9a8cb45",
+      "export_sha256": "9aad28d5c9300d603ecf1cd3d2307a7ab2ed71e980ee9cfeec1522bc171e883e",
       "bytes": 6536,
       "python_comments_removed": 0,
       "python_docstrings_removed": 1,
@@ -572,8 +572,8 @@
     {
       "path": "docs/COMPATIBILITY.md",
       "source_sha256": "70f6b5a2e54c5205f145ba07549c23d28ba8407be99c4098cd467ae8ee9f9280",
-      "export_sha256": "11d512820b363c565787dab13cf61c263c02b1eb231ee2ac99bcb5d2f619ea9b",
-      "bytes": 9913,
+      "export_sha256": "d2db1f82506ceb23b19de1e951ae6e76ebfafbfaa73e381356778f02ba03d935",
+      "bytes": 10142,
       "upstream_modified": true
     },
     {
@@ -1157,8 +1157,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "669ec3afaafeb9c19bab17c589e48af8aafca364137acd194f6dd9943e3c5075",
-      "bytes": 10308,
+      "export_sha256": "e1bb7062d943f342ba5e0f390f46484790a1120d64fb31727517dfcb58bd4b5c",
+      "bytes": 10325,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1357,6 +1357,13 @@
       "python_docstrings_removed": 1,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/test_leak_coverage.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "2e80ee6f7cc728d9f0a9f4abcf1c9d15a76cfaf6ca0e9c24ba8e227d4a0b6676",
+      "bytes": 3990
     },
     {
       "path": "tests/test_leak_scan_incremental.py",
@@ -1946,8 +1953,8 @@
     {
       "path": "tools/leak_findings.py",
       "source_sha256": "73d3b27886625b7a2f615898fc7ea9671577f28255a32303bfd0b7a9565de030",
-      "export_sha256": "73d3b27886625b7a2f615898fc7ea9671577f28255a32303bfd0b7a9565de030",
-      "bytes": 6084,
+      "export_sha256": "41dbb2b5bec64851a70ef84778ea38b46a1fd74e29a59bbdc762cdae026d9404",
+      "bytes": 7946,
       "python_comments_removed": 2,
       "python_docstrings_removed": 3,
       "tool_descriptions_retained": 0,
@@ -2093,8 +2100,8 @@
     {
       "path": "tools/scan_leaks.py",
       "source_sha256": "a6dead1ccdd505ddbdb6efabe884d1cc2acc8be744930c70cf1b1223eb39bc1e",
-      "export_sha256": "8bb4815eeb4fcbdedebbcaabcb65e3ee86ae20575c759ac378f9c1bd4bafb7c0",
-      "bytes": 20282,
+      "export_sha256": "1444143d0ea510341737ddf2006256ece7ca52fbb28941ef78e333d07766b1e1",
+      "bytes": 24237,
       "python_comments_removed": 25,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
@@ -2286,7 +2293,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 265,
+  "file_count": 266,
   "excluded": [
     "git-history",
     "operator-registries",
