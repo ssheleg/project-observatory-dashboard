@@ -3,7 +3,15 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
-## Unreleased
+## 0.3.10 — 2026-09-24
+
+### Fixed
+
+- A dashboard action whose answer was lost said "не вышло" (failed) and let you try again, even
+  though the provider may already have revoked or minted. A timeout (60 s), a dropped connection, an
+  unreadable answer to success, or a server fault now says "исход неизвестен · проверьте" (outcome
+  unknown, check) and keeps the button locked until a rescan. A refusal the server explains is still
+  "failed" and can be retried.
 
 ### Added
 
