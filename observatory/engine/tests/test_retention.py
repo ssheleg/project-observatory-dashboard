@@ -302,6 +302,64 @@ def test_the_collector_and_retention_share_one_horizon() -> None:
           "deleted: 0 event(s)" in out.stdout, out.stdout.strip()[:160])
 
 
+def test_the_collector_never_inserts_past_the_horizon() -> None:
+    """A commit older than the retention horizon is never inserted, on any machine.
+
+    The end-to-end check above reads the estate's real checkouts, so on a machine
+    with none it passes whatever the collector does (PB-136: T25 was MISSED in the
+    public distribution). Here the history is made: one commit older than the
+    horizon, one fresh, in a real git repository, collected by the real
+    `scan_events.main()` into a throwaway store.
+
+    Trap: T25
+    """
+    import subprocess
+    sys.path.insert(0, str(ROOT))
+    spec = importlib.util.spec_from_file_location("scan_events_t25", ROOT / "collectors/scan_events.py")
+    se = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(se)
+    horizon = se.retention_horizon_days()
+    check("a retention horizon is configured", bool(horizon), str(horizon))
+    if not horizon:
+        return
+    work = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-t25-"))
+    repo = work / "history"
+    repo.mkdir()
+    base = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    base.update(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
+                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=base)
+    shas = {}
+    for label, days in (("old", horizon + 400), ("fresh", 1)):
+        when = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        (repo / label).write_text(label)
+        env = {**base, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when}
+        subprocess.run(["git", "add", label], cwd=repo, check=True, env=env)
+        subprocess.run(["git", "commit", "-qm", label], cwd=repo, check=True, env=env)
+        shas[label] = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, env=env,
+                                     capture_output=True, text=True).stdout.strip()
+    db_path = work / "events.db"
+    real_connect = se.store_db.connect
+    se.store_db.connect = lambda path=None: real_connect(db_path)
+    se.registry_read.read = lambda name, key: []
+    se.targets = lambda projects, repos, owner_of: [
+        {"label": "repository:synthetic/history", "project_id": "project:synthetic",
+         "repo_id": "repository:synthetic/history", "path": str(repo), "created_on": "2020-01-01",
+         "name": "synthetic/history"}]
+    se.estate.records_events = lambda ownership: True
+    argv, sys.argv = sys.argv, ["scan_events.py"]
+    try:
+        se.main()
+    finally:
+        sys.argv = argv
+    conn = sqlite3.connect(db_path)
+    got = {r[0] for r in conn.execute("SELECT ref FROM events WHERE kind='commit'")}
+    conn.close()
+    check("the fresh commit is collected", shas["fresh"] in got, str(len(got)))
+    check("a commit past the horizon is never inserted, so the next prune has nothing to delete",
+          shas["old"] not in got, "the collector read past the window retention keeps")
+
+
 def test_plan_writes_nothing() -> None:
     conn, L, R = fresh()
     r = L.append(conn, owner="agent:observer", statement="old", state="proposed",
@@ -321,6 +379,7 @@ if __name__ == "__main__":
                test_operator_rows_are_exempt_at_any_age, test_a_supported_row_is_never_pruned,
                test_superseded_is_protected_because_a_correction_points_at_it,
                test_the_purge_attests_or_reports_incomplete,
+               test_the_collector_never_inserts_past_the_horizon,
                test_volatile_rows_are_deleted_and_the_spine_is_not,
                test_an_unverifiable_index_is_quarantined_not_counted,
                test_the_collector_and_retention_share_one_horizon, test_plan_writes_nothing):

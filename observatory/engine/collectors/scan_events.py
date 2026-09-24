@@ -31,9 +31,13 @@ def retention_horizon_days() -> int | None:
     live tick reported a large `deleted` count and the next one inserted the
     same events again, run after run.
     """
+    # THE WORKSPACE'S CONFIG, which is where store/retention.py reads it
+    # (`paths.config_file`). This read `paths.STORE / "retention.json"`, a file
+    # that exists in no workspace, so the collector had no window and every tick
+    # inserted about 29,000 events that retention deleted again (PB-136).
     try:
         return int(json.loads(
-            (paths.STORE / "retention.json").read_text(encoding="utf-8"))["events_days"])
+            paths.config_file("retention.json").read_text(encoding="utf-8"))["events_days"])
     except Exception:
         return None
 

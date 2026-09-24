@@ -243,6 +243,9 @@ MUTATIONS: list[dict] = [
     {"trap": "T25", "subject": "source", "file": "collectors/scan_events.py",
      "find": 'args.insert(1, f"--since={horizon} days ago")',
      "replace": 'args.insert(1, "--since=3000 days ago")',
+     # The guard that builds its own history (PB-136). The older end-to-end
+     # check reads the estate's checkouts and is vacuous on a machine with none.
+     "guard": "tests/test_retention.py::test_the_collector_never_inserts_past_the_horizon",
      "why": "the collector inserted what retention deleted, every thirty minutes, "
             "1161 events at a time"},
     # BOTH call sites. The guard greps the source AND drives a dead key through

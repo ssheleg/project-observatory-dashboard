@@ -3,10 +3,16 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
-## Unreleased
+## 0.3.9 — 2026-09-24
 
 ### Fixed
 
+- The event collector read its retention horizon from `store/retention.json`, a file no workspace
+  has. Retention reads `config/retention.json`. Without a horizon the collector inserted every commit
+  within its depth, and retention deleted the old ones again, about 29,000 events on every tick of
+  one installation. The collector now reads the same file. T25's guard is new: it builds a real git
+  history with one commit past the horizon and one fresh, and proves that only the fresh one is
+  collected. The old end-to-end check passed on any machine without an estate.
 - `tools/trap_efficacy.py` ran in no public installation. It crashed when the private trap registry
   (`docs/knowledge-pack.md`) was absent, when a trap id was not `T<n>`, and when a self-driving suite
   was missing. It also wrote its report into the engine directory. It now says what it can't measure,
