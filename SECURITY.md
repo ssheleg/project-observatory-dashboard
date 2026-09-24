@@ -5,6 +5,9 @@ is not isolation from the same operating-system user, malicious plugins or child
 processes, malware, or a privileged administrator. A local agent with filesystem
 access can still read files that the operating system permits it to read.
 
+Who can reach which local surface, what grants it and which test proves each rule:
+[docs/design/ACCESS.md](docs/design/ACCESS.md).
+
 ## Public code and private data
 
 The full engine lives under `observatory/engine`. Its versioned workspace lives

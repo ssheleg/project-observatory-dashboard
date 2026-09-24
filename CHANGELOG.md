@@ -3,6 +3,15 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+### Added
+
+- [docs/design/ACCESS.md](docs/design/ACCESS.md): the access model for the dashboard server, the
+  keyserver, MCP and the CLI. Each rule names the test that proves it, and each gap is stated as a
+  gap. There are new tests showing that a declared caller name is a label and never an authority,
+  that another workspace's token is refused, and that a cross-origin preflight is never granted.
+
 ## 0.3.9 — 2026-09-24
 
 ### Fixed
