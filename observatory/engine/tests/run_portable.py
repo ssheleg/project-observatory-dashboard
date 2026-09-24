@@ -53,6 +53,7 @@ SKILL_FILES = (
     'skill/plugins/observatory-log/skills/handling-secrets/SKILL.md',
     'skill/plugins/observatory-log/skills/explaining-changes/SKILL.md',
     'skill/plugins/observatory-log/.claude-plugin/plugin.json',
+    'skill/plugins/observatory-log/hooks/hooks.json',
 )
 NOT_RUN = (
     {'scope': 'live-provider-acceptance', 'status': 'NOT_RUN',
