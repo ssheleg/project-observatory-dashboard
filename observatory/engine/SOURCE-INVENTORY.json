@@ -1150,8 +1150,8 @@
     {
       "path": "tests/run_portable.py",
       "source_sha256": "91af29946323164242a665108886f47adee4f6d1a43a6975aa851bc474436edf",
-      "export_sha256": "2d2255c8a8162d70f65c2e53820ddcaadb45edcac9cb9d1df46755f33e41ec3a",
-      "bytes": 10191,
+      "export_sha256": "d0025619a43e0cb4477ab56ed5ba31a1a7e4882885d088f5f01c248576b44b7a",
+      "bytes": 10207,
       "python_comments_removed": 3,
       "python_docstrings_removed": 2,
       "tool_descriptions_retained": 0,
@@ -1566,6 +1566,13 @@
       "python_docstrings_removed": 4,
       "tool_descriptions_retained": 0,
       "upstream_modified": true
+    },
+    {
+      "path": "tests/test_trap_anchors.py",
+      "source_sha256": null,
+      "upstream_modified": true,
+      "export_sha256": "ee3099154e7ce20028628a9a53ad559cdac3e6d38a886b36d9717c9c12ad83df",
+      "bytes": 1372
     },
     {
       "path": "tests/test_vault.py",
@@ -2197,8 +2204,8 @@
     {
       "path": "tools/trap_efficacy.py",
       "source_sha256": "36190578630e1c379ead3a473aca367ec58a41ab0f4240ae24780108063f08bc",
-      "export_sha256": "d22d1076a63655e629f4538a0587a0e6ca03d58ac82fafa0f13a98c3776083ba",
-      "bytes": 33727,
+      "export_sha256": "f48d7087cab43fd41aea73a7d76740df9de2260f06832296115b4ccf2c56ada6",
+      "bytes": 34687,
       "python_comments_removed": 81,
       "python_docstrings_removed": 6,
       "tool_descriptions_retained": 0,
@@ -2207,8 +2214,8 @@
     {
       "path": "tools/trap_map.py",
       "source_sha256": "62cccdc8a61b0a1befafe8c4e68e4f65133900206c9adebaed5b1034947389cd",
-      "export_sha256": "86a3f5637d332b2840d069ea0e827b2fa49ae9c2eb92ab0d5a417dcee0263d74",
-      "bytes": 10632,
+      "export_sha256": "cea60cf7d3682d268bb4c05a539ad7e2a5c6b63616bd48605ff72b1792b7cacc",
+      "bytes": 11122,
       "python_comments_removed": 2,
       "python_docstrings_removed": 8,
       "tool_descriptions_retained": 0,
@@ -2265,7 +2272,7 @@
       "upstream_modified": true
     }
   ],
-  "file_count": 262,
+  "file_count": 263,
   "excluded": [
     "git-history",
     "operator-registries",
