@@ -264,15 +264,15 @@ MUTATIONS: list[dict] = [
     # guard reports MISSED against a degradation that is still reachable.
     {"trap": "T18", "subject": "source", "file": "agent/providers.py",
      "edits": [('    search = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)\n'
-                '              if os.environ.get("OBSERVATORY_KEY_FILE") else KEY_FILES)',
+                '              if os.environ.get("OBSERVATORY_KEY_FILE") else _with_local(KEY_FILES, ".openrouter-key"))',
                 "    search = KEY_FILES"),
                # The anchor moved when the search order was reversed so a
                # project's own key could win; the registry's own
                # staleness check caught it in the same gate run.
                ('KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)\n'
                 '             if os.environ.get("OBSERVATORY_KEY_FILE") else\n'
-                '             (paths.STORE / ".openrouter-key",',
-                'KEY_FILES = ((paths.STORE / ".openrouter-key",')],
+                '             (paths.STATE / ".openrouter-key",',
+                'KEY_FILES = ((paths.STATE / ".openrouter-key",')],
      "why": "a machine-wide export made 'no credential' a state no test could "
             "reach, so a degradation nobody had watched work"},
     {"trap": "T28", "subject": "source", "file": "tools/audit_vault_links.py",

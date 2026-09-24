@@ -46,7 +46,7 @@ import paths
 #: consumer -> (file, what reads it). Enumerated, because a fourth consumer must
 #: be a deliberate line here rather than a guess at install time.
 DESTINATIONS: dict[str, tuple[pathlib.Path, str]] = {
-    "observatory": (paths.STORE / ".openrouter-key",
+    "observatory": (paths.STATE / ".openrouter-key",
                     "the tick's agent and indexer (`./observatory.py key` shows "
                     "what the SCHEDULED run resolves)"),
     "claude-mem": (paths.source_path("companion_home", paths.HOME / "disabled/companion") / ".env",
@@ -123,6 +123,16 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--for", dest="consumer", choices=sorted(DESTINATIONS),
                     help="which consumer reads this key (inference keys only)")
     a = ap.parse_args(argv[1:])
+    if a.consumer == "observatory":
+        # PB-091: the key lives in the selected state. A copy still in the legacy
+        # store would make the next read refuse (two keys, no silent choice), so
+        # the installer refuses first and names both files — before it reads the
+        # key or asks the provider anything.
+        legacy = [p for p in paths.key_locations(".openrouter-key")[1:] if p.exists()]
+        if legacy:
+            die(f"a key already sits at the legacy location {legacy[0]}; the selected state "
+                f"is {paths.STATE}. Remove the legacy file (after checking it is not the only "
+                f"copy you have), then install again.")
 
     if sys.stdin.isatty():
         die("the key must arrive on stdin, never in an argument — an argument "

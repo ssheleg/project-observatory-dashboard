@@ -51,7 +51,10 @@ MAX_PAGES = 12
 #: machine; `tools/install_key.py` owns the first three and the gateway's
 #: `servers.yaml` the fourth.
 DESTINATIONS = {
-    "observatory": paths.STORE / ".openrouter-key",
+    "observatory": paths.STATE / ".openrouter-key",
+    # The legacy location, when the state is redirected (PB-091): a key left there
+    # is still a key on this machine and must be seen.
+    **({"observatory-legacy": paths.STORE / ".openrouter-key"} if paths.STATE != paths.STORE else {}),
     "claude-mem": paths.source_path("companion_home", paths.HOME / "disabled/companion") / ".env",
     "gateway": paths.source_path("secret_store", paths.SECRETS) / 'openrouter',
     "provisioning": paths.source_path("secret_store", paths.SECRETS) / 'openrouter-provisioning',
