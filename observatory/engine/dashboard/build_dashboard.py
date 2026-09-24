@@ -2403,18 +2403,45 @@ document.addEventListener("click", ev => {
   credAction(btn, c);
 });
 
-async function call(action, body) {
-  const r = await fetch("/api/" + action, {
-    method: "POST",
-    // The token authorises the call; the caller header names which page made
-    // it, for the server's own journal.
-    headers: {"Content-Type": "application/json", "X-Observatory-Token": TOKEN,
-              "X-Observatory-Caller": "page:" + (document.body.dataset.page || "index")},
-    body: JSON.stringify(body),
-  });
-  const d = await r.json().catch(() => ({error: "unreadable answer"}));
-  if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-  return d;
+// THREE OUTCOMES, not two (PB-038). A refusal the server explained is
+// definite: nothing happened, and trying again is safe. A timeout, a dropped
+// connection, an unreadable answer to success, or a server fault after the
+// action began is UNCERTAIN: the provider may already have revoked or minted,
+// and "failed" would invite a second mint. Only the first may say "не вышло".
+class Uncertain extends Error {}
+const CALL_TIMEOUT_MS = 60000;
+async function call(action, body, ms = CALL_TIMEOUT_MS) {
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+  let r;
+  try {
+    r = await fetch("/api/" + action, {
+      method: "POST",
+      // The token authorises the call; the caller header names which page made
+      // it, for the server's own journal (a label, never an authority:
+      // docs/design/ACCESS.md).
+      headers: {"Content-Type": "application/json", "X-Observatory-Token": TOKEN,
+                "X-Observatory-Caller": "page:" + (document.body.dataset.page || "index")},
+      body: JSON.stringify(body),
+      signal: ctl ? ctl.signal : undefined,
+    });
+  } catch (_) {
+    throw new Uncertain(ctl && ctl.signal.aborted ? `нет ответа за ${Math.round(ms / 1000)} с`
+                                                  : "соединение оборвалось");
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  let d = null;
+  try { d = await r.json(); } catch (_) { d = null; }
+  if (r.ok) {
+    if (!d) throw new Uncertain("ответ пришёл, но не читается");
+    return d;
+  }
+  const said = (d && d.error) || ("HTTP " + r.status);
+  // 502 is the provider's own refusal, relayed; any other 5xx is a fault that
+  // may have struck after the action took effect.
+  if (r.status >= 500 && r.status !== 502) throw new Uncertain(said);
+  throw new Error(said);
 }
 
 // One credential action: confirm what cannot be undone, ask for what the
@@ -2479,8 +2506,18 @@ function credAction(btn, c) {
                        : act === "mint" ? `выпущен и доставлен в ${d.destination}`
                        : `потолок ${d.limit}/мес`);
                  btn.textContent = "готово · пересканируйте"; })
-    .catch(e => { btn.disabled = false; btn.textContent = "не вышло";
-                  toast(String(e.message).slice(0, 120)); });
+    .catch(e => {
+      if (e instanceof Uncertain) {
+        // Kept disabled: repeating an action whose first attempt may have
+        // landed is how one mint becomes two. A rescan says what happened.
+        btn.textContent = "исход неизвестен · проверьте";
+        btn.title = "Исход неизвестен: " + e.message;
+        toast(("исход неизвестен (" + e.message + ") — пересканируйте и проверьте, прежде чем повторять").slice(0, 160));
+        return;
+      }
+      btn.disabled = false; btn.textContent = "не вышло";
+      toast(String(e.message).slice(0, 120));
+    });
 }
 
 // A finding's subject becomes a link to the row it is about, on the page
@@ -2793,7 +2830,7 @@ function envReveal(btn, e, show) {
     })
     .catch(err => {
       cell.innerHTML = envActions(e);
-      toast(String(err.message).slice(0, 140));
+      toast(((err instanceof Uncertain ? "исход неизвестен: " : "") + String(err.message)).slice(0, 140));
     });
 }
 
