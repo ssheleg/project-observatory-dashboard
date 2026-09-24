@@ -92,16 +92,49 @@ def sightings(doc: dict | None) -> list[dict]:
     return out
 
 
+def suppression(doc: dict | None) -> list[dict]:
+    """Sightings the operator accepted, and suppressions that stopped applying (PB-032)."""
+    out = []
+    gone = (doc or {}).get("suppressed") or []
+    if gone:
+        soonest = min(g["expires_on"] for g in gone)
+        out.append({
+            "type": "secret.sighting_suppressed", "subject": "estate:leak-suppressions",
+            "severity": "info",
+            "title": f"{len(gone)} sighting(s) suppressed by a recorded decision",
+            "detail": ("Still seen, not reported as leaks, because a suppression with a reason "
+                       "covers them: " + "; ".join(f"{g['secret']} in {_where(g['where'])} — {g['reason']}"
+                                                  for g in gone[:LISTED])
+                       + f". The first suppression expires on {soonest}."),
+            "action": "renew a suppression only if its reason still holds; otherwise let it expire",
+        })
+    bad = (doc or {}).get("suppression_problems") or []
+    if bad:
+        out.append({
+            "type": "secret.suppression_not_applied", "subject": "estate:leak-suppressions",
+            "severity": "warning",
+            "title": f"{len(bad)} suppression rule(s) not applied",
+            "detail": "; ".join(f"rule {b.get('rule')}: {b['problem']}" for b in bad[:LISTED]),
+            "action": "fix or remove the rule in config/leak_suppressions.json; an expired one "
+                      "means its sightings are reported again",
+        })
+    return out
+
+
 def unscanned(doc: dict | None) -> list[dict]:
     """What the scanner could not read. Absent is not clean."""
     notes = (doc or {}).get("not_scanned") or []
     if not notes:
         return []
+    unreadable = [n for n in notes if n.get("unreadable")]
     return [{
         "type": "secret.leak_scan_blind",
         "subject": "estate:leak-scan-coverage",
-        "severity": "info",
-        "title": f"the leak scan did not read {len(notes)} source(s)",
+        # A file that could not be opened is a hole in the measurement, not a
+        # choice of window: warning, not info.
+        "severity": "warning" if unreadable else "info",
+        "title": (f"the leak scan could not read {len(unreadable)} source(s)" if unreadable else
+                  f"the leak scan did not read {len(notes)} source(s)"),
         "detail": ("A clean scan is only as wide as what it opened: "
                    + "; ".join(f"{n['what']} — {n['why']}" for n in notes[:LISTED])
                    + "."),
@@ -125,4 +158,4 @@ def findings(doc: dict | None) -> list[dict]:
                        "whole point of saying so."),
             "action": "./observatory.py env, then ./observatory.py leaks",
         }]
-    return sightings(doc) + unscanned(doc)
+    return sightings(doc) + suppression(doc) + unscanned(doc)

@@ -3,6 +3,20 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.11 — 2026-09-24
+
+### Fixed
+
+- The leak scan counted a file it could not open as read and clean. An unreadable file, a transcript
+  whose `stat` failed, and an engine that isn't a git checkout are now listed as unread, and an
+  unreadable file raises a warning. The report gains a `coverage` block.
+
+### Added
+
+- Leak suppressions with a reason and an expiry (`config/leak_suppressions.json`). A suppressed
+  sighting is still shown along with its reason. An expired or incomplete rule is not applied and is
+  reported.
+
 ## 0.3.10 — 2026-09-24
 
 ### Fixed

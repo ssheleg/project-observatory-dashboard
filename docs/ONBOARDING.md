@@ -149,6 +149,13 @@ Known-value scanning finds occurrences of values already known locally. It
 cannot prove the absence of unknown, encoded or previously deleted values.
 Rotation changes the local slot; provider revocation is a separate action.
 
+A file the scan could not open is listed as unread and raises a warning. It is never counted as
+clean. When a sighting is known and accepted, for example a synthetic value a fixture prints on
+purpose, record the decision in `config/leak_suppressions.json`:
+`{"suppressions": [{"secret": "<project>/<NAME>", "where": "<part of the path>", "reason": "…", "expires_on": "YYYY-MM-DD"}]}`.
+A suppressed sighting is still shown along with its reason. A rule without a reason or an expiry date
+is not applied, and neither is an expired one; both are reported.
+
 With `companion_remediation` enabled, each tick replaces known values in the memory companion's
 stores with `[REDACTED:<name>]`, after taking a backup of each store it changes. The first pass reads
 every row; later ticks read only rows added since, per table, and record where they stopped in

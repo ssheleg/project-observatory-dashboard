@@ -190,15 +190,19 @@ def targets(days: int) -> tuple[list[pathlib.Path], list[dict]]:
     notes: list[dict] = []
     cutoff = datetime.now(timezone.utc).timestamp() - days * 86400
     if SESSIONS.is_dir():
-        old = 0
+        old = unstatable = 0
         for p in SESSIONS.rglob("*.jsonl"):
             try:
                 if p.stat().st_mtime < cutoff:
                     old += 1
                     continue
             except OSError:
+                unstatable += 1
                 continue
             out.append(p)
+        if unstatable:
+            notes.append({"what": f"{unstatable} session transcript(s)", "unreadable": True,
+                          "why": "could not be examined (stat failed); a transcript not read is not a clean one"})
         if old:
             notes.append({"what": f"{old} session transcript(s)",
                           "why": f"older than {days} days; `--days N` widens the "
@@ -211,6 +215,11 @@ def targets(days: int) -> tuple[list[pathlib.Path], list[dict]]:
     try:
         tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
                                  text=True, timeout=60)
+        if tracked.returncode != 0:
+            # An installed engine is not a git checkout. Its files cannot hold
+            # this machine's values, but "not scanned" is still said, not implied.
+            notes.append({"what": "the engine's tracked tree",
+                          "why": "the engine directory is not a git checkout (an installed package)"})
         for rel in tracked.stdout.splitlines():
             p = ROOT / rel
             if p.is_file():
@@ -309,14 +318,66 @@ def scan_sqlite(db: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
     return hits, None, high, read
 
 
+#: The operator's decisions that a sighting is known and accepted, each with a
+#: reason and an expiry (PB-032). Optional; absent means nothing is suppressed.
+SUPPRESSIONS = paths.config_file("leak_suppressions.json")
+
+
+def load_suppressions(path: pathlib.Path, today) -> tuple[list[dict], list[dict]]:
+    """(rules in force, problems). A rule needs `secret`, `where`, `reason` and
+    `expires_on` (YYYY-MM-DD). An expired or incomplete rule is never applied;
+    it is reported, so a suppression cannot outlive the decision behind it."""
+    if not path.is_file():
+        return [], []
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return [], [{"rule": None, "problem": f"leak_suppressions.json is unreadable ({type(exc).__name__})"}]
+    rules, problems = [], []
+    for i, r in enumerate((doc or {}).get("suppressions") or []):
+        missing = [k for k in ("secret", "where", "reason", "expires_on")
+                   if not str((r or {}).get(k) or "").strip()]
+        if missing:
+            problems.append({"rule": i, "problem": f"missing {', '.join(missing)}; not applied"})
+            continue
+        try:
+            until = datetime.strptime(r["expires_on"], "%Y-%m-%d").date()
+        except ValueError:
+            problems.append({"rule": i, "problem": "expires_on is not YYYY-MM-DD; not applied"})
+            continue
+        if until < today:
+            problems.append({"rule": i, "secret": r["secret"], "problem": f"expired on {r['expires_on']}; not applied"})
+            continue
+        rules.append(r)
+    return rules, problems
+
+
+def apply_suppressions(rows: list[dict], rules: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(sightings still reported, sightings suppressed with their reason).
+    `where` matches as a substring of the sighting's place."""
+    kept, gone = [], []
+    for row in rows:
+        rule = next((r for r in rules if r["secret"] == row["secret"] and r["where"] in row["where"]), None)
+        if rule:
+            gone.append({**row, "reason": rule["reason"], "expires_on": rule["expires_on"]})
+        else:
+            kept.append(row)
+    return kept, gone
+
+
 def scan_file(path: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, str],
-              start: int, longest: int) -> tuple[dict[str, int], int]:
-    """Occurrences by secret name, and the offset reached."""
+              start: int, longest: int) -> tuple[dict[str, int], int, str | None]:
+    """Occurrences by secret name, the offset reached, and why it could not be read.
+
+    PERMISSION DENIED IS NOT CLEAN (PB-032). A file this process may not open
+    used to return no hits, and the report counted it among the targets it had
+    read. The reason now comes back, and the caller lists the file as unread.
+    """
     hits: dict[str, int] = {}
     try:
         size = path.stat().st_size
-    except OSError:
-        return hits, start
+    except OSError as exc:
+        return hits, start, type(exc).__name__
     if size < start:
         # TRUNCATED OR REPLACED. A log that rotated is a new file under an old
         # name, and resuming at the old offset would skip its whole beginning.
@@ -340,9 +401,9 @@ def scan_file(path: pathlib.Path, pattern: list[bytes], by_value: dict[bytes, st
                 keep = min(longest, len(buf))
                 carry = buf[len(buf) - keep:]
                 pos += len(chunk)
-    except OSError:
-        return hits, start
-    return hits, size
+    except OSError as exc:
+        return hits, start, type(exc).__name__
+    return hits, size, None
 
 
 def main(argv: list[str]) -> int:
@@ -385,6 +446,7 @@ def main(argv: list[str]) -> int:
             state = {}
 
     files, notes = targets(a.days)
+    unreadable: list[dict] = []
     hits: dict[tuple[str, str], int] = {}
     read_bytes = 0
     for p in files:
@@ -392,7 +454,11 @@ def main(argv: list[str]) -> int:
         if key in home_paths:
             continue
         start = int(state.get(key, 0))
-        found, reached = scan_file(p, pattern, by_value, start, longest)
+        found, reached, problem = scan_file(p, pattern, by_value, start, longest)
+        if problem:
+            unreadable.append({"what": key, "why": f"could not be read ({problem}); not counted as clean",
+                               "unreadable": True})
+            continue
         read_bytes += max(0, reached - start)
         state[key] = reached
         for name, n in found.items():
@@ -420,6 +486,9 @@ def main(argv: list[str]) -> int:
                               **({"sqlite": new_mark} if new_mark else {})})
     rows = [{"secret": name, "where": where, "occurrences": n}
             for (name, where), n in sorted(hits.items(), key=lambda kv: -kv[1])]
+    rules, rule_problems = load_suppressions(SUPPRESSIONS, datetime.now(timezone.utc).date())
+    rows, suppressed = apply_suppressions(rows, rules)
+    notes = notes + unreadable
     atomic.write_json(OUT, {
         "scanned_at": now,
         "known": len(values),
@@ -427,6 +496,11 @@ def main(argv: list[str]) -> int:
         "read_bytes": read_bytes,
         "incremental": not a.full,
         "hits": rows,
+        "suppressed": suppressed,
+        "suppression_problems": rule_problems,
+        "coverage": {"known_values": len(values), "targets": len(files),
+                     "targets_unreadable": len(unreadable), "read_bytes": read_bytes,
+                     "window_days": a.days, "companion_store": companion["mode"] if companion["read"] else "unread"},
         "skipped": skipped,
         "not_scanned": notes,
         "companion_store": companion,
