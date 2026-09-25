@@ -3,6 +3,11 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## Unreleased
+
+- Leak suppression is tied to the exact location and value version. Rotated values and similarly named files stay visible; old unversioned rules need an explicit update. Invalid JSON structures produce a warning instead of aborting the scan.
+- A changed value set or expired/changed suppression rechecks earlier content on incremental scans, so old offsets cannot hide newly relevant evidence.
+
 ## 0.3.11 — 2026-09-24
 
 ### Fixed
