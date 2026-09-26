@@ -72,3 +72,31 @@ Fabric schema identifiers were deliberately not rewritten.
 
 The exact next task for another agent is item 1 if it is still open; each later item's result is
 recorded in the release receipt appended below.
+
+## Release and installation receipt (2026-09-26, appended after merge)
+
+- PR #64 squash-merged as `6beae9e3872ef1b5221ef18072e1cbc25284dad0` after all six required jobs
+  passed on `48c1801` (Linux 3.11, Linux 3.14, macOS 3.14; push and pull-request runs). Two CI
+  failures on the way were real and fixed in the PR: a Python-3.12-only f-string, and the history
+  gate rejecting the first render of each screenshot (both renders are now pinned as reviewed).
+- `demo_estate.py` was found reading the invoking user's workspace (`OBSERVATORY_HOME` unset);
+  fixed before merge with `tests/test_demo_estate.py`. The fictional ids matched nothing there,
+  so no screenshot carried private data; all screenshots were re-rendered from the isolated demo.
+- Tag `v0.4.0` → `6beae9e`; [release](https://github.com/passioncode-ai/project-observatory-dashboard/releases/tag/v0.4.0)
+  with `project_observatory-0.4.0-py3-none-any.whl` (SHA-256
+  `5fab00a2cb266ec9e38050b9a5d9111d005236c573d056a421a270144c7698a3`, built from a fresh anonymous
+  clone of the merge commit; `check_package.py` 285 runtime / 291 archive files, 0 failures) and
+  `SHA256SUMS`. The wheel fetched anonymously from the release matched `SHA256SUMS`; `releases/latest` answers `v0.4.0`.
+- Operator installation: tick and server jobs booted out; `full workspace-backup --writers-stopped`
+  (snapshot, 147 files); wheel installed with the lock file; `full upgrade --apply --writers-stopped`
+  (its own pre-upgrade snapshot); `full configure interface locale ru`; `full open --rebuild`; jobs
+  bootstrapped; `full agent install` moved the marketplace to `passioncode-ai/...`, plugin 0.11.2,
+  no status problems. Observed: `/health` version 0.4.0, served pages `lang="ru"`, `full doctor`
+  `interface.locale = ru` and tick `ok`, the session-start line in Russian.
+- passioncode.ai: PR [#4](https://github.com/passioncode-ai/passioncode-ai.github.io/pull/4) merged as
+  `c277b7b`; `npm run check` and `npm run build` PASS on merged `main`.
+
+**Still open:** deploy `site/` (Cloudflare Pages `project-observatory`) and passioncode.ai (Worker
+`passioncode-ai`). Both need an authenticated Wrangler session on this machine (`npx wrangler login`,
+a human browser step); the deploy commands are in `docs/site/DEPLOY.md` and the site repository's
+`docs/DEPLOYMENT.md`. Then verify the served bytes and record the deployment ids here.
