@@ -1,6 +1,10 @@
 # Dashboard workspace redesign — 2026-09-26
 
-Status: implementation brief. Operator requests a complete review and update of
+Status: implementation and browser review complete; final gates, integration,
+release and installed verification pending. See the
+[audit receipt](audits/2026-09-26-workspace-redesign.md) and
+[delivery entry](../runs/2026-09-26-workspace-redesign/README.md).
+Operator requests a complete review and update of
 all ten dashboard screens, rejecting collapsed project groups that hide records.
 Scope includes navigation, lists/detail, filters, action wording and empty states.
 Public marketing and the compatibility CLI remain separate surfaces.
@@ -23,8 +27,8 @@ visible before disclosure; search/selection adjacent to data; full detail withou
 losing list position. Calibration: variance 4, motion 1, density 7 (comparable
 rows, not ten long inventories per row). No decorative motion.
 
-Design artifact: working browser preview. No separate Figma delivery. Reference
-tool discovery found no callable Refero/Mobbin/Lazyweb; no research claim follows.
+Design artifact: working browser preview. No separate design-file delivery.
+No external reference-library research was performed; no research claim follows.
 Workbench owns colors/type; the layout and behavior below are project decisions.
 
 ## Alternatives before implementation
@@ -74,6 +78,11 @@ health. Long metadata may be disclosed; primary identities may not be concealed.
 | UI-08 | Keyboard/narrow/theme paths | Browser and scoped semantic/contrast checks |
 | UI-09 | Durable source and handoff | Local gates, pushed branch, private operational receipt |
 
+UI-01–08 source/test/browser evidence and its limits are recorded in the
+[audit](audits/2026-09-26-workspace-redesign.md#findings-and-disposition).
+UI-09 final check, commit, remote, release and installed receipts remain
+[pending](../runs/2026-09-26-workspace-redesign/README.md#delivery-status-and-next-task).
+
 Sequence: shell/style; lists/detail; overview/findings/health; action/metric
 corrections; regressions/browser critique; inventory/privacy/package gates;
 protected-main integration and reviewed release before installed update.
@@ -85,6 +94,7 @@ The actual skills applied are ux-flows/scenarios/audit, sheleg-design, copywriti
 accessibility-review, task-pipeline and evidence-docs. Model inherited; three
 read-only audit batches per ux-audit's large-scope rule, converged into this brief.
 
-Resume at UI-01/shared shell; final handoff must account for every requirement.
+Resume at the delivery entry's full-gate investigation and release sequence;
+do not reopen the accepted composition without new evidence or operator steering.
 Real registries, generated private pages, screenshots and local paths stay outside
 the public repository. A pushed branch is not an installed update.

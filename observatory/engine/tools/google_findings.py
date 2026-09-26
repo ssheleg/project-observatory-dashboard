@@ -43,15 +43,23 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
     unclaimed = [p for p in props if p.get("standing") == "unclaimed"]
     if unclaimed:
         unclaimed.sort(key=lambda p: -(p.get("users_30d") or 0))
-        users = sum(p.get("users_30d") or 0 for p in unclaimed)
-        named = _listed([f"{p['name']} ({(p.get('users_30d') or 0):,})" for p in unclaimed])
+        measured = [p for p in unclaimed if not p.get("error") and p.get("users_30d") is not None]
+        unknown = len(unclaimed) - len(measured)
+        users = sum(p["users_30d"] for p in measured)
+        traffic = f"{users:,} summed user(s) in 30 days" if measured else "unknown traffic"
+        if unknown:
+            traffic += f" ({unknown} unmeasured)"
+        named = _listed([f"{p['name']} (" +
+                         (f"{p['users_30d']:,}" if p in measured else "unknown") + ")"
+                         for p in unclaimed])
         out.append({
             "type": "analytics.property_unclaimed",
             "subject": "estate:analytics",
             "severity": "info",
             "title": (f"{len(unclaimed)} analytics propert{'y' if len(unclaimed) == 1 else 'ies'} "
-                      f"carrying {users:,} user(s) in 30 days belong to no project here"),
-            "detail": (f"Worst first: {named}. A property is joined to a project by what "
+                      f"with {traffic} belong to no project here"),
+            "detail": (f"Measured traffic first: {named}. User counts are sums across properties, "
+                       f"not distinct people across products. A property is joined to a project by what "
                        f"it declares about itself — a web stream's host through the "
                        f"registry, an app stream's bundle id, its own name — and these "
                        f"matched none. By the operator's estate rule that means somebody "
@@ -70,11 +78,11 @@ def findings(doc: dict | None, today: str = "") -> list[dict]:
             "type": "analytics.property_unreadable",
             "subject": "estate:analytics",
             "severity": "warning",
-            "title": f"{len(broken)} analytics propert{'y' if len(broken) == 1 else 'ies'} would not report",
+            "title": f"{len(broken)} analytics propert{'y' if len(broken) == 1 else 'ies'} have unknown traffic",
             "detail": (f"{_listed(sorted(broken))}. Their traffic is unknown here, which "
                        f"is not the same as zero — nothing on this board should be read "
                        f"as saying they are quiet."),
-            "action": "check the service account's access to them in the Analytics admin",
+            "action": "check service account access and any conflicting observations for the same property",
         })
 
     # ── a credential that cannot reach a surface at all ─────────────────────

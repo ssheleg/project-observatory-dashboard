@@ -93,6 +93,9 @@ function el(id) {
     offsetHeight: 56, offsetParent: {},
     setAttribute() {}, getAttribute: () => null, addEventListener() {},
     querySelector: () => el("q"), querySelectorAll: () => [],
+    // Findings removes a stale empty-state notice after clearing filters.
+    // Real elements provide remove(); omitting it reports a harness defect.
+    remove() {},
     closest: () => null, previousElementSibling: el ? null : null,
   };
   made.push(node);

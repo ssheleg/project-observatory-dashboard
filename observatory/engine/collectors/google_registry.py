@@ -119,6 +119,139 @@ def match(prop: dict, declared: dict, host_owner, names: dict[str, str]) -> tupl
     return None, "", ""
 
 
+_METRICS = ("users_30d", "sessions_30d", "views_30d")
+
+
+def _sources(observations: list[dict]) -> list[str]:
+    return sorted({source for row in observations
+                   for source in [row.get("read_with"), *(row.get("read_with_all") or [])]
+                   if isinstance(source, str) and source})
+
+
+def canonical_properties(observations: list[dict]) -> list[dict]:
+    """One resource, one metric observation; credentials are access provenance.
+
+    No timestamps per observation exist, so this never claims a latest reading.
+    Conflicting successful measurements become unknown, with explicit evidence.
+    Missing identities remain separate; a shared display name proves nothing.
+    """
+    import json
+    groups: dict[str, list[dict]] = {}
+    for index, row in enumerate(observations):
+        identity = row.get("property")
+        if not identity and str(row.get("id", "")).startswith("ga4:"):
+            identity = "properties/" + row["id"].split(":", 1)[1]
+        groups.setdefault(identity or f"missing-identity:{index}", []).append(row)
+    result = []
+    for group in groups.values():
+        # A stable tie-break makes source enumeration order irrelevant. More
+        # complete successful data wins over absent/error observations.
+        ordered = sorted(group, key=lambda row: (
+            bool(row.get("error")),
+            -sum(row.get(field) is not None for field in _METRICS),
+            json.dumps(row, sort_keys=True, ensure_ascii=True)))
+        chosen = dict(ordered[0])
+        successful = [row for row in group if not row.get("error")]
+        conflicts = sorted({field for row in group for field in row.get("observation_conflicts", [])}
+                           | {field for field in (*_METRICS, "account", "project")
+                              if len({json.dumps(row[field], sort_keys=True)
+                                      for row in successful if row.get(field) is not None}) > 1})
+        chosen["read_with_all"] = _sources(group)
+        chosen["observation_count"] = sum(row.get("observation_count", 1) for row in group)
+        for field in ("hosts", "app_ids"):
+            chosen[field] = sorted({value for row in group for value in row.get(field, []) or []})
+        if conflicts:
+            chosen["observation_conflicts"] = conflicts
+            chosen["error"] = "conflicting observations for the same Google Analytics property"
+            for field in _METRICS:
+                chosen[field] = None
+            if "project" in conflicts:
+                chosen.update(project=None, standing="unclaimed", link_rule=None,
+                              link_evidence=None, unlinked_reason="conflicting project associations")
+            if "account" in conflicts:
+                chosen.update(account=None, account_name=None)
+        result.append(chosen)
+    return result
+
+
+def canonical_accounts(observations: list[dict]) -> list[dict]:
+    """Account identity, not name or credential, determines the inventory count."""
+    import json
+    groups: dict[str, list[dict]] = {}
+    for index, row in enumerate(observations):
+        groups.setdefault(row.get("account") or f"missing-identity:{index}", []).append(row)
+    return [{**sorted(group, key=lambda row: json.dumps(row, sort_keys=True))[0],
+             "read_with_all": _sources(group)} for group in groups.values()]
+
+
+def _measured(row: dict) -> bool:
+    import math
+    value = row.get("users_30d")
+    return (not row.get("error") and isinstance(value, (int, float))
+            and not isinstance(value, bool) and math.isfinite(value))
+
+
+def _user_sum(rows: list[dict]) -> int | float | None:
+    measured = [row["users_30d"] for row in rows if _measured(row)]
+    return sum(measured) if measured else None
+
+
+def project_traffic(properties: list[dict]) -> dict[str, dict]:
+    """Canonical per-project metric sums with explicit observation coverage.
+
+    These are sums across properties, never deduplicated people. Search Console
+    links may still be attached to each project by the dashboard afterwards.
+    """
+    result: dict[str, dict] = {}
+    for prop in canonical_properties(properties):
+        if not prop.get("project"):
+            continue
+        row = result.setdefault(prop["project"], {"users_30d": None, "properties": [],
+                                                 "measured_properties": 0, "unknown_properties": 0})
+        measured = _measured(prop)
+        if measured:
+            row["users_30d"] = (row["users_30d"] or 0) + prop["users_30d"]
+            row["measured_properties"] += 1
+        else:
+            row["unknown_properties"] += 1
+        row["properties"].append({"name": prop.get("name"),
+                                  "users_30d": prop.get("users_30d") if measured else None,
+                                  "sessions_30d": prop.get("sessions_30d") if measured else None,
+                                  "report_url": prop.get("report_url"),
+                                  "admin_url": prop.get("admin_url"),
+                                  "hosts": prop.get("hosts") or [],
+                                  "rule": prop.get("link_rule"),
+                                  **({"error": prop["error"]} if prop.get("error") else {})})
+    return result
+
+
+def normalize_document(doc: dict) -> dict:
+    """Normalize cached registry metadata too, without provider access or writes."""
+    props = canonical_properties(doc.get("properties") or [])
+    accounts = canonical_accounts(doc.get("accounts") or [])
+    totals = dict(doc.get("totals") or {})
+    totals.update(
+        properties=len(props), accounts=len(accounts),
+        linked_to_a_project=sum(bool(row.get("project")) for row in props),
+        outside_the_estate=sum(row.get("standing") == "outside" for row in props),
+        unclaimed=sum(row.get("standing") == "unclaimed" for row in props),
+        users_30d_unclaimed=_user_sum([row for row in props if row.get("standing") == "unclaimed"]),
+        users_30d=_user_sum(props),
+        measured_properties=sum(_measured(row) for row in props),
+        unknown_properties=sum(not _measured(row) for row in props),
+        by_rule={rule: sum(row.get("link_rule") == rule for row in props)
+                 for rule in sorted({row.get("link_rule") for row in props if row.get("link_rule")})})
+    degraded = list(doc.get("degraded") or [])
+    for row in props:
+        if row.get("observation_conflicts"):
+            issue = {"source": "ga4 " + str(row.get("property") or row.get("id") or "unknown"),
+                     "reason": "conflicting observations: " + ", ".join(row["observation_conflicts"]),
+                     "effect": "traffic is unknown; duplicate readings are never summed"}
+            if issue not in degraded:
+                degraded.append(issue)
+    return {**doc, "properties": props, "accounts": accounts, "totals": totals, "degraded": degraded}
+
+
 def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[dict]:
     """One row per property. `hostmap.build()` reads the registry itself, which
     is why this takes the project list only: the host join is the estate's, not
@@ -138,7 +271,7 @@ def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[
             names.setdefault(_norm(pathlib.Path(f).name), p["id"])
     urls = consoles()
     out = []
-    for prop in scan.get("properties") or []:
+    for prop in canonical_properties(scan.get("properties") or []):
         pid = (prop.get("property") or "").split("/")[-1]
         aid = (prop.get("account") or "").split("/")[-1]
         project, rule, why = match(prop, declared, owner_of, names)
@@ -177,6 +310,9 @@ def rows(scan: dict, projects: list[dict], declared_path: pathlib.Path) -> list[
             "report_url": _fill(urls["ga4_report"], pid=pid),
             "admin_url": _fill(urls["ga4_admin"], aid=aid, pid=pid) if aid else None,
             "read_with": prop.get("read_with"),
+            "read_with_all": prop.get("read_with_all") or [],
+            "observation_count": prop.get("observation_count", 1),
+            **({"observation_conflicts": prop["observation_conflicts"]} if prop.get("observation_conflicts") else {}),
             **({"error": prop["error"]} if prop.get("error") else {}),
         })
     out.sort(key=lambda r: (-(r.get("users_30d") or 0), r["name"] or ""))
@@ -192,7 +328,7 @@ def document(scan: dict, prop_rows: list[dict], obs_date: str) -> dict:
     creds = [{**c, "console_url": _fill(urls["cloud_project"], project=c.get("cloud_project"))}
              for c in scan.get("credentials") or []]
     linked = [r for r in prop_rows if r["project"]]
-    return {
+    return normalize_document({
         "schema_version": 1,
         "updated_on": obs_date,
         "note": ("Every Google Analytics property this machine's service accounts "
@@ -226,4 +362,4 @@ def document(scan: dict, prop_rows: list[dict], obs_date: str) -> dict:
         "properties": prop_rows,
         "search_console": sites,
         "degraded": scan.get("degraded") or [],
-    }
+    })

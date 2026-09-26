@@ -619,18 +619,10 @@ def build():
     # fact about a project and belongs beside the project.
     _gf = paths.REGISTRY / "google-properties.json"
     GOOGLE = json.loads(_gf.read_text(encoding="utf-8")) if _gf.is_file() else None
-    TRAFFIC = {}
-    for _p in (GOOGLE or {}).get("properties", []):
-        if not _p.get("project"):
-            continue
-        row = TRAFFIC.setdefault(_p["project"], {"users_30d": 0, "properties": []})
-        row["users_30d"] += _p.get("users_30d") or 0
-        row["properties"].append({"name": _p.get("name"), "users_30d": _p.get("users_30d"),
-                                  "sessions_30d": _p.get("sessions_30d"),
-                                  "report_url": _p.get("report_url"),
-                                  "admin_url": _p.get("admin_url"),
-                                  "hosts": _p.get("hosts") or [],
-                                  "rule": _p.get("link_rule")})
+    from collectors.google_registry import normalize_document, project_traffic
+    if GOOGLE is not None:
+        GOOGLE = normalize_document(GOOGLE)
+    TRAFFIC = project_traffic((GOOGLE or {}).get("properties", []))
     # SEARCH CONSOLE, JOINED THE SAME WAY: a site is a host, and a host already
     # resolves to a project through the registry — so the console link lands on
     # the project rather than on a list nobody opens.
@@ -645,7 +637,7 @@ def build():
         if _owner:
             _sc.setdefault(_owner, []).append({"site": _s.get("site"), "url": _s.get("console_url")})
     for _pid, _sites in _sc.items():
-        TRAFFIC.setdefault(_pid, {"users_30d": 0, "properties": []})["search_console"] = _sites
+        TRAFFIC.setdefault(_pid, {"users_30d": None, "properties": []})["search_console"] = _sites
 
     _rf = paths.REGISTRY / "remote-env.json"
     REMOTE = json.loads(_rf.read_text(encoding="utf-8")) if _rf.is_file() else None
@@ -1477,6 +1469,7 @@ __NAV__
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <section id="panel" class="card panel" role="dialog" aria-labelledby="panel-title" hidden></section>
 __CARDS__
+<div id="list-tools" class="list-tools"></div>
 <main id="out" aria-live="polite"></main>
 
 <footer>
@@ -1562,7 +1555,7 @@ document.addEventListener("keydown", ev => {
   if (ev.key !== "/" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
   const tag = (ev.target && ev.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") return;
-  const q = document.getElementById("q");
+  const q = PAGE === "findings" ? document.querySelector(".fq") : document.getElementById("q");
   if (q && q.offsetParent) { ev.preventDefault(); q.focus(); q.select(); }
 });
 
@@ -1654,7 +1647,7 @@ if (H.server_age_s != null) {
   else if (H.server_age_s < 90) {
     const up = H.server_uptime_s >= 3600
       ? Math.floor(H.server_uptime_s / 3600) + " ч" : Math.floor(H.server_uptime_s / 60) + " мин";
-    hb.push(["локальный сервер", `жив · порт ${H.server_port} · аптайм ${up}`]);
+    hb.push(["локальный сервер", `отвечал при измерении · порт ${H.server_port} · аптайм ${up}`]);
     if (H.server_at_risk != null)
       hb.push(["remote под риском", `${H.server_at_risk} чекаут(ов) с работой только на этом диске`]);
   } else hb.push(["локальный сервер", `МОЛЧИТ ${Math.floor(H.server_age_s / 60)} мин — store/logs/serverd.err`]);
@@ -1735,11 +1728,17 @@ fillOwners();
 const activeBy = { projects: new Set(), heroku: new Set(), domains: new Set(),
                    creds: new Set(), env: new Set(), mcp: new Set(),
                    traffic: new Set() };
-let active = activeBy.projects;
+let active = activeBy[PAGE] || activeBy.projects;
 document.querySelectorAll(".chip-btn[data-f]").forEach(c => c.onclick = () => {
   const on = c.getAttribute("aria-pressed") === "true";
   c.setAttribute("aria-pressed", String(!on));
   on ? active.delete(c.dataset.f) : active.add(c.dataset.f);
+  const opposite = {heroku:"noheroku", noheroku:"heroku", note:"nonote", nonote:"note",
+                    "t-linked":"t-unclaimed", "t-unclaimed":"t-linked"}[c.dataset.f];
+  if (!on && opposite) {
+    active.delete(opposite);
+    document.querySelectorAll('.chip-btn[data-f="' + opposite + '"]').forEach(b => b.setAttribute("aria-pressed", "false"));
+  }
   render();
 });
 // Filters can arrive in the URL (`?f=drift`), so a tile can link to an
@@ -1991,68 +1990,28 @@ function bytes(n) {
 }
 
 function row(r) {
-  const siteChip = s => {
-    // Liveness chip: unmeasured, not resolving, or an HTTP error; a healthy
-    // site gets no chip at all.
-    if (!s.live) return chip("не измерено");
-    if (!s.live.resolves) return chip("не резолвится", "danger");
-    if (s.live.http >= 400 || s.live.http === 0) return chip("HTTP " + s.live.http, "warn");
-    return "";
-  };
-  const sites = r.sites.length ? `<div class="sites">` + r.sites.map(s =>
-      `<a href="https://${E(s.host)}" target="_blank" rel="noopener">${E(s.host)}</a>` +
-      chip(s.confidence === "registry-confirmed" ? "в реестре" : "вне реестра",
-           s.confidence === "registry-confirmed" ? "ok" : "warn") + siteChip(s)).join("") + `</div>`
-    : NONE;
-  const folders = r.folders.length
-    ? r.folders.map(f => `<span class="folder">${E(projectFile(f))}</span>`).join("")
-    : NONE;
-  const many = r.repos.length > 3;
-  const repos = r.repos.length
-    ? `<div class="repos${many ? " folded" : ""}">` +
-        r.repos.map(x => repoLine(x, r.rules || [])).join("") +
-      `</div>` + (many
-        ? `<button class="more" type="button">+${r.repos.length - 3} ещё</button>` : "")
-    : NONE;
-  const stack = r.stack.slice(0, 3).map(s => chip(s)).join("") +
-    (r.stack.length > 3 ? chip("+" + (r.stack.length - 3)) : "");
-  const note = r.note ? chip(r.wiki_notes + " зам.", "ok") : NONE;
-  // A project's Heroku apps, grouped by the environment each one serves
-  // (docs/design/DEPLOYMENTS.md, PB-130): each with its state dot, the rule that
-  // linked it, its account and its monthly cost. An app no override or provider
-  // placed in an environment is grouped as not specified, never guessed.
-  const host = (r.heroku || []).length ? hostingGroups(r.heroku) : NONE;
-  // An empty cell carries class `e`, so the narrow layout can hide it
-  // instead of printing a label with nothing under it.
-  const td = (label, html, cls) =>
-    `<td data-label="${label}"${cls || html === NONE ? ` class="${
-      [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
-  return `<tr>
-    <td data-label="Проект"><div class="name"><a class="plink" href="#${E(r.id)}"
-      >${E(r.name)}</a></div>
-      <div class="anchor">${E(r.anchor)}</div></td>
-    ${td("Сайт", sites)}
-    ${td("Папка", folders)}
-    ${td("Репозиторий", repos)}
-    ${td("Описание", `<div class="desc">${E(r.description) ||
-      '<span class="none">нет описания</span>'}</div>`)}
-    ${td("Стек", stack || NONE)}
-    ${td("Активность", (E(r.last) || NONE) +
-        (r.tier ? `<div class="tier">${E(TIER_RU[r.tier] || r.tier)}</div>` : "") +
-        spark(r.weeks) + metrics(r.metrics), "num")}
-    ${td("Heroku", host)}
-    ${                                                                       
-                            ""}
-    ${td("Польз./30 дн", (() => {
-      const tr = (D.traffic || {})[r.id];
-      if (!tr) return NONE;
-      const one = (tr.properties || [])[0];
-      return `<span class="mono">${Number(tr.users_30d || 0).toLocaleString("ru")}</span>` +
-        `<div class="anchor">${(tr.properties || []).length} prop.` +
-        (one && one.report_url ? ` · <a href="${E(one.report_url)}" target="_blank" rel="noopener">GA4</a>` : "") +
-        `</div>`;
-    })(), "num")}
-    ${td("Вики", note)}</tr>`;
+  const link = `#${E(r.id)}`;
+  const sites = r.sites.slice(0, 2).map(x =>
+    `<a href="https://${E(x.host)}" target="_blank" rel="noopener">${E(x.host)}</a>` +
+    (x.live && !x.live.resolves ? chip("не отвечает", "danger") : "")).join(" ");
+  const repos = r.repos.slice(0, 1).map(x => repoLine(x, r.rules || [])).join("");
+  const dirty = r.repos.filter(x => x.dirty || ["ahead", "diverged", "unpushed-and-remote-moved", "local-only-branch"].includes(x.sync)).length;
+  const traffic = (D.traffic || {})[r.id];
+  return `<tr data-project="${E(r.id)}">
+    <td data-label="Проект"><div class="name"><a class="plink" href="${link}">${E(r.name)}</a></div>
+      <div class="desc">${E(r.description) || '<span class="none">Описание не задано</span>'}</div>
+      <div class="project-meta">${E(r.owner || "Владелец не указан")} · ${E(r.lifecycle || "статус не указан")}</div></td>
+    <td data-label="Активность"><div>${chip(TIER_RU[r.tier] || r.tier || "не измерена")}</div>
+      <div class="anchor mono">${E(r.last) || "дата не измерена"}</div>${spark(r.weeks)}
+      ${dirty ? chip(dirty + " репоз. требуют внимания", "warn") : ""}</td>
+    <td data-label="Код и сайты"><div class="resource-links">${repos}${sites}</div>
+      <a class="plink anchor" href="${link}">${r.repos.length} репоз. · ${r.sites.length} сайтов · ${r.folders.length} папок</a></td>
+    <td data-label="Размещение">${(r.heroku || []).length ? hostingGroups(r.heroku) : '<span class="none">Нет привязанных приложений</span>'}</td>
+    <td data-label="Аудитория / 30 дней">${traffic && traffic.users_30d != null
+      ? `<span class="mono">${Number(traffic.users_30d).toLocaleString("ru")}</span><div class="anchor">сумма по ресурсам${traffic.unknown_properties ? " · частично" : ""}</div>`
+      : '<span class="none">Не измерена</span>'}
+      <div class="anchor"><a class="plink" href="${link}">Подробнее о проекте →</a></div></td>
+  </tr>`;
 }
 
 // THE PROJECT PANEL: everything known about one project, opened from its row
@@ -2074,12 +2033,17 @@ function detail(id) {
     </div>
     <p class="dmeta">${E(r.anchor)} · ${E(r.lifecycle)} · ${E(TIER_RU[r.tier] || r.tier || "")}
       · последняя активность ${E(r.last) || "—"}</p>
+    ${r.description ? `<p class="project-description">${E(r.description)}</p>` : ""}
     <h3>Из чего состоит</h3>
     ${                                                                          
-      list(r.repos, "репозиториев нет", x => `<li class="mono">${E(x.nwo)}</li>`)}
+      list(r.repos, "репозиториев нет", x => `<li>${repoLine(x, r.rules || [])}</li>`)}
     ${list(r.folders, "локальных папок нет", f => `<li class="mono">${E(f)}</li>`)}
-    ${list(r.sites, "сайтов не заявлено", s => `<li class="mono">${E(s.host)}` +
+    ${list(r.sites, "сайтов не заявлено", s => `<li class="mono"><a href="https://${E(s.host)}" target="_blank" rel="noopener">${E(s.host)}</a>` +
         `<span class="anchor"> ${E((s.evidence || [])[0] || "")}</span></li>`)}
+    <h3>Размещение и окружения</h3>
+    ${(r.heroku || []).length ? hostingGroups(r.heroku) : '<p class="none">Нет привязанных приложений</p>'}
+    <h3>Технологии и документация</h3>
+    <p>${(r.stack || []).map(x => chip(x)).join(" ") || "Стек не измерен"} · ${r.wiki_notes || 0} заметок</p>
     <h3>Продукт</h3>
     ${(r.products || []).length
       ? `<ul class="dlist">${r.products.map(p => `<li>${E(p.name)} — ${E(p.role)}` +
@@ -2102,7 +2066,7 @@ function detail(id) {
       if (!tr) return `<p class="none">ни одна property Google Analytics не привязана к этому проекту — ` +
         `назовите её в <span class="mono">plugins/config/ga4_properties.json</span>, если она есть</p>`;
       return `<ul class="dlist">` + (tr.properties || []).map(g =>
-        `<li><b>${Number(g.users_30d || 0).toLocaleString("ru")}</b> польз./30 дн · ` +
+        `<li><b>${g.users_30d == null ? "не измерено" : Number(g.users_30d).toLocaleString("ru")}</b> — сумма пользователей по ресурсам за 30 дней${g.unknown_properties ? " · без измерения: " + g.unknown_properties : ""} · ` +
         `${Number(g.sessions_30d || 0).toLocaleString("ru")} сессий — ${E(g.name || "")}` +
         `<span class="none"> · ${E(RULE_RU[g.rule] || g.rule || "")}` +
         `${(g.hosts || []).length ? " · " + E(g.hosts.slice(0, 2).join(", ")) : ""}</span> ` +
@@ -2165,7 +2129,7 @@ document.addEventListener("click", ev => {
   }
   PANEL_OPENER = a;
 });
-document.addEventListener("hashchange", () => {
+window.addEventListener("hashchange", () => {
   if (!location.hash && PANEL_OPENER && PANEL_OPENER.focus) { PANEL_OPENER.focus(); PANEL_OPENER = null; }
 });
 function fromHash() {
@@ -2214,7 +2178,7 @@ function foldOpen(defaultOpen) {
   return !!(defaultOpen || n.q || n.chips.length || n.sel);
 }
 function grpHead(colspan, inner, open) {
-  return `<tr><th colspan="${colspan}" scope="colgroup"><button class="grp-fold" type="button" aria-expanded="${open ? "true" : "false"}">${inner}</button></th></tr>`;
+  return `<tr class="group-heading"><th colspan="${colspan}" scope="colgroup">${inner}</th></tr>`;
 }
 // A hash naming a row reveals it: its folded group opens and the row
 // scrolls into view. Finding and project hashes are handled elsewhere.
@@ -2298,7 +2262,26 @@ document.addEventListener("click", ev => {
 });
 
 function render() {
+  const search = document.getElementById("q");
+  if (search) search.placeholder = ({projects:"Поиск: проект, описание, репозиторий, папка или домен", heroku:"Поиск: приложение, проект или папка", domains:"Поиск: домен, регистратор или проект", creds:"Поиск: ключ, провайдер или проект", env:"Поиск: переменная, файл или проект", mcp:"Поиск: сервер, агент или адрес", traffic:"Поиск: ресурс, сайт или проект"})[tab] || "Поиск";
   const out = drawTab();
+  const tools = document.getElementById("list-tools");
+  const table = document.getElementById("out");
+  if (tools && table) {
+    const fields = [...table.querySelectorAll("th[data-sort]")].map(h => [h.dataset.sort, h.textContent]);
+    tools.innerHTML = fields.length ? '<label>Сортировка <select id="list-sort" aria-label="Сортировка списка">' +
+      '<option value="">Исходный порядок</option>' + fields.map(([key, label]) =>
+        ["ascending", "descending"].map(dir => '<option value="' + E(key + ":" + dir) + '"' +
+          (SORT.key === key && SORT.dir === dir ? ' selected' : '') + '>' + E(label) +
+          (dir === "ascending" ? ' ↑' : ' ↓') + '</option>').join("")).join("") + '</select></label>' : '';
+    const select = document.getElementById("list-sort");
+    if (select) select.onchange = () => {
+      [SORT.key, SORT.dir] = select.value ? select.value.split(":") : ["", ""];
+      try { sessionStorage.setItem("observatory.sort." + PAGE, JSON.stringify(SORT)); } catch (e) {}
+      render();
+      document.getElementById("list-sort").focus();
+    };
+  }
   revealHash();                                                                  
   return out;
 }
@@ -2324,19 +2307,11 @@ function drawTab() {
   const out = document.getElementById("out");
   if (!rows.length) { out.innerHTML = nothingFound(D.rows.length); return; }
   sortInPlace(rows, {name: r => lower(r.name), activity: r => dateOr(r.last)});
-  const groups = new Map();
-  rows.forEach(r => { if (!groups.has(r.owner)) groups.set(r.owner, []); groups.get(r.owner).push(r); });
-  out.innerHTML = filterLine(rows.length, D.rows.length, "проектов") + `<div class="card"><table>
-    <colgroup><col class="c-name"><col class="c-site"><col class="c-dir"><col class="c-repo">
-      <col class="c-desc"><col class="c-stack"><col class="c-when"><col class="c-host">
-      <col class="c-users"><col class="c-note"></colgroup>
-    <thead><tr>
-      ${sortTh("Проект", "name")}<th>Сайт</th><th>Папка</th><th>Репозиторий</th>
-      <th>Описание</th><th>Стек</th>${sortTh("Активность", "activity")}<th>Heroku</th>
-      <th>Польз./30 дн</th><th>Вики</th>
-    </tr></thead>${[...groups].map(([owner, rs]) => `<tbody class="grp${foldOpen(false) ? "" : " folded"}">
-      ${grpHead(10, `${E(owner)} <span class="n">${rs.length}</span>`, foldOpen(false))}
-      ${rs.map(row).join("")}</tbody>`).join("")}</table></div>`;
+  out.innerHTML = filterLine(rows.length, D.rows.length, "проектов") + `<div class="card"><table class="project-summary">
+    <colgroup><col style="width:26%"><col style="width:17%"><col style="width:23%"><col style="width:21%"><col style="width:13%"></colgroup>
+    <thead><tr>${sortTh("Проект", "name")}${sortTh("Активность", "activity")}
+      <th>Код и сайты</th><th>Размещение</th><th>Аудитория / 30 дней</th></tr></thead>
+    <tbody>${rows.map(row).join("")}</tbody></table></div>`;
 }
 
 // ACTIONS. The page is read-only when opened as a file. Served by the local
@@ -2673,7 +2648,7 @@ function renderCreds() {
   };
   sortInPlace(rows, {name: c => lower(c.name)});
   const groups = new Map();
-  rows.forEach(c => { const k = credSection(c);
+  rows.forEach(c => { const k = SORT.key ? "sorted" : credSection(c);
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); });
   const row = c => `<tr id="c-${E(String(c.id).replace(/^credential:/, "").replace(/[^A-Za-z0-9_.-]+/g, "-"))}">
     <td data-label="Учётные данные"><div class="name">${E(c.name || c.id)}</div>
@@ -2708,21 +2683,21 @@ function renderCreds() {
         ? `<button class="chip-btn" type="button" data-cred="${E(c.id)}" data-act="${E(act)}"
             >${E(label)}</button>`
         : `<button class="chip-btn" type="button" data-copy="${E(cmd)}"
-            title="${E(cmd)}">${E(label)}</button>`).join(" ") + `</div>`)}</tr>`;
+            title="${E(cmd)}">Команда: ${E(label)}</button>`).join(" ") + `</div>`)}</tr>`;
   const leaked = rows.filter(c => c.leaked).length;
   const howto = LIVE
     ? `кнопки действуют: страницу отдаёт <span class="mono">tools/keyserver.py</span>`
-    : `кнопки отдают команду в буфер — страница открыта из файла и ничего выполнить не может;` +
+    : `режим команд: кнопки копируют команду; выполните её в терминале;` +
       ` перед импортом замените /absolute/path/to/private-input путём к приватному файлу со значением;` +
       ` запустите <span class="mono">${E(toolCommand("keyserver.py"))}</span>, чтобы они действовали`;
   // Grouped by section, in a fixed order, and every section is shown even
   // when empty — an empty section is a fact, not a missing one.
-  out.innerHTML = filterLine(rows.length, CREDS.length, "записей") + `<div class="card"><table>
+  out.innerHTML = filterLine(rows.length, CREDS.length, "записей") + `<div class="action-mode"><b>${LIVE ? "Действия подключены" : "Режим команд"}</b> · ${LIVE ? "Кнопки выполняют указанное действие." : "Кнопки копируют команды для терминала."}<details><summary>Как пользоваться действиями</summary>${howto}</details></div><div class="card"><table>
     <colgroup><col style="width:23%"><col style="width:24%"><col style="width:10%">
       <col style="width:16%"><col style="width:11%"><col style="width:16%"></colgroup>
     <thead><tr>${sortTh("Учётные данные", "name")}<th>Состояние</th><th>Потолок</th>
       <th>Проекты</th><th>Ротация</th><th>Действие</th></tr></thead>
-    ${CRED_SECTIONS.map(([key, title, says]) => {
+    ${(SORT.key ? [["sorted", "Выбранные записи", "Общий порядок по выбранному столбцу"]] : CRED_SECTIONS).map(([key, title, says]) => {
       const cs = groups.get(key) || [];
       return `<tbody class="grp">
       ${grpHead(6, `${E(title)} <span class="n">${cs.length}</span><div class="anchor">${E(says)}</div>`, true)}
@@ -2733,7 +2708,7 @@ function renderCreds() {
     }).join("")}</table></div>
     <p class="dmeta">Показано ${rows.length} из ${CREDS.length} ·
       ${leaked} незакрытых утечек · измерено ${E(D.creds.scanned_on || "—")} ·
-      значений здесь нет и быть не может: метка — это то, как ключ называет сам провайдер<br>${howto};
+      значений здесь нет: метка — это то, как ключ называет сам провайдер;<br>
       запись и ротация секрета проекта отсюда <b>отказаны намеренно</b> — значение идёт только через stdin</p>
     ${movementsSection()}`;
 }
@@ -2754,7 +2729,7 @@ function movementsSection() {
       toolCommand("vault.py", ["moved", u.project || "PROJECT", "prod", v, "--at", "heroku", "--how", `set on Heroku app ${u.app}, release v${u.version}, ${String(u.at || "").slice(0, 16)}Z by ${u.by || "?"}`]));
     return `<li><b>${E(u.app)}</b> v${E(String(u.version || ""))} · ${E(String(u.at || "").slice(0, 16))}Z · ${E(u.by || "?")}:
       <span class="mono">${(u.vars || []).map(E).join(", ")}</span>
-      ${cmds.map((c, i) => `<button class="chip-btn" type="button" data-copy="${E(c)}" title="скопировать запись движения">записать ${E(u.vars[i])}</button>`).join(" ")}</li>`;
+      ${cmds.map((c, i) => `<button class="chip-btn" type="button" data-copy="${E(c)}" title="скопировать запись движения">Команда: записать ${E(u.vars[i])}</button>`).join(" ")}</li>`;
   }).join("");
   const rows = mv.map(m => `<tr>
       <td class="num"><span class="mono">${E(String(m.at || "").slice(0, 16).replace("T", " "))}</span></td>
@@ -2913,8 +2888,9 @@ function renderEnv() {
   sortInPlace(rows, {name: e => lower(e.name), modified: e => dateOr(e.modified_on)});
   const groups = new Map();
   rows.forEach(e => {
-    if (!groups.has(e.project)) groups.set(e.project, []);
-    groups.get(e.project).push(e);
+    const key = SORT.key ? "Выбранные записи" : e.project;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
   });
   const row = e => '<tr id="e-' + E(anchorSlug(e.path + ":" + e.name)) + '" data-file="' + E(anchorSlug(e.path)) + '">' +
     '<td data-label="Переменная"><div class="name mono">' + E(e.name) + '</div>' +
@@ -2944,18 +2920,15 @@ function renderEnv() {
     : 'режим команд: кнопка копирует команду в буфер; выполните её в терминале. ' +
       'Запустите <span class="mono">' + E(toolCommand('keyserver.py')) + '</span>, ' +
       'чтобы раскрывать и копировать прямо отсюда';
-  out.innerHTML = filterLine(rows.length, ENVV.length, "переменных") + '<div class="card"><table>' +
+  out.innerHTML = filterLine(rows.length, ENVV.length, "переменных") + '<div class="action-mode"><b>' + (LIVE ? 'Действия подключены' : 'Режим команд') + '</b> · ' + (LIVE ? 'Значение открывается только по запросу и затем скрывается.' : 'Кнопки копируют команды для терминала; значения здесь не показаны.') + '<details><summary>Как пользоваться действиями</summary>' + howto + '</details></div><div class="card"><table>' +
     '<colgroup><col style="width:26%"><col style="width:17%"><col style="width:20%">' +
     '<col style="width:9%"><col style="width:14%"><col style="width:14%"></colgroup>' +
     '<thead><tr>' + sortTh("Переменная", "name") + '<th>Что это</th><th>Связи</th>' + sortTh("Изменён", "modified") +
     '<th>Прод</th><th>Значение</th></tr></thead>' +
     [...groups].map(([p, es]) => {
-      // One group per project, folded by default because the list is long.
-      // A group opens by itself when anything narrows the view, or when it
-      // holds a secret tracked by git — that one must never sit behind a
-      // fold. The header counts variables and secrets, and names the alarm.
+      // Project headings provide context without hiding any variable metadata.
       const alarming = es.filter(e => e.cls === "secret" && e.git === "tracked");
-      const open = !!q || !!sel.value || active.size > 0 || alarming.length > 0;
+      const open = true; // Metadata is visible; secret values still require explicit reveal.
       const secrets = es.filter(e => e.cls === "secret").length;
       return '<tbody class="grp' + (open ? '' : ' folded') + '" data-envgroup="' + E(p || "-") + '">' +
       '<tr><th colspan="6" scope="colgroup"><button class="grp-fold" type="button"' +
@@ -2971,7 +2944,7 @@ function renderEnv() {
     (t.templates || 0) + ' ' + plural(t.templates || 0, 'шаблон', 'шаблона', 'шаблонов') + ' в ' +
     (t.projects || 0) + ' ' + plural(t.projects || 0, 'проекте', 'проектах', 'проектах') + ' · ' + (t.secrets || 0) + ' читаются как секрет · ' +
     'общих значений: ' + (t.shared_across_projects || 0) + ' · измерено ' +
-    E(D.env.scanned_on || "—") + '<br>' + howto +
+    E(D.env.scanned_on || "—") + '<br>' +
     '. Значений нет ни в этой странице, ни в реестре: «общее значение» установлено ' +
     'солёным отпечатком, а соль лежит вне git и не покидает машину.</p>';
 }
@@ -3020,9 +2993,9 @@ function renderMcp() {
   const keyPlace = s => s.key_in_url ? chip("в URL", "danger") : s.key_in_header ? "в заголовке" : s.key_in_env ? "в env" : NONE;
   sortInPlace(rows, {name: s => lower(s.name)});
   const groups = new Map();
-  rows.forEach(s => { const k = s.agent; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+  rows.forEach(s => { const k = SORT.key ? "Выбранные записи" : s.agent; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
   const row = s => `<tr id="m-${E(anchorSlug(s.agent + "/" + s.name))}">
-    <td data-label="Сервер"><div class="name mono">${E(s.name)}</div><div class="anchor">${E(s.scope)}</div></td>
+    <td data-label="Сервер"><div class="name mono">${E(s.name)}</div><div class="anchor">${E(s.agent)} · ${E(s.scope)}</div></td>
     <td data-label="Транспорт">${E(s.transport || "—")}${s.command ? `<div class="anchor mono">${E(s.command)}${s.command_present === false ? " · нет на диске" : ""}</div>` : ""}</td>
     <td data-label="Цель"><span class="mono">${E(s.target || "")}</span></td>
     <td data-label="Ключ">${keyPlace(s)}</td>
@@ -3062,7 +3035,7 @@ function renderTraffic() {
     && (!sel.value || p.account_name === sel.value)
     && (!active.has("t-unclaimed") || p.standing === "unclaimed")
     && (!active.has("t-linked") || p.standing === "linked")
-    && (!active.has("t-quiet") || !(p.users_30d)) 
+    && (!active.has("t-quiet") || (p.users_30d === 0 && !p.error))
     && (!active.has("t-app") || ((p.app_ids || []).length && !(p.hosts || []).length)));
   if (!rows.length) { out.innerHTML = nothingFound(ALL.length); return; }
   const cell = (label, html, cls) =>
@@ -3071,11 +3044,11 @@ function renderTraffic() {
   const num = n => n == null ? NONE : `<span class="mono">${Number(n).toLocaleString("ru")}</span>`;
   sortInPlace(rows, {name: p => lower(p.name), users: p => numOr(p.users_30d)});
   const groups = new Map();
-  rows.forEach(p => { const k = p.account_name || "—";
+  rows.forEach(p => { const k = SORT.key ? "Выбранные записи" : p.account_name || "—";
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
   const row = p => `<tr id="g-${E(String(p.id).replace(/[^A-Za-z0-9_.:-]+/g, "-"))}">
     <td data-label="Property"><div class="name">${E(p.name || p.property)}</div>
-      <div class="anchor mono">${E(p.property || "")}</div>
+      <div class="anchor mono">${E(p.property || "")} · ${E(p.account_name || "аккаунт не указан")}</div>
       ${(p.hosts || []).length ? `<div class="anchor">${(p.hosts || []).slice(0, 3).map(E).join(" · ")}${p.hosts.length > 3 ? ` +${p.hosts.length - 3}` : ""}</div>` : ""}
       ${(p.app_ids || []).length ? `<div class="anchor mono">${(p.app_ids || []).slice(0, 2).map(E).join(" · ")}${p.app_ids.length > 2 ? ` +${p.app_ids.length - 2}` : ""}</div>` : ""}</td>
     ${cell("Польз./30 дн", num(p.users_30d), "num")}
@@ -3087,7 +3060,7 @@ function renderTraffic() {
       : `<span class="unlinked" title="${E(p.unlinked_reason || p.boundary_why || "")}">${
           p.standing === "outside" ? "вне эстейта" : "нет проекта"}</span>`)}
     ${cell("Связь", (() => { const [w, k] = TRAFFIC_STANDING[p.standing] || [p.standing, ""];
-       return chip(w, k) + (p.error ? `<div class="tier">${chip("не ответила", "warn")}</div>` : ""); })())}
+       return chip(w, k) + (p.error ? `<div class="tier">${chip(p.observation_conflicts ? "измерения расходятся" : "не ответила", "warn")}</div>` : ""); })())}
     ${cell("Куда смотреть", `<div class="verbs">` +
       `<a class="chip-btn" href="${E(p.report_url)}" target="_blank" rel="noopener" title="отчёт GA4">GA4</a>` +
       (p.admin_url ? `<a class="chip-btn" href="${E(p.admin_url)}" target="_blank" rel="noopener" title="настройки property">админка</a>` : "") +
@@ -3098,20 +3071,21 @@ function renderTraffic() {
   const sites = (D.google.search_console || []).map(s =>
     `<a class="chip-btn" href="${E(s.console_url)}" target="_blank" rel="noopener">Search Console: ${E(s.site)}</a>`).join(" ");
   out.innerHTML = filterLine(rows.length, ALL.length, "property") +
+    `<div class="list-summary"><b>За 30 дней</b> · измерено ${E(D.google.scanned_on || "—")} · сумма по ресурсам не означает уникальных людей между ними${tt.unknown_properties ? " · без измерения: " + tt.unknown_properties : ""}. <button class="chip-btn" type="button" data-copy="${E(engineCommand("collectors/scan_google.py", [String(RUNTIME.scratch || ".") + "/google.json", "--force"]) + " && " + cliCommand("merge") + " && " + cliCommand("emit") + " && " + cliCommand("dashboard"))}"
+        title="перечитать у Google и пересобрать страницы">Скопировать команду обновления</button></div>` +
     `<div class="card"><table>
     <colgroup><col style="width:26%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:14%"><col style="width:12%"><col style="width:16%"></colgroup>
     <thead><tr>${sortTh("Property", "name")}${sortTh("Польз./30 дн", "users")}<th>Сессий/30 дн</th><th>Просмотров</th>
       <th>Проект</th><th>Связь</th><th>Куда смотреть</th></tr></thead>
     ${[...groups].map(([acc, ps]) => `<tbody class="grp">
-      ${grpHead(7, `${E(acc)} <span class="n">${ps.length}</span> <span class="n">${Number(ps.reduce((n, p) => n + (p.users_30d || 0), 0)).toLocaleString("ru")} польз./30 дн</span>`, true)}
+      ${grpHead(7, `${E(acc)} <span class="n">${ps.length}</span> <span class="n">${ps.some(p => p.users_30d != null) ? Number(ps.reduce((n, p) => n + (p.users_30d || 0), 0)).toLocaleString("ru") + " — сумма польз./30 дн" : "аудитория не измерена"}${ps.some(p => p.users_30d == null) ? " · неполное измерение" : ""}</span>`, true)}
       ${ps.map(row).join("")}</tbody>`).join("")}</table></div>
     <div class="verbs" style="margin: var(--space-3) var(--space-5) 0">${creds}${sites}</div>
     <p class="dmeta">Показано ${rows.length} из ${ALL.length} · ${tt.linked_to_a_project || 0} привязано,
-      ${tt.unclaimed || 0} ничьих (${Number(tt.users_30d_unclaimed || 0).toLocaleString("ru")} польз.) ·
-      всего ${Number(tt.users_30d || 0).toLocaleString("ru")} польз. за 30 дней ·
+      ${tt.unclaimed || 0} ничьих (${tt.users_30d_unclaimed == null ? "аудитория не измерена" : Number(tt.users_30d_unclaimed).toLocaleString("ru") + " польз. по измеренным ресурсам"}) ·
+      сумма по измеренным ресурсам: ${tt.users_30d == null ? "не измерено" : Number(tt.users_30d).toLocaleString("ru")} польз. за 30 дней ·
       измерено ${E(D.google.scanned_on || "—")}
-      <button class="chip-btn" type="button" data-copy="${E(engineCommand("collectors/scan_google.py", [String(RUNTIME.scratch || ".") + "/google.json", "--force"]) + " && " + cliCommand("merge") + " && " + cliCommand("emit") + " && " + cliCommand("dashboard"))}"
-        title="перечитать у Google и пересобрать страницы">обновить данные</button><br>
+<br>
       Цифры кэшируются на 12 часов; время обновления зависит от числа подключённых ресурсов.
       Аналитика может обновляться с задержкой. «Ничей» — не дефект: по правилу оператора это продукт,
       которым занимается кто-то другой, — но строка есть, чтобы решение можно было принять один раз.</p>`;
@@ -3169,12 +3143,12 @@ function renderDomains() {
   };
   sortInPlace(doms, {name: d => lower(d.name), expiry: d => dateOr(d.expires_on)});
   const groups = new Map();
-  doms.forEach(d => { const k = d.registrar || "—";
+  doms.forEach(d => { const k = SORT.key ? "Выбранные записи" : d.registrar || "—";
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
   const row = d => `<tr id="d-${E(d.name)}">
     <td data-label="Домен"><div class="name"><a href="https://${E(d.name)}"
       target="_blank" rel="noopener">${E(d.name)}</a></div>
-      <div class="anchor">${E(d.status || "")}</div></td>
+      <div class="anchor">${E(d.registrar || "регистратор не указан")} · ${E(d.status || "")}</div></td>
     ${cell("Отвечает", liveCell(d) + (d.live ? `<div class="anchor">${E(d.live.on)}</div>` : ""))}
     ${cell("Истекает", expiry(d), "num")}
     ${cell("Проект", (d.projects || []).length
@@ -3189,7 +3163,7 @@ function renderDomains() {
       `<a class="chip-btn" href="https://rdap.org/domain/${E(d.name)}"
          target="_blank" rel="noopener" title="что говорит регистратор">RDAP</a>` +
       `<button class="chip-btn" type="button" data-copy="${E("dig +short " + shellArg(d.name) + " A AAAA CNAME")}"
-         title="dig +short ${E(d.name)} A AAAA CNAME">DNS</button>` +
+         title="скопировать диагностическую команду">Команда: DNS</button>` +
       (d.zone ? `<a class="chip-btn" href="https://dash.cloudflare.com/?to=/:account/${E(d.name)}"
          target="_blank" rel="noopener" title="зона в Cloudflare">зона</a>` : "") +
       `</div>`)}</tr>`;
@@ -3246,10 +3220,10 @@ function renderHeroku() {
   const team = sel.value;
   const apps = APPS.filter(a => keepApp(a, q, team));
   if (!apps.length) { out.innerHTML = nothingFound(APPS.length); return; }
-  const money = n => n ? "$" + Math.round(n) : "—";
+  const money = n => n == null || !Number.isFinite(Number(n)) ? "—" : "$" + Number(n).toLocaleString("en", {maximumFractionDigits: 2});
   sortInPlace(apps, {name: a => lower(a.name), cost: a => numOr(a.monthly_cost)});
   const groups = new Map();
-  apps.forEach(a => { if (!groups.has(a.team)) groups.set(a.team, []); groups.get(a.team).push(a); });
+  apps.forEach(a => { const key = SORT.key ? "Выбранные записи" : a.team; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(a); });
   const cell = (label, html, cls) =>
     `<td data-label="${label}"${cls || html === NONE ? ` class="${
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
@@ -3291,18 +3265,15 @@ function renderHeroku() {
       <td data-label="Приложение"><div class="name">${a.web_url
         ? `<a href="${E(a.web_url)}" target="_blank" rel="noopener">${E(a.name)}</a>`
         : E(a.name)}</div>
-        <div class="anchor">${E(a.region)} · ${E(a.stack)}${a.stack_superseded ? " · стек снят с поддержки" : ""}</div></td>
+        <div class="anchor">${E(a.team || "аккаунт не указан")} · ${E(a.region)} · ${E(a.stack)}${a.stack_superseded ? " · стек снят с поддержки" : ""}</div></td>
       ${cell("Состояние", `<span class="st st-${E(a.state)}"><i></i>${E(STATE_RU[a.state] || a.state)}</span>` +
         (a.maintenance ? `<div class="tier">${chip("maintenance", "warn")}</div>` : "") + crashed)}
-      ${cell("Дино", dynos || NONE)}
-      ${cell("Ресурсы", addons + shared)}
       ${cell("$/мес", money(a.monthly_cost), "num")}
       ${cell("Деплой кода", deploy, "num")}
       ${cell("Проект", project)}
-      ${cell("Папка", folders)}
       ${                                                                       
                                                                             ""}
-      ${cell("Прод-конфиг", (() => {
+      ${cell("Конфигурация", (() => {
         const r = REMOTE_BY_APP.get(a.name);
         if (!D.remote) return `<span class="unlinked">не сканировалось</span>`;
         if (!r) return `<span class="unlinked">нет в скане</span>`;
@@ -3316,25 +3287,26 @@ function renderHeroku() {
           ((r.retired_in_use || []).length
             ? `<div class="tier">${chip((r.retired_in_use || []).length + " отставных", "danger")}</div>` : "") +
           `<div class="anchor">${c.differs || 0} отличается · ${c.remote_only || 0} только тут</div>`;
-      })())}
+      })() + shared + `<details class="resource-detail"><summary>Ресурсы и папки</summary><b>Дино</b>${dynos || NONE}<b>Дополнения</b>${addons}<b>Код на машине</b>${folders}</details>`)}
       ${cell("Команда", `<div class="verbs">` +
         [["перезапуск", `heroku ps:restart -a ${a.name}`],
          ["логи", `heroku logs -t -a ${a.name}`],
          ...(a.state === "suspended" || a.state === "resources-only"
              ? [["что это", `heroku apps:info -a ${a.name}`]] : [])]
         .map(([label, cmd]) => `<button class="chip-btn" type="button"
-              data-copy="${E(cmd)}" title="${E(cmd)}">${E(label)}</button>`).join(" ")
+              data-copy="${E(cmd)}" title="${E(cmd)}">Команда: ${E(label)}</button>`).join(" ")
         + `</div>`)}</tr>`;
   };
-  const total = apps.reduce((n, a) => n + a.monthly_cost, 0);
-  out.innerHTML = filterLine(apps.length, APPS.length, "приложений") + `<div class="card"><table>
-    <colgroup><col style="width:14%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:11%"><col style="width:10%"><col style="width:8%"></colgroup>
+  const total = apps.reduce((n, a) => n + (Number(a.monthly_cost) || 0), 0);
+  out.innerHTML = filterLine(apps.length, APPS.length, "приложений") +
+    `<div class="list-summary"><b>${money(total)}/мес</b> · оценка выбранных приложений по прайс-листу, не счёт · измерено ${E(D.heroku.scanned_on || "—")}</div><div class="card"><table>
+    <colgroup><col style="width:20%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:16%"><col style="width:22%"><col style="width:12%"></colgroup>
     <thead><tr>
-      ${sortTh("Приложение", "name")}<th>Состояние</th><th>Дино</th><th>Ресурсы</th>
-      ${sortTh("$/мес", "cost")}<th>Деплой кода</th><th>Проект</th><th>Папка</th>
-      <th>Прод-конфиг</th><th>Команда</th>
+      ${sortTh("Приложение", "name")}<th>Состояние</th>
+      ${sortTh("$/мес", "cost")}<th>Деплой кода</th><th>Проект</th>
+      <th>Конфигурация</th><th>Команда</th>
     </tr></thead>${[...groups].map(([team, as]) => `<tbody class="grp">
-      ${grpHead(10, `${E(team)} <span class="n">${as.length}</span> <span class="n">${money(as.reduce((n, a) => n + a.monthly_cost, 0))}/мес</span>`, true)}
+      ${grpHead(7, `${E(team)} <span class="n">${as.length}</span> <span class="n">${money(as.reduce((n, a) => n + a.monthly_cost, 0))}/мес</span>`, true)}
       ${as.map(appRow).join("")}</tbody>`).join("")}</table></div>
     <p class="dmeta">Показано ${apps.length} из ${APPS.length} · ${money(total)}/мес ·
       измерено ${E(D.heroku.scanned_on || "—")} ·
@@ -3384,7 +3356,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
     Object.entries(dg.by_kind || {}).map(([k, n]) => `${n} ${E(k)}`).join(", ") +
     ` · ретеншен стирает предложение через ${dg.horizon_days} дн` +
     (dg.erases_within_7d ? ` — <b>${dg.erases_within_7d}</b> уйдёт до ${E(dg.first_erase_on || "")}` : " — на этой неделе ничего не уйдёт") +
-    ` · <button class="chip-btn" type="button" data-copy="${E(toolCommand("review.py", ["digest"]))}" title="скопировать команду">digest в терминале</button></p>` : "";
+    ` · <button class="chip-btn" type="button" data-copy="${E(toolCommand("review.py", ["digest"]))}" title="скопировать команду">Команда: сводка очереди</button></p>` : "";
   host.innerHTML = digestLine + q.map(r => {
     const ok = toolCommand("review.py", ["promote", r.id, "--why", ""]);
     const no = toolCommand("review.py", ["reject", r.id, "--why", ""]);
@@ -3394,9 +3366,9 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         ? ` <a class="plink" href="projects.html#${E(r.project)}">${E(String(r.project).split(":")[1])}</a>` : ""}
         <div class="anchor mono">${E(r.id)} r${E(r.rev)}</div>
         <div class="qacts"><button class="chip-btn" type="button" data-copy="${E(ok)}"
-             title="скопировать команду принятия">принять</button>
+             title="скопировать команду принятия">Команда: принять</button>
           <button class="chip-btn" type="button" data-copy="${E(no)}"
-             title="скопировать команду отклонения">отклонить</button></div></span>
+             title="скопировать команду отклонения">Команда: отклонить</button></div></span>
     </div>`;
   }).join("") +
     `<p class="none">Кнопка кладёт команду в буфер — решение принимается в терминале
@@ -3413,15 +3385,12 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
     return;
   }
   const c = F.counts, when = E((F.built_at || "").slice(0, 16).replace("T", " "));
-  if (!F.items.length) {
-    host.innerHTML = `<div class="fh">находки <span class="when">ничего открытого · ` +
-      `без изменений с ${when}</span></div>`;
-    return;
-  }
   const RU = { critical: ["критично", "danger"], warning: ["внимание", "warn"],
                info: ["к сведению", ""] };
-  host.innerHTML = `<div class="fh">находки <span class="when">${c.critical} критично · ` +
-    `${c.warning} внимание · ${c.info} к сведению` +
+  const openCount = (c.critical || 0) + (c.warning || 0) + (c.info || 0);
+  host.innerHTML = (openCount === 0 ? '<p class="empty">Нет открытых находок.</p>' : '') +
+    `<div class="fh">Находки <span class="when">${c.critical || 0} критично · ` +
+    `${c.warning || 0} внимание · ${c.info || 0} к сведению` +
     // Silenced findings are counted in the header too, so what was
     // acknowledged away is never invisible.
     `${(F.silenced || []).length ? ` · ${F.silenced.length} заглушено` : ""}` +
@@ -3439,16 +3408,11 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         `</select><input type="search" class="fq" placeholder="Поиск по находкам" aria-label="Поиск по находкам">` +
         `<span class="fshown" role="status"></span></div>`
       : "") +
-    (F.items.some(f => f.severity !== "critical") && PAGE !== "findings"
-      ? `<button class="more fold" type="button" id="finfo" aria-expanded="false">` +
-        `показать ещё ${F.items.filter(f => f.severity !== "critical").length}` +
-        ` (внимание и к сведению)</button>`
-      : "") +
-    `<div class="flist folded">` + F.items.map(f => {
+    `<div class="flist">` + F.items.map(f => {
       const [word, kind] = RU[f.severity] || [f.severity, ""];
       // Acknowledging is done in a terminal; the button copies that command.
       const cmd = toolCommand("ack.py", [f.id, "--why", ""]);
-      const foldCls = f.folded ? ` ftype-folded` : "";
+      const foldCls = ""; // Every selected finding is visible.
       // Each row has a stable anchor, so a link can point at one finding.
       const fid = "f-" + String(f.id).replace(/[^A-Za-z0-9_.:-]+/g, "-");
       const subj = subjectHref(f.subject);
@@ -3457,14 +3421,12 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         (subj ? ` <a class="plink fsubj" href="${E(subj[0])}" title="открыть ${E(subj[1])}">→ ${E(subj[1])}</a>` : "") +
         (PAGE === "findings" ? ` <a class="fperma" href="#${E(fid)}" title="ссылка на эту строку">#</a>` : "") +
         `</span>` +
-        `<span class="d">${E(f.detail)}</span>` +
         (f.deadline ? `<span class="due">до ${E(f.deadline)}</span>` : "") +
-        `<span class="act">${E(f.action)}` +
-        ` <button class="chip-btn ack" type="button" data-cmd="${E(cmd)}" title="скопировать команду заглушения">заглушить</button></span></div>`;
+        (PAGE === "index" ? `<a class="fdetail" href="findings.html#${E(fid)}">Разобрать →</a>` :
+          `<details class="finding-body"><summary>Основание и действие</summary><p class="d">${E(f.detail)}</p>` +
+          `<p class="act">${E(f.action)}</p>` +
+          ` <button class="chip-btn ack" type="button" data-cmd="${E(cmd)}" title="скопировать команду заглушения">Команда: заглушить</button></details>`) + '</div>';
     }).join("") +
-    // Per-type controls unfold the rows beyond each type's first few.
-    Object.entries(F.folded_by_type || {}).map(([type, n]) =>
-      `<button class="more fold ftype" type="button" data-type="${E(type)}" aria-expanded="false">ещё ${n} ${plural(n, "строка", "строки", "строк")} типа ${E(type)}</button>`).join("") +
     `</div>` +
     // Silenced findings are listed with who silenced them, when and why,
     // and the command that brings each back.
@@ -3473,7 +3435,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       F.silenced.map(s => `<div class="f fsilenced">${chip("заглушено")}<span class="t">${E(s.title)}</span>` +
         `<span class="d">${E(s.acked.why || "без причины")} — ${E(s.acked.by || "?")}` +
         `${s.acked.until ? `, до ${E(s.acked.until)}` : ""}</span>` +
-        `<span class="act"><button class="chip-btn ack" type="button" data-cmd="${E(toolCommand("ack.py", ["--undo", s.id]))}">вернуть</button></span></div>`).join("") +
+        `<span class="act"><button class="chip-btn ack" type="button" data-cmd="${E(toolCommand("ack.py", ["--undo", s.id]))}">Команда: вернуть</button></span></div>`).join("") +
       `</details>` : "");
   // Copy buttons for acknowledge and undo, and per-type unfolding.
   host.querySelectorAll("button.ack").forEach(b => b.addEventListener("click", () => {
@@ -3515,7 +3477,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       bar.querySelector(".fshown").innerHTML = `показано ${shown} из ${rows.length}` +
         (what.length ? ` · ${E(what.join(" · "))} <button class="chip-btn" type="button" data-fclear>сбросить</button>` : "");
       let none = host.querySelector(".fnone");
-      if (!shown) {
+      if (!shown && what.length) {
         if (!none) { none = document.createElement("p"); none.className = "empty fnone"; host.querySelector(".flist").before(none); }
         none.innerHTML = `Ничего не найдено с этим сужением — ${E(what.join(" · "))}. <button class="chip-btn" type="button" data-fclear>сбросить</button>`;
       } else if (none) none.remove();
@@ -3538,7 +3500,12 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
     // A finding named in the URL hash is unfolded and scrolled into view.
     const reveal = () => {
       const target = location.hash && location.hash.startsWith("#f-") && document.getElementById(location.hash.slice(1));
-      if (target) { target.classList.add("ftype-open"); target.scrollIntoView({block: "center"}); }
+      if (target) {
+        const body = target.querySelector(".finding-body"); if (body) body.open = true;
+        sevOn.clear(); bar.querySelector(".ftype").value = ""; bar.querySelector(".fq").value = "";
+        bar.querySelectorAll("[data-sev]").forEach(b => b.setAttribute("aria-pressed", "false"));
+        apply(); target.scrollIntoView({block: "center"});
+      }
     };
     reveal(); window.addEventListener("hashchange", reveal);
     apply();
@@ -3578,6 +3545,8 @@ fromHash();
 </body>
 </html>
 """
+
+TEMPLATE = TEMPLATE.replace("</style>", (Path(__file__).with_name("workspace.css").read_text(encoding="utf-8")) + "\n</style>")
 
 if __name__ == "__main__":
     OUT.parent.mkdir(parents=True, exist_ok=True)

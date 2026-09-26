@@ -203,14 +203,11 @@ def test_the_detail_panel_names_what_a_project_is_made_of() -> None:
           "vocabularies for one number")
 
 
-def test_the_info_rows_are_folded_and_the_control_says_how_many() -> None:
-    """Sixty-three rows put three thousand pixels between the reader and the table.
+def test_the_info_rows_remain_visible_in_the_attention_preview() -> None:
+    """UI-04: a non-critical finding still needs a visible place in the preview.
 
-    So `info` is folded behind a control — and folding is a DISCLOSURE, not an
-    omission: the rows stay in the DOM (`.f.finfo`, hidden by CSS), every type
-    still has a row, and the button names the count, because a
-    control that hides a number without saying how many is the silent cap this
-    page already refuses twice.
+    The split Overview bounds its preview and links to the complete findings
+    page. Within that selected preview, warning/info records are visible.
     """
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-fold-"))
     page = build(d)
@@ -222,16 +219,14 @@ def test_the_info_rows_are_folded_and_the_control_says_how_many() -> None:
         print("  SKIP  node is not on this machine")
         return
     rendered = sum((got.get("counts") or {}).values())
-    check("every info row is in the DOM, marked as foldable",
+    check("every info row is in the rendered attention preview",
           rendered == len(info), f"{rendered} marked for {len(info)} info rows")
     body = (got.get("written") or {})
     check("the findings panel was written at all", body.get("findings"), str(body)[:120])
-    html = page.read_text(encoding="utf-8")
-    check("the control names how many it folds",
-          "показать ещё ${" in html and "к сведению" in html,
-          "a fold that does not say what it hides is a cap")
-    check("and the list starts folded",
-          'class="flist folded"' in html, "the first screen is the point")
+    hidden = render(page, count='class="flist folded"')
+    check("the preview starts with its records visible",
+          hidden is not None and sum(hidden.get("counts", {}).values()) == 0,
+          "selected attention records must not be hidden by an extra click")
 
 
 def test_a_number_meets_its_noun_in_the_right_case() -> None:
@@ -298,19 +293,29 @@ def test_a_metric_that_moved_says_so_on_the_page() -> None:
     page = build(d)
     payload = json.loads(re.search(r'const D = (\{.*?\});\n',
                                    page.read_text(encoding="utf-8"), re.S).group(1))
-    moved = [m for r in payload["rows"] for m in (r.get("metrics") or [])
-             if m.get("p") is not None and m["p"] != m["v"]]
+    moved = {r["id"]: [m for m in (r.get("metrics") or [])
+                        if m.get("p") is not None and m["p"] != m["v"]]
+             for r in payload["rows"]}
+    moved = {project: metrics for project, metrics in moved.items() if metrics}
     if not moved:
         check("the fixture produced a changed metric series", False)
         return
-    got = render(page, count='class="delta')
-    if got is None:
-        print("  SKIP  node is not on this machine [uncoverable: the marker is "
-              "written by the page's own script]")
-        return
-    rendered = sum((got.get("counts") or {}).values())
-    check("every metric that moved carries a marker on the page",
-          rendered == len(moved), f"{rendered} rendered for {len(moved)} moved")
+    # UI-03 keeps full metrics in project detail while the list stays compact.
+    # Execute that actual interaction rather than requiring every secondary
+    # metric to occupy a table cell before the operator opens a project.
+    source = page.read_text(encoding="utf-8")
+    for project, metrics in moved.items():
+        detail_page = page.with_name("detail.html")
+        detail_page.write_text(source + "<script>detail(" + json.dumps(project) + ");</script>", encoding="utf-8")
+        got = render(detail_page, count='class="delta')
+        if got is None:
+            print("  SKIP  node is not on this machine [uncoverable: the marker is "
+                  "written by the page's own script]")
+            return
+        check("opening project detail runs without error", got.get("threw") is None, str(got.get("threw")))
+        rendered = (got.get("counts") or {}).get("panel", 0)
+        check("every metric that moved carries a marker in project detail",
+              rendered == len(metrics), f"{rendered} rendered for {len(metrics)} moved")
     check("and the marker names the previous value in its tooltip",
           "было" in (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8"),
           "a change with no previous figure is a direction without a size")
@@ -372,7 +377,7 @@ if __name__ == "__main__":
                test_the_spend_row_renders_at_all,
                test_the_health_panel_shows_what_the_store_holds,
                test_the_detail_panel_names_what_a_project_is_made_of,
-               test_the_info_rows_are_folded_and_the_control_says_how_many,
+               test_the_info_rows_remain_visible_in_the_attention_preview,
                test_a_number_meets_its_noun_in_the_right_case,
                test_no_panel_renders_an_object_as_text,
                test_a_metric_that_moved_says_so_on_the_page,

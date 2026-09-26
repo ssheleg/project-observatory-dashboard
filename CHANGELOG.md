@@ -3,6 +3,35 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.3.12 — 2026-09-26
+
+### Changed
+
+- The ten-page dashboard has persistent navigation, visible list rows and a compact
+  project summary with full linked detail. ENV metadata is visible by default;
+  revealing a value remains an explicit protected action.
+- Sorting compares all selected rows across accounts and groups. A separate sort
+  control remains available on narrow screens; opposite filters replace each other.
+- Overview shows a bounded preview across all severities. Findings retain visible
+  titles, searchable evidence and acknowledged history even when none remain open.
+- Copy-only actions say they copy a command. Hosting cost and traffic coverage sit
+  above their lists; Health starts with the observer's measured state.
+
+### Fixed
+
+- Repeated observations of the same GA4 resource through different credentials no
+  longer duplicate rows or traffic totals. Provenance is retained, conflicting
+  measurements are marked unknown, and cached registries normalize when rendered.
+  Totals describe sums across properties, not unique people across products.
+- Unknown traffic no longer matches the measured-zero filter. Findings search uses
+  its own keyboard shortcut, and detail links restore focus when closed.
+
+### Maintainer tooling
+
+- Source checks parse each file once per metric-vocabulary guard. Private-name
+  checks factor common prefixes while preserving longest-first boundary matching;
+  a reference-matcher regression covers case, punctuation and Unicode.
+
 ## 0.3.11 — 2026-09-24
 
 ### Fixed

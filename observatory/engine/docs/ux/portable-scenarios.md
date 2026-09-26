@@ -25,7 +25,7 @@ These supplement the original product scenarios. Approved scope: operator reques
 | OSS-14 | Understand a project and return | Compact row shows purpose/activity/resources; detail gives full linked repositories, sites, deployments and keys | Close preserves list and returns focus; deep links retained |
 | OSS-15 | Triage and revisit findings | Overview counts all open severities; list shows matching rows and acknowledged history even with zero open findings | Preview names its boundary and links to full list; no invisible critical overflow |
 | OSS-16 | Know what an action does | Capability stated before Keys/ENV rows; copy/manual/live verbs clearly differ | Copy never claims execution; uncertain outcomes and reveal protections remain |
-| OSS-17 | Compare infrastructure/traffic | Cost and measurement context above lists; zero distinct from missing/error | Contradictory chips cannot remain selected; evidence remains accessible |
+| OSS-17 | Compare infrastructure/traffic | Cost and measurement context above lists; zero distinct from missing/error; one GA4 resource counted once across credentials | Contradictory chips cannot remain selected; evidence remains accessible |
 | OSS-18 | Navigate and inspect observer | Ten destinations, visible main, page search, narrow-screen sort; Health begins with observer/recovery | Snapshot claims qualified by time; keyboard/theme retained; actions never replay on navigation |
 
 OSS-10 regression evidence: `tests/test_dashboard_portability.py` executes generated

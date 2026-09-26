@@ -29,10 +29,10 @@ LEGACY = (
     'runtime_identity', 'remote_env',
     'project_identity',
     'sessions',
-    'env_page', 'metric_labels', 'hosting_groups', 'action_outcomes',
+    'env_page', 'metric_labels', 'hosting_groups', 'action_outcomes', 'workspace_redesign', 'google_identity',
 )
 BOUNDARY = (
-    'workspace', 'workspace_upgrade', 'workspace_boundaries',
+    'workspace', 'workspace_upgrade', 'workspace_boundaries', 'dashboard_shell',
     'workspace_scheduler', 'schema_compatibility', 'keyserver_boundary',
     'private_sources', 'public_contracts', 'vault_boundaries', 'provider_secret_boundaries', 'cli_compatibility', 'dashboard_portability',
     'agent_plugin', 'audit_regressions', 'identity_map', 'zone_accounts', 'deployed_commit', 'scrub_incremental', 'leak_scan_incremental', 'tick_health', 'accounts', 'environments', 'credential_bindings', 'local_keys', 'trap_anchors', 'leak_coverage',
