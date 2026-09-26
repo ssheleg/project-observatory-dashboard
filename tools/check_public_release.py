@@ -37,10 +37,11 @@ PUBLIC_IMAGES = {
     "site/assets/credential-copies-cartoon.png": {"8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c"},
     "site/assets/observatory-cover.png": {"70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833"},
     # Dashboard screenshots rendered by tools/demo_estate.py over a fictional
-    # estate (Northwind Labs): no workspace, registry or credential was read.
-    "site/assets/dashboard-overview-en.png": {"7ebedff4e0f9c0c1377edc722c9695cc01019dbab5649050b5176ed9cf93082c"},
-    "docs/images/dashboard-overview-ru.png": {"32f33bcc34375cc046f5af75214ed5770d83e2fb503dc765f560bb8e980a1eb3"},
-    "docs/images/dashboard-projects-en.png": {"6e6c683647e48cb1d55911c57805302d7beb4bd6c564c3918ce956cb90a296d5"},
+    # estate (Northwind Labs). The second digest of each is its first render,
+    # kept in branch history; both were reviewed and show no private data.
+    "site/assets/dashboard-overview-en.png": {"7ebedff4e0f9c0c1377edc722c9695cc01019dbab5649050b5176ed9cf93082c", "b1498815bc5728a8f99883a36bd95d9a7c34bb8b22d5489af105aebdbe728015"},
+    "docs/images/dashboard-overview-ru.png": {"32f33bcc34375cc046f5af75214ed5770d83e2fb503dc765f560bb8e980a1eb3", "3a5f1c34649fc56b7d31735b74ad84796b34b64e07a61775004b07b2f6655ebe"},
+    "docs/images/dashboard-projects-en.png": {"6e6c683647e48cb1d55911c57805302d7beb4bd6c564c3918ce956cb90a296d5", "d1eb9983ab58d7588e2fe36a6bdd2be4855a561eebc169debe0c12ac20145d91"},
 }
 
 
