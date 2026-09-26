@@ -123,6 +123,19 @@ def resolve(top: pathlib.Path, remote: str) -> dict | None:
     return None
 
 
+def _translator():
+    """The hook speaks the workspace's language (`interface.locale`), like the
+    dashboard; an unreadable setting falls back to English rather than
+    silencing the line, which is actionable in either language."""
+    sys.path.insert(0, str(paths.ROOT / "dashboard"))
+    import i18n
+    try:
+        import configuration
+        return i18n.Translator(configuration.interface_locale())
+    except Exception:
+        return i18n.Translator()
+
+
 def state_line(p: dict) -> str:
     pid, name = p["id"], p.get("name") or p["id"]
     f = load("findings.json").get("findings") or []
@@ -143,10 +156,11 @@ def state_line(p: dict) -> str:
     env_keys = sum(1 for fl in env_files if fl.get("project") in folders
                    for v in fl.get("variables") or [] if v.get("class") == "secret")
     last = p.get("last_activity_on") or "—"
+    t = _translator()
     bits = [f"observatory: {name}"]
-    bits.append(f"{crit} critical / {warn} warning" if (crit or warn) else "находок нет")
-    bits.append(f"ключей по имени: {vault + env_keys} (реестр {vault}, .env {env_keys})")
-    bits.append(f"активность {last}")
+    bits.append(t("{crit} critical / {warn} warning", crit=crit, warn=warn) if (crit or warn) else t("no findings"))
+    bits.append(t("keys by name: {total} (registry {vault}, .env {env})", total=vault + env_keys, vault=vault, env=env_keys))
+    bits.append(t("activity {date}", date=last))
     return " · ".join(bits) + f" · use_secret.py names {name} · projects.html#project:{pid.split(':', 1)[-1]}"
 
 
@@ -165,11 +179,13 @@ def unknown_line(top: pathlib.Path, remote: str, session_id: str) -> str:
         inside = True
     except ValueError:
         pass
+    t = _translator()
     if inside:
-        return (f"observatory: папка {top.name} не в реестре — попадёт со следующим тиком "
-                f"(если расписание включено) или сейчас: project-observatory full local")
-    return (f"observatory: {top} вне настроенной папки проектов — обсерватория её не сканирует; записано в "
-            f"sessions-seen.jsonl, наблюдать — переместить в настроенную папку проектов или изменить sources.projects")
+        return "observatory: " + t("folder {name} is not in the registry — the next tick picks it up "
+                                   "(if the schedule is on), or now: project-observatory full local", name=top.name)
+    return "observatory: " + t("{path} is outside the configured projects folder — the observatory does not scan it; "
+                               "recorded in sessions-seen.jsonl. To observe it, move it into the projects folder "
+                               "or change sources.projects", path=top)
 
 
 def main(argv: list[str]) -> int:

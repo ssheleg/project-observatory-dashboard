@@ -6,7 +6,7 @@
     {
       "name": "git.branches",
       "unit": "branches",
-      "label": "веток",
+      "label": "git branches",
       "means": "How many local branches each of the project's checkouts holds, summed. A branch that exists on no remote is work this machine is the only copy of, which is what `clone.local-only-branch` reports one at a time; this counts them so the trend is visible."
     }
   ],

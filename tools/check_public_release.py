@@ -36,6 +36,11 @@ SKIP = {".git", ".venv", "__pycache__", "node_modules", "build", "dist"}
 PUBLIC_IMAGES = {
     "site/assets/credential-copies-cartoon.png": {"8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c"},
     "site/assets/observatory-cover.png": {"70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833"},
+    # Dashboard screenshots rendered by tools/demo_estate.py over a fictional
+    # estate (Northwind Labs): no workspace, registry or credential was read.
+    "site/assets/dashboard-overview-en.png": {"b1498815bc5728a8f99883a36bd95d9a7c34bb8b22d5489af105aebdbe728015"},
+    "docs/images/dashboard-overview-ru.png": {"3a5f1c34649fc56b7d31735b74ad84796b34b64e07a61775004b07b2f6655ebe"},
+    "docs/images/dashboard-projects-en.png": {"d1eb9983ab58d7588e2fe36a6bdd2be4855a561eebc169debe0c12ac20145d91"},
 }
 
 

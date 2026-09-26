@@ -385,6 +385,7 @@ def doctor(base: Path) -> dict:
             "sources": {k: {"configured": True, "exists": Path(v).expanduser().exists()} for k, v in doc.get("sources", {}).items()},
             "integrations": doc.get("integrations", {}),
             "features": doc.get("features", {}),
+            "interface": {"locale": doc.get("interface", {}).get("locale", "en")},
             "coverage_warnings": coverage_warnings(doc),
             # PB-132: a dead or interrupted tick cannot report itself.
             "tick": _tick_health(base, doc),
@@ -410,7 +411,7 @@ def main(argv: list[str]) -> int:
     migration.add_argument("--apply", action="store_true")
     migration.add_argument("--writers-stopped", action="store_true")
     conf = sub.add_parser("configure")
-    conf.add_argument("section", choices=["sources", "integrations", "features"])
+    conf.add_argument("section", choices=["sources", "integrations", "features", "interface"])
     conf.add_argument("name")
     conf.add_argument("value")
     a = ap.parse_args(argv)
@@ -434,7 +435,14 @@ def main(argv: list[str]) -> int:
             doc = config.load(base)
             if not re_safe_name(a.name):
                 raise config.ConfigurationError("Invalid configuration name")
-            if a.section == "sources":
+            if a.section == "interface":
+                choices = config.INTERFACE_SETTINGS.get(a.name)
+                if choices is None:
+                    raise config.ConfigurationError(f"Unknown interface setting: {a.name}; known: {', '.join(config.INTERFACE_SETTINGS)}")
+                if a.value not in choices:
+                    raise config.ConfigurationError(f"Interface {a.name} must be one of: {', '.join(choices)}")
+                value = a.value
+            elif a.section == "sources":
                 value = Path(a.value).expanduser()
                 if not value.is_absolute():
                     raise config.ConfigurationError("Source path must be absolute")
@@ -448,6 +456,9 @@ def main(argv: list[str]) -> int:
                 doc.setdefault(a.section, {})[a.name] = value
                 write_json(base / "config/settings.json", doc)
             result = {"status": "configured", "section": a.section, "name": a.name}
+            if a.section == "interface":
+                # The pages carry the language they were built in; say how to see it.
+                result["next"] = "project-observatory full open --rebuild"
         print(json.dumps(result, indent=2))
         return 0
     except (config.ConfigurationError, OSError, sqlite3.Error) as exc:

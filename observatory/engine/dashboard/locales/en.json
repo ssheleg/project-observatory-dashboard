@@ -1,0 +1,113 @@
+{
+ "findings@@heading": "findings",
+ "in@@{n} accounts": {
+  "one": "{n} account",
+  "other": "{n} accounts"
+ },
+ "in@@{n} projects": {
+  "one": "{n} project",
+  "other": "{n} projects"
+ },
+ "s@@sessions-abbrev": "s",
+ "variables@@count": "variables",
+ "{n} Cloudflare zones": {
+  "one": "{n} Cloudflare zone",
+  "other": "{n} Cloudflare zones"
+ },
+ "{n} apps": {
+  "one": "{n} app",
+  "other": "{n} apps"
+ },
+ "{n} copies in this same project": {
+  "one": "{n} copy in this same project",
+  "other": "{n} copies in this same project"
+ },
+ "{n} declarations": {
+  "one": "{n} declaration",
+  "other": "{n} declarations"
+ },
+ "{n} entries": {
+  "one": "{n} entry",
+  "other": "{n} entries"
+ },
+ "{n} folders": {
+  "one": "{n} folder",
+  "other": "{n} folders"
+ },
+ "{n} linked": {
+  "one": "{n} linked",
+  "other": "{n} linked"
+ },
+ "{n} live files": {
+  "one": "{n} live file",
+  "other": "{n} live files"
+ },
+ "{n} names": {
+  "one": "{n} name",
+  "other": "{n} names"
+ },
+ "{n} notes": {
+  "one": "{n} note",
+  "other": "{n} notes"
+ },
+ "{n} open": {
+  "one": "{n} open",
+  "other": "{n} open"
+ },
+ "{n} open leaks": {
+  "one": "{n} open leak",
+  "other": "{n} open leaks"
+ },
+ "{n} projects": {
+  "one": "{n} project",
+  "other": "{n} projects"
+ },
+ "{n} properties": {
+  "one": "{n} property",
+  "other": "{n} properties"
+ },
+ "{n} repos": {
+  "one": "{n} repo",
+  "other": "{n} repos"
+ },
+ "{n} repos need attention": {
+  "one": "{n} repo needs attention",
+  "other": "{n} repos need attention"
+ },
+ "{n} secret variables": {
+  "one": "{n} secret variable",
+  "other": "{n} secret variables"
+ },
+ "{n} secrets": {
+  "one": "{n} secret",
+  "other": "{n} secrets"
+ },
+ "{n} secrets in git": {
+  "one": "{n} secret in git",
+  "other": "{n} secrets in git"
+ },
+ "{n} servers": {
+  "one": "{n} server",
+  "other": "{n} servers"
+ },
+ "{n} sessions": {
+  "one": "{n} session",
+  "other": "{n} sessions"
+ },
+ "{n} sites": {
+  "one": "{n} site",
+  "other": "{n} sites"
+ },
+ "{n} templates": {
+  "one": "{n} template",
+  "other": "{n} templates"
+ },
+ "{n} unowned": {
+  "one": "{n} unowned",
+  "other": "{n} unowned"
+ },
+ "{n} variables": {
+  "one": "{n} variable",
+  "other": "{n} variables"
+ }
+}

@@ -186,7 +186,7 @@ in the chosen agent rather than assuming it from the product name. The optional
 and MCP without those hooks.
 
 For Claude Code, run `project-observatory full agent install`. It adds the
-GitHub marketplace `ssheleg/project-observatory-dashboard`, installs
+GitHub marketplace `passioncode-ai/project-observatory-dashboard`, installs
 `observatory-log@observatory-log`, turns plugin auto-update on (opt out with
 `--no-auto-update`) and writes `OBSERVATORY_ROOT` and `OBSERVATORY_HOME` into
 Claude Code's user settings for the hooks. `full agent status` shows the
@@ -246,6 +246,24 @@ and run `full migrate-local ORIGINAL_DIRECTORY` to preview. Apply requires
 services. Verify external source paths, enabled features, credentials, registry
 counts and database health before choosing which installation becomes active.
 
+## Choose the dashboard's language
+
+The dashboard is English unless the workspace says otherwise. The setting lives in
+`config/settings.json` as `"interface": {"locale": "ru"}` and is written by
+
+```sh
+project-observatory full configure interface locale ru   # en | ru
+project-observatory full open --rebuild                  # pages carry the language they were built in
+```
+
+`full doctor` reports it under `interface`. Only `en` and `ru` are accepted; an unknown
+key or value is refused. Releases before 0.4.0 ignore the section. Each reader can also
+press **EN** or **RU** in the navigation rail: the choice is stored in that browser,
+applied before the first paint and kept for pages opened as local files; choosing the
+workspace's own language forgets it again. The interface is translated; the texts the
+finding rules write stay in English. An agent asked to set the language runs the
+`configure` command above and never edits other settings to do it.
+
 ## Reading the dashboard workspace
 
 The navigation groups work, infrastructure, access and system pages. Projects and
@@ -254,11 +272,11 @@ to the entire selection and has a separate control on narrow screens. Project
 names open full detail; closing it returns to the list.
 
 Overview previews eight open findings by severity and links to the full list.
-Each finding keeps its title visible; “Основание и действие” opens the evidence
+Each finding keeps its title visible; “Evidence and action” opens the evidence
 and next step. A direct finding link opens that evidence. Acknowledged history
 remains available even if no findings are open.
 
-“Команда” means copy for a terminal, not execute. Keys and ENV state their current
+“Command” means copy for a terminal, not execute. Keys and ENV state their current
 mode above the list. Health describes the observer at measurement time, not a
 continuous availability promise. Traffic distinguishes missing measurements from
 zero and totals are sums across GA4 resources, not deduplicated human visitors.

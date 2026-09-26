@@ -16,7 +16,7 @@ import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = "ssheleg/project-observatory-dashboard"
+REPO = "passioncode-ai/project-observatory-dashboard"
 
 FAKE_CLAUDE = textwrap.dedent('''\
     #!{py}

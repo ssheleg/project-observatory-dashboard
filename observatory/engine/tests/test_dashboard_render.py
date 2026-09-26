@@ -120,9 +120,9 @@ def test_the_spend_row_renders_at_all() -> None:
         return
     health = r["health"]
     check("selected state spend reaches the rendered row", "4.0000" in health and "2.5000" in health, health[-200:])
-    check("the spend row is on the page", "потрачено этим проектом" in health,
+    check("the spend row is on the page", "spent by this project" in health,
           health[-200:])
-    check("with the day's figure beside the month's", "из них сегодня" in health,
+    check("with the day's figure beside the month's", "of which today" in health,
           health[-200:])
     # DELIBERATELY NOT asserted: that the string `H.wallet.month` is absent.
     # It survives in the comment explaining its removal, and here the text check
@@ -139,7 +139,7 @@ def test_the_spend_row_renders_at_all() -> None:
           "spend_month" in src and 'strftime("%Y-%m")' in src,
           "a browser deriving which month it is would be a second place to be wrong")
     check("and the label says WHOSE spend it is",
-          "этим проектом" in src,
+          "spent by this project" in src,
           "the provider's counter measures a shared key")
 
 
@@ -168,7 +168,7 @@ def test_the_health_panel_shows_what_the_store_holds() -> None:
     if proposed:
         check("so does the review queue's size", str(proposed) in health, health[:200])
     check("and a zero is NOT shown as news",
-          ("правок реестра предложено" in health)
+          ("registry edits proposed" in health)
           == bool(store["health"].get("registry_proposals")),
           "an always-present zero is furniture")
 
@@ -198,8 +198,8 @@ def test_the_detail_panel_names_what_a_project_is_made_of() -> None:
           payload_keys and "name" not in payload_keys and "nwo" in payload_keys,
           str(sorted(payload_keys)[:8]))
     check("the panel captions its metrics like the table does",
-          "E(m.l || m.n)" in code,
-          "`deps.direct` in one place and `зависимостей` in the other is two "
+          "E(metricLabel(m))" in code and "const cap = metricLabel(m)" in code,
+          "`deps.direct` in one place and `dependencies` in the other is two "
           "vocabularies for one number")
 
 
@@ -242,7 +242,8 @@ def test_a_number_meets_its_noun_in_the_right_case() -> None:
                      if not l.strip().startswith(("#", "//", "*", "/*")))
     check("no parenthesised plural is printed", "строк(и)" not in code,
           "Russian counts three ways and the reader can tell")
-    check("and a plural helper exists", "function plural(" in code)
+    # Since 0.4.0 the catalog carries the forms and Intl.PluralRules picks one.
+    check("and plural forms come from the language's rules", "new Intl.PluralRules(LOCALE)" in code)
     d = pathlib.Path(tmpdir.mkdtemp(prefix="observatory-plural-"))
     got = render(build(d), count="строк(и)")
     if got is None:
@@ -317,7 +318,7 @@ def test_a_metric_that_moved_says_so_on_the_page() -> None:
         check("every metric that moved carries a marker in project detail",
               rendered == len(metrics), f"{rendered} rendered for {len(metrics)} moved")
     check("and the marker names the previous value in its tooltip",
-          "было" in (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8"),
+          'T("was {value}"' in (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8"),
           "a change with no previous figure is a direction without a size")
 
 

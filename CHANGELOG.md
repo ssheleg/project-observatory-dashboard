@@ -3,6 +3,54 @@
 All notable changes to Project Observatory. Versions follow [semantic versioning](https://semver.org/);
 while the major version is 0, a minor release may change behaviour and says so here.
 
+## 0.4.0 — 2026-09-26
+
+Project Observatory is now a PassionCode.ai product. The repository lives at
+[passioncode-ai/project-observatory-dashboard](https://github.com/passioncode-ai/project-observatory-dashboard);
+GitHub redirects the previous address, and no workspace migration or key rotation is needed.
+
+### Added
+
+- **The dashboard speaks English and Russian.** English is the default. A workspace chooses its
+  language with `project-observatory full configure interface locale ru` (or `en`); `full doctor`
+  reports it. Each reader can switch between EN and RU in the navigation rail. The choice is kept in
+  the browser, is applied before the first paint and works for pages opened as local files. Every
+  interface string is an English message id; `observatory/engine/dashboard/locales/ru.json` holds the
+  Russian, with CLDR plural forms (1 проект, 2 проекта, 5 проектов) and locale number grouping. Page
+  titles, navigation, tables, filters, counters, confirmations and action outcomes are translated, as
+  is the session-start line of the Claude Code plugin. Finding texts written by the finding rules stay
+  in English: they are data, not interface.
+- `interface` in `config/settings.json` (`{"locale": "en" | "ru"}`). Releases before 0.4.0 ignore it,
+  so a workspace that sets it stays readable by them. An unknown key or value is refused.
+- `tools/demo_estate.py` builds the real dashboard over a fictional estate for screenshots and demos.
+  It reads nothing from the machine that runs it.
+
+### Changed
+
+- **PassionCode design system 1.0.0.** The dashboard and the website use the PassionCode tokens,
+  vendored byte for byte and pinned by commit and SHA-256 (`dashboard/brand/manifest.json`): one fixed
+  dark theme, gold for action, selection and focus, and a product glyph — an observing lens with a gold
+  point — on the family's dark tile. The rail names the family, "by PassionCode.ai". The light/dark
+  theme switch is replaced by the language switch.
+- Stats in the dashboard payload use stable ids (`commits_7d`, `projects_active_7d`,
+  `unpushed_commits`, …) instead of Russian labels; the page supplies the words.
+- Metric captions in the shipped plugin manifests are English message ids (`dependencies`,
+  `on disk`, `git branches`, …), translated by the page. A third-party plugin's caption reads as its
+  author wrote it.
+- The store's degradation note reaches the page as a message with arguments, so it is translated too.
+- The website shows the real dashboard rendered over the fictional estate, names PassionCode.ai in
+  its header, metadata and footer, and lists Observatory beside Switchboard as the PassionCode tools
+  available today.
+- `full agent install` moves a marketplace that still points at the previous repository address;
+  `full agent status` names that case instead of calling it a non-GitHub source. Companion plugin 0.11.2.
+
+### Maintainer tooling
+
+- `tests/test_i18n.py` proves that the dashboard sources carry no Russian, that every message id has a
+  translation with matching placeholders and complete plural forms, that the builder's plural rules
+  equal `Intl.PluralRules`, that English pages hold no Russian, and that the vendored design tokens
+  match their pin. Render harnesses run the page's own language runtime in both languages.
+
 ## 0.3.12 — 2026-09-26
 
 ### Changed

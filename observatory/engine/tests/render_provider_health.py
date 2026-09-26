@@ -64,7 +64,7 @@ def main() -> int:
         return 1
     health = got.get("health") or ""
     bad = []
-    if "карантин" not in health:
+    if "quarantine" not in health:
         bad.append("the health panel has no quarantine row")
     if "vendor/first-choice" not in health:
         bad.append("the row does not name the quarantined model")

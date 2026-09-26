@@ -41,7 +41,8 @@ class DashboardPortabilityTests(unittest.TestCase):
 
     def javascript(self, expression, *, payload=None, extra=''):
         data = {'runtime':self.runtime, 'rows':[], **(payload or {})}
-        script = ('const D=' + json.dumps(data) + '; const LIVE=false; const PROJ_NAME=new Map();\n'
+        # T is the page's translator; English ids read as themselves here.
+        script = ('const D=' + json.dumps(data) + '; const LIVE=false; const PROJ_NAME=new Map(); const T=s=>s;\n'
                   + 'const E=x=>String(x).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");\n'
                   + self.helpers + '\n' + self.credentials + '\n' + self.env_actions + '\n' + extra
                   + '\nconsole.log(JSON.stringify(' + expression + '));')
@@ -109,7 +110,7 @@ class DashboardPortabilityTests(unittest.TestCase):
 
     def test_movement_evidence_is_one_quoted_argument(self):
         self.inert_tool('vault.py')
-        section = 'function movementsSection' + self.template.split('function movementsSection',1)[1].split('\nconst CLS_RU',1)[0]
+        section = 'function movementsSection' + self.template.split('function movementsSection',1)[1].split('\nconst CLS_LABEL',1)[0]
         record = {'project':'demo','vars':['TOKEN'],'app':'name"; echo WRONG; #','version':1,'at':'2026-01-01T00:00:00Z','by':"user's name $(echo WRONG)"}
         markup = self.javascript('movementsSection()',payload={'creds':{'unrecorded':[record]}},extra=section)
         command = html.unescape(re.search(r'data-copy="([^"]+)"',markup).group(1))

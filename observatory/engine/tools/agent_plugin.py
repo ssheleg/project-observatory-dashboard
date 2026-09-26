@@ -29,7 +29,12 @@ import configuration  # noqa: E402
 
 MARKETPLACE = "observatory-log"
 PLUGIN = f"{MARKETPLACE}@{MARKETPLACE}"
-REPOSITORY = os.environ.get("OBSERVATORY_PLUGIN_REPOSITORY", "ssheleg/project-observatory-dashboard")
+#: The repository moved to the PassionCode.ai organization in 0.4.0. An install
+#: that still points at the old address is replaced by `install`, which is the
+#: same path an earlier directory-sourced install takes (GitHub redirects the
+#: old address meanwhile, so nothing breaks before the operator acts).
+REPOSITORY = os.environ.get("OBSERVATORY_PLUGIN_REPOSITORY", "passioncode-ai/project-observatory-dashboard")
+PREVIOUS_REPOSITORIES = ("ssheleg/project-observatory-dashboard",)
 SOURCE = {"source": "github", "repo": REPOSITORY}
 ENV_KEYS = ("OBSERVATORY_ROOT", "OBSERVATORY_HOME", "OBSERVATORY_PYTHON")
 
@@ -174,8 +179,12 @@ def status() -> dict:
         problems.append(f"installed {have}, this engine ships {ship}: run `claude plugin update {PLUGIN}`")
     source = known.get("source") or extra.get("source")
     if source and source != SOURCE:
-        problems.append(f"marketplace comes from {source.get('source')}, not GitHub; "
-                        "`agent install` switches it and enables updates")
+        if source.get("source") == "github" and source.get("repo") in PREVIOUS_REPOSITORIES:
+            problems.append(f"marketplace points at the previous address {source.get('repo')}; "
+                            f"`agent install` moves it to {REPOSITORY}")
+        else:
+            problems.append(f"marketplace comes from {source.get('source')}, not GitHub; "
+                            "`agent install` switches it and enables updates")
     auto = known.get("autoUpdate", extra.get("autoUpdate", False))
     if have and not auto:
         problems.append("auto-update is off: `project-observatory full agent install` turns it on")

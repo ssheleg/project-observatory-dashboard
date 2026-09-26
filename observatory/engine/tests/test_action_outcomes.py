@@ -37,7 +37,14 @@ def main() -> int:
               "success": "ok"}
     for case, prefix in expect.items():
         check(f"{case} reads as {prefix.rstrip(':')}", str(r.get(case, "")).startswith(prefix), str(r.get(case)))
-    check("a timeout names its wait", "нет ответа" in str(r.get("timeout")), str(r.get("timeout")))
+    check("a timeout names its wait", "no answer within" in str(r.get("timeout")), str(r.get("timeout")))
+    # The same outcomes in Russian: the message is the catalog's, not a literal.
+    p = subprocess.run([node, str(ROOT / "tests/action_outcome_check.mjs"), str(page), "ru"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=120)
+    ru = json.loads(p.stdout or "{}")
+    check("in Russian the timeout still reads as uncertain and names its wait",
+          str(ru.get("timeout", "")).startswith("uncertain:") and "нет ответа за" in str(ru.get("timeout")),
+          p.stdout + p.stderr)
     return 1 if FAILS else 0
 
 

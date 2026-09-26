@@ -6,13 +6,13 @@
     {
       "name": "web.requests_1d",
       "unit": "requests",
-      "label": "запросов/сут",
+      "label": "requests/day",
       "means": "Every HTTP request Cloudflare served for the project's zones on the last complete UTC day, from the GraphQL httpRequests1dGroups dataset. Includes bots and assets — it measures load, not audience; the audience is web.visitors_1d beside it."
     },
     {
       "name": "web.visitors_1d",
       "unit": "visitors",
-      "label": "визитёров/сут",
+      "label": "visitors/day",
       "role": "traffic.visitors",
       "means": "Cloudflare's unique-visitor estimate for the last complete UTC day, summed over the project's zones. The role lets core surfaces ask 'which projects have an audience' without naming this plugin — the same seam release.count uses."
     }

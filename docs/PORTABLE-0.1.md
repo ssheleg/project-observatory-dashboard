@@ -9,7 +9,7 @@ These are the retained **0.1 compatibility commands**. Their smaller workspace r
 Python 3.11+ and Git are the prerequisites. The runtime has no third-party Python dependencies. The documented shell commands target macOS and Linux; Windows support has not been validated.
 
 ```sh
-git clone https://github.com/ssheleg/project-observatory-dashboard.git
+git clone https://github.com/passioncode-ai/project-observatory-dashboard.git
 cd project-observatory-dashboard
 python3 -m venv .venv
 . .venv/bin/activate

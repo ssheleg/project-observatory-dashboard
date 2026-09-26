@@ -11,7 +11,16 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("dashboard_shell", ROOT / "dashboard/shell.py")
 shell = importlib.util.module_from_spec(SPEC)
+import sys
+sys.path.insert(0, str(ROOT / "dashboard"))
 SPEC.loader.exec_module(shell)
+RU = shell.Translator("ru")
+
+
+def text(markup: str) -> str:
+    """What a reader sees of a marked fragment: its text, entities decoded."""
+    import html, re
+    return html.unescape(re.sub(r"<[^>]+>", "", markup))
 
 
 class Markup(HTMLParser):
@@ -114,30 +123,35 @@ class DashboardShellTests(unittest.TestCase):
         self.assertEqual(counts["index"], "")
         self.assertEqual(counts["health"], "")
         self.assertEqual(counts["findings"], 132)
-        self.assertIn("ждут решения 304", shell.cards_html(payload, counts))
+        self.assertIn("awaiting a decision: 304", text(shell.cards_html(payload, counts)))
+        self.assertIn("ждут решения: 304", text(shell.cards_html(payload, counts, RU)))
 
     def test_traffic_summary_distinguishes_unknown_zero_and_partial_resource_sum(self):
-        self.assertEqual(shell._traffic_line({}), "аналитика не сканировалась")
-        unknown = shell._traffic_line({"google": {"totals": {
+        # In Russian, which has the plural and grouping rules worth checking.
+        line = lambda totals: text(shell._traffic_line(totals, RU))
+        self.assertEqual(line({}), "аналитика не сканировалась")
+        unknown = line({"google": {"totals": {
             "users_30d": None, "users_30d_unclaimed": None,
             "unknown_properties": 2, "measured_properties": 0}}})
         self.assertIn("не измерена", unknown)
         self.assertIn("без измерения: 2", unknown)
         self.assertNotIn("0 польз.", unknown)
         self.assertNotIn("без проекта", unknown)
-        zero = shell._traffic_line({"google": {"totals": {
+        zero = line({"google": {"totals": {
             "users_30d": 0, "users_30d_unclaimed": 0,
             "unknown_properties": 0, "measured_properties": 1}}})
-        self.assertIn("0 польз./30 дн", zero)
+        self.assertIn("0 польз. / 30 дн", zero)
         self.assertIn("сумма по ресурсам", zero)
         self.assertIn("0 без проекта", zero)
         self.assertNotIn("частично", zero)
-        partial = shell._traffic_line({"google": {"totals": {
+        partial = line({"google": {"totals": {
             "users_30d": 1200, "users_30d_unclaimed": 400,
             "unknown_properties": 3, "measured_properties": 2}}})
-        for part in ("1 200 польз./30 дн", "сумма по ресурсам", "частично",
+        for part in ("1\u00a0200 польз. / 30 дн", "сумма по ресурсам", "частично",
                      "измерено ресурсов: 2", "без измерения: 3", "400 без проекта"):
             self.assertIn(part, partial)
+        self.assertIn("1,200 users / 30 d", text(shell._traffic_line({"google": {"totals": {
+            "users_30d": 1200, "unknown_properties": 0}}}, shell.Translator("en"))))
 
 
 if __name__ == "__main__":

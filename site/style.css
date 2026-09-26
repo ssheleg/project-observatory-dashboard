@@ -103,3 +103,11 @@ header nav{flex-wrap:wrap}.story-preview{display:grid;grid-template-columns:1fr 
 .home .dashboard-preview{box-shadow:var(--shadow-sm)}
 .home .hero-links a,.home .quick-start summary{color:var(--ink)}
 .home .section:first-of-type{border-top:1px solid var(--line)}
+/* PassionCode.ai: the product glyph beside the name and the family it belongs to,
+   gold primary actions with dark text, and the real dashboard as the hero image. */
+.wordmark-name{display:grid;gap:2px;line-height:1.2}.wordmark-name small{font-weight:400;font-size:var(--t-mono);color:var(--ink-soft)}
+.primary{background:var(--pc-accent);color:var(--pc-on-accent);border:1px solid var(--pc-accent)}.primary:hover{background:var(--pc-accent-hover);opacity:1}
+.dashboard-shot{margin:0;align-self:start;border:1px solid var(--line-strong);border-radius:var(--radius-lg);overflow:hidden;background:var(--surface);box-shadow:var(--shadow-float)}
+.dashboard-shot img{display:block;width:100%;height:auto}
+.dashboard-shot figcaption{padding:var(--s3) var(--s4);font-size:var(--t-sm);color:var(--ink-soft);border-top:1px solid var(--line)}
+.section a:not(.button){color:var(--pc-accent)}

@@ -14,23 +14,29 @@ smoke harness and the design checks read it), and `docs/dashboard/*.html` are
 the pages a person opens. Both come from `build_dashboard.py` in one run.
 """
 from __future__ import annotations
+import base64
+import html
 import json
 import re
+from pathlib import Path
+
+from i18n import LOCALE_NAMES, LOCALES, Translator
 
 #: (name, title, kind). `table` pages render one of the tab renderers into
 #: `#out`; the three others show the shell's own sections. Order is the nav
 #: order: the overview first, then what needs a person most often.
+#: Titles are English message ids; `dashboard/locales/*.json` translates them.
 PAGES: tuple[tuple[str, str, str], ...] = (
-    ("index",    "Обзор",     "index"),
-    ("findings", "Находки",   "findings"),
-    ("projects", "Проекты",   "table"),
-    ("domains",  "Домены",    "table"),
+    ("index",    "Overview",  "index"),
+    ("findings", "Findings",  "findings"),
+    ("projects", "Projects",  "table"),
+    ("domains",  "Domains",   "table"),
     ("heroku",   "Heroku",    "table"),
-    ("creds",    "Ключи",     "table"),
+    ("creds",    "Keys",      "table"),
     ("env",      "ENV",       "table"),
     ("mcp",      "MCP",       "table"),
-    ("traffic",  "Трафик",    "table"),
-    ("health",   "Здоровье",  "health"),
+    ("traffic",  "Traffic",   "table"),
+    ("health",   "Health",    "health"),
 )
 #: THE QUESTION EACH PAGE ANSWERS, in the reader's words (IS-01/IS-02; backlog
 #: D-03). Nine pages shared one `<title>` and one `<h1>` until 2026-09-14: a
@@ -38,25 +44,32 @@ PAGES: tuple[tuple[str, str, str], ...] = (
 #: page said what it showed or over what scope. The sentence is the page's own
 #: heading; the measurement stamp follows it on every page.
 QUESTIONS: dict[str, str] = {
-    "index":    "Что требует внимания и что изменилось в проектах.",
-    "findings": "Проблемы, следующие действия и история скрытых находок.",
-    "projects": "Проекты, их состояние, ресурсы и последние изменения.",
-    "domains":  "Домены, доступность, сроки и связанные проекты.",
-    "heroku":   "Приложения, состояние, развёртывания и стоимость.",
-    "creds":    "Ключи, их назначение, состояние и доступные действия.",
-    "env":      "Переменные по проектам и сравнение с рабочими окружениями.",
-    "mcp":      "Серверы агентов, подключения и доступность.",
-    "traffic":  "Аудитория продуктов, источники данных и связанные проекты.",
-    "health":   "Состояние наблюдателя, свежесть данных и очередь решений.",
+    "index":    "What needs attention and what changed across your projects.",
+    "findings": "Problems, next actions and the history of silenced findings.",
+    "projects": "Projects, their state, resources and latest changes.",
+    "domains":  "Domains, reachability, expiry and linked projects.",
+    "heroku":   "Apps, state, deployments and cost.",
+    "creds":    "Keys, their purpose, state and the actions available.",
+    "env":      "Variables by project, compared with the running environments.",
+    "mcp":      "Agent servers, connections and reachability.",
+    "traffic":  "Product audiences, data sources and linked projects.",
+    "health":   "Observer state, data freshness and the decision queue.",
 }
-TITLE_SUFFIX = "Обсерватория"
+#: The product's name is never translated (docs/brand/locales/*.md).
+TITLE_SUFFIX = "Project Observatory"
+#: The family the product belongs to, and where it lives.
+FAMILY_NAME = "PassionCode.ai"
+FAMILY_URL = "https://passioncode.ai/"
+#: The product glyph, inline: a page opened over file:// has no server to ask.
+ICON = "data:image/svg+xml;base64," + base64.b64encode(
+    (Path(__file__).with_name("brand") / "observatory-mark.svg").read_bytes()).decode("ascii")
 NAMES = tuple(p[0] for p in PAGES)
 TABLE_PAGES = tuple(p[0] for p in PAGES if p[2] == "table")
 NAV_GROUPS = (
-    ("work", "Работа", ("index", "projects", "findings")),
-    ("infrastructure", "Инфраструктура", ("heroku", "domains", "traffic")),
-    ("access", "Доступ", ("creds", "env", "mcp")),
-    ("system", "Система", ("health",)),
+    ("work", "Work", ("index", "projects", "findings")),
+    ("infrastructure", "Infrastructure", ("heroku", "domains", "traffic")),
+    ("access", "Access", ("creds", "env", "mcp")),
+    ("system", "System", ("health",)),
 )
 OVERVIEW_FINDINGS_LIMIT = 8
 
@@ -66,8 +79,27 @@ OVERVIEW_FINDINGS_LIMIT = 8
 LITE_ROW_KEYS = ("id", "name", "anchor", "products", "tier", "lifecycle")
 
 
-def nav_html(page: str, counts: dict[str, int | str]) -> str:
+def brand_html(t: Translator) -> str:
+    """The product glyph on its dark tile, the name, and the family it is part of."""
+    return ('<a class="brand" href="index.html">'
+            f'<img class="brand-mark" src="{ICON}" width="32" height="32" alt="">'
+            f'<span class="brand-name"><strong>{TITLE_SUFFIX}</strong>'
+            f'{t.mark("by {family}", attrs=' class="brand-family"', family=FAMILY_NAME)}</span></a>')
+
+
+def locale_switch_html(t: Translator) -> str:
+    """EN/RU: the reader's language. Each button names its language in itself,
+    and the page script keeps the choice (see `LOCALE_KEY` in the template)."""
+    buttons = "".join(
+        f'<button type="button" data-locale="{code}" lang="{code}" aria-pressed="false"'
+        f' title="{html.escape(LOCALE_NAMES[code])}">{code.upper()}</button>'
+        for code in LOCALES)
+    return f'<div class="locale-switch" role="group"{t.attr("aria-label", "Language")}>{buttons}</div>'
+
+
+def nav_html(page: str, counts: dict[str, int | str], t: Translator | None = None) -> str:
     """Grouped navigation keeps every route reachable without disclosure."""
+    t = t or Translator()
     titles = {name: title for name, title, _kind in PAGES}
     groups = []
     for key, label, names in NAV_GROUPS:
@@ -76,19 +108,17 @@ def nav_html(page: str, counts: dict[str, int | str]) -> str:
             n = counts.get(name)
             badge = f' <span class="n">{n}</span>' if n not in (None, "") else ""
             cur = ' aria-current="page"' if name == page else ""
-            items.append(f'<a class="pg" href="{name}.html"{cur}>{titles[name]}{badge}</a>')
+            items.append(f'<a class="pg" href="{name}.html"{cur}>{t.mark(titles[name])}{badge}</a>')
         groups.append(f'<section class="nav-group" aria-labelledby="nav-{key}">'
-                      f'<h2 class="nav-heading" id="nav-{key}">{label}</h2>'
+                      + t.mark(label, tag="h2", attrs=f' class="nav-heading" id="nav-{key}"')
                       + "".join(items) + "</section>")
-    theme = ('<div class="theme" role="group" aria-label="Тема">'
-             '<button type="button" data-mode="system" aria-pressed="false" title="как в системе">система</button>'
-             '<button type="button" data-mode="light" aria-pressed="false">светлая</button>'
-             '<button type="button" data-mode="dark" aria-pressed="false">тёмная</button></div>')
-    return ('<a class="skip-link" href="#workspace">К содержимому</a>'
-            '<aside class="topbar nav-rail" id="topbar">'
-            f'<a class="brand" href="index.html">{TITLE_SUFFIX}</a>'
-            '<nav class="pages" id="pages" aria-label="Разделы">' + "".join(groups) + "</nav>"
-            + theme + "</aside>")
+    return (t.mark("Skip to content", tag="a", attrs=' class="skip-link" href="#workspace"')
+            + '<aside class="topbar nav-rail" id="topbar">'
+            + brand_html(t)
+            + f'<nav class="pages" id="pages"{t.attr("aria-label", "Sections")}>' + "".join(groups) + "</nav>"
+            + locale_switch_html(t)
+            + f'<a class="family-link" href="{FAMILY_URL}" rel="noopener">{t.mark("Part of the PassionCode toolkit")}</a>'
+            + "</aside>")
 
 
 def counts_of(payload: dict) -> dict[str, int | str]:
@@ -119,66 +149,71 @@ def counts_of(payload: dict) -> dict[str, int | str]:
     }
 
 
-def _observer(health: dict) -> str:
+def _observer(health: dict, t: Translator) -> str:
     """The three states the health row spells apart, in three words: -1 is off
     (a choice, not a fault), a fresh receipt is alive, an old one is silence."""
     age = health.get("server_age_s")
     if not isinstance(age, (int, float)):
-        return "наблюдатель не измерен"
+        return t.mark("observer not measured")
     if age == -1:
-        return "при измерении наблюдатель не был запущен"
+        return t.mark("the observer was not running when measured")
     if age < 90:
-        return "при измерении наблюдатель работал"
-    return f"при измерении не отвечал {int(age // 60)} мин"
+        return t.mark("the observer was running when measured")
+    return t.mark("not answering for {n} min when measured", n=int(age // 60))
 
 
-def _traffic_line(payload: dict) -> str:
+def _traffic_line(payload: dict, t: Translator) -> str:
     """A resource sum, with unknown coverage kept distinct from measured zero."""
     g = payload.get("google") or {}
     tt = g.get("totals") or {}
     if not g:
-        return "аналитика не сканировалась"
+        return t.mark("analytics not scanned")
     users = tt.get("users_30d")
     loose = tt.get("users_30d_unclaimed")
     unknown = tt.get("unknown_properties") or 0
     measured = tt.get("measured_properties")
-    line = ("аудитория не измерена" if users is None else
-            f"{users:,}".replace(",", " ") + " польз./30 дн · сумма по ресурсам")
+    parts = [t.mark("audience not measured") if users is None else
+             t.mark("{n} users / 30 d · sum across properties", n=users)]
     if unknown:
-        line += (" · частично" if users is not None else "")
+        if users is not None:
+            parts.append(t.mark("partial"))
         if measured is not None:
-            line += f" · измерено ресурсов: {measured}"
-        line += f" · без измерения: {unknown}"
+            parts.append(t.mark("properties measured: {n}", n=measured))
+        parts.append(t.mark("not measured: {n}", n=unknown))
     if loose is not None:
-        line += f" · {loose:,}".replace(",", " ") + " без проекта"
-    return line
+        parts.append(t.mark("{n} without a project", n=loose))
+    return " · ".join(parts)
 
 
-def cards_html(payload: dict, counts: dict) -> str:
+def cards_html(payload: dict, counts: dict, t: Translator | None = None) -> str:
     """The index page's module cards: one sentence each, the number, the link."""
+    t = t or Translator()
     stats = payload.get("stats") or {}
     health = payload.get("health") or {}
     lines = {
-        "projects": f"{counts['projects']} проектов · "
-                    f"{stats.get('проектов в работе, 7 дн', 0)} в работе за неделю",
-        "findings": f"{counts['findings'] or 0} открытых",
-        "domains": f"{counts['domains']} имён · зон Cloudflare {len(payload.get('zones') or [])}",
-        "heroku": f"{counts['heroku'] or 0} приложений",
-        "creds": f"{counts['creds'] or 0} записей",
-        "env": f"{counts['env'] or 0} секретных переменных",
-        "mcp": f"{counts['mcp'] or 0} серверов",
-        "traffic": _traffic_line(payload),
+        "projects": t.mark("{n} projects", n=counts["projects"]) + " · "
+                    + t.mark("{n} active this week", n=stats.get("projects_active_7d", 0)),
+        "findings": t.mark("{n} open", n=counts["findings"] or 0),
+        "domains": t.mark("{n} names", n=counts["domains"]) + " · "
+                   + t.mark("Cloudflare zones: {n}", n=len(payload.get("zones") or [])),
+        "heroku": t.mark("{n} apps", n=counts["heroku"] or 0),
+        "creds": t.mark("{n} entries", n=counts["creds"] or 0),
+        "env": t.mark("{n} secret variables", n=counts["env"] or 0),
+        "mcp": t.mark("{n} servers", n=counts["mcp"] or 0),
+        "traffic": _traffic_line(payload, t),
         # TWO NUMBERS, because one of them is the reason to open the page: the
         # observer's state, and how many rows are waiting for a person (S4/F9).
-        "health": (_observer(health) + f" · ждут решения {health.get('proposed', 0)}"),
+        "health": (_observer(health, t) + " · "
+                   + t.mark("awaiting a decision: {n}", n=health.get("proposed", 0))),
     }
     cards = []
     for name, title, _kind in PAGES:
         if name == "index":
             continue
-        cards.append(f'<a class="card mod" href="{name}.html"><b>{title}</b>'
+        cards.append(f'<a class="card mod" href="{name}.html">{t.mark(title, tag="b")}'
                      f'<span class="anchor">{lines.get(name, "")}</span></a>')
-    return '<section class="mods" id="mods" aria-label="Разделы">' + "".join(cards) + "</section>"
+    return (f'<section class="mods" id="mods"{t.attr("aria-label", "Sections")}>'
+            + "".join(cards) + "</section>")
 
 
 def slice_for(page: str, payload: dict) -> dict:
@@ -277,7 +312,10 @@ def split_template(template: str) -> tuple[str, str, str]:
     return page, css, body[cut:]
 
 
-def page_html(template: str, page: str, payload: dict) -> str:
+def page_html(template: str, page: str, payload: dict, locale: str = "en") -> str:
+    """One page in the build locale. `template` is already localized (static
+    marks filled by `i18n.localize_markup`); this fills the per-page parts."""
+    t = Translator(locale)
     counts = counts_of(payload)
     data = json.dumps(slice_for(page, payload), ensure_ascii=False)
     title = dict((n, tt) for n, tt, _k in PAGES)[page]
@@ -301,9 +339,10 @@ def page_html(template: str, page: str, payload: dict) -> str:
     template = template.replace("__NAV__", '__NAV__\n<main id="workspace" class="workspace" tabindex="-1">', 1)
     template = template.replace("</footer>", "</footer>\n</main>", 1)
     return (template.replace("__PAGE__", page)
-            .replace("__TITLE__", f"{title} — {TITLE_SUFFIX}")
-            .replace("__H1__", title)
-            .replace("__SUB__", QUESTIONS.get(page, ""))
-            .replace("__NAV__", nav_html(page, counts))
-            .replace("__CARDS__", cards_html(payload, counts) if page == "index" else "")
+            .replace("__TITLE__", html.escape(f"{t(title)} — {TITLE_SUFFIX}"))
+            .replace("__PAGE_TITLE__", html.escape(title))
+            .replace("__H1__", t.mark(title, tag="h1"))
+            .replace("__SUB__", t.mark(QUESTIONS[page]) if page in QUESTIONS else "")
+            .replace("__NAV__", nav_html(page, counts, t))
+            .replace("__CARDS__", cards_html(payload, counts, t) if page == "index" else "")
             .replace("__DATA__", data.replace("</", "<\\/")))

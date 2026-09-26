@@ -29,7 +29,7 @@ LEGACY = (
     'runtime_identity', 'remote_env',
     'project_identity',
     'sessions',
-    'env_page', 'metric_labels', 'hosting_groups', 'action_outcomes', 'workspace_redesign', 'google_identity',
+    'env_page', 'metric_labels', 'hosting_groups', 'action_outcomes', 'workspace_redesign', 'google_identity', 'i18n',
 )
 BOUNDARY = (
     'workspace', 'workspace_upgrade', 'workspace_boundaries', 'dashboard_shell',
@@ -77,7 +77,8 @@ def copy_source(target: Path) -> None:
         selected |= {p for p in (ROOT / folder).rglob('*')
                      if p.suffix in {'.py', '.sh', '.js', '.css', '.html', '.svg'}
                      and '__pycache__' not in p.parts}
-    for folder in ('defaults', 'plugins', 'fabric/fixtures', 'fabric/schemas'):
+    # The dashboard's catalogs and the vendored brand manifest are data it reads.
+    for folder in ('defaults', 'plugins', 'fabric/fixtures', 'fabric/schemas', 'dashboard/locales', 'dashboard/brand'):
         selected |= set((ROOT / folder).glob('*.json'))
     for source in sorted(selected):
         if not source.is_file():

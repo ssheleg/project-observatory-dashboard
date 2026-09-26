@@ -115,8 +115,8 @@ class WorkspaceRedesignTests(unittest.TestCase):
         data["google"]["totals"] = {"unclaimed": 1, "users_30d_unclaimed": None,
                                      "users_30d": None, "unknown_properties": 1}
         out = self.render("traffic", data)["out"]
-        self.assertIn("1 ничьих (аудитория не измерена)", out)
-        self.assertNotIn("1 ничьих (0", out)
+        self.assertIn("1 unowned (audience not measured)", out)
+        self.assertNotIn("1 unowned (0", out)
 
     def test_contradictory_traffic_status_chips_replace_each_other(self):
         out = self.render("traffic", self.traffic(),
@@ -143,8 +143,8 @@ class WorkspaceRedesignTests(unittest.TestCase):
                 labels = [re.sub(r'<[^>]+>', '', m) for m in
                           re.findall(r'<button\b[^>]*\bdata-copy="[^"]*"[^>]*>(.*?)</button>', out, re.S)]
                 self.assertTrue(labels, "fixture must expose at least one copied command")
-                self.assertTrue(all("команд" in label.lower() for label in labels), labels)
-                self.assertNotIn("страница открыта из файла", out,
+                self.assertTrue(all("command" in label.lower() for label in labels), labels)
+                self.assertNotIn("opened from a file", out,
                                  "copy mode also includes a served read-only dashboard")
 
     @staticmethod
@@ -158,7 +158,7 @@ class WorkspaceRedesignTests(unittest.TestCase):
         out = self.render("index", self.findings([item]))["findings"]
         self.assertIn("Attention fixture", out)
         self.assertFalse('class="flist folded"' in out, "warning-only overview hides the attention row")
-        self.assertNotIn("ничего открытого", out)
+        self.assertNotIn("No open findings", out)
 
     def test_acknowledged_only_findings_retain_reason_and_undo(self):
         item = {"id": "ack-fixture", "title": "Acknowledged fixture",

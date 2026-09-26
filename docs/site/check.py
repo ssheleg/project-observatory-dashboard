@@ -10,9 +10,9 @@ import tempfile
 import shutil
 
 ROOT = Path(__file__).resolve().parents[2] / 'site'
-ALLOWED = {'index.html', 'style.css', 'tokens.css', 'app.js', 'mark.svg', 'robots.txt', 'sitemap.xml', 'llms.txt', '_headers', 'field-notes/index.html', 'assets/observatory-cover.png', 'assets/credential-copies-cartoon.png', '404.html'}
+ALLOWED = {'index.html', 'style.css', 'tokens.css', 'app.js', 'mark.svg', 'robots.txt', 'sitemap.xml', 'llms.txt', '_headers', 'field-notes/index.html', 'assets/observatory-cover.png', 'assets/credential-copies-cartoon.png', 'assets/dashboard-overview-en.png', '404.html'}
 COVER_HASH = '70403cdb6ffc4029edcf2febbf63dec88a3118fa6cea9d7d6b17150d853d4833'
-IMAGE_HASHES = {"assets/observatory-cover.png": COVER_HASH, "assets/credential-copies-cartoon.png": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c"}
+IMAGE_HASHES = {"assets/observatory-cover.png": COVER_HASH, "assets/credential-copies-cartoon.png": "8b69fe6ffcf44a4d5f8a32622d5c4d9d847d539c8c673c49fadf132c518be30c", "assets/dashboard-overview-en.png": "b1498815bc5728a8f99883a36bd95d9a7c34bb8b22d5489af105aebdbe728015"}
 class Page(HTMLParser):
     def __init__(self):
         super().__init__(); self.ids=[]; self.links=[]; self.assets=[]; self.headings=0
