@@ -64,6 +64,10 @@
     {
       "token": "fabric-switchboard",
       "reason": "Switchboard's public repository"
+    },
+    {
+      "token": "project-observatory-contract",
+      "reason": "the public Fabric contract repository (passioncode-ai/project-observatory-contract), named in the 0.4.0 handoff"
     }
   ]
 }
