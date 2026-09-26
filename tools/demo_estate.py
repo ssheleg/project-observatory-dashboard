@@ -10,7 +10,10 @@ the pages are rendered by the unmodified engine (`collectors/emit_registry.py`,
 then `dashboard/build_dashboard.py`), so a screenshot of `OUT_DIR/pages/` shows
 what Observatory draws, not a mock-up of it.
 
-The output directory must not exist or must be empty; it is the demo's own home.
+The output directory must not exist or must be empty; it is the demo's own home
+(`OUT_DIR/home` is its OBSERVATORY_HOME). Like every dashboard, the pages embed the
+interpreter and engine paths that built them, for their copy-a-command buttons, so
+publish screenshots of the pages, never the generated HTML.
 """
 from __future__ import annotations
 
@@ -82,6 +85,17 @@ def main(argv: list[str]) -> int:
         print(f"demo_estate: {root} is not empty; give it a new directory", file=sys.stderr)
         return 2
     root.mkdir(parents=True, exist_ok=True)
+    # THE DEMO'S OWN HOME, set before any engine module is imported: the engine
+    # resolves settings, sources and secrets from OBSERVATORY_HOME, and without
+    # this line it would read the invoking user's real workspace.
+    os.environ["OBSERVATORY_HOME"] = str(root / "home")
+    os.environ.pop("OBSERVATORY_LOCALE", None)
+    # An initialized, empty workspace: the reviewed defaults and nothing else.
+    made = subprocess.run([sys.executable, str(ENGINE / "observatory.py"), "init"], cwd=ENGINE,
+                          env={**os.environ}, capture_output=True, text=True)
+    if made.returncode:
+        print("demo_estate: could not initialize the demo workspace:\n" + made.stderr[-600:], file=sys.stderr)
+        return 1
     sys.path.insert(0, str(ENGINE))
     sys.path.insert(0, str(ENGINE / "tests"))
     from emitter_fixture import environment, seed
