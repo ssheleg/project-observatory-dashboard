@@ -81,10 +81,10 @@ LITE_ROW_KEYS = ("id", "name", "anchor", "products", "tier", "lifecycle")
 
 def brand_html(t: Translator) -> str:
     """The product glyph on its dark tile, the name, and the family it is part of."""
+    family = t.mark("by {family}", attrs=' class="brand-family"', family=FAMILY_NAME)
     return ('<a class="brand" href="index.html">'
             f'<img class="brand-mark" src="{ICON}" width="32" height="32" alt="">'
-            f'<span class="brand-name"><strong>{TITLE_SUFFIX}</strong>'
-            f'{t.mark("by {family}", attrs=' class="brand-family"', family=FAMILY_NAME)}</span></a>')
+            f'<span class="brand-name"><strong>{TITLE_SUFFIX}</strong>{family}</span></a>')
 
 
 def locale_switch_html(t: Translator) -> str:
