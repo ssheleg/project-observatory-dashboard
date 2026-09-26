@@ -86,7 +86,7 @@ recorded in the release receipt appended below.
   with `project_observatory-0.4.0-py3-none-any.whl` (SHA-256
   `5fab00a2cb266ec9e38050b9a5d9111d005236c573d056a421a270144c7698a3`, built from a fresh anonymous
   clone of the merge commit; `check_package.py` 285 runtime / 291 archive files, 0 failures) and
-  `SHA256SUMS`. Anonymous download matched `SHA256SUMS`; `releases/latest` answers `v0.4.0`.
+  `SHA256SUMS`. The wheel fetched anonymously from the release matched `SHA256SUMS`; `releases/latest` answers `v0.4.0`.
 - Operator installation: tick and server jobs booted out; `full workspace-backup --writers-stopped`
   (snapshot, 147 files); wheel installed with the lock file; `full upgrade --apply --writers-stopped`
   (its own pre-upgrade snapshot); `full configure interface locale ru`; `full open --rebuild`; jobs
