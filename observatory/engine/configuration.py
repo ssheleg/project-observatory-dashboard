@@ -5,7 +5,7 @@ import os
 import re
 from pathlib import Path
 
-VERSION = "0.3.12"
+VERSION = "0.4.0"
 CONFIG_VERSION = 1
 WORKSPACE_VERSION = 1
 SOURCE = Path(__file__).resolve().parent
@@ -83,6 +83,14 @@ def validate_workspace(base: Path | None = None, *, required: bool = False) -> d
             raise ConfigurationError("This workspace requires a newer Observatory release")
     return doc
 
+#: What `interface` in settings.json may hold, and the values each accepts.
+#: English is the default; `locale` is read by the dashboard (dashboard/i18n.py).
+INTERFACE_SETTINGS = {"locale": ("en", "ru")}
+
+def interface_locale(base: Path | None = None) -> str:
+    """The dashboard's language for this workspace: `interface.locale`, else English."""
+    return load(base).get("interface", {}).get("locale", "en")
+
 def load(base: Path | None = None) -> dict:
     base = base or home()
     validate_workspace(base)
@@ -103,6 +111,17 @@ def load(base: Path | None = None) -> dict:
     for section in ("integrations", "features"):
         if any(type(v) is not bool for v in doc.get(section, {}).values()):
             raise ConfigurationError(f"Configuration {section} values must be boolean")
+    # INTERFACE is optional and ignored by releases before 0.4.0, so a workspace
+    # that sets a language stays readable by an older reader. Only the keys in
+    # INTERFACE_SETTINGS exist; an unknown key or value is refused, not dropped.
+    interface = doc.get("interface", {})
+    if not isinstance(interface, dict):
+        raise ConfigurationError("Configuration interface must be an object")
+    for key, value in interface.items():
+        if key not in INTERFACE_SETTINGS:
+            raise ConfigurationError(f"Unknown interface setting: {key}")
+        if value not in INTERFACE_SETTINGS[key]:
+            raise ConfigurationError(f"Interface {key} must be one of: {', '.join(INTERFACE_SETTINGS[key])}")
     required = doc.get("must_understand", [])
     if not isinstance(required, list) or required:
         raise ConfigurationError("Configuration requires unsupported capabilities")

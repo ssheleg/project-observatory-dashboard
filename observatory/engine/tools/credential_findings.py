@@ -129,7 +129,7 @@ def shared_rotation(creds: list[dict]) -> list[dict]:
                    + ". That is not a defect — it is the reason the edge is recorded "
                      "at all, and the reason a rotation needs a plan rather than a "
                      "command."),
-        "action": ("before rotating, list the projects on the Ключи tab and deploy "
+        "action": ("before rotating, list the projects on the Keys page and deploy "
                    "them together, or split the account so each holds its own"),
     }]
 
@@ -156,7 +156,7 @@ def unsigned(creds: list[dict]) -> list[dict]:
                    f"it leaks — «is this still needed» has no answer, so it is "
                    f"kept forever and rotated never."),
         "action": ("`tools/sign_credential.py set <id> --purpose \"…\" --evidence "
-                   "\"…\"`, or the «подписать…» button on the keys page"),
+                   "\"…\"`, or the “sign…” button on the Keys page"),
     }]
 
 

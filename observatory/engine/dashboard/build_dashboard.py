@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 import atomic
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))                       
 import paths                                                                    
+import i18n
 # `paths`, not `ROOT / "registry"`. The third tool found with the path inlined —
 # after the validator — and the consequence is the same: it is the
 # one file `OBSERVATORY_REGISTRY` cannot redirect, so a test that points it at a
@@ -64,13 +65,12 @@ def at_risk_total(repos: dict) -> dict:
     nothing = [r for r in risky if (r.get("local") or {}).get("nothing_exclusive")]
     unmeasured = len(risky) - len(counted) - len(nothing)
     if not counted:
-        return {"коммитов ни на одном remote":
-                "нечего терять" if nothing and not unmeasured else "не измерено"}
+        return {"unpushed_commits":
+                "nothing to lose" if nothing and not unmeasured else "not measured"}
     total = sum(r["local"]["unpushed"] for r in counted)
     if unmeasured:
-        return {"коммитов ни на одном remote":
-                f"{total}+ ({unmeasured} чекаут(ов) не посчитаны)"}
-    return {"коммитов ни на одном remote": total}
+        return {"unpushed_commits": f"{total}+", "unpushed_unmeasured": unmeasured}
+    return {"unpushed_commits": total}
 
 
 def work_stats() -> dict:
@@ -110,8 +110,8 @@ def work_stats() -> dict:
                 continue
             # The window is IN THE LABEL. "2222" means nothing on its own, and a
             # tile is one number beside one caption.
-            out[f"коммитов за {days} дн"] = r["c"]
-            out[f"проектов в работе, {days} дн"] = r["p"]
+            out[f"commits_{days}d"] = r["c"]
+            out[f"projects_active_{days}d"] = r["p"]
         # WHERE the work went, not only how much. A name rather than a number,
         # which the tile renderer prints identically.
         top = conn.execute(
@@ -120,7 +120,7 @@ def work_stats() -> dict:
             f"  AND occurred_at >= date('now', '-{max(WORK_WINDOWS)} days')"
             " GROUP BY project_id ORDER BY c DESC LIMIT 1").fetchone()
         if top is not None:
-            out[f"больше всего работы, {max(WORK_WINDOWS)} дн"] = (
+            out[f"busiest_{max(WORK_WINDOWS)}d"] = (
                 top["project_id"].split(":", 1)[-1])
     except sqlite3.Error as exc:
         # NAMED. A silent handler here would drop the tiles and leave the page
@@ -211,13 +211,13 @@ def from_store() -> dict:
     out = {"weeks": {}, "metrics": {}, "timeline": {}, "notes": {},
        "health": {}, "degraded": "", "queue": []}
     if not paths.DB.exists():
-        out["degraded"] = "нет локального хранилища — история и метрики недоступны"
+        out["degraded"] = {"text": "no local store — history and metrics are unavailable"}
         return out
     try:
         conn = sqlite3.connect(f"file:{paths.DB}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error as exc:
-        out["degraded"] = f"хранилище не открылось: {type(exc).__name__}"
+        out["degraded"] = {"text": "the store did not open: {error}", "args": {"error": type(exc).__name__}}
         return out
     try:
         out["queue"] = _queue(conn)
@@ -227,7 +227,11 @@ def from_store() -> dict:
         # cannot answer for it must not cost the caller the weeks, metrics and
         # health beside it.
         out["queue"] = []
-        out["degraded"] = (out["degraded"] or "") + f" очередь не прочиталась: {type(exc).__name__}"
+        # One sentence carries both faults, so the page still has one line to translate.
+        prior = out["degraded"]
+        out["degraded"] = ({"text": "{prior}; the queue could not be read: {error}",
+                            "args": {"prior": prior["text"], "error": type(exc).__name__}} if prior else
+                           {"text": "the queue could not be read: {error}", "args": {"error": type(exc).__name__}})
     try:
         # Twenty-six weeks: half a year is the longest span a sparkline this
         # size can show without becoming a smear, and the rollup keeps the rest.
@@ -248,8 +252,8 @@ def from_store() -> dict:
         # returning one row at a time. The manifest declares the unit; this
         # renders whatever arrives.
         # THE CAPTIONS, from the manifests, through the plugin layer's own
-        # reader. Five numbers sat on a project's row — `70 packages · 92 МБ ·
-        # 2.6 ГБ · 8 days · 6 tags` — and three were a guess without a mouse:
+        # reader. Five numbers sat on a project's row — `70 packages · 92 MB ·
+        # 2.6 GB · 8 days · 6 tags` — and three were a guess without a mouse:
         # the two byte figures are what the project COSTS and what deleting its
         # package directories GIVES BACK, opposite meanings told apart only by
         # a `title` attribute. A map from metric name to caption may not live
@@ -393,7 +397,7 @@ def from_store() -> dict:
         else:
             out["health"]["server_age_s"] = -1                           
     except sqlite3.Error as exc:
-        out["degraded"] = f"хранилище нечитаемо: {str(exc)[:60]}"
+        out["degraded"] = {"text": "the store is unreadable: {error}", "args": {"error": str(exc)[:60]}}
     finally:
         conn.close()
 
@@ -697,7 +701,7 @@ def build():
             # the store's own conclusions were also written to `r["notes"]`
             # twenty lines below, so the second assignment replaced this COUNT
             # with a LIST and the wiki chip rendered
-            # "[object Object],[object Object] зам." on every row that had a
+            # "[object Object],[object Object] notes" on every row that had a
             # note. One word for two populations, and the page said so out loud
             # (2026-09-09). Seen by opening the page, which is why it lived.
             "wiki_notes": project.get("vault_notes", 0),
@@ -859,12 +863,36 @@ def build():
                           "measured": store["health"].get("last_scan", "")}
     build.last_payload = PAYLOAD                                                  
     payload = json.dumps(PAYLOAD, ensure_ascii=False)
-    return (TEMPLATE.replace("__PAGE__", "").replace("__NAV__", "").replace("__CARDS__", "")
-            .replace("__TITLE__", "Проекты — операторский реестр")
-            .replace("__H1__", "Проекты — операторский реестр")
-            .replace("__SUB__", "Реестр из подключённых источников: папки проектов, репозитории и заметки. "
-                     "Каждая связь проект↔репозиторий несёт правило, которым проведена.")
+    locale = build_locale()
+    t = i18n.Translator(locale)
+    title = "Projects — the operator's registry"
+    return (template_for(locale).replace("__PAGE__", "").replace("__NAV__", "").replace("__CARDS__", "")
+            .replace("__TITLE__", html.escape(t(title)))
+            .replace("__PAGE_TITLE__", "")
+            .replace("__H1__", t.mark(title, tag="h1"))
+            .replace("__SUB__", t.mark("A registry built from the connected sources: project folders, "
+                                       "repositories and notes. Every project↔repository link carries "
+                                       "the rule that made it."))
             .replace("__DATA__", payload.replace("</", "<\\/")))
+
+
+def build_locale() -> str:
+    """The language the pages are built in: `OBSERVATORY_LOCALE` when set (the
+    checks and the screenshot use it), else the workspace's `interface.locale`,
+    else English. An unsupported value stops the build rather than guessing."""
+    value = os.environ.get("OBSERVATORY_LOCALE")
+    if value:
+        return i18n.check_locale(value)
+    import configuration
+    return i18n.check_locale(configuration.interface_locale())
+
+
+def template_for(locale: str) -> str:
+    """The template in one language, with the catalogs the script needs."""
+    catalogs = json.dumps(i18n.catalogs(), ensure_ascii=False, sort_keys=True)
+    return (i18n.localize_markup(TEMPLATE, locale)
+            .replace("__LOCALE__", locale)
+            .replace("__I18N__", catalogs.replace("</", "<\\/")))
 
 
 def build_pages(payload: dict) -> dict[str, int]:
@@ -872,115 +900,99 @@ def build_pages(payload: dict) -> dict[str, int]:
     same template and the same data, each carrying only what it renders
 . Returns bytes written per page."""
     import shell
+    locale = build_locale()
     paths.DASHBOARD_DIR.mkdir(parents=True, exist_ok=True)
-    page_tpl, css, js = shell.split_template(TEMPLATE)
+    page_tpl, css, js = shell.split_template(template_for(locale))
     atomic.write_text(paths.DASHBOARD_DIR / shell.ASSET_CSS, css)
     atomic.write_text(paths.DASHBOARD_DIR / shell.ASSET_JS, js)
     sizes = {}
     for name, _title, _kind in shell.PAGES:
-        html = shell.page_html(page_tpl, name, payload)
-        atomic.write_text(paths.DASHBOARD_DIR / f"{name}.html", html)
-        sizes[name] = len(html.encode("utf-8"))
+        page = shell.page_html(page_tpl, name, payload, locale)
+        atomic.write_text(paths.DASHBOARD_DIR / f"{name}.html", page)
+        sizes[name] = len(page.encode("utf-8"))
     return sizes
 
 
 TEMPLATE = r"""<!doctype html>
-<html lang="ru">
+<html lang="__LOCALE__" data-theme="dark" data-build-locale="__LOCALE__">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>__TITLE__</title>
+<link rel="icon" type="image/svg+xml" href="__ICON__">
 <script>
-/* THE THEME, BEFORE FIRST PAINT (backlog D-04). The choice is the reader's —
-   «система», «светлая» or «тёмная» — kept in localStorage; applying it from the
-   main script at the bottom of the page would paint one theme and then the
-   other. Guarded: the smoke harness has no localStorage and no matchMedia. */
+/* THE READER'S LANGUAGE, BEFORE FIRST PAINT. The page is built in the
+   workspace's language (`interface.locale`); a reader who picked the other one
+   with the EN/RU switch keeps it in localStorage, and `lang` is set here so
+   that the first paint, hyphenation and screen readers already agree with it.
+   Guarded: the smoke harness has no localStorage. */
 (function () {
-  var mode = "system";
-  try { mode = localStorage.getItem("observatory.theme") || "system"; } catch (e) {}
-  var dark = mode === "dark" || (mode === "system" && typeof matchMedia === "function"
-             && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-  document.documentElement.setAttribute("data-theme-mode", mode);
+  var root = document.documentElement, locale = root.getAttribute("data-build-locale");
+  try {
+    var chosen = localStorage.getItem("observatory.locale");
+    if (chosen === "en" || chosen === "ru") locale = chosen;
+  } catch (e) {}
+  root.lang = locale;
 })();
 </script>
 <style>
-/* DESIGN TOKENS. Every colour, radius, size and duration below is a variable,
- * so the dark theme only has to redefine values, never rules. */
+__PC_TOKENS__
+/* DESIGN TOKENS. The PassionCode design system above owns every value; the
+ * dashboard's own role names are aliases of its semantic `--pc-*` roles, so a
+ * rule below never names a colour. One fixed dark theme, as in every
+ * PassionCode product surface: gold is action, selection and focus; green,
+ * peach, pink-red and blue are positive, warning, negative and information,
+ * and each is always paired with words. */
 :root {
-  --bg: #f7f8fa;
-  --panel: #ffffff;
-  --panel-2: #f7f8fa;
-  --ink: #1a1f2b;
-  --muted: #5b6472;
-  --border: #e6e9ef;
-  --border-strong: #d7dce4;
-/* The accent pair: a strong colour for links and focus, a weak tint for
- * selected and targeted rows. */
-  --accent: #2f6feb;
-  --accent-weak: #eaf0fe;
-  --accent-ink: #ffffff;                                              
-  --ok: #1a7f37;
-  --ok-weak: #e6f4ea;
-  --warn: #9a6700;
-  --warn-weak: #fff3d6;
-  --danger: #d1242f;
-  --danger-weak: #fde8e9;
-  --info: #2f6feb;
-  --info-weak: #eaf0fe;
+  --bg: var(--pc-bg);
+  --panel: var(--pc-panel);
+  --panel-2: var(--pc-panel-raised);
+  --ink: var(--pc-text);
+  --muted: var(--pc-text-muted);
+  --border: var(--pc-border);
+  --border-strong: var(--pc-border-strong);
+  --accent: var(--pc-accent);
+  --accent-hover: var(--pc-accent-hover);
+  --accent-weak: var(--pc-accent-soft);
+  --accent-ink: var(--pc-on-accent);
+  --ok: var(--pc-positive);
+  --ok-weak: var(--pc-positive-soft);
+  --warn: var(--pc-warning);
+  --warn-weak: var(--pc-warning-soft);
+  --danger: var(--pc-negative);
+  --danger-weak: var(--pc-negative-soft);
+  --info: var(--pc-info);
+  --info-weak: var(--pc-info-soft);
 
-  --r-control: 6px;
-  --r-card: 10px;
-  --r-pill: 999px;
+  --r-control: var(--pc-radius-control);
+  --r-card: var(--pc-radius-panel);
+  --r-pill: var(--pc-radius-pill);
 
+  --motion-ease: var(--pc-ease);
+  --dur-hover: var(--pc-duration-hover);
 
-  --motion-ease: cubic-bezier(0.2, 0, 0, 1);                                    
-  --dur-hover: 0.12s;                                   
+  --font-ui: var(--pc-font);
+  --font-data: var(--pc-font-data);
 
-  --font-ui: -apple-system, "SF Pro", "Segoe UI", sans-serif;
-  --font-data: ui-monospace, "SF Mono", Menlo, monospace;
+/* TYPE SCALE: the system's desktop sizes — metadata 12px, body 14px. */
+  --t-chip: var(--pc-type-meta);
+  --t-label: var(--pc-type-meta);
+  --t-body: var(--pc-type-body);
+  --t-section: var(--pc-type-section);
+  --t-page: var(--pc-type-page);
 
-/* TYPE SCALE. Five sizes and no more; a new element takes one of these
- * rather than inventing a sixth. */
-  --t-chip: 11px;                  
-  --t-label: 12px;                                     
-  --t-body: 13px;                                        
-  --t-section: 20px;                       
-  --t-page: 28px;                 
-
-/* SPACING, on a 4px grid. */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+/* SPACING, on the system's 4px grid. */
+  --space-1: var(--pc-space-1);
+  --space-2: var(--pc-space-2);
+  --space-3: var(--pc-space-3);
+  --space-4: var(--pc-space-4);
+  --space-5: var(--pc-space-5);
+  --space-6: var(--pc-space-6);
 
   background-color: var(--bg);
   color: var(--ink);
-  color-scheme: light;                                                    
-}
-
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1218;
-  --panel: #161b24;
-  --panel-2: #1b212c;
-  --ink: #e8ecf3;
-  --muted: #8a93a6;
-  --border: #232a36;
-  --border-strong: #2c3441;
-  --accent: #4b8bff;
-  --accent-weak: #1b2740;
-  --accent-ink: #0f1218;                                                             
-  --ok: #3fb960;
-  --ok-weak: #12281a;
-  --warn: #d9a93f;
-  --warn-weak: #2b2210;
-  --danger: #e5534b;
-  --danger-weak: #2d1517;
-  --info: #4b8bff;
-  --info-weak: #1b2740;
 }
 
 /* Reduced motion: hover transitions collapse to instant. */
@@ -1280,21 +1292,35 @@ td.num .tier, td.num .anchor { white-space: normal; }
 /* Site links: monospace, one per line, wrapping anywhere. */
 .sites a { font-family: var(--font-data); font-size: var(--t-chip); display: block;
   overflow-wrap: anywhere; }
-/* TOP BAR: brand, page links and the theme switch, sticky above
+/* TOP BAR: brand, page links and the language switch, sticky above
  * everything else. */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap;
   align-items: center; gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-5); background: var(--panel);
   border-bottom: 1px solid var(--border); }
-.brand { font-weight: 600; color: var(--ink); text-decoration: none; font-size: var(--t-body);
-  letter-spacing: .02em; padding: 6px 0; }
-.theme { display: inline-flex; margin-left: auto; border: 1px solid var(--border);
-  border-radius: var(--r-pill); overflow: hidden; }
-.theme button { font: 400 var(--t-chip) var(--font-data); color: var(--muted);
-  background: var(--panel); border: 0; padding: 5px 10px; cursor: pointer; }
-.theme button + button { border-left: 1px solid var(--border); }
-.theme button[aria-pressed="true"] { background: var(--accent-weak); color: var(--ink); }
-.theme button:hover { background: var(--panel-2); }
+/* THE PRODUCT GLYPH on its dark tile, as every PassionCode product carries it,
+ * beside the name and the family it belongs to. */
+.brand { display: flex; align-items: center; gap: var(--space-2); color: var(--ink);
+  text-decoration: none; padding: var(--space-1) 0; }
+.brand-mark { display: block; width: 32px; height: 32px; flex-shrink: 0; }
+.brand-name { display: grid; gap: 2px; min-width: 0; }
+.brand-name strong { font-size: var(--t-body); font-weight: 700; letter-spacing: -.01em; }
+.brand-family { color: var(--muted); font-size: var(--t-chip); }
+/* EN/RU: two equal choices; the pressed one is the reader's language. */
+.locale-switch { display: inline-flex; margin-left: auto; border: 1px solid var(--border-strong);
+  border-radius: var(--r-control); overflow: hidden; }
+.locale-switch button { font: 600 var(--t-chip) var(--font-data); letter-spacing: .06em;
+  color: var(--muted); background: transparent; border: 0; padding: var(--space-1) var(--space-3);
+  min-height: 28px; cursor: pointer;
+  transition: background var(--dur-hover) var(--motion-ease), color var(--dur-hover) var(--motion-ease); }
+.locale-switch button + button { border-left: 1px solid var(--border-strong); }
+.locale-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.locale-switch button:hover:not([aria-pressed="true"]) { background: var(--panel-2); color: var(--ink); }
+.family-link { color: var(--muted); font-size: var(--t-chip); text-decoration: underline;
+  text-underline-offset: .2em; }
+.family-link:hover { color: var(--ink); }
+.made-by { margin: var(--space-4) 0 0; color: var(--muted); }
+.made-by a { color: var(--muted); text-decoration: underline; text-underline-offset: .2em; }
 .pages { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
 .pages a.pg { text-decoration: none; padding: 6px 12px; border: 1px solid var(--border);
   border-radius: var(--r-pill); background: var(--panel); color: var(--ink); font-size: var(--t-chip); }
@@ -1371,24 +1397,24 @@ footer ul { margin: 0 0 var(--space-3); padding-left: var(--space-4); }
 <body>
 __NAV__
 <header>
-  <h1>__H1__</h1>
-  <p class="sub">__SUB__ Измерено <span class="mono" id="upd"></span>, содержимое
-  реестра менялось <span class="mono" id="content-stamp"></span>.</p>
+  __H1__
+  <p class="sub">__SUB__ <span data-t>Measured</span> <span class="mono" id="upd"></span><span data-t>; registry content last changed</span>
+  <span class="mono" id="content-stamp"></span>.</p>
 <div class="tiles" id="tiles"></div>
-  <h3 id="work-h">Движение</h3>
+  <h3 id="work-h" data-t>Activity</h3>
   <div class="tiles work" id="work"></div>
   <section id="findings"></section>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Что показывать">
+<nav class="tabs" role="tablist" aria-label="What to show">
   <button class="tab" type="button" id="tab-projects" role="tab" aria-selected="true"
-          aria-controls="out">Проекты <span class="n" id="n-projects"></span></button>
+          aria-controls="out"><span data-t>Projects</span> <span class="n" id="n-projects"></span></button>
   <button class="tab" type="button" id="tab-heroku" role="tab" aria-selected="false"
           aria-controls="out">Heroku <span class="n" id="n-heroku"></span></button>
   <button class="tab" type="button" id="tab-domains" role="tab" aria-selected="false"
-          aria-controls="out">Домены <span class="n" id="n-domains"></span></button>
+          aria-controls="out"><span data-t>Domains</span> <span class="n" id="n-domains"></span></button>
   <button class="tab" type="button" id="tab-creds" role="tab" aria-selected="false"
-          aria-controls="out">Ключи <span class="n" id="n-creds"></span></button>
+          aria-controls="out"><span data-t>Keys</span> <span class="n" id="n-creds"></span></button>
   <button class="tab" type="button" id="tab-env" role="tab" aria-selected="false"
           aria-controls="out">ENV <span class="n" id="n-env"></span></button>
   <button class="tab" type="button" id="tab-mcp" role="tab" aria-selected="false"
@@ -1396,73 +1422,73 @@ __NAV__
 </nav>
 
 <div class="controls">
-  <input type="search" id="q" placeholder="Поиск: имя, описание, репозиторий, папка, домен, стек"
-         aria-label="Поиск по реестру">
-  <select id="owner" aria-label="Владелец"></select>
-  <div class="seg" id="seg-projects" role="group" aria-label="Фильтры проектов">
-    <button class="chip-btn" data-f="heroku" aria-pressed="false">есть Heroku</button>
-    <button class="chip-btn" data-f="noheroku" aria-pressed="false">нет Heroku</button>
-    <button class="chip-btn" data-f="site" aria-pressed="false">есть сайт</button>
-    <button class="chip-btn" data-f="note" aria-pressed="false">есть заметка</button>
-    <button class="chip-btn" data-f="nonote" aria-pressed="false">нет заметки</button>
-    <button class="chip-btn" data-f="folder" aria-pressed="false">есть папка</button>
-    <button class="chip-btn" data-f="dirty" aria-pressed="false">незакоммиченное</button>
-    <button class="chip-btn" data-f="unsynced" aria-pressed="false">клон не синхронен</button>
-    <button class="chip-btn" data-f="dead" aria-pressed="false">сайт не резолвится</button>
-    <button class="chip-btn" data-f="drift" aria-pressed="false">объявлен живым, измерен мёртвым</button>
-    <button class="chip-btn" data-f="owned" aria-pressed="false">только своё</button>
+  <input type="search" id="q" placeholder="Search: name, description, repository, folder, domain, stack"
+         aria-label="Search the registry">
+  <select id="owner" aria-label="Owner"></select>
+  <div class="seg" id="seg-projects" role="group" aria-label="Project filters">
+    <button class="chip-btn" data-f="heroku" aria-pressed="false" data-t>has Heroku</button>
+    <button class="chip-btn" data-f="noheroku" aria-pressed="false" data-t>no Heroku</button>
+    <button class="chip-btn" data-f="site" aria-pressed="false" data-t>has a site</button>
+    <button class="chip-btn" data-f="note" aria-pressed="false" data-t>has a note</button>
+    <button class="chip-btn" data-f="nonote" aria-pressed="false" data-t>no note</button>
+    <button class="chip-btn" data-f="folder" aria-pressed="false" data-t>has a folder</button>
+    <button class="chip-btn" data-f="dirty" aria-pressed="false" data-t>uncommitted</button>
+    <button class="chip-btn" data-f="unsynced" aria-pressed="false" data-t>clone out of sync</button>
+    <button class="chip-btn" data-f="dead" aria-pressed="false" data-t>site does not resolve</button>
+    <button class="chip-btn" data-f="drift" aria-pressed="false" data-t>declared active, measured dormant</button>
+    <button class="chip-btn" data-f="owned" aria-pressed="false" data-t>mine only</button>
   </div>
-  <!-- D-21: a VIEW switch, not a filter. «правила» changes what each
+  <!-- D-21: a VIEW switch, not a filter. "rules" changes what each
        row shows, never which rows show — so it sits outside the filter group,
        and `narrowing()`, which reads chips inside `.seg` only, does not count
        it among the filters. -->
-  <div class="view" id="view-projects" role="group" aria-label="Вид таблицы">
-    <button class="chip-btn" data-f="rules" aria-pressed="false" title="показать правило каждой связи проект↔репозиторий">правила: показать</button>
+  <div class="view" id="view-projects" role="group" aria-label="Table view">
+    <button class="chip-btn" data-f="rules" aria-pressed="false" title="show the rule behind each project↔repository link" data-t>rules: show</button>
   </div>
-  <div class="seg" id="seg-heroku" role="group" aria-label="Фильтры приложений" hidden>
-    <button class="chip-btn" data-f="noproject" aria-pressed="false">нет проекта</button>
-    <button class="chip-btn" data-f="nofolder" aria-pressed="false">нет папки</button>
-    <button class="chip-btn" data-f="norepo" aria-pressed="false">нет репозитория</button>
-    <button class="chip-btn" data-f="down" aria-pressed="false">не работает</button>
-    <button class="chip-btn" data-f="waste" aria-pressed="false">платит впустую</button>
-    <button class="chip-btn" data-f="stale" aria-pressed="false">год без деплоя</button>
-    <button class="chip-btn" data-f="oldstack" aria-pressed="false">устаревший стек</button>
+  <div class="seg" id="seg-heroku" role="group" aria-label="App filters" hidden>
+    <button class="chip-btn" data-f="noproject" aria-pressed="false" data-t>no project</button>
+    <button class="chip-btn" data-f="nofolder" aria-pressed="false" data-t>no folder</button>
+    <button class="chip-btn" data-f="norepo" aria-pressed="false" data-t>no repository</button>
+    <button class="chip-btn" data-f="down" aria-pressed="false" data-t>down</button>
+    <button class="chip-btn" data-f="waste" aria-pressed="false" data-t>paying for nothing</button>
+    <button class="chip-btn" data-f="stale" aria-pressed="false" data-t>no deploy for a year</button>
+    <button class="chip-btn" data-f="oldstack" aria-pressed="false" data-t>outdated stack</button>
   </div>
-  <div class="seg" id="seg-domains" role="group" aria-label="Фильтры доменов" hidden>
-    <button class="chip-btn" data-f="d-noproject" aria-pressed="false">нет проекта</button>
-    <button class="chip-btn" data-f="d-dark" aria-pressed="false">не резолвится</button>
-    <button class="chip-btn" data-f="d-http" aria-pressed="false">HTTP ошибка</button>
-    <button class="chip-btn" data-f="d-expiring" aria-pressed="false">истекает ≤90 дней</button>
-    <button class="chip-btn" data-f="d-norenew" aria-pressed="false">без автопродления</button>
-    <button class="chip-btn" data-f="d-unmeasured" aria-pressed="false">не измерен</button>
+  <div class="seg" id="seg-domains" role="group" aria-label="Domain filters" hidden>
+    <button class="chip-btn" data-f="d-noproject" aria-pressed="false" data-t>no project</button>
+    <button class="chip-btn" data-f="d-dark" aria-pressed="false" data-t>does not resolve</button>
+    <button class="chip-btn" data-f="d-http" aria-pressed="false" data-t>HTTP error</button>
+    <button class="chip-btn" data-f="d-expiring" aria-pressed="false" data-t>expires in ≤90 days</button>
+    <button class="chip-btn" data-f="d-norenew" aria-pressed="false" data-t>no auto-renewal</button>
+    <button class="chip-btn" data-f="d-unmeasured" aria-pressed="false" data-t>domain@@not measured</button>
   </div>
-  <div class="seg" id="seg-creds" role="group" aria-label="Фильтры ключей" hidden>
-    <button class="chip-btn" data-f="c-leaked" aria-pressed="false">утечки не закрыты</button>
-    <button class="chip-btn" data-f="c-unclaimed" aria-pressed="false">ничей</button>
-    <button class="chip-btn" data-f="c-shared" aria-pressed="false">общий: 2+ проекта</button>
-    <button class="chip-btn" data-f="c-norotate" aria-pressed="false">никогда не ротировался</button>
-    <button class="chip-btn" data-f="c-disabled" aria-pressed="false">отключён</button>
-    <button class="chip-btn" data-f="c-untracked" aria-pressed="false">не в хранилище</button>
+  <div class="seg" id="seg-creds" role="group" aria-label="Key filters" hidden>
+    <button class="chip-btn" data-f="c-leaked" aria-pressed="false" data-t>open leaks</button>
+    <button class="chip-btn" data-f="c-unclaimed" aria-pressed="false" data-t>unowned</button>
+    <button class="chip-btn" data-f="c-shared" aria-pressed="false" data-t>shared: 2+ projects</button>
+    <button class="chip-btn" data-f="c-norotate" aria-pressed="false" data-t>never rotated</button>
+    <button class="chip-btn" data-f="c-disabled" aria-pressed="false" data-t>disabled</button>
+    <button class="chip-btn" data-f="c-untracked" aria-pressed="false" data-t>not in the store</button>
   </div>
-  <div class="seg" id="seg-traffic" role="group" aria-label="Фильтры трафика" hidden>
-    <button class="chip-btn" data-f="t-unclaimed" aria-pressed="false">нет проекта</button>
-    <button class="chip-btn" data-f="t-linked" aria-pressed="false">привязана</button>
-    <button class="chip-btn" data-f="t-quiet" aria-pressed="false">нет пользователей</button>
-    <button class="chip-btn" data-f="t-app" aria-pressed="false">только приложение</button>
+  <div class="seg" id="seg-traffic" role="group" aria-label="Traffic filters" hidden>
+    <button class="chip-btn" data-f="t-unclaimed" aria-pressed="false" data-t>no project</button>
+    <button class="chip-btn" data-f="t-linked" aria-pressed="false" data-t>linked</button>
+    <button class="chip-btn" data-f="t-quiet" aria-pressed="false" data-t>no users</button>
+    <button class="chip-btn" data-f="t-app" aria-pressed="false" data-t>app only</button>
   </div>
-  <div class="seg" id="seg-mcp" role="group" aria-label="Фильтры MCP" hidden>
-    <button class="chip-btn" data-f="m-url" aria-pressed="false">ключ в URL</button>
-    <button class="chip-btn" data-f="m-down" aria-pressed="false">не отвечает</button>
-    <button class="chip-btn" data-f="m-auth" aria-pressed="false">нужен вход</button>
-    <button class="chip-btn" data-f="m-alone" aria-pressed="false">только в одном агенте</button>
+  <div class="seg" id="seg-mcp" role="group" aria-label="MCP filters" hidden>
+    <button class="chip-btn" data-f="m-url" aria-pressed="false" data-t>key in URL</button>
+    <button class="chip-btn" data-f="m-down" aria-pressed="false" data-t>not answering</button>
+    <button class="chip-btn" data-f="m-auth" aria-pressed="false" data-t>sign-in needed</button>
+    <button class="chip-btn" data-f="m-alone" aria-pressed="false" data-t>in one agent only</button>
   </div>
-  <div class="seg" id="seg-env" role="group" aria-label="Фильтры ENV" hidden>
-    <button class="chip-btn" data-f="e-shared" aria-pressed="false">общее с другим проектом</button>
-    <button class="chip-btn" data-f="e-reuse" aria-pressed="false">пусто, есть в другом проекте</button>
-    <button class="chip-btn" data-f="e-git" aria-pressed="false">в git</button>
-    <button class="chip-btn" data-f="e-open" aria-pressed="false">читает не только владелец</button>
-    <button class="chip-btn" data-f="e-all" aria-pressed="false">+ конфиг и пустые</button>
-    <button class="chip-btn" data-f="e-tpl" aria-pressed="false">+ шаблоны</button>
+  <div class="seg" id="seg-env" role="group" aria-label="ENV filters" hidden>
+    <button class="chip-btn" data-f="e-shared" aria-pressed="false" data-t>shared with another project</button>
+    <button class="chip-btn" data-f="e-reuse" aria-pressed="false" data-t>empty, set in another project</button>
+    <button class="chip-btn" data-f="e-git" aria-pressed="false" data-t>in git</button>
+    <button class="chip-btn" data-f="e-open" aria-pressed="false" data-t>readable beyond the owner</button>
+    <button class="chip-btn" data-f="e-all" aria-pressed="false" data-t>+ config and empty</button>
+    <button class="chip-btn" data-f="e-tpl" aria-pressed="false" data-t>+ templates</button>
   </div>
 </div>
 
@@ -1474,33 +1500,35 @@ __CARDS__
 
 <footer>
   <section id="reading">
-    <h3>Как это читать</h3>
-    <p>Правило под репозиторием — причина, по которой он привязан к проекту: имя папки,
-    упоминание в заметке, организация, или связь, проверенная вручную. Репозиторий,
-    вытеснённый другим или пустой, показан приглушённо и зачёркнуто и называет преемника —
-    он не равноправен тому, что его заменил.</p>
+    <h3 data-t>How to read this</h3>
+    <p data-t>The rule under a repository is why it is linked to the project: the folder name,
+    a mention in a note, the organization, or a link checked by hand. A repository
+    superseded by another, or an empty one, is dimmed and struck through and names its
+    successor — it is not the equal of what replaced it.</p>
   </section>
   <section id="observer">
-    <h3>Состояние наблюдателя</h3>
-    <p>Что обсерватория знает о себе: когда она смотрела в последний раз, сколько
-    собрала и сколько выводов ждёт решения человека. Пусто здесь означает, что
-    локального хранилища нет — реестр при этом читается по-прежнему.</p>
+    <h3 data-t>Observer state</h3>
+    <p data-t>What the observatory knows about itself: when it last looked, how much
+    it has collected and how many conclusions wait for a person's decision. Empty here
+    means there is no local store — the registry still reads as before.</p>
     <div id="health" class="health"></div>
   </section>
   <section id="queue-s">
-    <h3 id="queue-h">Ждёт решения человека</h3>
+    <h3 id="queue-h" data-t>Awaiting a person's decision</h3>
     <div id="queue"></div>
   </section>
   <section id="dups-s">
-    <h3 id="dups-h">Имена репозиториев у нескольких владельцев</h3>
+    <h3 id="dups-h" data-t>Repository names under several owners</h3>
     <ul id="dups"></ul>
   </section>
+  <p class="made-by"><a href="https://passioncode.ai/" rel="noopener" data-t>Project Observatory is part of the PassionCode.ai toolkit</a></p>
 </footer>
 
 <script>
 // THE DATA. `__DATA__` is replaced by the builder with the JSON payload; the
 // runtime block carries the paths commands on this page are built from.
 const PAGE = "__PAGE__";
+const PAGE_TITLE = "__PAGE_TITLE__";
 const TABLE_PAGES = ["projects", "domains", "heroku", "creds", "env", "mcp", "traffic"];
 const D = __DATA__;
 const RUNTIME = D.runtime || {};
@@ -1529,27 +1557,72 @@ for (const r of D.rows || []) {
 const E = s => String(s == null ? "" : s).replace(/[&<>"']/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// THE THEME SWITCH. The choice is applied before first paint in the head;
-// this keeps the buttons in step with it and follows the system setting
-// while the mode is "system".
-const mq = window.matchMedia("(prefers-color-scheme: dark)");
-const THEME_KEY = "observatory.theme";
-function themeMode() {
-  try { return localStorage.getItem(THEME_KEY) || "system"; } catch (e) { return "system"; }
+// THE LANGUAGE. English message ids in the code, one catalog per language
+// (dashboard/locales/*.json — the builder reads the same files). The page is
+// built in the workspace's language; the EN/RU switch keeps the reader's own
+// choice in localStorage and reloads, so every renderer below simply runs again
+// in it. Static text carries its English id in `data-t` and is re-translated by
+// `localizeStatic` when the two languages differ.
+const I18N = __I18N__;
+const LOCALE_KEY = "observatory.locale";
+const BUILD_LOCALE = document.documentElement.getAttribute("data-build-locale") || "en";
+const LOCALE = (() => {
+  try {
+    const chosen = localStorage.getItem(LOCALE_KEY);
+    if (chosen && Object.prototype.hasOwnProperty.call(I18N, chosen)) return chosen;
+  } catch (e) {}
+  return Object.prototype.hasOwnProperty.call(I18N, BUILD_LOCALE) ? BUILD_LOCALE : "en";
+})();
+const PLURAL = new Intl.PluralRules(LOCALE);
+// Numbers are grouped the way the reader's language groups them.
+const NUM = v => Number(v).toLocaleString(LOCALE);
+// T("{n} projects", {n: 3}): the translation, its plural form chosen by `n`,
+// its placeholders filled; an id with no translation reads as English, never
+// as an empty string.
+function T(id, args) {
+  let entry = (I18N[LOCALE] || {})[id];
+  if (entry == null && LOCALE !== "en") entry = (I18N.en || {})[id];
+  if (entry && typeof entry === "object") {
+    const n = args && typeof args.n === "number" ? args.n : NaN;
+    entry = (isNaN(n) ? entry.other : entry[PLURAL.select(n)]) || entry.other;
+  }
+  // `context@@text` ids show only their text when untranslated (i18n.py).
+  const text = typeof entry === "string" ? entry : id.split("@@").pop();
+  if (!args) return text;
+  return text.replace(/\{([a-z_][a-z0-9_]*)\}/g, (m, k) => !(k in args) ? m
+    : (typeof args[k] === "number" && Number.isInteger(args[k]) ? NUM(args[k]) : String(args[k])));
 }
-function applyTheme(mode) {
-  const dark = mode === "dark" || (mode === "system" && mq.matches);
-  document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
-  document.documentElement.setAttribute("data-theme-mode", mode);
-  document.querySelectorAll(".theme button[data-mode]").forEach(b =>
-    b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+function localizeStatic(root) {
+  root.querySelectorAll("[data-t]").forEach(el => {
+    let args;
+    try { args = el.dataset.tArgs ? JSON.parse(el.dataset.tArgs) : undefined; } catch (e) {}
+    el.textContent = T(el.dataset.t, args);
+  });
+  for (const name of ["aria-label", "placeholder", "title"])
+    root.querySelectorAll(`[data-t-${name}]`).forEach(el =>
+      el.setAttribute(name, T(el.getAttribute(`data-t-${name}`))));
 }
-applyTheme(themeMode());
-mq.addEventListener("change", () => { if (themeMode() === "system") applyTheme("system"); });
-document.querySelectorAll(".theme button[data-mode]").forEach(b => b.addEventListener("click", () => {
-  try { localStorage.setItem(THEME_KEY, b.dataset.mode); } catch (e) {}
-  applyTheme(b.dataset.mode);
-}));
+if (LOCALE !== BUILD_LOCALE) {
+  localizeStatic(document);
+  if (PAGE_TITLE) document.title = T(PAGE_TITLE) + " — Project Observatory";
+}
+document.querySelectorAll(".locale-switch button[data-locale]").forEach(b => {
+  b.setAttribute("aria-pressed", String(b.dataset.locale === LOCALE));
+  b.addEventListener("click", () => {
+    if (b.dataset.locale === LOCALE) return;
+    try {
+      // Choosing the workspace's own language forgets the override, so a
+      // later change of `interface.locale` reaches this reader too.
+      if (b.dataset.locale === BUILD_LOCALE) localStorage.removeItem(LOCALE_KEY);
+      else localStorage.setItem(LOCALE_KEY, b.dataset.locale);
+    } catch (e) {
+      // Storage refused (a private window): the choice cannot outlive the
+      // page, so say so instead of pretending the switch worked.
+      return toast(T("Your browser keeps no settings here; set interface.locale in the workspace instead."));
+    }
+    location.reload();
+  });
+});
 // `/` focuses the search box, unless the reader is already typing.
 document.addEventListener("keydown", ev => {
   if (ev.key !== "/" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
@@ -1563,27 +1636,27 @@ document.addEventListener("keydown", ev => {
 // the registry's content last changed.
 document.getElementById("upd").textContent = D.measured
   ? D.measured.replace("T", " ").replace("Z", " UTC")
-  : "не измерено";
+  : T("not measured");
 const cs = document.getElementById("content-stamp");
 if (cs) cs.textContent = D.updated || "—";
 const S = D.stats;
 // INVENTORY TILES. The primary set is always visible; the rest sit behind a
 // "more" control so the header stays short.
 const TILES_PRIMARY = [
-  ["проектов", S.projects], ["репозиториев", S.repositories],
-  ["приложений Heroku", S.heroku_apps], ["не работает", S.heroku_down],
-  ["доменов", S.domains], ["сайт не резолвится", S.dead_site],
-  ["клон не синхронен", S.unsynced], ["Heroku $/мес", Math.round(S.heroku_cost)],
+  [T("projects"), S.projects], [T("repositories"), S.repositories],
+  [T("Heroku apps"), S.heroku_apps], [T("down"), S.heroku_down],
+  [T("domains"), S.domains], [T("site does not resolve"), S.dead_site],
+  [T("clone out of sync"), S.unsynced], [T("Heroku $/mo"), Math.round(S.heroku_cost)],
 ];
 const TILES_REST = [
-  ["владельцев", S.owners], ["с сайтом", S.with_site], ["с папкой", S.with_folder],
-  ["с заметкой", S.with_note], ["без заметки", S.no_note],
-  ["архивных проектов", S.archived], ["архивных репо", S.archived_repos],
-  ["неактивных репо", S.inactive_repos], ["доменов без проекта", S.domains_no_row],
-  ["Heroku без проекта", S.heroku_unlinked],
+  [T("owners"), S.owners], [T("with a site"), S.with_site], [T("with a folder"), S.with_folder],
+  [T("with a note"), S.with_note], [T("without a note"), S.no_note],
+  [T("archived projects"), S.archived], [T("archived repos"), S.archived_repos],
+  [T("inactive repos"), S.inactive_repos], [T("domains without a project"), S.domains_no_row],
+  [T("Heroku without a project"), S.heroku_unlinked],
   // Local state of the working copies, and the credential counts.
-  ["грязных рабочих копий", S.dirty], ["ключей в реестре", S.creds],
-  ["ключей утекло", S.creds_leaked], ["ключей без проекта", S.creds_unclaimed],
+  [T("dirty working copies"), S.dirty], [T("keys in the registry"), S.creds],
+  [T("keys leaked"), S.creds_leaked], [T("keys without a project"), S.creds_unclaimed],
 ];
 // DRIFT: projects declared active whose measured activity says dormant or
 // cold — a claim and a measurement that disagree.
@@ -1591,43 +1664,49 @@ const DRIFT = D.rows.filter(r => r.lifecycle === "active"
                             && (r.tier === "dormant" || r.tier === "cold")).length;
 // WORK TILES: what happened, over the rolling windows the builder computes.
 // A key absent from the stats (no store) is simply not shown.
-const WORK_KEYS = ["коммитов за 7 дн", "проектов в работе, 7 дн",
-                   "коммитов за 28 дн", "проектов в работе, 28 дн",
-                   "коммитов ни на одном remote"];
-const TILES_WORK = WORK_KEYS.filter(k => S[k] != null).map(k => [k, S[k]]);
+// Stable ids in the data, words from the catalog: the label is the reader's
+// language, the key is the builder's contract.
+const WORK_KEYS = [["commits_7d", T("commits, 7 d")], ["projects_active_7d", T("projects in progress, 7 d")],
+                   ["commits_28d", T("commits, 28 d")], ["projects_active_28d", T("projects in progress, 28 d")],
+                   ["unpushed_commits", T("commits on no remote")]];
+const WORK_VALUE = k => k === "unpushed_commits" && typeof S[k] === "string" && !/^\d/.test(S[k])
+  ? T(S[k])
+  : k === "unpushed_commits" && S.unpushed_unmeasured
+    ? `${S[k]} (${T("{n} checkouts not counted", {n: S.unpushed_unmeasured})})` : S[k];
+const TILES_WORK = WORK_KEYS.filter(([k]) => S[k] != null).map(([k, label]) => [label, WORK_VALUE(k)]);
 const tileHTML = ts => ts.map(([k, v]) =>
   `<div class="tile"><b>${v}</b><span>${k}</span></div>`).join("");
 {
   const host = document.getElementById("work");
-  const top = S["больше всего работы, 28 дн"];
+  const top = S.busiest_28d;
   // The busiest project is a NAME, so it is a link to that project rather
   // than a number in a tile.
   if (host) host.innerHTML = TILES_WORK.length
     ? tileHTML(TILES_WORK) + (top
         ? `<a class="tile name" href="projects.html#project:${E(top)}"><b>${E(top)}</b>` +
-          `<span>больше всего работы, 28 дн</span></a>` : "")
-    : '<div class="tile"><b>—</b><span>хранилища нет, движение не измерено</span></div>';
+          `<span>${T("most work, 28 d")}</span></a>` : "")
+    : `<div class="tile"><b>—</b><span>${T("no store: activity not measured")}</span></div>`;
 }
   // An empty registry says how to fill it, instead of showing a row of zeros
   // that would read as "measured, and nothing there".
 document.getElementById("tiles").innerHTML = !D.rows.length
-  ? `<div class="tile empty-estate"><b>—</b><span>реестр пуст: ни одного проекта ещё не измерено —
-       <button class="chip-btn" type="button" data-copy="${E(cliCommand("local"))}" title="скопировать команду">${E(cliCommand("local"))}</button>
-       соберёт его из этой машины</span></div>`
+  ? `<div class="tile empty-estate"><b>—</b><span>${T("the registry is empty: no project measured yet —")}
+       <button class="chip-btn" type="button" data-copy="${E(cliCommand("local"))}" title="${T("copy the command")}">${E(cliCommand("local"))}</button>
+       ${T("builds it from this machine")}</span></div>`
   : tileHTML(TILES_PRIMARY) +
   (DRIFT ? `<a class="tile" href="projects.html?f=drift"><b>${DRIFT}</b>` +
-           `<span>объявлены живыми, измерены мёртвыми</span></a>` : "") +
+           `<span>${T("declared active, measured dormant")}</span></a>` : "") +
   `<button class="tile more-tiles" id="more-tiles" type="button" aria-expanded="false"
-     ><b>+${TILES_REST.length}</b><span>ещё счётчики</span></button>`;
+     ><b>+${TILES_REST.length}</b><span>${T("more counters")}</span></button>`;
 const MORE_TILES = document.getElementById("more-tiles");                                      
 if (MORE_TILES) MORE_TILES.onclick = e => {
   const b = e.currentTarget, open = b.getAttribute("aria-expanded") === "true";
   b.setAttribute("aria-expanded", String(!open));
   if (open) { document.querySelectorAll(".tile.extra").forEach(t => t.remove());
-              b.querySelector("span").textContent = "ещё счётчики"; return; }
+              b.querySelector("span").textContent = T("more counters"); return; }
   b.insertAdjacentHTML("beforebegin",
     tileHTML(TILES_REST).replaceAll('class="tile"', 'class="tile extra"'));
-  b.querySelector("span").textContent = "свернуть";
+  b.querySelector("span").textContent = T("collapse");
 };
 
 
@@ -1635,48 +1714,48 @@ if (MORE_TILES) MORE_TILES.onclick = e => {
 // missing field is left out rather than shown as zero.
 const H = D.health || {};
 const hb = [];
-if (D.store_degraded) hb.push(["хранилище", D.store_degraded]);
-if (H.last_scan) hb.push(["последний скан", H.last_scan.replace("T", " ").replace("Z", " UTC")]);
-if (H.events != null) hb.push(["событий", H.events.toLocaleString("ru")]);
-if (H.weeks != null) hb.push(["недельных срезов", H.weeks.toLocaleString("ru")]);
-if (H.metrics != null) hb.push(["измерений плагинов", H.metrics.toLocaleString("ru")]);
+if (D.store_degraded) hb.push([T("store"), T(D.store_degraded.text || D.store_degraded, D.store_degraded.args)]);
+if (H.last_scan) hb.push([T("last scan"), H.last_scan.replace("T", " ").replace("Z", " UTC")]);
+if (H.events != null) hb.push([T("events"), NUM(H.events)]);
+if (H.weeks != null) hb.push([T("weekly snapshots"), NUM(H.weeks)]);
+if (H.metrics != null) hb.push([T("plugin measurements"), NUM(H.metrics)]);
 // The local server, from its heartbeat: not running, alive, or silent — three
 // states, spelled apart.
 if (H.server_age_s != null) {
-  if (H.server_age_s === -1) hb.push(["локальный сервер", "не запущен"]);
+  if (H.server_age_s === -1) hb.push([T("local server"), T("not running")]);
   else if (H.server_age_s < 90) {
     const up = H.server_uptime_s >= 3600
-      ? Math.floor(H.server_uptime_s / 3600) + " ч" : Math.floor(H.server_uptime_s / 60) + " мин";
-    hb.push(["локальный сервер", `отвечал при измерении · порт ${H.server_port} · аптайм ${up}`]);
+      ? T("{n} h", {n: Math.floor(H.server_uptime_s / 3600)}) : T("{n} min", {n: Math.floor(H.server_uptime_s / 60)});
+    hb.push([T("local server"), T("answered when measured · port {port} · uptime {up}", {port: H.server_port, up})]);
     if (H.server_at_risk != null)
-      hb.push(["remote под риском", `${H.server_at_risk} чекаут(ов) с работой только на этом диске`]);
-  } else hb.push(["локальный сервер", `МОЛЧИТ ${Math.floor(H.server_age_s / 60)} мин — store/logs/serverd.err`]);
+      hb.push([T("remote at risk"), T("{n} checkouts with work only on this disk", {n: H.server_at_risk})]);
+  } else hb.push([T("local server"), T("SILENT for {n} min — store/logs/serverd.err", {n: Math.floor(H.server_age_s / 60)})]);
 }
 // When the server is down or silent, the row carries the command that
 // starts or inspects it, ready to copy.
 const SERVERD_FIX = {
-  down: ["наблюдатель не запущен — запустить в терминале", toolCommand("serverd.py", ["--run"])],
-  silent: ["наблюдатель молчит — проверить", toolCommand("serverd.py", ["--status"])],
+  down: [T("the observer is not running — start it in a terminal"), toolCommand("serverd.py", ["--run"])],
+  silent: [T("the observer is silent — check it"), toolCommand("serverd.py", ["--status"])],
 };
-if (H.leaks_open > 0) hb.push(["утечки секретов", `${H.leaks_open} не ротировано — vault.py leaks`]);
-if (H.proposed != null) hb.push(["ждут решения оператора", H.proposed]);
-if (H.registry_proposals) hb.push(["правок реестра предложено", H.registry_proposals]);
-if (H.projection_lag) hb.push(["не проиндексировано выводов",
-  `${H.projection_lag}, старейший от ${(H.projection_oldest || "").slice(0, 10)}`]);
-if (H.degraded_sources) hb.push(["источников деградировало", H.degraded_sources]);
+if (H.leaks_open > 0) hb.push([T("secret leaks"), T("{n} not rotated — vault.py leaks", {n: H.leaks_open})]);
+if (H.proposed != null) hb.push([T("awaiting the operator's decision"), H.proposed]);
+if (H.registry_proposals) hb.push([T("registry edits proposed"), H.registry_proposals]);
+if (H.projection_lag) hb.push([T("conclusions not indexed"),
+  T("{n}, oldest from {date}", {n: H.projection_lag, date: (H.projection_oldest || "").slice(0, 10)})]);
+if (H.degraded_sources) hb.push([T("sources degraded"), H.degraded_sources]);
 // This project's own spend, prepared by the builder from its own journal —
 // the page does no date arithmetic of its own.
 if (H.spend_month != null)
-  hb.push(["потрачено этим проектом за месяц",
+  hb.push([T("spent by this project this month"),
            `${(+H.spend_month).toFixed(4)} ${E(H.spend_denomination || "")}`]);
 if (H.spend_today != null)
-  hb.push(["из них сегодня", `${(+H.spend_today).toFixed(4)}`]);
+  hb.push([T("of which today"), `${(+H.spend_today).toFixed(4)}`]);
 // Models the provider-health file holds in quarantine, named up to three.
 {
   const q = Object.keys(H.provider || {});
   if (q.length)
-    hb.push([`моделей в карантине: ${q.length}`, q.slice(0, 3).join(", ")
-             + (q.length > 3 ? ` и ещё ${q.length - 3}` : "")]);
+    hb.push([T("models in quarantine: {n}", {n: q.length}), q.slice(0, 3).join(", ")
+             + (q.length > 3 ? " " + T("and {n} more", {n: q.length - 3}) : "")]);
 }
 {
   const state = H.server_age_s == null ? null
@@ -1684,14 +1763,14 @@ if (H.spend_today != null)
   const fix = SERVERD_FIX[state];
   document.getElementById("health").innerHTML = (hb.length
     ? hb.map(([k, v]) => `<div class="hrow"><span>${E(k)}</span><b>${E(String(v))}</b></div>`).join("")
-    : '<div class="hrow"><span>наблюдатель</span><b>данных нет</b></div>')
+    : `<div class="hrow"><span>${T("observer")}</span><b>${T("no data")}</b></div>`)
     + (fix ? `<div class="hrow"><span>${E(fix[0])}</span><b><span class="mono">${E(fix[1])}</span>` +
-             ` <button class="chip-btn" type="button" data-copy="${E(fix[1])}">копировать</button></b></div>` : "");
+             ` <button class="chip-btn" type="button" data-copy="${E(fix[1])}">${T("copy")}</button></b></div>` : "");
 }
 
 document.getElementById("dups").innerHTML = D.dups.map(g =>
   `<li class="mono">${g.map(E).join("  ·  ")}</li>`).join("")
-  || '<li class="none">нет</li>';
+  || `<li class="none">${T("none")}</li>`;
 
 // TABS AND FILTERS. One table area, one selector and one chip group per tab;
 // the current tab decides which of them apply.
@@ -1701,18 +1780,18 @@ const sel = document.getElementById("owner");
 // The selector's meaning changes with the tab: owner, team, registrar,
 // section, project, agent or account.
 const SEL_BY_TAB = {
-  projects: ["все владельцы", "Владелец", () => D.owners],
-  heroku:   ["все команды", "Команда",
+  projects: [T("all owners"), T("Owner"), () => D.owners],
+  heroku:   [T("all teams"), T("Team"),
              () => [...new Set(((D.heroku && D.heroku.apps) || []).map(a => a.team))].sort()],
-  domains:  ["все регистраторы", "Регистратор",
+  domains:  [T("all registrars"), T("Registrar"),
              () => [...new Set((D.domains || []).map(d => d.registrar).filter(Boolean))].sort()],
-  creds:    ["все разделы", "Раздел",
+  creds:    [T("all sections"), T("Section"),
              () => CRED_SECTIONS.map(s => s[1])],
-  env:      ["все проекты", "Проект",
+  env:      [T("all projects"), T("Project"),
              () => [...new Set(ENVF.map(f => f.project).filter(Boolean))].sort()],
-  mcp:      ["все агенты", "Агент",
+  mcp:      [T("all agents"), T("Agent"),
              () => [...new Set(((D.mcp && D.mcp.servers) || []).map(s => s.agent).filter(Boolean))].sort()],
-  traffic:  ["все аккаунты", "Аккаунт",
+  traffic:  [T("all accounts"), T("Account"),
              () => [...new Set(((D.google && D.google.properties) || []).map(p => p.account_name).filter(Boolean))].sort()],
 };
 function fillOwners() {
@@ -1749,15 +1828,15 @@ document.querySelectorAll(".chip-btn[data-f]").forEach(c => c.onclick = () => {
     if (!wanted.has(c.dataset.f)) return;
     c.setAttribute("aria-pressed", "true");
     c.dataset.fromUrl = "1";
-    c.title = "включён ссылкой";
+    c.title = T("switched on by a link");
     active.add(c.dataset.f);
   });
 }
 
 const APPS = (D.heroku && D.heroku.apps) || [];
 const ENV_ORDER = ["production", "staging", "review", "development", "test", "local"];
-const ENV_LABEL = {production: "прод", staging: "стейджинг", review: "ревью", development: "разработка",
-                   test: "тест", local: "локально"};
+const ENV_LABEL = {production: T("production"), staging: T("staging"), review: T("review"),
+                   development: T("development"), test: T("test"), local: T("local")};
 function hostingGroups(apps) {
   const rank = h => h.env ? ENV_ORDER.indexOf(h.env) : ENV_ORDER.length;
   const groups = new Map();
@@ -1768,9 +1847,9 @@ function hostingGroups(apps) {
   return [...groups].map(([env, list]) =>
     `<div class="envgroup" data-env="${E(env || "unassigned")}">` +
     (bare ? "" : `<div class="tier">${env ? chip(ENV_LABEL[env] || env, env === "production" ? "ok" : "")
-                                         : chip("окружение не указано", "warn")}</div>`) +
+                                         : chip(T("environment not stated"), "warn")}</div>`) +
     list.map(h =>
-      `<div class="st st-${E(h.state)}" title="${E(h.rule)}${h.account ? " · аккаунт " + E(h.account) : ""}"><i></i>` +
+      `<div class="st st-${E(h.state)}" title="${E(h.rule)}${h.account ? " · " + T("account") + " " + E(h.account) : ""}"><i></i>` +
       `<span class="mono">${E(h.name)}</span>` +
       (h.cost ? `<span class="anchor"> $${Math.round(h.cost)}</span>` : "") +
       `</div>`).join("") + `</div>`).join("");
@@ -1869,21 +1948,21 @@ function repoLine(x, rules) {
   const sub = ["superseded", "placeholder", "moved"].includes(x.status);
   const bits = [];
   if (x.visibility === "public") bits.push(chip("public"));
-  if (x.archived) bits.push(chip("архивный", "warn"));
-  if (x.fork) bits.push(chip("форк"));
+  if (x.archived) bits.push(chip(T("archived"), "warn"));
+  if (x.fork) bits.push(chip(T("fork")));
   if (x.host === "bitbucket") bits.push(chip("bitbucket"));
-  if (x.dirty) bits.push(chip(x.dirty + " несохр.", "danger"));
+  if (x.dirty) bits.push(chip(T("{n} unsaved", {n: x.dirty}), "danger"));
   // Sync states that put work at risk are danger; merely behind is a warning.
   const SYNC = {
-    "behind":             ["отстаёт", "warn"],
-    "stale":              ["отстаёт", "warn"],
-    "behind-or-diverged": ["отстаёт или разошёлся", "warn"],
-    "diverged":           ["разошёлся", "danger"],
-    "ahead":              ["не запушено", "danger"],
-    "unpushed-and-remote-moved": ["не запушено, remote ушёл", "danger"],
-    "local-only-branch":  ["ветка только здесь", "danger"],
-    "unreachable":        ["remote недоступен", "danger"],
-    "unknown":            ["состояние неизвестно", "warn"],
+    "behind":             [T("behind"), "warn"],
+    "stale":              [T("behind"), "warn"],
+    "behind-or-diverged": [T("behind or diverged"), "warn"],
+    "diverged":           [T("diverged"), "danger"],
+    "ahead":              [T("not pushed"), "danger"],
+    "unpushed-and-remote-moved": [T("not pushed, remote moved on"), "danger"],
+    "local-only-branch":  [T("branch only here"), "danger"],
+    "unreachable":        [T("remote unreachable"), "danger"],
+    "unknown":            [T("state unknown"), "warn"],
   };
   if (SYNC[x.sync]) {
     // The chip carries what is at stake: the unpushed count when measured.
@@ -1891,11 +1970,11 @@ function repoLine(x, rules) {
     bits.push(chip(label + stakeText(x), tone));
   }
   if (x.checked_out && x.branch && x.checked_out !== x.branch)
-    bits.push(chip("ветка " + x.checked_out, "warn"));
+    bits.push(chip(T("branch {name}", {name: x.checked_out}), "warn"));
   if (x.status === "superseded")
-    bits.push(chip("вытеснен → " + x.supersededBy, "warn"));
-  if (x.status === "placeholder") bits.push(chip("пустой", "warn"));
-  if (x.status === "moved") bits.push(chip("переехал → " + x.movedTo, "warn"));
+    bits.push(chip(T("superseded → {name}", {name: x.supersededBy}), "warn"));
+  if (x.status === "placeholder") bits.push(chip(T("empty"), "warn"));
+  if (x.status === "moved") bits.push(chip(T("moved → {name}", {name: x.movedTo}), "warn"));
   const rule = rules.find(s => s.startsWith(x.nwo + ":"));
   // The linking rule is shown only while the rules view is switched on.
   return `<div class="item"><div class="repo${sub ? " sub" : ""}">` +
@@ -1907,8 +1986,8 @@ function repoLine(x, rules) {
 
 const NONE = '<span class="none">—</span>';
 // Activity tiers, in the reader's language.
-const TIER_RU = {active: "активен", cooling: "остывает", dormant: "спит",
-                 cold: "холодный", unknown: "дата неизвестна"};
+const TIER_LABEL = {active: T("active"), cooling: T("cooling"), dormant: T("dormant"),
+                    cold: T("cold"), unknown: T("date unknown")};
 
 // SPARKLINE: weekly commits as a solid line and sessions as a dashed one,
 // on one shared scale. Weeks whose sessions were never measured are left out
@@ -1927,25 +2006,25 @@ function spark(weeks) {
       `${(i * step).toFixed(1)},${(H - (v / max) * (H - 2)).toFixed(1)}`)
     .filter(Boolean).join(" ");
   const worked = weeks.filter(w => w.d != null && w.d > 0).length;
-  const title = `${vals.length} нед., ${total} коммитов` +
-    (measured ? `, ${stotal} сессий, ${worked} нед. с работой` : "");
+  const title = T("{weeks} wk, {commits} commits", {weeks: vals.length, commits: total}) +
+    (measured ? ", " + T("{sessions} sessions, {worked} wk with work", {sessions: stotal, worked}) : "");
   return `<div class="spark" title="${title}">` +
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">` +
     `<polyline points="${line(vals)}" fill="none" stroke="currentColor" stroke-width="1"/>` +
     (stotal ? `<polyline points="${line(sess)}" fill="none" stroke="currentColor"` +
               ` stroke-width="1" stroke-dasharray="2 2" opacity="0.55"/>` : "") +
     `</svg><span>${total}</span>` +
-    (stotal ? `<span class="spark-sess">+${stotal}с</span>` : "") +
+    (stotal ? `<span class="spark-sess" title="${T("sessions")}">+${stotal}${T("s@@sessions-abbrev")}</span>` : "") +
     `</div>`;
 }
 
-// Russian plural forms: one, few, many.
-function plural(n, one, few, many) {
-  const a = Math.abs(n) % 100, b = a % 10;
-  if (a > 10 && a < 20) return many;
-  if (b > 1 && b < 5) return few;
-  return b === 1 ? one : many;
-}
+// Plural forms come from the catalog: T("{n} projects", {n}) chooses the
+// reader's language's form (Intl.PluralRules), so no renderer spells one.
+
+// A plugin's caption is its manifest `label`, an English message id: the
+// catalog translates the ones this distribution ships, and a third-party
+// plugin's own label reads as its author wrote it. No label: the metric name.
+const metricLabel = m => m.l ? T(String(m.l).trim()) : String(m.n || "").trim();
 
 function metrics(list) {
   if (!list || !list.length) return "";
@@ -1953,18 +2032,18 @@ function metrics(list) {
   // back to the metric name; the unit is printed only when there is no
   // caption to carry it.
   return list.map(m => {
-    const cap = (m.l || m.n || "").trim();
+    const cap = metricLabel(m);
     const val = m.u === "bytes" ? bytes(m.v)
-              : (m.l ? `${(+m.v).toLocaleString("ru")}`
-                     : `${(+m.v).toLocaleString("ru")} ${E(m.u || "")}`.trim());
+              : (m.l ? `${NUM(+m.v)}`
+                     : `${NUM(+m.v)} ${E(m.u || "")}`.trim());
     // The change since the previous sample, when retention kept one. A
     // series with a single sample shows no delta at all, not "+0".
     let d = "";
     if (m.p != null && +m.p !== +m.v) {
       const up = +m.v > +m.p, diff = Math.abs(+m.v - +m.p);
-      const shown = m.u === "bytes" ? bytes(diff) : diff.toLocaleString("ru");
-      const was = m.u === "bytes" ? bytes(m.p) : (+m.p).toLocaleString("ru");
-      d = ` <span class="delta ${up ? "up" : "down"}" title="было ${was}` +
+      const shown = m.u === "bytes" ? bytes(diff) : NUM(diff);
+      const was = m.u === "bytes" ? bytes(m.p) : NUM(+m.p);
+      d = ` <span class="delta ${up ? "up" : "down"}" title="${T("was {value}", {value: was})}` +
           ` — ${E((m.pat || "").slice(0, 10))}">${up ? "↑" : "↓"}${shown}</span>`;
     }
     return `<div class="tier" title="${E(m.n)}">` +
@@ -1976,41 +2055,41 @@ function metrics(list) {
 // date of the newest, when the probe could count them.
 function stakeText(x) {
   if (typeof x.unpushed === "number" && x.unpushed > 0)
-    return ` · ${x.unpushed}` + (x.unpushedOn ? ` от ${x.unpushedOn}` : "");
+    return ` · ${x.unpushed}` + (x.unpushedOn ? " " + T("from {date}", {date: x.unpushedOn}) : "");
   // Measured and found to hold nothing a remote lacks.
-  if (x.nothing_exclusive) return " · ничего исключительного";
+  if (x.nothing_exclusive) return " · " + T("nothing exclusive");
   return "";
 }
 
 function bytes(n) {
   if (!n) return "";
-  const u = ["Б", "КБ", "МБ", "ГБ"]; let i = 0;
+  const u = [T("B"), T("KB"), T("MB"), T("GB")]; let i = 0;
   while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${u[i]}`;
+  return `${n.toLocaleString(LOCALE, {maximumFractionDigits: n < 10 && i > 0 ? 1 : 0})} ${u[i]}`;
 }
 
 function row(r) {
   const link = `#${E(r.id)}`;
   const sites = r.sites.slice(0, 2).map(x =>
     `<a href="https://${E(x.host)}" target="_blank" rel="noopener">${E(x.host)}</a>` +
-    (x.live && !x.live.resolves ? chip("не отвечает", "danger") : "")).join(" ");
+    (x.live && !x.live.resolves ? chip(T("not answering"), "danger") : "")).join(" ");
   const repos = r.repos.slice(0, 1).map(x => repoLine(x, r.rules || [])).join("");
   const dirty = r.repos.filter(x => x.dirty || ["ahead", "diverged", "unpushed-and-remote-moved", "local-only-branch"].includes(x.sync)).length;
   const traffic = (D.traffic || {})[r.id];
   return `<tr data-project="${E(r.id)}">
-    <td data-label="Проект"><div class="name"><a class="plink" href="${link}">${E(r.name)}</a></div>
-      <div class="desc">${E(r.description) || '<span class="none">Описание не задано</span>'}</div>
-      <div class="project-meta">${E(r.owner || "Владелец не указан")} · ${E(r.lifecycle || "статус не указан")}</div></td>
-    <td data-label="Активность"><div>${chip(TIER_RU[r.tier] || r.tier || "не измерена")}</div>
-      <div class="anchor mono">${E(r.last) || "дата не измерена"}</div>${spark(r.weeks)}
-      ${dirty ? chip(dirty + " репоз. требуют внимания", "warn") : ""}</td>
-    <td data-label="Код и сайты"><div class="resource-links">${repos}${sites}</div>
-      <a class="plink anchor" href="${link}">${r.repos.length} репоз. · ${r.sites.length} сайтов · ${r.folders.length} папок</a></td>
-    <td data-label="Размещение">${(r.heroku || []).length ? hostingGroups(r.heroku) : '<span class="none">Нет привязанных приложений</span>'}</td>
-    <td data-label="Аудитория / 30 дней">${traffic && traffic.users_30d != null
-      ? `<span class="mono">${Number(traffic.users_30d).toLocaleString("ru")}</span><div class="anchor">сумма по ресурсам${traffic.unknown_properties ? " · частично" : ""}</div>`
-      : '<span class="none">Не измерена</span>'}
-      <div class="anchor"><a class="plink" href="${link}">Подробнее о проекте →</a></div></td>
+    <td data-label="${T("Project")}"><div class="name"><a class="plink" href="${link}">${E(r.name)}</a></div>
+      <div class="desc">${E(r.description) || `<span class="none">${T("No description")}</span>`}</div>
+      <div class="project-meta">${E(r.owner || T("Owner not stated"))} · ${E(r.lifecycle || T("status not stated"))}</div></td>
+    <td data-label="${T("Activity")}"><div>${chip(TIER_LABEL[r.tier] || r.tier || T("activity@@not measured"))}</div>
+      <div class="anchor mono">${E(r.last) || T("date not measured")}</div>${spark(r.weeks)}
+      ${dirty ? chip(T("{n} repos need attention", {n: dirty}), "warn") : ""}</td>
+    <td data-label="${T("Code and sites")}"><div class="resource-links">${repos}${sites}</div>
+      <a class="plink anchor" href="${link}">${T("{n} repos", {n: r.repos.length})} · ${T("{n} sites", {n: r.sites.length})} · ${T("{n} folders", {n: r.folders.length})}</a></td>
+    <td data-label="${T("Hosting")}">${(r.heroku || []).length ? hostingGroups(r.heroku) : `<span class="none">${T("No linked apps")}</span>`}</td>
+    <td data-label="${T("Audience / 30 days")}">${traffic && traffic.users_30d != null
+      ? `<span class="mono">${NUM(traffic.users_30d)}</span><div class="anchor">${T("sum across properties")}${traffic.unknown_properties ? " · " + T("partial") : ""}</div>`
+      : `<span class="none">${T("audience@@Not measured")}</span>`}
+      <div class="anchor"><a class="plink" href="${link}">${T("Project details →")}</a></div></td>
   </tr>`;
 }
 
@@ -2025,89 +2104,87 @@ function detail(id) {
     : `<p class="none">${empty}</p>`;
   // Without a store, the store-backed sections say so instead of "none".
   const gone = D.store_degraded
-    ? `<p class="none">${E(D.store_degraded)}</p>` : "";
+    ? `<p class="none">${E(T(D.store_degraded.text || D.store_degraded, D.store_degraded.args))}</p>` : "";
   box.innerHTML = `
     <div class="dhead">
       <h2 id="panel-title">${E(r.name)}</h2>
-      <button id="dclose" class="chip-btn" type="button" aria-label="Закрыть">закрыть</button>
+      <button id="dclose" class="chip-btn" type="button" aria-label="${T("Close")}">${T("close")}</button>
     </div>
-    <p class="dmeta">${E(r.anchor)} · ${E(r.lifecycle)} · ${E(TIER_RU[r.tier] || r.tier || "")}
-      · последняя активность ${E(r.last) || "—"}</p>
+    <p class="dmeta">${E(r.anchor)} · ${E(r.lifecycle)} · ${E(TIER_LABEL[r.tier] || r.tier || "")}
+      · ${T("last activity")} ${E(r.last) || "—"}</p>
     ${r.description ? `<p class="project-description">${E(r.description)}</p>` : ""}
-    <h3>Из чего состоит</h3>
+    <h3>${T("What it is made of")}</h3>
     ${                                                                          
-      list(r.repos, "репозиториев нет", x => `<li>${repoLine(x, r.rules || [])}</li>`)}
-    ${list(r.folders, "локальных папок нет", f => `<li class="mono">${E(f)}</li>`)}
-    ${list(r.sites, "сайтов не заявлено", s => `<li class="mono"><a href="https://${E(s.host)}" target="_blank" rel="noopener">${E(s.host)}</a>` +
+      list(r.repos, T("no repositories"), x => `<li>${repoLine(x, r.rules || [])}</li>`)}
+    ${list(r.folders, T("no local folders"), f => `<li class="mono">${E(f)}</li>`)}
+    ${list(r.sites, T("no sites declared"), s => `<li class="mono"><a href="https://${E(s.host)}" target="_blank" rel="noopener">${E(s.host)}</a>` +
         `<span class="anchor"> ${E((s.evidence || [])[0] || "")}</span></li>`)}
-    <h3>Размещение и окружения</h3>
-    ${(r.heroku || []).length ? hostingGroups(r.heroku) : '<p class="none">Нет привязанных приложений</p>'}
-    <h3>Технологии и документация</h3>
-    <p>${(r.stack || []).map(x => chip(x)).join(" ") || "Стек не измерен"} · ${r.wiki_notes || 0} заметок</p>
-    <h3>Продукт</h3>
+    <h3>${T("Hosting and environments")}</h3>
+    ${(r.heroku || []).length ? hostingGroups(r.heroku) : `<p class="none">${T("No linked apps")}</p>`}
+    <h3>${T("Technology and documentation")}</h3>
+    <p>${(r.stack || []).map(x => chip(x)).join(" ") || T("Stack not measured")} · ${T("{n} notes", {n: r.wiki_notes || 0})}</p>
+    <h3>${T("Product")}</h3>
     ${(r.products || []).length
       ? `<ul class="dlist">${r.products.map(p => `<li>${E(p.name)} — ${E(p.role)}` +
-          (p.kind === "suggested" ? ` <span class="anchor">предложено по общему домену, не решение</span>` : "") +
+          (p.kind === "suggested" ? ` <span class="anchor">${T("suggested by a shared domain, not a decision")}</span>` : "") +
           `</li>`).join("")}</ul>`
-      : `<p class="none">ни в один продукт не входит — сгруппировать: collectors/products.json</p>`}
-    <h3>Что происходило</h3>
-    ${gone || list(r.timeline, "коммитов в окне нет",
+      : `<p class="none">${T("part of no product — group it in collectors/products.json")}</p>`}
+    <h3>${T("What happened")}</h3>
+    ${gone || list(r.timeline, T("no commits in the window"),
       c => `<li><span class="mono">${E(c.at)}</span> ${E(c.what)}
             <span class="none">${E(c.who)}</span></li>`)}
-    <h3>Что заключила обсерватория</h3>
-    ${gone || list(r.notes, "выводов нет",
+    <h3>${T("What the observatory concluded")}</h3>
+    ${gone || list(r.notes, T("no conclusions"),
       n => `<li><span class="mono">${E(n.at)}</span> ${E(n.text)}
-            <span class="none">${E(n.state)}${n.conf != null ? ", уверенность " + n.conf : ""}</span></li>`)}
+            <span class="none">${E(n.state)}${n.conf != null ? ", " + T("confidence {value}", {value: n.conf}) : ""}</span></li>`)}
     ${                                                                       
                                                           ""}
-    <h3>Аналитика</h3>
+    <h3>${T("Analytics")}</h3>
     ${(() => {
       const tr = (D.traffic || {})[r.id];
-      if (!tr) return `<p class="none">ни одна property Google Analytics не привязана к этому проекту — ` +
-        `назовите её в <span class="mono">plugins/config/ga4_properties.json</span>, если она есть</p>`;
+      if (!tr) return `<p class="none">${T("no Google Analytics property is linked to this project — name it in {file} if there is one", {file: "plugins/config/ga4_properties.json"})}</p>`;
       return `<ul class="dlist">` + (tr.properties || []).map(g =>
-        `<li><b>${g.users_30d == null ? "не измерено" : Number(g.users_30d).toLocaleString("ru")}</b> — сумма пользователей по ресурсам за 30 дней${g.unknown_properties ? " · без измерения: " + g.unknown_properties : ""} · ` +
-        `${Number(g.sessions_30d || 0).toLocaleString("ru")} сессий — ${E(g.name || "")}` +
-        `<span class="none"> · ${E(RULE_RU[g.rule] || g.rule || "")}` +
+        `<li><b>${g.users_30d == null ? T("not measured") : NUM(g.users_30d)}</b> — ${T("users summed across properties, 30 days")}${g.unknown_properties ? " · " + T("not measured: {n}", {n: g.unknown_properties}) : ""} · ` +
+        `${T("{n} sessions", {n: Number(g.sessions_30d || 0)})} — ${E(g.name || "")}` +
+        `<span class="none"> · ${E(RULE_LABEL[g.rule] || g.rule || "")}` +
         `${(g.hosts || []).length ? " · " + E(g.hosts.slice(0, 2).join(", ")) : ""}</span> ` +
         `<a href="${E(g.report_url)}" target="_blank" rel="noopener">GA4</a>` +
-        (g.admin_url ? ` · <a href="${E(g.admin_url)}" target="_blank" rel="noopener">админка</a>` : "") +
+        (g.admin_url ? ` · <a href="${E(g.admin_url)}" target="_blank" rel="noopener">${T("admin")}</a>` : "") +
         `</li>`).join("") +
         (tr.search_console || []).map(s =>
           `<li>Search Console: <a href="${E(s.url)}" target="_blank" rel="noopener">${E(s.site)}</a></li>`).join("") +
         `</ul>`;
     })()}
-    <h3>Ключи</h3>
+    <h3>${T("Keys")}</h3>
     ${(() => {
       // Names, kinds and places only — the payload holds no value to show.
       const ks = (D.keys || {})[r.id] || [];
-      if (!ks.length) return `<p class="none">ни один кред в реестре не привязан к этому проекту — ` +
-        `ничьи перечислены на <a href="creds.html">странице ключей</a></p>`;
-      const KIND_RU = {"llm-api-key": "ключ LLM", "machine-secret": "машинный секрет",
-                       "project-secret": "слот хранилища", "project-secret-file": "файл рядом с кодом",
-                       "leaked-untracked": "известен по утечке", "env-file": "в .env проекта"};
+      if (!ks.length) return `<p class="none">${T("no credential in the registry is linked to this project — unowned ones are listed on the")} <a href="creds.html">${T("keys page")}</a></p>`;
+      const KIND_LABEL = {"llm-api-key": T("LLM key"), "machine-secret": T("machine secret"),
+                          "project-secret": T("store slot"), "project-secret-file": T("file beside the code"),
+                          "leaked-untracked": T("known from a leak"), "env-file": T("in the project's .env")};
       // A key file tracked by git is danger; one merely not ignored is a
       // warning.
-      const GIT_RU = {tracked: chip("файл в git", "danger"), loose: chip("не в .gitignore", "warn"), ignored: "", "no-repo": ""};
+      const GIT_LABEL = {tracked: chip(T("file in git"), "danger"), loose: chip(T("not in .gitignore"), "warn"), ignored: "", "no-repo": ""};
       return `<ul class="dlist">` + ks.map(k =>
         `<li><a class="mono" href="${E(k.href || ("creds.html#c-" + k.slug))}">${E(k.name || "")}</a>` +
-        `<span class="none"> · ${E(KIND_RU[k.kind] || k.kind || "")}${k.env ? " · " + E(k.env) : ""}` +
+        `<span class="none"> · ${E(KIND_LABEL[k.kind] || k.kind || "")}${k.env ? " · " + E(k.env) : ""}` +
         `${k.where ? " · " + E(k.where) : ""}</span>` +
-        (k.leaked ? ` ${chip("утечка не закрыта", "danger")}` : "") +
-        (k.kind !== "env-file" && !k.signed ? ` ${chip("не подписан", "warn")}` : "") +
-        (k.kind === "env-file" ? ` ${GIT_RU[k.git] || ""}` : "") +
+        (k.leaked ? ` ${chip(T("leak not closed"), "danger")}` : "") +
+        (k.kind !== "env-file" && !k.signed ? ` ${chip(T("not signed"), "warn")}` : "") +
+        (k.kind === "env-file" ? ` ${GIT_LABEL[k.git] || ""}` : "") +
         `</li>`).join("") + `</ul>`;
     })()}
-    <h3>Что измерили плагины</h3>
+    <h3>${T("What the plugins measured")}</h3>
     ${gone || (r.metrics && r.metrics.length
-        ? `<ul class="dlist">${r.metrics.map(m => `<li><span class="mono">${E(m.l || m.n)}</span> ` +
+        ? `<ul class="dlist">${r.metrics.map(m => `<li><span class="mono">${E(metricLabel(m))}</span> ` +
             `${m.u === "bytes" ? bytes(m.v)
-                : (+m.v).toLocaleString("ru") + (m.l ? "" : " " + E(m.u || ""))}` +
+                : NUM(+m.v) + (m.l ? "" : " " + E(m.u || ""))}` +
             `${m.p != null && +m.p !== +m.v
                ? ` <span class="delta ${+m.v > +m.p ? "up" : "down"}">${+m.v > +m.p ? "↑" : "↓"}` +
-                 `${m.u === "bytes" ? bytes(Math.abs(m.v - m.p)) : Math.abs(m.v - m.p).toLocaleString("ru")}</span>`
+                 `${m.u === "bytes" ? bytes(Math.abs(m.v - m.p)) : NUM(Math.abs(m.v - m.p))}</span>`
                : ""}</li>`).join("")}</ul>`
-        : '<p class="none">измерений нет</p>')}`;
+        : `<p class="none">${T("no measurements")}</p>`)}`;
   box.hidden = false;
   document.getElementById("dclose").onclick = () => { location.hash = ""; };
   box.scrollIntoView({block: "start"});
@@ -2153,22 +2230,23 @@ addEventListener("keydown", e => { if (e.key === "Escape" && location.hash) loca
 function narrowing() {
   const seg = document.getElementById("seg-" + tab);
   const chips = seg ? [...seg.querySelectorAll('.chip-btn[data-f][aria-pressed="true"]')]
-    .map(b => b.textContent.trim() + (b.dataset.fromUrl ? " (из ссылки)" : "")) : [];
+    .map(b => b.textContent.trim() + (b.dataset.fromUrl ? " " + T("(from a link)") : "")) : [];
   const q = (document.getElementById("q") || {}).value || "";
   const s = (sel && sel.value && sel.selectedIndex >= 0) ? sel.options[sel.selectedIndex].text : "";
   return { chips, q: q.trim(), sel: s };
 }
 function narrowingText(n) {
   const bits = [];
-  if (n.chips.length) bits.push("фильтры: " + n.chips.map(E).join(", "));
-  if (n.sel) bits.push("выбрано: " + E(n.sel));
-  if (n.q) bits.push(`поиск: «${E(n.q)}»`);
+  if (n.chips.length) bits.push(T("filters: {list}", {list: n.chips.map(E).join(", ")}));
+  if (n.sel) bits.push(T("selected: {value}", {value: E(n.sel)}));
+  if (n.q) bits.push(T("search: “{text}”", {text: E(n.q)}));
   return bits.join(" · ");
 }
 function filterLine(shown, total, unit) {
   const what = narrowingText(narrowing());
-  return `<div class="filters" role="status">Показано <b>${shown}</b> из ${total}${unit ? " " + unit : ""}` +
-    (what ? ` · ${what} · <button class="chip-btn" type="button" data-clear>сбросить</button>` : "") + `</div>`;
+  // `unit` is a catalog id with a plural form ("{n} projects"), chosen by the total.
+  return `<div class="filters" role="status">${T("Showing {shown} of {total}", {shown: `<b>${NUM(shown)}</b>`, total: unit ? T(unit, {n: total}) : NUM(total)})}` +
+    (what ? ` · ${what} · <button class="chip-btn" type="button" data-clear>${T("reset")}</button>` : "") + `</div>`;
 }
 // GROUP FOLDING. Groups start folded, and open by themselves as soon as
 // anything narrows the view — a search hit hidden inside a folded group would
@@ -2213,7 +2291,7 @@ const SORT = (() => {
 })();
 function sortTh(label, key) {
   const dir = SORT.key === key && SORT.dir ? SORT.dir : "none";
-  return `<th aria-sort="${dir}" data-sort="${E(key)}"><button class="sort" type="button" title="сортировать">${label}</button></th>`;
+  return `<th aria-sort="${dir}" data-sort="${E(key)}"><button class="sort" type="button" title="${T("sort")}">${label}</button></th>`;
 }
 function sortInPlace(list, getters) {
   const g = SORT.key && getters[SORT.key];
@@ -2246,9 +2324,9 @@ const numOr = n => (typeof n === "number" ? n : (n == null || n === "" ? null : 
 function nothingFound(total, note) {
   const what = narrowingText(narrowing());
   // An empty result says whether a filter caused it or the registry is empty.
-  if (!what) return `<p class="empty">${total ? "Ничего не найдено" : "Здесь пусто — в реестре нет ни одной строки этого вида"}${note ? ". " + note : ""}</p>`;
-  return `<p class="empty">Ничего не найдено с этим сужением — ${what}. ` +
-    `<button class="chip-btn" type="button" data-clear>сбросить</button>${note ? "<br>" + note : ""}</p>`;
+  if (!what) return `<p class="empty">${total ? T("Nothing found") : T("Empty here — the registry holds no row of this kind")}${note ? ". " + note : ""}</p>`;
+  return `<p class="empty">${T("Nothing found with this narrowing — {what}.", {what})} ` +
+    `<button class="chip-btn" type="button" data-clear>${T("reset")}</button>${note ? "<br>" + note : ""}</p>`;
 }
 document.addEventListener("click", ev => {
   const b = ev.target && ev.target.closest && ev.target.closest("[data-clear]");
@@ -2263,14 +2341,17 @@ document.addEventListener("click", ev => {
 
 function render() {
   const search = document.getElementById("q");
-  if (search) search.placeholder = ({projects:"Поиск: проект, описание, репозиторий, папка или домен", heroku:"Поиск: приложение, проект или папка", domains:"Поиск: домен, регистратор или проект", creds:"Поиск: ключ, провайдер или проект", env:"Поиск: переменная, файл или проект", mcp:"Поиск: сервер, агент или адрес", traffic:"Поиск: ресурс, сайт или проект"})[tab] || "Поиск";
+  if (search) search.placeholder = T(({projects: "Search: project, description, repository, folder or domain",
+    heroku: "Search: app, project or folder", domains: "Search: domain, registrar or project",
+    creds: "Search: key, provider or project", env: "Search: variable, file or project",
+    mcp: "Search: server, agent or address", traffic: "Search: property, site or project"})[tab] || "Search");
   const out = drawTab();
   const tools = document.getElementById("list-tools");
   const table = document.getElementById("out");
   if (tools && table) {
     const fields = [...table.querySelectorAll("th[data-sort]")].map(h => [h.dataset.sort, h.textContent]);
-    tools.innerHTML = fields.length ? '<label>Сортировка <select id="list-sort" aria-label="Сортировка списка">' +
-      '<option value="">Исходный порядок</option>' + fields.map(([key, label]) =>
+    tools.innerHTML = fields.length ? `<label>${T("Sort")} <select id="list-sort" aria-label="${T("Sort the list")}">` +
+      `<option value="">${T("Original order")}</option>` + fields.map(([key, label]) =>
         ["ascending", "descending"].map(dir => '<option value="' + E(key + ":" + dir) + '"' +
           (SORT.key === key && SORT.dir === dir ? ' selected' : '') + '>' + E(label) +
           (dir === "ascending" ? ' ↑' : ' ↓') + '</option>').join("")).join("") + '</select></label>' : '';
@@ -2307,10 +2388,10 @@ function drawTab() {
   const out = document.getElementById("out");
   if (!rows.length) { out.innerHTML = nothingFound(D.rows.length); return; }
   sortInPlace(rows, {name: r => lower(r.name), activity: r => dateOr(r.last)});
-  out.innerHTML = filterLine(rows.length, D.rows.length, "проектов") + `<div class="card"><table class="project-summary">
+  out.innerHTML = filterLine(rows.length, D.rows.length, "{n} projects") + `<div class="card"><table class="project-summary">
     <colgroup><col style="width:26%"><col style="width:17%"><col style="width:23%"><col style="width:21%"><col style="width:13%"></colgroup>
-    <thead><tr>${sortTh("Проект", "name")}${sortTh("Активность", "activity")}
-      <th>Код и сайты</th><th>Размещение</th><th>Аудитория / 30 дней</th></tr></thead>
+    <thead><tr>${sortTh(T("Project"), "name")}${sortTh(T("Activity"), "activity")}
+      <th>${T("Code and sites")}</th><th>${T("Hosting")}</th><th>${T("Audience / 30 days")}</th></tr></thead>
     <tbody>${rows.map(row).join("")}</tbody></table></div>`;
 }
 
@@ -2366,15 +2447,15 @@ document.addEventListener("click", ev => {
   // The toast names what was copied, shortened to one line.
   const what = String(btn.dataset.copy || "").replace(/\s+/g, " ").slice(0, 48);
   copyText(btn.dataset.copy).then(ok =>
-    toast(ok ? `скопировано: ${what}${btn.dataset.copy.length > 48 ? "…" : ""}`
-             : "буфер недоступен — скопируйте из подсказки"));
+    toast(ok ? T("copied: {what}", {what: what + (btn.dataset.copy.length > 48 ? "…" : "")})
+             : T("clipboard unavailable — copy it from the hint")));
 });
 // Credential action buttons, handled in one place.
 document.addEventListener("click", ev => {
   const btn = ev.target && ev.target.closest && ev.target.closest("[data-act][data-cred]");
   if (!btn || btn.disabled) return;
   const c = CREDS.find(x => x.id === btn.dataset.cred);
-  if (!c) { toast("строка не найдена — пересканируйте"); return; }
+  if (!c) { toast(T("row not found — rescan")); return; }
   credAction(btn, c);
 });
 
@@ -2382,7 +2463,7 @@ document.addEventListener("click", ev => {
 // definite: nothing happened, and trying again is safe. A timeout, a dropped
 // connection, an unreadable answer to success, or a server fault after the
 // action began is UNCERTAIN: the provider may already have revoked or minted,
-// and "failed" would invite a second mint. Only the first may say "не вышло".
+// and "failed" would invite a second mint. Only the first may say "failed".
 class Uncertain extends Error {}
 const CALL_TIMEOUT_MS = 60000;
 async function call(action, body, ms = CALL_TIMEOUT_MS) {
@@ -2401,15 +2482,15 @@ async function call(action, body, ms = CALL_TIMEOUT_MS) {
       signal: ctl ? ctl.signal : undefined,
     });
   } catch (_) {
-    throw new Uncertain(ctl && ctl.signal.aborted ? `нет ответа за ${Math.round(ms / 1000)} с`
-                                                  : "соединение оборвалось");
+    throw new Uncertain(ctl && ctl.signal.aborted ? T("no answer within {n} s", {n: Math.round(ms / 1000)})
+                                                  : T("the connection dropped"));
   } finally {
     if (timer) clearTimeout(timer);
   }
   let d = null;
   try { d = await r.json(); } catch (_) { d = null; }
   if (r.ok) {
-    if (!d) throw new Uncertain("ответ пришёл, но не читается");
+    if (!d) throw new Uncertain(T("an answer arrived but cannot be read"));
     return d;
   }
   const said = (d && d.error) || ("HTTP " + r.status);
@@ -2424,15 +2505,15 @@ async function call(action, body, ms = CALL_TIMEOUT_MS) {
 function credAction(btn, c) {
   const act = btn.dataset.act;
   const ask = act === "revoke"
-    ? `Отозвать ключ ${c.label}? Он перестанет работать немедленно и навсегда.`
+    ? T("Revoke key {name}? It stops working immediately and for good.", {name: c.label})
     : act === "limit"
-      ? `Новый месячный потолок для ${c.name || c.label}:`
+      ? T("New monthly ceiling for {name}:", {name: c.name || c.label})
       : act === "leak"
-        ? `Где это значение засветилось? Одной строкой — транскрипт, лог, скрин:`
+        ? T("Where was this value exposed? One line — a transcript, a log, a screenshot:")
         : act === "rotate-key"
-          ? `Ротировать ${c.name || c.label}? Дверь создаст новый ключ, доставит его туда же и удалит старый.`
+          ? T("Rotate {name}? The door mints a new key, delivers it to the same place and deletes the old one.", {name: c.name || c.label})
           : act === "disable"
-            ? `Отключить ${c.name || c.label}? Он перестанет тратить до «включить».`
+            ? T("Disable {name}? It stops spending until “enable”.", {name: c.name || c.label})
             : null;
   if ((act === "revoke" || act === "rotate-key" || act === "disable") && !confirm(ask)) return;
   // Keys managed by name use `name`; the rest are addressed by label.
@@ -2446,11 +2527,11 @@ function credAction(btn, c) {
   // SIGNING: a purpose and the evidence for it are required; the owner is
   // optional.
   if (act === "annotate") {
-    const purpose = prompt(`Для чего нужен ${c.name || c.label}? Одной фразой:`, "");
+    const purpose = prompt(T("What is {name} for? One sentence:", {name: c.name || c.label}), "");
     if (!purpose || !purpose.trim()) return;
-    const evidence = prompt("Откуда это известно — конфиг, письмо, разговор, файл:", "");
+    const evidence = prompt(T("How is this known — a config, an email, a conversation, a file:"), "");
     if (!evidence || !evidence.trim()) return;
-    const owner = prompt("Кто за него отвечает (человек или команда, можно пусто):", "") || "";
+    const owner = prompt(T("Who is responsible for it (a person or a team, may be empty):"), "") || "";
     body = {id: c.id, purpose: purpose.trim(), evidence: evidence.trim(),
             owner: owner.trim()};
   }
@@ -2458,12 +2539,12 @@ function credAction(btn, c) {
   // where it is delivered. The value is delivered by the server and never
   // reaches this page.
   if (act === "mint") {
-    const name = prompt("Имя ключа у провайдера (его увидит только леджер):", "");
+    const name = prompt(T("The key's name at the provider (only the ledger sees it):"), "");
     if (!name || !name.trim()) return;
-    const limit = prompt(`Месячный потолок для ${name.trim()}, в долларах:`, "10");
+    const limit = prompt(T("Monthly ceiling for {name}, in dollars:", {name: name.trim()}), "10");
     if (limit === null || !(Number(limit) > 0)) return;
-    const dest = prompt("Куда доставить — observatory, claude-mem или "
-                        + "vault:<проект>/<env>/<NAME>:", "vault:<проект>/prod/OPENROUTER_API_KEY");
+    const dest = prompt(T("Where to deliver it — observatory, claude-mem or vault:<project>/<env>/<NAME>:"),
+                        T("vault:<project>/prod/OPENROUTER_API_KEY"));
     if (!dest || !dest.trim()) return;
     body = {name: name.trim(), limit: Number(limit), destination: dest.trim()};
   }
@@ -2475,22 +2556,22 @@ function credAction(btn, c) {
   }
   btn.disabled = true; btn.textContent = "…";
   call(act, body)
-    .then(d => { toast(act === "annotate" ? "подписан — пересканируйте"
-                       : act === "revoke" ? "отозван"
-                       : act === "leak" ? "отмечен как утёкший — ротируйте у провайдера"
-                       : act === "mint" ? `выпущен и доставлен в ${d.destination}`
-                       : `потолок ${d.limit}/мес`);
-                 btn.textContent = "готово · пересканируйте"; })
+    .then(d => { toast(act === "annotate" ? T("signed — rescan")
+                       : act === "revoke" ? T("revoked")
+                       : act === "leak" ? T("marked as leaked — rotate it at the provider")
+                       : act === "mint" ? T("minted and delivered to {place}", {place: d.destination})
+                       : T("ceiling {value}/mo", {value: d.limit}));
+                 btn.textContent = T("done · rescan"); })
     .catch(e => {
       if (e instanceof Uncertain) {
         // Kept disabled: repeating an action whose first attempt may have
         // landed is how one mint becomes two. A rescan says what happened.
-        btn.textContent = "исход неизвестен · проверьте";
-        btn.title = "Исход неизвестен: " + e.message;
-        toast(("исход неизвестен (" + e.message + ") — пересканируйте и проверьте, прежде чем повторять").slice(0, 160));
+        btn.textContent = T("outcome unknown · check");
+        btn.title = T("Outcome unknown: {reason}", {reason: e.message});
+        toast(T("outcome unknown ({reason}) — rescan and check before repeating", {reason: e.message}).slice(0, 160));
         return;
       }
-      btn.disabled = false; btn.textContent = "не вышло";
+      btn.disabled = false; btn.textContent = T("failed");
       toast(String(e.message).slice(0, 120));
     });
 }
@@ -2532,29 +2613,29 @@ const ISSUE_CMD = {
 function credVerbs(c) {
   const door = doorOf(c);
   const n = c.name || c.label || "";
-  const sign = ["подписать…", toolCommand("sign_credential.py", ["set", c.id, "--purpose", "…", "--evidence", "…"]), "annotate"];
+  const sign = [T("sign…"), toolCommand("sign_credential.py", ["set", c.id, "--purpose", "…", "--evidence", "…"]), "annotate"];
   if (c.kind === "llm-api-key")
     return [
       sign,
-      ["потолок…", toolCommand("openrouter.py", ["limit", n, "--set", "AMOUNT"]), "limit"],
-      [c.disabled ? "включить" : "отключить", toolCommand("openrouter.py", [c.disabled ? "enable" : "disable", n]), c.disabled ? "enable" : "disable"],
-      ["ротировать", toolCommand("openrouter.py", ["rotate", n, ...(c.leaked ? ["--leaked"] : [])]), "rotate-key"],
-      ["отозвать", toolCommand("openrouter.py", ["revoke", n]), "revoke"],
+      [T("ceiling…"), toolCommand("openrouter.py", ["limit", n, "--set", "AMOUNT"]), "limit"],
+      [c.disabled ? T("enable") : T("disable"), toolCommand("openrouter.py", [c.disabled ? "enable" : "disable", n]), c.disabled ? "enable" : "disable"],
+      [T("rotate"), toolCommand("openrouter.py", ["rotate", n, ...(c.leaked ? ["--leaked"] : [])]), "rotate-key"],
+      [T("revoke"), toolCommand("openrouter.py", ["revoke", n]), "revoke"],
     ];
   if (door)
     return [sign,
-      ["пинг", toolCommand(door + ".py", ["ping"]), null],
-      ["что выпущено", toolCommand(door + ".py", ["list"]), null],
-      ["выпустить…", ISSUE_CMD[door], door === "openrouter" ? "mint" : null],
+      [T("ping"), toolCommand(door + ".py", ["ping"]), null],
+      [T("what was minted"), toolCommand(door + ".py", ["list"]), null],
+      [T("mint…"), ISSUE_CMD[door], door === "openrouter" ? "mint" : null],
     ];
   if (c.vault_project) {
     const slot = [c.vault_project, c.env, c.name];
-    const settle = ["закрыть утечку…", toolCommand("vault.py", ["settle", ...slot, "--how", "…", "--revocation-evidence", "…", "--consumer-evidence", "…"]), null];
-    const rotate = ["ротировать из файла…", privateInput(toolCommand("vault.py", ["rotate", ...slot])), null];
+    const settle = [T("close the leak…"), toolCommand("vault.py", ["settle", ...slot, "--how", "…", "--revocation-evidence", "…", "--consumer-evidence", "…"]), null];
+    const rotate = [T("rotate from a file…"), privateInput(toolCommand("vault.py", ["rotate", ...slot])), null];
     if (c.known_only_from_the_leak)
-      return [sign, settle, ["завести слот из файла…", privateInput(toolCommand("vault.py", ["put", ...slot])), null]];
+      return [sign, settle, [T("create the slot from a file…"), privateInput(toolCommand("vault.py", ["put", ...slot])), null]];
     return c.leaked ? [sign, settle, rotate]
-      : [sign, ["отметить утечку…", toolCommand("vault.py", ["leak", ...slot, "--where", "…"]), "leak"], rotate];
+      : [sign, [T("record a leak…"), toolCommand("vault.py", ["leak", ...slot, "--where", "…"]), "leak"], rotate];
   }
   if (c.kind === "project-secret-file") {
     const owner = (c.used_by || [])[0];
@@ -2563,20 +2644,19 @@ function credVerbs(c) {
       .replace(/[^A-Za-z0-9]+/g, "_").toUpperCase();
     const file = projectFile(c.in_project + "/" + c.path);
     return [sign,
-      ["в хранилище", toolCommand("vault.py", ["put", vaultProject, "local", slotName]) + " < " + shellArg(file), null],
-      ["что это", "ls -l -- " + shellArg(file), null]];
+      [T("into the store"), toolCommand("vault.py", ["put", vaultProject, "local", slotName]) + " < " + shellArg(file), null],
+      [T("what is it"), "ls -l -- " + shellArg(file), null]];
   }
-  return [sign, ["что это", "ls -l -- " + shellArg(secretFile(n)), null]];
+  return [sign, [T("what is it"), "ls -l -- " + shellArg(secretFile(n)), null]];
 }
 
 const CRED_SECTIONS = [
-  ["door", "Двери", "админские стэши: из них выпускается всё остальное; значение не выдаётся никому"],
-  ["issued", "Выпущенные ключи", "леджер двери: имя у провайдера, потолок, расход, дата выпуска"],
-  ["slot", "Секреты проектов", "слоты хранилища — значение живёт в vault и идёт только через stdin"],
-  ["projfile", "Секреты рядом с кодом",
-   "файлы в собственной папке secrets/ проекта; " +
-   "«в хранилище» переносит значение в vault через stdin, чтобы им можно было пользоваться из любого проекта"],
-  ["machine", "Секреты машины", "файлы, которыми аутентифицируются сборщики и плагины этой машины"],
+  ["door", T("Doors"), T("admin stashes: everything else is minted from them; the value is handed to nobody")],
+  ["issued", T("Issued keys"), T("the door's ledger: name at the provider, ceiling, spend, date minted")],
+  ["slot", T("Project secrets"), T("store slots — the value lives in the vault and travels only through stdin")],
+  ["projfile", T("Secrets beside the code"),
+   T("files in the project's own secrets/ folder; “into the store” moves the value into the vault through stdin, so any project can use it")],
+  ["machine", T("Machine secrets"), T("files this machine's collectors and plugins authenticate with")],
 ];
 const credSection = c => doorOf(c) ? "door"
   : c.kind === "llm-api-key" ? "issued"
@@ -2605,7 +2685,7 @@ function keepCred(c, q, section) {
 function renderCreds() {
   const out = document.getElementById("out");
   if (!D.creds) {
-    out.innerHTML = `<p class="empty">Учётные данные не сканировались — ` +
+    out.innerHTML = `<p class="empty">${T("Credentials were not scanned")} — ` +
       `<span class="mono">${E(cliCommand("openrouter"))}</span></p>`;
     return;
   }
@@ -2617,29 +2697,29 @@ function renderCreds() {
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
   const cap = c => c.limit == null ? NONE
     : `<span class="mono">${c.limit}</span>` +
-      `<div class="tier">${E(c.limit_reset || "без сброса")}` +
-      (c.limit_reset ? "" : " " + chip("пожизненный", "warn")) +
-      `</div><div class="anchor">потрачено ${(+c.usage || 0).toFixed(3)}</div>`;
+      `<div class="tier">${E(c.limit_reset || T("no reset"))}` +
+      (c.limit_reset ? "" : " " + chip(T("lifetime"), "warn")) +
+      `</div><div class="anchor">${T("spent {value}", {value: (+c.usage || 0).toFixed(3)})}</div>`;
   const who = c => (c.used_by || []).length
     ? (c.used_by || []).map(p =>
         `<a class="plink" href="#${E(p)}">${E(p.split(":")[1])}</a>`).join(", ") +
       ((c.used_by || []).length > 1
-        ? `<div class="tier">${chip("общий · ротация затронет всех", "warn")}</div>` : "")
+        ? `<div class="tier">${chip(T("shared · a rotation touches every one"), "warn")}</div>` : "")
     // No project uses it: name the tool that reads it, or say it is nobody's.
     : c.read_by
-      ? `<span class="mono">${E(c.read_by)}</span><div class="anchor">читает его</div>`
-      : `<span class="unlinked" title="${E(c.unclaimed_reason || "")}">ничей</span>`;
+      ? `<span class="mono">${E(c.read_by)}</span><div class="anchor">${T("reads it")}</div>`
+      : `<span class="unlinked" title="${E(c.unclaimed_reason || "")}">${T("unowned")}</span>`;
   const state = c => {
     const bits = [];
-    if (c.leaked) bits.push(chip("утечка не закрыта", "danger"));
-    if (c.disabled) bits.push(chip("отключён", "warn"));
-    if (c.kind === "leaked-untracked") bits.push(chip("в хранилище нет", "warn"));
+    if (c.leaked) bits.push(chip(T("leak not closed"), "danger"));
+    if (c.disabled) bits.push(chip(T("disabled"), "warn"));
+    if (c.kind === "leaked-untracked") bits.push(chip(T("not in the store"), "warn"));
     // A key file sitting in a checkout: its git state and file mode matter.
-    if (c.git === "tracked") bits.push(chip("в git", "danger"));
-    if (c.git === "loose") bits.push(chip("не игнорируется", "warn"));
+    if (c.git === "tracked") bits.push(chip(T("in git"), "danger"));
+    if (c.git === "loose") bits.push(chip(T("not ignored"), "warn"));
     if (c.kind === "project-secret-file" && String(c.mode).slice(-2) !== "00")
-      bits.push(chip(`права ${E(c.mode)}`, "warn"));
-    if (!bits.length) bits.push(chip("в порядке", "ok"));
+      bits.push(chip(T("mode {mode}", {mode: c.mode}), "warn"));
+    if (!bits.length) bits.push(chip(T("in order"), "ok"));
     // Where a leaked value was seen, shortened, with the whole text on hover.
     const w = String(c.leaked_where || "");
     return bits.join(" ") + (c.leaked && w
@@ -2651,7 +2731,7 @@ function renderCreds() {
   rows.forEach(c => { const k = SORT.key ? "sorted" : credSection(c);
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); });
   const row = c => `<tr id="c-${E(String(c.id).replace(/^credential:/, "").replace(/[^A-Za-z0-9_.-]+/g, "-"))}">
-    <td data-label="Учётные данные"><div class="name">${E(c.name || c.id)}</div>
+    <td data-label="${T("Credential")}"><div class="name">${E(c.name || c.id)}</div>
       ${                                                                   
                                                                             ""}
       <div class="anchor mono" title="${E(c.id)}">${E(c.label
@@ -2662,54 +2742,53 @@ function renderCreds() {
                                                                      ""}
       ${c.signature && c.signature.purpose
         ? `<div class="tier">${E(c.signature.purpose)}</div>` +
-          `<div class="anchor">${E(c.signature.owner || "владельца нет")}` +
-          `${c.signature.rotation_days ? ` · ротация раз в ${c.signature.rotation_days} дн.` : ""}` +
-          ` · подписан ${E(c.signature.signed_on || "")}</div>`
-        : `<div class="anchor"><span class="unlinked">не подписан — для чего он, никто не сказал</span></div>`}</td>
-    ${cell("Состояние", state(c))}
-    ${cell("Потолок", cap(c), "num")}
-    ${cell("Проекты", who(c))}
-    ${cell("Ротация", c.rotated_on
+          `<div class="anchor">${E(c.signature.owner || T("no owner"))}` +
+          `${c.signature.rotation_days ? " · " + T("rotated every {n} d", {n: c.signature.rotation_days}) : ""}` +
+          ` · ${T("signed {date}", {date: E(c.signature.signed_on || "")})}</div>`
+        : `<div class="anchor"><span class="unlinked">${T("not signed — nobody said what it is for")}</span></div>`}</td>
+    ${cell(T("State"), state(c))}
+    ${cell(T("Ceiling"), cap(c), "num")}
+    ${cell(T("Projects"), who(c))}
+    ${cell(T("Rotation"), c.rotated_on
       ? E(c.rotated_on) + `<div class="anchor">×${c.rotations || 1}</div>`
       // Never rotated: show when it was issued, or since when it has sat
       // here, before admitting "never".
       : c.created_on
-        ? `<span class="mono">выпущен ${E(c.created_on)}</span>`
+        ? `<span class="mono">${T("minted {date}", {date: E(c.created_on)})}</span>`
         : c.installed_on
-          ? `<span class="mono">лежит с ${E(c.installed_on)}</span>`
-          : `<span class="unlinked">никогда</span>`)}
-    ${cell("Действие", `<div class="verbs">` + credVerbs(c).map(([label, cmd, act]) =>
+          ? `<span class="mono">${T("here since {date}", {date: E(c.installed_on)})}</span>`
+          : `<span class="unlinked">${T("never")}</span>`)}
+    ${cell(T("Action"), `<div class="verbs">` + credVerbs(c).map(([label, cmd, act]) =>
       LIVE && act
         ? `<button class="chip-btn" type="button" data-cred="${E(c.id)}" data-act="${E(act)}"
             >${E(label)}</button>`
         : `<button class="chip-btn" type="button" data-copy="${E(cmd)}"
-            title="${E(cmd)}">Команда: ${E(label)}</button>`).join(" ") + `</div>`)}</tr>`;
+            title="${E(cmd)}">${T("Command: {label}", {label: E(label)})}</button>`).join(" ") + `</div>`)}</tr>`;
   const leaked = rows.filter(c => c.leaked).length;
   const howto = LIVE
-    ? `кнопки действуют: страницу отдаёт <span class="mono">tools/keyserver.py</span>`
-    : `режим команд: кнопки копируют команду; выполните её в терминале;` +
-      ` перед импортом замените /absolute/path/to/private-input путём к приватному файлу со значением;` +
-      ` запустите <span class="mono">${E(toolCommand("keyserver.py"))}</span>, чтобы они действовали`;
+    ? T("the buttons act: this page is served by {server}", {server: `<span class="mono">tools/keyserver.py</span>`})
+    : T("command mode: the buttons copy a command; run it in a terminal; before an import, replace /absolute/path/to/private-input with the path to the private file holding the value; start {server} to make them act",
+        {server: `<span class="mono">${E(toolCommand("keyserver.py"))}</span>`});
   // Grouped by section, in a fixed order, and every section is shown even
   // when empty — an empty section is a fact, not a missing one.
-  out.innerHTML = filterLine(rows.length, CREDS.length, "записей") + `<div class="action-mode"><b>${LIVE ? "Действия подключены" : "Режим команд"}</b> · ${LIVE ? "Кнопки выполняют указанное действие." : "Кнопки копируют команды для терминала."}<details><summary>Как пользоваться действиями</summary>${howto}</details></div><div class="card"><table>
+  out.innerHTML = filterLine(rows.length, CREDS.length, "{n} entries") + `<div class="action-mode"><b>${LIVE ? T("Actions connected") : T("Command mode")}</b> · ${LIVE ? T("The buttons perform the stated action.") : T("The buttons copy commands for a terminal.")}<details><summary>${T("How to use the actions")}</summary>${howto}</details></div><div class="card"><table>
     <colgroup><col style="width:23%"><col style="width:24%"><col style="width:10%">
       <col style="width:16%"><col style="width:11%"><col style="width:16%"></colgroup>
-    <thead><tr>${sortTh("Учётные данные", "name")}<th>Состояние</th><th>Потолок</th>
-      <th>Проекты</th><th>Ротация</th><th>Действие</th></tr></thead>
-    ${(SORT.key ? [["sorted", "Выбранные записи", "Общий порядок по выбранному столбцу"]] : CRED_SECTIONS).map(([key, title, says]) => {
+    <thead><tr>${sortTh(T("Credential"), "name")}<th>${T("State")}</th><th>${T("Ceiling")}</th>
+      <th>${T("Projects")}</th><th>${T("Rotation")}</th><th>${T("Action")}</th></tr></thead>
+    ${(SORT.key ? [["sorted", T("Selected entries"), T("One order by the chosen column")]] : CRED_SECTIONS).map(([key, title, says]) => {
       const cs = groups.get(key) || [];
       return `<tbody class="grp">
       ${grpHead(6, `${E(title)} <span class="n">${cs.length}</span><div class="anchor">${E(says)}</div>`, true)}
       ${cs.length ? cs.map(row).join("")
         : `<tr><td colspan="6" class="e">${key === "issued"
-            ? "ни одного ключа ещё не выпущено — «выпустить…» на строке двери"
-            : "здесь пусто"}</td></tr>`}</tbody>`;
+            ? T("no key minted yet — “mint…” on the door's row")
+            : T("empty here")}</td></tr>`}</tbody>`;
     }).join("")}</table></div>
-    <p class="dmeta">Показано ${rows.length} из ${CREDS.length} ·
-      ${leaked} незакрытых утечек · измерено ${E(D.creds.scanned_on || "—")} ·
-      значений здесь нет: метка — это то, как ключ называет сам провайдер;<br>
-      запись и ротация секрета проекта отсюда <b>отказаны намеренно</b> — значение идёт только через stdin</p>
+    <p class="dmeta">${T("Showing {shown} of {total}", {shown: NUM(rows.length), total: NUM(CREDS.length)})} ·
+      ${T("{n} open leaks", {n: leaked})} · ${T("measured {date}", {date: E(D.creds.scanned_on || "—")})} ·
+      ${T("no values here: a label is what the provider itself calls the key;")}<br>
+      ${T("writing and rotating a project secret from here is {refused} — the value travels only through stdin", {refused: `<b>${T("refused on purpose")}</b>`})}</p>
     ${movementsSection()}`;
 }
 
@@ -2720,40 +2799,40 @@ function renderCreds() {
 function movementsSection() {
   const mv = (D.creds && D.creds.movements) || [];
   const un = (D.creds && D.creds.unrecorded) || [];
-  const EVENT_RU = {put: "положен", rotate: "ротирован", moved: "перемещён (рукой)", settled: "утечка закрыта",
-                    issue: "выпущен", disable: "отключён", enable: "включён", revoke: "отозван",
-                    leak: "утечка записана"};
+  const EVENT_LABEL = {put: T("put"), rotate: T("rotated"), moved: T("moved (by hand)"), settled: T("leak closed"),
+                       issue: T("minted"), disable: T("disabled"), enable: T("enabled"), revoke: T("revoked"),
+                       leak: T("leak recorded")};
   const unrows = un.map(u => {
     const proj = u.project || (u.app || "").replace(/-/g, "_");
     const cmds = (u.vars || []).map(v =>
       toolCommand("vault.py", ["moved", u.project || "PROJECT", "prod", v, "--at", "heroku", "--how", `set on Heroku app ${u.app}, release v${u.version}, ${String(u.at || "").slice(0, 16)}Z by ${u.by || "?"}`]));
     return `<li><b>${E(u.app)}</b> v${E(String(u.version || ""))} · ${E(String(u.at || "").slice(0, 16))}Z · ${E(u.by || "?")}:
       <span class="mono">${(u.vars || []).map(E).join(", ")}</span>
-      ${cmds.map((c, i) => `<button class="chip-btn" type="button" data-copy="${E(c)}" title="скопировать запись движения">Команда: записать ${E(u.vars[i])}</button>`).join(" ")}</li>`;
+      ${cmds.map((c, i) => `<button class="chip-btn" type="button" data-copy="${E(c)}" title="${T("copy the movement record")}">${T("Command: record {name}", {name: E(u.vars[i])})}</button>`).join(" ")}</li>`;
   }).join("");
   const rows = mv.map(m => `<tr>
       <td class="num"><span class="mono">${E(String(m.at || "").slice(0, 16).replace("T", " "))}</span></td>
-      <td>${E(EVENT_RU[m.event] || m.event || "")}</td>
+      <td>${E(EVENT_LABEL[m.event] || m.event || "")}</td>
       <td><span class="mono">${E(m.secret || m.of || "")}</span></td>
       <td>${E(m.by || "")}${m.tool ? ` <span class="none">· ${E(m.tool)}</span>` : ""}</td>
-      <td>${E(m.at_provider ? "у провайдера: " + m.at_provider : (m.to ? "→ " + m.to : ""))}${m.how ? `<div class="anchor">${E(String(m.how).slice(0, 160))}</div>` : ""}</td>
+      <td>${E(m.at_provider ? T("at the provider: {name}", {name: m.at_provider}) : (m.to ? "→ " + m.to : ""))}${m.how ? `<div class="anchor">${E(String(m.how).slice(0, 160))}</div>` : ""}</td>
     </tr>`).join("");
-  return `<h2 id="movements">Движения ключей</h2>
-    ${un.length ? `<div class="card"><p class="dmeta">${un.length} изменение(й) на Heroku за неделю, которых нет в журнале — правило оператора: записывает тот, кто двигал, в тот же ход</p>
-      <ul class="dlist">${unrows}</ul></div>` : `<p class="none">каждое движение за неделю записано — на Heroku нет изменений без строки в журнале</p>`}
+  return `<h2 id="movements">${T("Key movements")}</h2>
+    ${un.length ? `<div class="card"><p class="dmeta">${T("{n} Heroku changes this week are missing from the journal — the operator's rule: whoever moved it records it in the same step", {n: un.length})}</p>
+      <ul class="dlist">${unrows}</ul></div>` : `<p class="none">${T("every movement this week is recorded — Heroku has no change without a journal row")}</p>`}
     ${rows ? `<div class="card"><table><colgroup><col style="width:12%"><col style="width:12%"><col style="width:30%"><col style="width:14%"><col></colgroup>
-      <thead><tr><th>Когда</th><th>Что</th><th>Ключ</th><th>Кто</th><th>Куда / как</th></tr></thead>
+      <thead><tr><th>${T("When")}</th><th>${T("What")}</th><th>${T("Key")}</th><th>${T("Who")}</th><th>${T("Where / how")}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
-      <p class="dmeta">Последние ${mv.length} движений · полный журнал: <span class="mono">${E(toolCommand("vault.py", ["movements"]))}</span></p>`
-      : `<p class="none">журнал движений пуст</p>`}`;
+      <p class="dmeta">${T("Latest {n} movements", {n: mv.length})} · ${T("full journal:")} <span class="mono">${E(toolCommand("vault.py", ["movements"]))}</span></p>`
+      : `<p class="none">${T("the movement journal is empty")}</p>`}`;
 }
 
 // THE ENV PAGE: one row per variable in the projects' env files, by name,
 // class and git state. Values never reach the payload; a value is shown only
 // on request from the local server, and only for a short time.
 
-const CLS_RU = {secret: "секрет", config: "конфиг",
-                placeholder: "заглушка", empty: "пусто"};
+const CLS_LABEL = {secret: T("secret"), config: T("config"),
+                   placeholder: T("placeholder"), empty: T("empty@@value")};
 const CLS_KIND = {secret: "warn", config: "", placeholder: "", empty: ""};
 
 const hayEnv = e => [e.name, e.path, e.project, e.cls,
@@ -2790,14 +2869,14 @@ function envReveal(btn, e, show) {
       if (!show) {
         return copyText(d.value).then(ok => {
           cell.innerHTML = envActions(e);
-          toast(ok ? e.name + " скопирован" : "буфер недоступен");
+          toast(ok ? T("{name} copied", {name: e.name}) : T("clipboard unavailable"));
         });
       }
       cell.innerHTML =
         '<code class="val" tabindex="0">' + E(d.value) + '</code>' +
         '<div class="anchor"><button class="chip-btn" type="button" data-envhide="1"' +
-        '>скрыть</button> <button class="chip-btn" type="button" data-copy="' +
-        E(d.value) + '">копировать</button> · скроется через 30с</div>';
+        '>' + T("hide") + '</button> <button class="chip-btn" type="button" data-copy="' +
+        E(d.value) + '">' + T("copy") + '</button> · ' + T("hides in 30 s") + '</div>';
       const t = setTimeout(() => {
         if (cell.isConnected) cell.innerHTML = envActions(e);
       }, 30000);
@@ -2805,23 +2884,23 @@ function envReveal(btn, e, show) {
     })
     .catch(err => {
       cell.innerHTML = envActions(e);
-      toast(((err instanceof Uncertain ? "исход неизвестен: " : "") + String(err.message)).slice(0, 140));
+      toast(((err instanceof Uncertain ? T("outcome unknown:") + " " : "") + String(err.message)).slice(0, 140));
     });
 }
 
 function envActions(e) {
   if (LIVE) {
     return '<button class="chip-btn" type="button" data-env="' + E(envKey(e)) +
-      '" data-show="1">показать</button> <button class="chip-btn" type="button" data-env="' +
-      E(envKey(e)) + '">копировать</button>';
+      '" data-show="1">' + T("show") + '</button> <button class="chip-btn" type="button" data-env="' +
+      E(envKey(e)) + '">' + T("copy") + '</button>';
   }
   // Opened from a file: nothing can be revealed, so the button copies the
   // command that locates the value in a terminal.
   const project = e.project || (String(e.path || "").includes("/") ? String(e.path).split("/")[0] : "");
-  if (!project || !e.name) return '<span class="unlinked">проект или имя не определены</span>';
+  if (!project || !e.name) return '<span class="unlinked">' + T("project or name not determined") + '</span>';
   return '<button class="chip-btn" type="button" data-copy="' +
     E(toolCommand("use_secret.py", ["where", project, e.name])) +
-    '">скопировать команду</button>';
+    '">' + T("copy the command") + '</button>';
 }
 
 document.addEventListener("click", ev => {
@@ -2852,7 +2931,7 @@ document.addEventListener("click", ev => {
 function renderEnv() {
   const out = document.getElementById("out");
   if (!D.env) {
-    out.innerHTML = '<p class="empty">Файлы окружения не сканировались — ' +
+    out.innerHTML = '<p class="empty">' + T("Environment files were not scanned") + ' — ' +
       '<span class="mono">' + E(cliCommand('env')) + '</span></p>';
     return;
   }
@@ -2860,71 +2939,68 @@ function renderEnv() {
   const rows = ENVV.filter(e => keepEnv(e, q, sel.value));
   ENV_ON_SCREEN = new Map(rows.map(e => [envKey(e), e]));
   if (!rows.length) {
-    out.innerHTML = nothingFound(ENVV.length, 'По умолчанию показаны только секреты ' +
-      'живых файлов — «+ конфиг и пустые» и «+ шаблоны» расширяют выборку.');
+    out.innerHTML = nothingFound(ENVV.length, T("By default only secrets from live files are shown — “+ config and empty” and “+ templates” widen the selection."));
     return;
   }
   const state = e => {
-    const bits = [chip(CLS_RU[e.cls] || e.cls, CLS_KIND[e.cls] || "")];
-    if (e.kind === "template") bits.push(chip("шаблон", ""));
-    if (e.git === "tracked") bits.push(chip("в git", e.cls === "secret" ? "danger" : "warn"));
-    if (e.git === "loose") bits.push(chip("не игнорируется", "warn"));
+    const bits = [chip(CLS_LABEL[e.cls] || e.cls, CLS_KIND[e.cls] || "")];
+    if (e.kind === "template") bits.push(chip(T("template"), ""));
+    if (e.git === "tracked") bits.push(chip(T("in git"), e.cls === "secret" ? "danger" : "warn"));
+    if (e.git === "loose") bits.push(chip(T("not ignored"), "warn"));
     if (String(e.mode).slice(-2) !== "00") bits.push(chip(e.mode, "warn"));
     return bits.join(" ");
   };
   const links = e => {
     if (e.shared.length) {
       return e.shared.map(p => '<a class="plink" href="#project:' + E(p) + '">' + E(p) + '</a>').join(", ") +
-        '<div class="tier">' + chip("то же значение · ротация затронет всех", "warn") + '</div>';
+        '<div class="tier">' + chip(T("the same value · a rotation touches every one"), "warn") + '</div>';
     }
     if (e.available.length) {
-      return '<span class="anchor">значение есть в:</span> ' +
+      return '<span class="anchor">' + T("the value is set in:") + '</span> ' +
         e.available.map(p => '<a class="plink" href="#project:' + E(p) + '">' + E(p) + '</a>').join(", ");
     }
     return e.copies > 1
-      ? '<span class="anchor">' + e.copies + ' копии в этом же проекте</span>'
+      ? '<span class="anchor">' + T("{n} copies in this same project", {n: e.copies}) + '</span>'
       : NONE;
   };
   sortInPlace(rows, {name: e => lower(e.name), modified: e => dateOr(e.modified_on)});
   const groups = new Map();
   rows.forEach(e => {
-    const key = SORT.key ? "Выбранные записи" : e.project;
+    const key = SORT.key ? T("Selected entries") : e.project;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(e);
   });
   const row = e => '<tr id="e-' + E(anchorSlug(e.path + ":" + e.name)) + '" data-file="' + E(anchorSlug(e.path)) + '">' +
-    '<td data-label="Переменная"><div class="name mono">' + E(e.name) + '</div>' +
+    '<td data-label="' + T("Variable") + '"><div class="name mono">' + E(e.name) + '</div>' +
     '<div class="anchor mono" title="' + E(e.path) + '">' + E(e.path) + '</div></td>' +
-    '<td data-label="Что это">' + state(e) + '</td>' +
-    '<td data-label="Связи">' + links(e) + '</td>' +
-    '<td data-label="Изменён" class="num"><span class="mono">' + E(e.modified_on) + '</span></td>' +
+    '<td data-label="' + T("What it is") + '">' + state(e) + '</td>' +
+    '<td data-label="' + T("Links") + '">' + links(e) + '</td>' +
+    '<td data-label="' + T("Changed") + '" class="num"><span class="mono">' + E(e.modified_on) + '</span></td>' +
     // Production: how the deployed configuration compares for this name.
-    '<td data-label="Прод">' + (() => {
+    '<td data-label="' + T("Prod") + '">' + (() => {
       const m = REMOTE_BY_FOLDER.get(e.project);
-      if (!D.remote) return '<span class="anchor">не сканировалось</span>';
+      if (!D.remote) return '<span class="anchor">' + T("not scanned") + '</span>';
       if (!m) return NONE;
       const vs = (m.get(e.name) || []).slice().sort((a, b) =>
         VERDICT_ORDER.indexOf(a.verdict) - VERDICT_ORDER.indexOf(b.verdict) || String(a.app).localeCompare(String(b.app)));
-      if (!vs.length) return '<span class="unlinked">нет у прода</span>';
+      if (!vs.length) return '<span class="unlinked">' + T("not in production") + '</span>';
       return vs.map(v => {
-        const [word, kind] = VERDICT_RU[v.verdict] || [v.verdict, ""];
+        const [word, kind] = VERDICT_LABEL[v.verdict] || [v.verdict, ""];
         return chip(word, kind) + '<div class="anchor">' + E(v.app) + '</div>';
       }).join("");
     })() + '</td>' +
-    '<td data-label="Значение" data-key="' + E(envKey(e)) + '">' + envActions(e) + '</td></tr>';
+    '<td data-label="' + T("Value") + '" data-key="' + E(envKey(e)) + '">' + envActions(e) + '</td></tr>';
   const t = D.env.totals || {};
   const howto = LIVE
-    ? '«показать» и «копировать» действуют: страницу отдаёт ' +
-      '<span class="mono">tools/keyserver.py</span>, и каждое раскрытие пишется в ' +
-      '<span class="mono">store/logs/keyserver.jsonl</span> до того, как файл будет прочитан'
-    : 'режим команд: кнопка копирует команду в буфер; выполните её в терминале. ' +
-      'Запустите <span class="mono">' + E(toolCommand('keyserver.py')) + '</span>, ' +
-      'чтобы раскрывать и копировать прямо отсюда';
-  out.innerHTML = filterLine(rows.length, ENVV.length, "переменных") + '<div class="action-mode"><b>' + (LIVE ? 'Действия подключены' : 'Режим команд') + '</b> · ' + (LIVE ? 'Значение открывается только по запросу и затем скрывается.' : 'Кнопки копируют команды для терминала; значения здесь не показаны.') + '<details><summary>Как пользоваться действиями</summary>' + howto + '</details></div><div class="card"><table>' +
+    ? T("“show” and “copy” act: this page is served by {server}, and every reveal is written to {log} before the file is read",
+        {server: '<span class="mono">tools/keyserver.py</span>', log: '<span class="mono">store/logs/keyserver.jsonl</span>'})
+    : T("command mode: the button copies a command to the clipboard; run it in a terminal. Start {server} to reveal and copy right here",
+        {server: '<span class="mono">' + E(toolCommand('keyserver.py')) + '</span>'});
+  out.innerHTML = filterLine(rows.length, ENVV.length, "{n} variables") + '<div class="action-mode"><b>' + (LIVE ? T("Actions connected") : T("Command mode")) + '</b> · ' + (LIVE ? T("A value opens only on request and is hidden again.") : T("The buttons copy commands for a terminal; no values are shown here.")) + '<details><summary>' + T("How to use the actions") + '</summary>' + howto + '</details></div><div class="card"><table>' +
     '<colgroup><col style="width:26%"><col style="width:17%"><col style="width:20%">' +
     '<col style="width:9%"><col style="width:14%"><col style="width:14%"></colgroup>' +
-    '<thead><tr>' + sortTh("Переменная", "name") + '<th>Что это</th><th>Связи</th>' + sortTh("Изменён", "modified") +
-    '<th>Прод</th><th>Значение</th></tr></thead>' +
+    '<thead><tr>' + sortTh(T("Variable"), "name") + '<th>' + T("What it is") + '</th><th>' + T("Links") + '</th>' + sortTh(T("Changed"), "modified") +
+    '<th>' + T("Prod") + '</th><th>' + T("Value") + '</th></tr></thead>' +
     [...groups].map(([p, es]) => {
       // Project headings provide context without hiding any variable metadata.
       const alarming = es.filter(e => e.cls === "secret" && e.git === "tracked");
@@ -2932,21 +3008,19 @@ function renderEnv() {
       const secrets = es.filter(e => e.cls === "secret").length;
       return '<tbody class="grp' + (open ? '' : ' folded') + '" data-envgroup="' + E(p || "-") + '">' +
       '<tr><th colspan="6" scope="colgroup"><button class="grp-fold" type="button"' +
-      ' aria-expanded="' + (open ? 'true' : 'false') + '">' + E(p || "вне проекта") +
-      ' <span class="n">' + es.length + ' ' + plural(es.length, 'переменная', 'переменные', 'переменных') +
-      (secrets ? ' · ' + secrets + ' ' + plural(secrets, 'секрет', 'секрета', 'секретов') : '') + '</span>' +
-      (alarming.length ? ' ' + chip(alarming.length + " секрет(ов) в git", "danger") : '') +
+      ' aria-expanded="' + (open ? 'true' : 'false') + '">' + E(p || T("outside any project")) +
+      ' <span class="n">' + T("{n} variables", {n: es.length}) +
+      (secrets ? ' · ' + T("{n} secrets", {n: secrets}) : '') + '</span>' +
+      (alarming.length ? ' ' + chip(T("{n} secrets in git", {n: alarming.length}), "danger") : '') +
       '</button></th></tr>' +
       es.map(row).join("") + '</tbody>';
     }).join("") + '</table></div>' +
-    '<p class="dmeta">Показано ' + rows.length + ' из ' + ENVV.length + ' переменных · ' +
-    (t.env_files || 0) + ' ' + plural(t.env_files || 0, 'живой файл', 'живых файла', 'живых файлов') + ' и ' +
-    (t.templates || 0) + ' ' + plural(t.templates || 0, 'шаблон', 'шаблона', 'шаблонов') + ' в ' +
-    (t.projects || 0) + ' ' + plural(t.projects || 0, 'проекте', 'проектах', 'проектах') + ' · ' + (t.secrets || 0) + ' читаются как секрет · ' +
-    'общих значений: ' + (t.shared_across_projects || 0) + ' · измерено ' +
-    E(D.env.scanned_on || "—") + '<br>' +
-    '. Значений нет ни в этой странице, ни в реестре: «общее значение» установлено ' +
-    'солёным отпечатком, а соль лежит вне git и не покидает машину.</p>';
+    '<p class="dmeta">' + T("Showing {shown} of {total}", {shown: NUM(rows.length), total: T("{n} variables", {n: ENVV.length})}) + ' · ' +
+    T("{files} and {templates} in {projects}", {files: T("{n} live files", {n: t.env_files || 0}),
+      templates: T("{n} templates", {n: t.templates || 0}), projects: T("in@@{n} projects", {n: t.projects || 0})}) +
+    ' · ' + T("{n} read as a secret", {n: t.secrets || 0}) + ' · ' +
+    T("shared values: {n}", {n: t.shared_across_projects || 0}) + ' · ' + T("measured {date}", {date: E(D.env.scanned_on || "—")}) + '<br>' +
+    T("No values on this page or in the registry: a “shared value” is established by a salted fingerprint, and the salt lives outside git and never leaves the machine.") + '</p>';
 }
 
 // DOMAINS: the registrar's list joined with the Cloudflare zones, with
@@ -2975,7 +3049,7 @@ function keepDom(d, q, registrar) {
 function renderMcp() {
   const out = document.getElementById("out");
   if (!D.mcp) {
-    out.innerHTML = `<p class="empty">MCP не сканировался — <span class="mono">${E(cliCommand("scan-mcp"))}</span></p>`;
+    out.innerHTML = `<p class="empty">${T("MCP was not scanned")} — <span class="mono">${E(cliCommand("scan-mcp"))}</span></p>`;
     return;
   }
   const q = document.getElementById("q").value.trim().toLowerCase();
@@ -2987,44 +3061,44 @@ function renderMcp() {
     && (!active.has("m-auth") || s.liveness === "needs-auth")
     && (!active.has("m-alone") || ALL.filter(x => x.name === s.name).length === 1));
   if (!rows.length) { out.innerHTML = nothingFound(ALL.length); return; }
-  const live = s => ({ connected: chip("отвечает", "ok"), failed: chip("не отвечает", "danger"),
-    "needs-auth": chip("нужен вход", "warn"), "not-listed": chip("не в списке", "warn"),
-    "not-probed": chip("не проверялся") })[s.liveness] || chip(s.liveness || "—");
-  const keyPlace = s => s.key_in_url ? chip("в URL", "danger") : s.key_in_header ? "в заголовке" : s.key_in_env ? "в env" : NONE;
+  const live = s => ({ connected: chip(T("answering"), "ok"), failed: chip(T("not answering"), "danger"),
+    "needs-auth": chip(T("sign-in needed"), "warn"), "not-listed": chip(T("not listed"), "warn"),
+    "not-probed": chip(T("not probed")) })[s.liveness] || chip(s.liveness || "—");
+  const keyPlace = s => s.key_in_url ? chip(T("in the URL"), "danger") : s.key_in_header ? T("in a header") : s.key_in_env ? T("in env") : NONE;
   sortInPlace(rows, {name: s => lower(s.name)});
   const groups = new Map();
-  rows.forEach(s => { const k = SORT.key ? "Выбранные записи" : s.agent; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
+  rows.forEach(s => { const k = SORT.key ? T("Selected entries") : s.agent; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(s); });
   const row = s => `<tr id="m-${E(anchorSlug(s.agent + "/" + s.name))}">
-    <td data-label="Сервер"><div class="name mono">${E(s.name)}</div><div class="anchor">${E(s.agent)} · ${E(s.scope)}</div></td>
-    <td data-label="Транспорт">${E(s.transport || "—")}${s.command ? `<div class="anchor mono">${E(s.command)}${s.command_present === false ? " · нет на диске" : ""}</div>` : ""}</td>
-    <td data-label="Цель"><span class="mono">${E(s.target || "")}</span></td>
-    <td data-label="Ключ">${keyPlace(s)}</td>
-    <td data-label="Связь">${live(s)}${s.liveness_detail ? `<div class="anchor">${E(s.liveness_detail)}</div>` : ""}</td></tr>`;
+    <td data-label="${T("Server")}"><div class="name mono">${E(s.name)}</div><div class="anchor">${E(s.agent)} · ${E(s.scope)}</div></td>
+    <td data-label="${T("Transport")}">${E(s.transport || "—")}${s.command ? `<div class="anchor mono">${E(s.command)}${s.command_present === false ? " · " + T("not on disk") : ""}</div>` : ""}</td>
+    <td data-label="${T("Target")}"><span class="mono">${E(s.target || "")}</span></td>
+    <td data-label="${T("Key")}">${keyPlace(s)}</td>
+    <td data-label="${T("Connection")}">${live(s)}${s.liveness_detail ? `<div class="anchor">${E(s.liveness_detail)}</div>` : ""}</td></tr>`;
   const t = D.mcp.totals || {};
-  out.innerHTML = filterLine(rows.length, ALL.length, "объявлений") + `<div class="card"><table>
+  out.innerHTML = filterLine(rows.length, ALL.length, "{n} declarations") + `<div class="card"><table>
     <colgroup><col style="width:22%"><col style="width:16%"><col style="width:26%"><col style="width:14%"><col style="width:22%"></colgroup>
-    <thead><tr>${sortTh("Сервер", "name")}<th>Транспорт</th><th>Цель</th><th>Ключ</th><th>Связь</th></tr></thead>
+    <thead><tr>${sortTh(T("Server"), "name")}<th>${T("Transport")}</th><th>${T("Target")}</th><th>${T("Key")}</th><th>${T("Connection")}</th></tr></thead>
     ${[...groups].map(([agent, ss]) => `<tbody class="grp">
       ${grpHead(5, `${E(agent)} <span class="n">${ss.length}</span>`, true)}
       ${ss.map(row).join("")}</tbody>`).join("")}</table></div>
-    <p class="dmeta">${t.declarations || 0} объявлений · ${t.distinct_servers || 0} серверов ·
-      ${t.in_one_agent_only || 0} только в одном агенте · ${t.key_in_url || 0} с ключом в URL ·
-      собственный сервер обсерватории ${D.mcp.own_declared ? "объявлен" : "<b>не объявлен</b>"} ·
-      скан ${E(D.mcp.scanned_on || "—")}</p>`;
+    <p class="dmeta">${T("{n} declarations", {n: t.declarations || 0})} · ${T("{n} servers", {n: t.distinct_servers || 0})} ·
+      ${T("{n} in one agent only", {n: t.in_one_agent_only || 0})} · ${T("{n} with the key in the URL", {n: t.key_in_url || 0})} ·
+      ${D.mcp.own_declared ? T("the observatory's own server is declared") : `<b>${T("the observatory's own server is not declared")}</b>`} ·
+      ${T("scan {date}", {date: E(D.mcp.scanned_on || "—")})}</p>`;
 }
 
 // ANALYTICS PROPERTIES, grouped by account, each linked to a project by a
 // named rule. An unclaimed property is not a defect by itself — it may belong
 // to someone else — but it has a row, so the decision can be made.
-const TRAFFIC_STANDING = { linked: ["привязан", "ok"], outside: ["вне эстейта", ""],
-                           unclaimed: ["ничей", "warn"] };
-const RULE_RU = { declared: "объявлено оператором", "declared-host": "хост из файла",
-                  "stream-host": "по хосту потока", "app-id": "по id приложения",
-                  name: "по имени property" };
+const TRAFFIC_STANDING = { linked: [T("linked@@property"), "ok"], outside: [T("outside the estate"), ""],
+                           unclaimed: [T("unowned@@property"), "warn"] };
+const RULE_LABEL = { declared: T("declared by the operator"), "declared-host": T("host from a file"),
+                     "stream-host": T("by the stream's host"), "app-id": T("by app id"),
+                     name: T("by property name") };
 function renderTraffic() {
   const out = document.getElementById("out");
   if (!D.google) {
-    out.innerHTML = `<p class="empty">Аналитика не сканировалась — ` +
+    out.innerHTML = `<p class="empty">${T("Analytics was not scanned")} — ` +
       `<span class="mono">${E(cliCommand("google"))}</span></p>`;
     return;
   }
@@ -3041,54 +3115,52 @@ function renderTraffic() {
   const cell = (label, html, cls) =>
     `<td data-label="${label}"${cls || html === NONE ? ` class="${
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
-  const num = n => n == null ? NONE : `<span class="mono">${Number(n).toLocaleString("ru")}</span>`;
+  const num = n => n == null ? NONE : `<span class="mono">${NUM(n)}</span>`;
   sortInPlace(rows, {name: p => lower(p.name), users: p => numOr(p.users_30d)});
   const groups = new Map();
-  rows.forEach(p => { const k = SORT.key ? "Выбранные записи" : p.account_name || "—";
+  rows.forEach(p => { const k = SORT.key ? T("Selected entries") : p.account_name || "—";
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
   const row = p => `<tr id="g-${E(String(p.id).replace(/[^A-Za-z0-9_.:-]+/g, "-"))}">
     <td data-label="Property"><div class="name">${E(p.name || p.property)}</div>
-      <div class="anchor mono">${E(p.property || "")} · ${E(p.account_name || "аккаунт не указан")}</div>
+      <div class="anchor mono">${E(p.property || "")} · ${E(p.account_name || T("account not stated"))}</div>
       ${(p.hosts || []).length ? `<div class="anchor">${(p.hosts || []).slice(0, 3).map(E).join(" · ")}${p.hosts.length > 3 ? ` +${p.hosts.length - 3}` : ""}</div>` : ""}
       ${(p.app_ids || []).length ? `<div class="anchor mono">${(p.app_ids || []).slice(0, 2).map(E).join(" · ")}${p.app_ids.length > 2 ? ` +${p.app_ids.length - 2}` : ""}</div>` : ""}</td>
-    ${cell("Польз./30 дн", num(p.users_30d), "num")}
-    ${cell("Сессий/30 дн", num(p.sessions_30d), "num")}
-    ${cell("Просмотров", num(p.views_30d), "num")}
-    ${cell("Проект", p.project
+    ${cell(T("Users/30 d"), num(p.users_30d), "num")}
+    ${cell(T("Sessions/30 d"), num(p.sessions_30d), "num")}
+    ${cell(T("Views"), num(p.views_30d), "num")}
+    ${cell(T("Project"), p.project
       ? `<a class="plink" href="#${E(p.project)}">${E(String(p.project).split(":")[1] || p.project)}</a>` +
-        `<div class="anchor" title="${E(p.link_evidence || "")}">${E(RULE_RU[p.link_rule] || p.link_rule || "")}</div>`
+        `<div class="anchor" title="${E(p.link_evidence || "")}">${E(RULE_LABEL[p.link_rule] || p.link_rule || "")}</div>`
       : `<span class="unlinked" title="${E(p.unlinked_reason || p.boundary_why || "")}">${
-          p.standing === "outside" ? "вне эстейта" : "нет проекта"}</span>`)}
-    ${cell("Связь", (() => { const [w, k] = TRAFFIC_STANDING[p.standing] || [p.standing, ""];
-       return chip(w, k) + (p.error ? `<div class="tier">${chip(p.observation_conflicts ? "измерения расходятся" : "не ответила", "warn")}</div>` : ""); })())}
-    ${cell("Куда смотреть", `<div class="verbs">` +
-      `<a class="chip-btn" href="${E(p.report_url)}" target="_blank" rel="noopener" title="отчёт GA4">GA4</a>` +
-      (p.admin_url ? `<a class="chip-btn" href="${E(p.admin_url)}" target="_blank" rel="noopener" title="настройки property">админка</a>` : "") +
+          p.standing === "outside" ? T("outside the estate") : T("no project")}</span>`)}
+    ${cell(T("Link"), (() => { const [w, k] = TRAFFIC_STANDING[p.standing] || [p.standing, ""];
+       return chip(w, k) + (p.error ? `<div class="tier">${chip(p.observation_conflicts ? T("measurements disagree") : T("did not answer"), "warn")}</div>` : ""); })())}
+    ${cell(T("Where to look"), `<div class="verbs">` +
+      `<a class="chip-btn" href="${E(p.report_url)}" target="_blank" rel="noopener" title="${T("GA4 report")}">GA4</a>` +
+      (p.admin_url ? `<a class="chip-btn" href="${E(p.admin_url)}" target="_blank" rel="noopener" title="${T("property settings")}">${T("admin")}</a>` : "") +
       `</div>`)}</tr>`;
   const tt = D.google.totals || {};
   const creds = (D.google.credentials || []).map(c =>
     `<a class="chip-btn" href="${E(c.console_url)}" target="_blank" rel="noopener" title="${E(c.client_email || "")}">Cloud: ${E(c.cloud_project || "")}</a>`).join(" ");
   const sites = (D.google.search_console || []).map(s =>
     `<a class="chip-btn" href="${E(s.console_url)}" target="_blank" rel="noopener">Search Console: ${E(s.site)}</a>`).join(" ");
-  out.innerHTML = filterLine(rows.length, ALL.length, "property") +
-    `<div class="list-summary"><b>За 30 дней</b> · измерено ${E(D.google.scanned_on || "—")} · сумма по ресурсам не означает уникальных людей между ними${tt.unknown_properties ? " · без измерения: " + tt.unknown_properties : ""}. <button class="chip-btn" type="button" data-copy="${E(engineCommand("collectors/scan_google.py", [String(RUNTIME.scratch || ".") + "/google.json", "--force"]) + " && " + cliCommand("merge") + " && " + cliCommand("emit") + " && " + cliCommand("dashboard"))}"
-        title="перечитать у Google и пересобрать страницы">Скопировать команду обновления</button></div>` +
+  out.innerHTML = filterLine(rows.length, ALL.length, "{n} properties") +
+    `<div class="list-summary"><b>${T("Last 30 days")}</b> · ${T("measured {date}", {date: E(D.google.scanned_on || "—")})} · ${T("a sum across properties does not mean unique people across them")}${tt.unknown_properties ? " · " + T("not measured: {n}", {n: tt.unknown_properties}) : ""}. <button class="chip-btn" type="button" data-copy="${E(engineCommand("collectors/scan_google.py", [String(RUNTIME.scratch || ".") + "/google.json", "--force"]) + " && " + cliCommand("merge") + " && " + cliCommand("emit") + " && " + cliCommand("dashboard"))}"
+        title="${T("re-read from Google and rebuild the pages")}">${T("Copy the refresh command")}</button></div>` +
     `<div class="card"><table>
     <colgroup><col style="width:26%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:14%"><col style="width:12%"><col style="width:16%"></colgroup>
-    <thead><tr>${sortTh("Property", "name")}${sortTh("Польз./30 дн", "users")}<th>Сессий/30 дн</th><th>Просмотров</th>
-      <th>Проект</th><th>Связь</th><th>Куда смотреть</th></tr></thead>
+    <thead><tr>${sortTh("Property", "name")}${sortTh(T("Users/30 d"), "users")}<th>${T("Sessions/30 d")}</th><th>${T("Views")}</th>
+      <th>${T("Project")}</th><th>${T("Link")}</th><th>${T("Where to look")}</th></tr></thead>
     ${[...groups].map(([acc, ps]) => `<tbody class="grp">
-      ${grpHead(7, `${E(acc)} <span class="n">${ps.length}</span> <span class="n">${ps.some(p => p.users_30d != null) ? Number(ps.reduce((n, p) => n + (p.users_30d || 0), 0)).toLocaleString("ru") + " — сумма польз./30 дн" : "аудитория не измерена"}${ps.some(p => p.users_30d == null) ? " · неполное измерение" : ""}</span>`, true)}
+      ${grpHead(7, `${E(acc)} <span class="n">${ps.length}</span> <span class="n">${ps.some(p => p.users_30d != null) ? NUM(ps.reduce((n, p) => n + (p.users_30d || 0), 0)) + " — " + T("users summed / 30 d") : T("audience not measured")}${ps.some(p => p.users_30d == null) ? " · " + T("incomplete measurement") : ""}</span>`, true)}
       ${ps.map(row).join("")}</tbody>`).join("")}</table></div>
     <div class="verbs" style="margin: var(--space-3) var(--space-5) 0">${creds}${sites}</div>
-    <p class="dmeta">Показано ${rows.length} из ${ALL.length} · ${tt.linked_to_a_project || 0} привязано,
-      ${tt.unclaimed || 0} ничьих (${tt.users_30d_unclaimed == null ? "аудитория не измерена" : Number(tt.users_30d_unclaimed).toLocaleString("ru") + " польз. по измеренным ресурсам"}) ·
-      сумма по измеренным ресурсам: ${tt.users_30d == null ? "не измерено" : Number(tt.users_30d).toLocaleString("ru")} польз. за 30 дней ·
-      измерено ${E(D.google.scanned_on || "—")}
+    <p class="dmeta">${T("Showing {shown} of {total}", {shown: NUM(rows.length), total: NUM(ALL.length)})} · ${T("{n} linked", {n: tt.linked_to_a_project || 0})},
+      ${T("{n} unowned", {n: tt.unclaimed || 0})} (${tt.users_30d_unclaimed == null ? T("audience not measured") : T("{n} users across measured properties", {n: Number(tt.users_30d_unclaimed)})}) ·
+      ${T("sum across measured properties: {value} users in 30 days", {value: tt.users_30d == null ? T("not measured") : NUM(tt.users_30d)})} ·
+      ${T("measured {date}", {date: E(D.google.scanned_on || "—")})}
 <br>
-      Цифры кэшируются на 12 часов; время обновления зависит от числа подключённых ресурсов.
-      Аналитика может обновляться с задержкой. «Ничей» — не дефект: по правилу оператора это продукт,
-      которым занимается кто-то другой, — но строка есть, чтобы решение можно было принять один раз.</p>`;
+      ${T("The figures are cached for 12 hours; how long a refresh takes depends on the number of connected properties. Analytics can lag. “Unowned” is not a defect: by the operator's rule it is a product someone else looks after — but it has a row, so the decision can be made once.")}</p>`;
 }
 
 function renderDomains() {
@@ -3099,21 +3171,21 @@ function renderDomains() {
   const zoneBy = new Map((D.zones || []).map(z => [z.name, z]));
   const rows0 = DOMS.map(d => ({ ...d, zone: zoneBy.get(d.name) || null, source: zoneBy.has(d.name) ? "both" : "registrar" }));
   (D.zones || []).forEach(z => { if (!DOMS.some(d => d.name === z.name))
-    rows0.push({ name: z.name, registrar: z.registrar ? z.registrar + " (по данным Cloudflare)" : "—",
+    rows0.push({ name: z.name, registrar: z.registrar ? z.registrar + " " + T("(according to Cloudflare)") : "—",
       status: z.status, live: LIVE_BY_HOST(z.name), projects: z.project ? [z.project] : [],
       zone: z, source: "cloudflare" }); });
   const doms = rows0.filter(d => keepDom(d, q, sel.value));
   if (!doms.length) { out.innerHTML = nothingFound(rows0.length); return; }
   const PROD_BY_PROJECT = new Map(D.rows.map(r => [r.id, r.products || []]));
   const standing = d => {
-    if (!d.zone) return d.projects && d.projects.length ? chip("привязан", "ok") : chip("нет проекта");
+    if (!d.zone) return d.projects && d.projects.length ? chip(T("linked@@domain"), "ok") : chip(T("no project"));
     const s = d.zone.standing;
-    if (s === "linked") return chip("привязан", "ok");
-    if (s === "outside") return `<span title="${E(d.zone.boundary_why || "")}">${chip("вне эстейта")}</span>`;
-    if (s === "pending") return chip("ждёт слова", "warn");
-    if (s === "dormant") return `<span title="DNS прочитан: апекс и www никуда не указывают">${chip("спит")}</span>`;
-    if (s === "product") return chip("продукт", "ok");
-    return chip("без слова", "warn");
+    if (s === "linked") return chip(T("linked@@domain"), "ok");
+    if (s === "outside") return `<span title="${E(d.zone.boundary_why || "")}">${chip(T("outside the estate"))}</span>`;
+    if (s === "pending") return chip(T("awaiting a word"), "warn");
+    if (s === "dormant") return `<span title="${T("DNS read: the apex and www point nowhere")}">${chip(T("dormant@@domain"))}</span>`;
+    if (s === "product") return chip(T("product"), "ok");
+    return chip(T("no word"), "warn");
   };
   const cfCell = d => d.zone
     ? `<span class="mono">${E(d.zone.account_label || "")}</span><div class="anchor">${E(d.zone.status || "")}${d.zone.paused ? " · paused" : ""} · ${E(d.zone.plan || "")}</div>`
@@ -3126,61 +3198,61 @@ function renderDomains() {
     `<td data-label="${label}"${cls || html === NONE ? ` class="${
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
   const liveCell = d => {
-    if (!d.live) return chip("не измерен");
-    if (d.live.resolves === false) return chip("не резолвится", "danger");
+    if (!d.live) return chip(T("domain@@not measured"));
+    if (d.live.resolves === false) return chip(T("does not resolve"), "danger");
   // Resolving but not answering is its own state, not an HTTP error.
-    if (!d.live.http) return chip("резолвится, не отвечает", "warn");
+    if (!d.live.http) return chip(T("resolves, not answering"), "warn");
     if (d.live.http >= 400) return chip("HTTP " + d.live.http, "warn");
     return chip("HTTP " + d.live.http, "ok");
   };
   const expiry = d => {
     const n = daysUntil(d.expires_on);
     if (n === null) return NONE;
-    const word = n < 0 ? chip("истёк", "danger")
-      : n <= 90 ? chip(n + " дн.", "warn") : `${n} дн.`;
+    const word = n < 0 ? chip(T("expired"), "danger")
+      : n <= 90 ? chip(T("{n} d", {n}), "warn") : T("{n} d", {n});
     return `${E(d.expires_on)}<div class="tier">${word}` +
-      (d.auto_renew === false ? " " + chip("без автопродления", "warn") : "") + `</div>`;
+      (d.auto_renew === false ? " " + chip(T("no auto-renewal"), "warn") : "") + `</div>`;
   };
   sortInPlace(doms, {name: d => lower(d.name), expiry: d => dateOr(d.expires_on)});
   const groups = new Map();
-  doms.forEach(d => { const k = SORT.key ? "Выбранные записи" : d.registrar || "—";
+  doms.forEach(d => { const k = SORT.key ? T("Selected entries") : d.registrar || "—";
     if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
   const row = d => `<tr id="d-${E(d.name)}">
-    <td data-label="Домен"><div class="name"><a href="https://${E(d.name)}"
+    <td data-label="${T("Domain")}"><div class="name"><a href="https://${E(d.name)}"
       target="_blank" rel="noopener">${E(d.name)}</a></div>
-      <div class="anchor">${E(d.registrar || "регистратор не указан")} · ${E(d.status || "")}</div></td>
-    ${cell("Отвечает", liveCell(d) + (d.live ? `<div class="anchor">${E(d.live.on)}</div>` : ""))}
-    ${cell("Истекает", expiry(d), "num")}
-    ${cell("Проект", (d.projects || []).length
+      <div class="anchor">${E(d.registrar || T("registrar not stated"))} · ${E(d.status || "")}</div></td>
+    ${cell(T("Answers"), liveCell(d) + (d.live ? `<div class="anchor">${E(d.live.on)}</div>` : ""))}
+    ${cell(T("Expires"), expiry(d), "num")}
+    ${cell(T("Project"), (d.projects || []).length
       ? (d.projects || []).map(p => `<a class="plink" href="#${E(p)}">${E(p.split(":")[1])}</a>`).join(", ")
-      : `<span class="unlinked">нет проекта</span>`)}
-    ${cell("Связь", standing(d))}
+      : `<span class="unlinked">${T("no project")}</span>`)}
+    ${cell(T("Link"), standing(d))}
     ${cell("Cloudflare", cfCell(d))}
-    ${cell("Продукт", prodCell(d))}
+    ${cell(T("Product"), prodCell(d))}
     ${                                                                       
                                                                                ""}
-    ${cell("Куда смотреть", `<div class="verbs">` +
+    ${cell(T("Where to look"), `<div class="verbs">` +
       `<a class="chip-btn" href="https://rdap.org/domain/${E(d.name)}"
-         target="_blank" rel="noopener" title="что говорит регистратор">RDAP</a>` +
+         target="_blank" rel="noopener" title="${T("what the registrar says")}">RDAP</a>` +
       `<button class="chip-btn" type="button" data-copy="${E("dig +short " + shellArg(d.name) + " A AAAA CNAME")}"
-         title="скопировать диагностическую команду">Команда: DNS</button>` +
+         title="${T("copy the diagnostic command")}">${T("Command: {label}", {label: "DNS"})}</button>` +
       (d.zone ? `<a class="chip-btn" href="https://dash.cloudflare.com/?to=/:account/${E(d.name)}"
-         target="_blank" rel="noopener" title="зона в Cloudflare">зона</a>` : "") +
+         target="_blank" rel="noopener" title="${T("the zone in Cloudflare")}">${T("zone")}</a>` : "") +
       `</div>`)}</tr>`;
-  out.innerHTML = filterLine(doms.length, rows0.length, "имён") + `<div class="card"><table>
+  out.innerHTML = filterLine(doms.length, rows0.length, "{n} names") + `<div class="card"><table>
     <colgroup><col style="width:18%"><col style="width:10%"><col style="width:11%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:12%"><col style="width:14%"></colgroup>
-    <thead><tr>${sortTh("Домен", "name")}<th>Отвечает</th>${sortTh("Истекает", "expiry")}<th>Проект</th><th>Связь</th><th>Cloudflare</th><th>Продукт</th><th>Куда смотреть</th></tr></thead>
+    <thead><tr>${sortTh(T("Domain"), "name")}<th>${T("Answers")}</th>${sortTh(T("Expires"), "expiry")}<th>${T("Project")}</th><th>${T("Link")}</th><th>Cloudflare</th><th>${T("Product")}</th><th>${T("Where to look")}</th></tr></thead>
     ${[...groups].map(([reg, ds]) => `<tbody class="grp">
       ${grpHead(8, `${E(reg)} <span class="n">${ds.length}</span>`, true)}
       ${ds.map(row).join("")}</tbody>`).join("")}</table></div>
-    <p class="dmeta">Показано ${doms.length} из ${rows0.length} ·
-      ${rows0.filter(d => !(d.projects || []).length).length} не привязано ни к одному проекту ·
-      ${D.zones ? `${D.zones.length} зон Cloudflare в ${new Set(D.zones.map(z => z.account_label)).size} аккаунтах` : "Cloudflare не сканировался"} ·
-      цена продления здесь не измеряется</p>`;
+    <p class="dmeta">${T("Showing {shown} of {total}", {shown: NUM(doms.length), total: NUM(rows0.length)})} ·
+      ${T("{n} linked to no project", {n: rows0.filter(d => !(d.projects || []).length).length})} ·
+      ${D.zones ? T("{zones} in {accounts}", {zones: T("{n} Cloudflare zones", {n: D.zones.length}), accounts: T("in@@{n} accounts", {n: new Set(D.zones.map(z => z.account_label)).size})}) : T("Cloudflare was not scanned")} ·
+      ${T("the renewal price is not measured here")}</p>`;
 }
 
-const STATE_RU = { running: "работает", down: "упало", suspended: "приостановлено",
-                   "resources-only": "только ресурсы", idle: "пусто" };
+const STATE_LABEL = { running: T("running"), down: T("crashed@@app"), suspended: T("suspended"),
+                      "resources-only": T("resources only"), idle: T("idle") };
 
 // PRODUCTION CONFIGURATION, compared with the local checkouts, indexed by app
 // and by folder. Only verdicts arrive here, never a value.
@@ -3199,20 +3271,20 @@ for (const a of (D.remote && D.remote.apps) || [])
     }
   }
 const VERDICT_ORDER = ["same_as_local", "local_only", "differs", "remote_only", "not_compared", "no_local_checkout"];
-const VERDICT_RU = {
-  same_as_local: ["то же, что локально", "danger"],
-  differs: ["другое значение", "ok"],
-  remote_only: ["только у прода", ""],
-  local_only: ["только локально", "warn"],
-  not_compared: ["не сравнивалось", ""],
-  no_local_checkout: ["кода здесь нет", ""],
+const VERDICT_LABEL = {
+  same_as_local: [T("same as local"), "danger"],
+  differs: [T("a different value"), "ok"],
+  remote_only: [T("only in production"), ""],
+  local_only: [T("only locally"), "warn"],
+  not_compared: [T("not compared"), ""],
+  no_local_checkout: [T("no code here"), ""],
 };
 
 function renderHeroku() {
   const out = document.getElementById("out");
   if (!D.heroku) {
     // Never scanned is said as such, with the command that scans.
-    out.innerHTML = `<p class="empty">Heroku не сканировался — ` +
+    out.innerHTML = `<p class="empty">${T("Heroku was not scanned")} — ` +
       `<span class="mono">${E(cliCommand("heroku"))}</span></p>`;
     return;
   }
@@ -3223,7 +3295,7 @@ function renderHeroku() {
   const money = n => n == null || !Number.isFinite(Number(n)) ? "—" : "$" + Number(n).toLocaleString("en", {maximumFractionDigits: 2});
   sortInPlace(apps, {name: a => lower(a.name), cost: a => numOr(a.monthly_cost)});
   const groups = new Map();
-  apps.forEach(a => { const key = SORT.key ? "Выбранные записи" : a.team; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(a); });
+  apps.forEach(a => { const key = SORT.key ? T("Selected entries") : a.team; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(a); });
   const cell = (label, html, cls) =>
     `<td data-label="${label}"${cls || html === NONE ? ` class="${
       [cls, html === NONE ? "e" : ""].filter(Boolean).join(" ")}"` : ""}>${html}</td>`;
@@ -3241,76 +3313,76 @@ function renderHeroku() {
     // An add-on attached from another app is shared, so changing it touches
     // that app too.
     const shared = (a.addons_attached || []).length
-      ? `<div class="tier">${chip("общая с " + E(a.addons_attached.map(x => x.owner).join(", ")), "warn")}</div>` : "";
+      ? `<div class="tier">${chip(T("shared with {apps}", {apps: E(a.addons_attached.map(x => x.owner).join(", "))}), "warn")}</div>` : "";
     const sha = a.deployed_commit && a.deployed_commit.sha
-      ? `<div class="anchor mono" title="коммит из описания релиза v${E(a.deployed_commit.release)}">${E(a.deployed_commit.sha.slice(0, 8))}</div>` : "";
+      ? `<div class="anchor mono" title="${T("the commit from the description of release v{n}", {n: E(a.deployed_commit.release)})}">${E(a.deployed_commit.sha.slice(0, 8))}</div>` : "";
     const deploy = a.last_deploy_on
-      ? E(a.last_deploy_on) + sha + (a.last_deploy_on < YEAR_AGO ? `<div class="tier">${chip("больше года", "warn")}</div>` : "")
-      : `<span class="unlinked">${a.never_deployed ? "кода не было" : "не найден"}</span>`;
+      ? E(a.last_deploy_on) + sha + (a.last_deploy_on < YEAR_AGO ? `<div class="tier">${chip(T("over a year"), "warn")}</div>` : "")
+      : `<span class="unlinked">${a.never_deployed ? T("never had code") : T("not found")}</span>`;
     // Why an app has no project: its source is outside, its folder is
     // unclaimed, or its source is unknown.
-    const WHY_RU = { "external-repo": "источник вне нашего GitHub",
-                     "folder-unclaimed": "папку не claim'ит ни один проект",
-                     "no-source": "источник неизвестен" };
+    const WHY_LABEL = { "external-repo": T("the source is outside our GitHub"),
+                        "folder-unclaimed": T("no project claims the folder"),
+                        "no-source": T("the source is unknown") };
     const project = a.project
       ? `<a class="plink" href="#${E(a.project)}">${E(PROJ_NAME.get(a.project) || a.project)}</a>` +
         `<div class="anchor">${E(a.link_rule)}</div>`
-      : `<span class="unlinked" title="${E(a.unlinked_reason || "")}">нет проекта</span>` +
-        `<div class="anchor">${E(WHY_RU[a.unlinked_kind] || a.unlinked_kind || "")}</div>`;
+      : `<span class="unlinked" title="${E(a.unlinked_reason || "")}">${T("no project")}</span>` +
+        `<div class="anchor">${E(WHY_LABEL[a.unlinked_kind] || a.unlinked_kind || "")}</div>`;
     const folders = (a.local_folders || []).length
       ? (a.local_folders || []).map(p =>
           `<span class="folder">${E(p.replace(/^\/Users\/[^/]+\//, "~/"))}</span>`).join("")
-      : `<span class="unlinked">нет папки</span>`;
+      : `<span class="unlinked">${T("no folder")}</span>`;
     return `<tr id="a-${E(a.name)}">
-      <td data-label="Приложение"><div class="name">${a.web_url
+      <td data-label="${T("App")}"><div class="name">${a.web_url
         ? `<a href="${E(a.web_url)}" target="_blank" rel="noopener">${E(a.name)}</a>`
         : E(a.name)}</div>
-        <div class="anchor">${E(a.team || "аккаунт не указан")} · ${E(a.region)} · ${E(a.stack)}${a.stack_superseded ? " · стек снят с поддержки" : ""}</div></td>
-      ${cell("Состояние", `<span class="st st-${E(a.state)}"><i></i>${E(STATE_RU[a.state] || a.state)}</span>` +
+        <div class="anchor">${E(a.team || T("account not stated"))} · ${E(a.region)} · ${E(a.stack)}${a.stack_superseded ? " · " + T("stack no longer supported") : ""}</div></td>
+      ${cell(T("State"), `<span class="st st-${E(a.state)}"><i></i>${E(STATE_LABEL[a.state] || a.state)}</span>` +
         (a.maintenance ? `<div class="tier">${chip("maintenance", "warn")}</div>` : "") + crashed)}
-      ${cell("$/мес", money(a.monthly_cost), "num")}
-      ${cell("Деплой кода", deploy, "num")}
-      ${cell("Проект", project)}
+      ${cell(T("$/mo"), money(a.monthly_cost), "num")}
+      ${cell(T("Code deploy"), deploy, "num")}
+      ${cell(T("Project"), project)}
       ${                                                                       
                                                                             ""}
-      ${cell("Конфигурация", (() => {
+      ${cell(T("Configuration"), (() => {
         const r = REMOTE_BY_APP.get(a.name);
-        if (!D.remote) return `<span class="unlinked">не сканировалось</span>`;
-        if (!r) return `<span class="unlinked">нет в скане</span>`;
-        if (r.error) return chip("не ответило", "warn");
+        if (!D.remote) return `<span class="unlinked">${T("not scanned")}</span>`;
+        if (!r) return `<span class="unlinked">${T("not in the scan")}</span>`;
+        if (r.error) return chip(T("did not answer"), "warn");
         const c = r.counts || {};
         const n = (r.vars || []).length;
         if (!r.compared_with.length)
-          return `<span class="mono">${n}</span><div class="anchor">переменных; кода здесь нет, сравнить не с чем</div>`;
-        return `<span class="mono">${n}</span><div class="anchor">переменных</div>` +
-          (c.same_as_local ? `<div class="tier">${chip(c.same_as_local + " как локально", "danger")}</div>` : "") +
+          return `<span class="mono">${n}</span><div class="anchor">${T("variables; no code here, nothing to compare with")}</div>`;
+        return `<span class="mono">${n}</span><div class="anchor">${T("variables@@count")}</div>` +
+          (c.same_as_local ? `<div class="tier">${chip(T("{n} as local", {n: c.same_as_local}), "danger")}</div>` : "") +
           ((r.retired_in_use || []).length
-            ? `<div class="tier">${chip((r.retired_in_use || []).length + " отставных", "danger")}</div>` : "") +
-          `<div class="anchor">${c.differs || 0} отличается · ${c.remote_only || 0} только тут</div>`;
-      })() + shared + `<details class="resource-detail"><summary>Ресурсы и папки</summary><b>Дино</b>${dynos || NONE}<b>Дополнения</b>${addons}<b>Код на машине</b>${folders}</details>`)}
-      ${cell("Команда", `<div class="verbs">` +
-        [["перезапуск", `heroku ps:restart -a ${a.name}`],
-         ["логи", `heroku logs -t -a ${a.name}`],
+            ? `<div class="tier">${chip(T("{n} retired", {n: (r.retired_in_use || []).length}), "danger")}</div>` : "") +
+          `<div class="anchor">${T("{n} differ", {n: c.differs || 0})} · ${T("{n} only here", {n: c.remote_only || 0})}</div>`;
+      })() + shared + `<details class="resource-detail"><summary>${T("Resources and folders")}</summary><b>${T("Dynos")}</b>${dynos || NONE}<b>${T("Add-ons")}</b>${addons}<b>${T("Code on this machine")}</b>${folders}</details>`)}
+      ${cell(T("Command"), `<div class="verbs">` +
+        [[T("restart"), `heroku ps:restart -a ${a.name}`],
+         [T("logs"), `heroku logs -t -a ${a.name}`],
          ...(a.state === "suspended" || a.state === "resources-only"
-             ? [["что это", `heroku apps:info -a ${a.name}`]] : [])]
+             ? [[T("what is it"), `heroku apps:info -a ${a.name}`]] : [])]
         .map(([label, cmd]) => `<button class="chip-btn" type="button"
-              data-copy="${E(cmd)}" title="${E(cmd)}">Команда: ${E(label)}</button>`).join(" ")
+              data-copy="${E(cmd)}" title="${E(cmd)}">${T("Command: {label}", {label: E(label)})}</button>`).join(" ")
         + `</div>`)}</tr>`;
   };
   const total = apps.reduce((n, a) => n + (Number(a.monthly_cost) || 0), 0);
-  out.innerHTML = filterLine(apps.length, APPS.length, "приложений") +
-    `<div class="list-summary"><b>${money(total)}/мес</b> · оценка выбранных приложений по прайс-листу, не счёт · измерено ${E(D.heroku.scanned_on || "—")}</div><div class="card"><table>
+  out.innerHTML = filterLine(apps.length, APPS.length, "{n} apps") +
+    `<div class="list-summary"><b>${T("{money}/mo", {money: money(total)})}</b> · ${T("an estimate for the selected apps from the price list, not a bill")} · ${T("measured {date}", {date: E(D.heroku.scanned_on || "—")})}</div><div class="card"><table>
     <colgroup><col style="width:20%"><col style="width:10%"><col style="width:8%"><col style="width:12%"><col style="width:16%"><col style="width:22%"><col style="width:12%"></colgroup>
     <thead><tr>
-      ${sortTh("Приложение", "name")}<th>Состояние</th>
-      ${sortTh("$/мес", "cost")}<th>Деплой кода</th><th>Проект</th>
-      <th>Конфигурация</th><th>Команда</th>
+      ${sortTh(T("App"), "name")}<th>${T("State")}</th>
+      ${sortTh(T("$/mo"), "cost")}<th>${T("Code deploy")}</th><th>${T("Project")}</th>
+      <th>${T("Configuration")}</th><th>${T("Command")}</th>
     </tr></thead>${[...groups].map(([team, as]) => `<tbody class="grp">
-      ${grpHead(7, `${E(team)} <span class="n">${as.length}</span> <span class="n">${money(as.reduce((n, a) => n + a.monthly_cost, 0))}/мес</span>`, true)}
+      ${grpHead(7, `${E(team)} <span class="n">${as.length}</span> <span class="n">${T("{money}/mo", {money: money(as.reduce((n, a) => n + a.monthly_cost, 0))})}</span>`, true)}
       ${as.map(appRow).join("")}</tbody>`).join("")}</table></div>
-    <p class="dmeta">Показано ${apps.length} из ${APPS.length} · ${money(total)}/мес ·
-      измерено ${E(D.heroku.scanned_on || "—")} ·
-      цена по прайс-листу on-demand, не по счёту</p>`;
+    <p class="dmeta">${T("Showing {shown} of {total}", {shown: NUM(apps.length), total: NUM(APPS.length)})} · ${T("{money}/mo", {money: money(total)})} ·
+      ${T("measured {date}", {date: E(D.heroku.scanned_on || "—")})} ·
+      ${T("on-demand list prices, not the bill")}</p>`;
 }
 
 // A long repository list inside a cell folds after three; the button
@@ -3320,7 +3392,7 @@ document.getElementById("out").addEventListener("click", e => {
   if (!b) return;
   const list = b.previousElementSibling;
   const folded = list.classList.toggle("folded");
-  b.textContent = folded ? `+${list.children.length - 3} ещё` : "свернуть";
+  b.textContent = folded ? T("+{n} more", {n: list.children.length - 3}) : T("collapse");
 });
 
 // STICKY HEADERS. The table header sticks below the top bar and the
@@ -3341,22 +3413,22 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
   const host = document.getElementById("queue"), head = document.getElementById("queue-h");
   const q = D.queue || [];
   if (!q.length) {
-    head.textContent = "Ждёт решения человека";
+    head.textContent = T("Awaiting a person's decision");
     host.innerHTML = `<p class="none">${D.store_degraded
-      ? E(D.store_degraded) : "ничего не предложено — очередь пуста"}</p>`;
+      ? E(T(D.store_degraded.text || D.store_degraded, D.store_degraded.args)) : T("nothing proposed — the queue is empty")}</p>`;
     return;
   }
   // The header says how many are shown of how many wait in total.
   const total = (D.health && D.health.proposed) || q.length;
-  head.textContent = `Ждёт решения человека — ${q.length} из ${total}`;
+  head.textContent = T("Awaiting a person's decision — {shown} of {total}", {shown: q.length, total});
   // One line above the rows: what waits, of which kinds, and what
   // retention erases first.
   const dg = D.digest || null;
-  const digestLine = dg ? `<p class="dmeta" id="queue-digest">${dg.waiting} ждёт: ` +
+  const digestLine = dg ? `<p class="dmeta" id="queue-digest">${T("{n} waiting:", {n: dg.waiting})} ` +
     Object.entries(dg.by_kind || {}).map(([k, n]) => `${n} ${E(k)}`).join(", ") +
-    ` · ретеншен стирает предложение через ${dg.horizon_days} дн` +
-    (dg.erases_within_7d ? ` — <b>${dg.erases_within_7d}</b> уйдёт до ${E(dg.first_erase_on || "")}` : " — на этой неделе ничего не уйдёт") +
-    ` · <button class="chip-btn" type="button" data-copy="${E(toolCommand("review.py", ["digest"]))}" title="скопировать команду">Команда: сводка очереди</button></p>` : "";
+    " · " + T("retention erases a proposal after {n} d", {n: dg.horizon_days}) +
+    (dg.erases_within_7d ? " — " + T("{n} go before {date}", {n: `<b>${dg.erases_within_7d}</b>`, date: E(dg.first_erase_on || "")}) : " — " + T("nothing goes this week")) +
+    ` · <button class="chip-btn" type="button" data-copy="${E(toolCommand("review.py", ["digest"]))}" title="${T("copy the command")}">${T("Command: {label}", {label: T("queue digest")})}</button></p>` : "";
   host.innerHTML = digestLine + q.map(r => {
     const ok = toolCommand("review.py", ["promote", r.id, "--why", ""]);
     const no = toolCommand("review.py", ["reject", r.id, "--why", ""]);
@@ -3366,50 +3438,49 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
         ? ` <a class="plink" href="projects.html#${E(r.project)}">${E(String(r.project).split(":")[1])}</a>` : ""}
         <div class="anchor mono">${E(r.id)} r${E(r.rev)}</div>
         <div class="qacts"><button class="chip-btn" type="button" data-copy="${E(ok)}"
-             title="скопировать команду принятия">Команда: принять</button>
+             title="${T("copy the accept command")}">${T("Command: {label}", {label: T("accept")})}</button>
           <button class="chip-btn" type="button" data-copy="${E(no)}"
-             title="скопировать команду отклонения">Команда: отклонить</button></div></span>
+             title="${T("copy the reject command")}">${T("Command: {label}", {label: T("reject")})}</button></div></span>
     </div>`;
   }).join("") +
-    `<p class="none">Кнопка кладёт команду в буфер — решение принимается в терминале
-      (<span class="mono">${E(cliCommand("review"))}</span> для списка):
-      запись без терминала отклоняется намеренно, и флага <span class="mono">--yes</span> нет.</p>`;
+    `<p class="none">${T("The button puts the command on the clipboard — the decision is taken in a terminal ({list} for the list): a write without a terminal is refused on purpose, and there is no {flag} flag.",
+      {list: `<span class="mono">${E(cliCommand("review"))}</span>`, flag: '<span class="mono">--yes</span>'})}</p>`;
 })();
 
 (function renderFindings() {
   const F = D.findings, host = document.getElementById("findings");
   if (!F) {
     // Never built is said as such, with the command that builds it.
-    host.innerHTML = `<div class="fh">находки <span class="when">не строились — ` +
+    host.innerHTML = `<div class="fh">${T("findings@@heading")} <span class="when">${T("not built")} — ` +
       `${E(cliCommand("findings"))}</span></div>`;
     return;
   }
   const c = F.counts, when = E((F.built_at || "").slice(0, 16).replace("T", " "));
-  const RU = { critical: ["критично", "danger"], warning: ["внимание", "warn"],
-               info: ["к сведению", ""] };
+  const SEV = { critical: [T("critical"), "danger"], warning: [T("warning"), "warn"],
+               info: [T("info"), ""] };
   const openCount = (c.critical || 0) + (c.warning || 0) + (c.info || 0);
-  host.innerHTML = (openCount === 0 ? '<p class="empty">Нет открытых находок.</p>' : '') +
-    `<div class="fh">Находки <span class="when">${c.critical || 0} критично · ` +
-    `${c.warning || 0} внимание · ${c.info || 0} к сведению` +
+  host.innerHTML = (openCount === 0 ? `<p class="empty">${T("No open findings.")}</p>` : '') +
+    `<div class="fh">${T("Findings")} <span class="when">${c.critical || 0} ${T("critical")} · ` +
+    `${c.warning || 0} ${T("warning")} · ${c.info || 0} ${T("info")}` +
     // Silenced findings are counted in the header too, so what was
     // acknowledged away is never invisible.
-    `${(F.silenced || []).length ? ` · ${F.silenced.length} заглушено` : ""}` +
-    `${F.elsewhere ? ` · <a href="findings.html">подробности и ещё ${F.elsewhere} — на странице находок</a>` : ""}` +
-    ` · без изменений с ${when}</span></div>` +
+    `${(F.silenced || []).length ? " · " + T("{n} silenced", {n: F.silenced.length}) : ""}` +
+    `${F.elsewhere ? ` · <a href="findings.html">${T("details and {n} more — on the findings page", {n: F.elsewhere})}</a>` : ""}` +
+    (when ? " · " + T("unchanged since {date}", {date: when}) : "") + `</span></div>` +
     // The findings page gets its own filter bar: severity chips, a type
     // selector with per-type counts, and a search box. Elsewhere, anything
     // below critical sits behind one "show more" control.
     (PAGE === "findings"
-      ? `<div class="fbar" role="group" aria-label="Сужение находок">` +
-        ["critical", "warning", "info"].map(s => `<button class="chip-btn" type="button" data-sev="${s}" aria-pressed="false">${RU[s][0]} <span class="n">${c[s] || 0}</span></button>`).join("") +
-        `<select class="ftype" aria-label="Тип находки"><option value="">все типы</option>` +
+      ? `<div class="fbar" role="group" aria-label="${T("Narrow the findings")}">` +
+        ["critical", "warning", "info"].map(s => `<button class="chip-btn" type="button" data-sev="${s}" aria-pressed="false">${SEV[s][0]} <span class="n">${c[s] || 0}</span></button>`).join("") +
+        `<select class="ftype" aria-label="${T("Finding type")}"><option value="">${T("all types")}</option>` +
         Object.entries(F.items.reduce((m, f) => (m[f.type] = (m[f.type] || 0) + 1, m), {})).sort()
           .map(([k, n]) => `<option value="${E(k)}">${E(k)} · ${n}</option>`).join("") +
-        `</select><input type="search" class="fq" placeholder="Поиск по находкам" aria-label="Поиск по находкам">` +
+        `</select><input type="search" class="fq" placeholder="${T("Search the findings")}" aria-label="${T("Search the findings")}">` +
         `<span class="fshown" role="status"></span></div>`
       : "") +
     `<div class="flist">` + F.items.map(f => {
-      const [word, kind] = RU[f.severity] || [f.severity, ""];
+      const [word, kind] = SEV[f.severity] || [f.severity, ""];
       // Acknowledging is done in a terminal; the button copies that command.
       const cmd = toolCommand("ack.py", [f.id, "--why", ""]);
       const foldCls = ""; // Every selected finding is visible.
@@ -3418,31 +3489,30 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       const subj = subjectHref(f.subject);
       return `<div class="f${f.severity === "critical" ? "" : " f" + f.severity}${foldCls}" id="${E(fid)}" data-type="${E(f.type)}" data-sev="${E(f.severity)}">${chip(word, kind)}` +
         `<span class="t">${E(f.title)}` +
-        (subj ? ` <a class="plink fsubj" href="${E(subj[0])}" title="открыть ${E(subj[1])}">→ ${E(subj[1])}</a>` : "") +
-        (PAGE === "findings" ? ` <a class="fperma" href="#${E(fid)}" title="ссылка на эту строку">#</a>` : "") +
+        (subj ? ` <a class="plink fsubj" href="${E(subj[0])}" title="${T("open {name}", {name: E(subj[1])})}">→ ${E(subj[1])}</a>` : "") +
+        (PAGE === "findings" ? ` <a class="fperma" href="#${E(fid)}" title="${T("link to this row")}">#</a>` : "") +
         `</span>` +
-        (f.deadline ? `<span class="due">до ${E(f.deadline)}</span>` : "") +
-        (PAGE === "index" ? `<a class="fdetail" href="findings.html#${E(fid)}">Разобрать →</a>` :
-          `<details class="finding-body"><summary>Основание и действие</summary><p class="d">${E(f.detail)}</p>` +
+        (f.deadline ? `<span class="due">${T("by {date}", {date: E(f.deadline)})}</span>` : "") +
+        (PAGE === "index" ? `<a class="fdetail" href="findings.html#${E(fid)}">${T("Review →")}</a>` :
+          `<details class="finding-body"><summary>${T("Evidence and action")}</summary><p class="d">${E(f.detail)}</p>` +
           `<p class="act">${E(f.action)}</p>` +
-          ` <button class="chip-btn ack" type="button" data-cmd="${E(cmd)}" title="скопировать команду заглушения">Команда: заглушить</button></details>`) + '</div>';
+          ` <button class="chip-btn ack" type="button" data-cmd="${E(cmd)}" title="${T("copy the silence command")}">${T("Command: {label}", {label: T("silence")})}</button></details>`) + '</div>';
     }).join("") +
     `</div>` +
     // Silenced findings are listed with who silenced them, when and why,
     // and the command that brings each back.
-    ((F.silenced || []).length ? `<details class="silenced"><summary>заглушено ${F.silenced.length} — ` +
-      `на странице и в счётчиках их нет; здесь видно, кто, когда и почему</summary>` +
-      F.silenced.map(s => `<div class="f fsilenced">${chip("заглушено")}<span class="t">${E(s.title)}</span>` +
-        `<span class="d">${E(s.acked.why || "без причины")} — ${E(s.acked.by || "?")}` +
-        `${s.acked.until ? `, до ${E(s.acked.until)}` : ""}</span>` +
-        `<span class="act"><button class="chip-btn ack" type="button" data-cmd="${E(toolCommand("ack.py", ["--undo", s.id]))}">Команда: вернуть</button></span></div>`).join("") +
+    ((F.silenced || []).length ? `<details class="silenced"><summary>${T("{n} silenced — not on the page or in the counters; here you see who, when and why", {n: F.silenced.length})}</summary>` +
+      F.silenced.map(s => `<div class="f fsilenced">${chip(T("silenced"))}<span class="t">${E(s.title)}</span>` +
+        `<span class="d">${E(s.acked.why || T("no reason"))} — ${E(s.acked.by || "?")}` +
+        `${s.acked.until ? ", " + T("until {date}", {date: E(s.acked.until)}) : ""}</span>` +
+        `<span class="act"><button class="chip-btn ack" type="button" data-cmd="${E(toolCommand("ack.py", ["--undo", s.id]))}">${T("Command: {label}", {label: T("restore")})}</button></span></div>`).join("") +
       `</details>` : "");
   // Copy buttons for acknowledge and undo, and per-type unfolding.
   host.querySelectorAll("button.ack").forEach(b => b.addEventListener("click", () => {
     const cmd = b.getAttribute("data-cmd"), label = b.textContent;
     copyText(cmd).then(ok => {
-      toast(ok ? `скопировано: ${cmd.slice(0, 48)}…` : "буфер недоступен — скопируйте из подсказки");
-      if (ok) { b.textContent = "скопировано"; setTimeout(() => { b.textContent = label; }, 1500); }
+      toast(ok ? T("copied: {what}", {what: cmd.slice(0, 48) + "…"}) : T("clipboard unavailable — copy it from the hint"));
+      if (ok) { b.textContent = T("copied"); setTimeout(() => { b.textContent = label; }, 1500); }
     });
   }));
   host.querySelectorAll("button.ftype").forEach(b => b.addEventListener("click", () => {
@@ -3451,7 +3521,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
     const open = b.getAttribute("aria-expanded") !== "true";
     rows.forEach(r => r.classList.toggle("ftype-open", open));
     b.setAttribute("aria-expanded", String(open));
-    b.textContent = open ? `свернуть ${type}` : `ещё ${rows.length} типа ${type}`;
+    b.textContent = open ? T("collapse {type}", {type}) : T("{n} more of type {type}", {n: rows.length, type});
   }));
   if (PAGE === "findings") {
     const bar = host.querySelector(".fbar");
@@ -3471,15 +3541,15 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
       host.querySelectorAll("button.ftype").forEach(b => { b.hidden = !!(sevOn.size || type || q); });
       if (sevOn.size || type || q) host.querySelectorAll(".f.ftype-folded").forEach(r => r.classList.add("ftype-open"));
       const what = [];
-      if (sevOn.size) what.push([...sevOn].map(s => RU[s][0]).join(", "));
-      if (type) what.push("тип " + type);
-      if (q) what.push(`поиск «${q}»`);
-      bar.querySelector(".fshown").innerHTML = `показано ${shown} из ${rows.length}` +
-        (what.length ? ` · ${E(what.join(" · "))} <button class="chip-btn" type="button" data-fclear>сбросить</button>` : "");
+      if (sevOn.size) what.push([...sevOn].map(s => SEV[s][0]).join(", "));
+      if (type) what.push(T("type {type}", {type}));
+      if (q) what.push(T("search: “{text}”", {text: q}));
+      bar.querySelector(".fshown").innerHTML = T("showing {shown} of {total}", {shown, total: rows.length}) +
+        (what.length ? ` · ${E(what.join(" · "))} <button class="chip-btn" type="button" data-fclear>${T("reset")}</button>` : "");
       let none = host.querySelector(".fnone");
       if (!shown && what.length) {
         if (!none) { none = document.createElement("p"); none.className = "empty fnone"; host.querySelector(".flist").before(none); }
-        none.innerHTML = `Ничего не найдено с этим сужением — ${E(what.join(" · "))}. <button class="chip-btn" type="button" data-fclear>сбросить</button>`;
+        none.innerHTML = `${T("Nothing found with this narrowing — {what}.", {what: E(what.join(" · "))})} <button class="chip-btn" type="button" data-fclear>${T("reset")}</button>`;
       } else if (none) none.remove();
     };
     bar.querySelectorAll("[data-sev]").forEach(b => b.addEventListener("click", () => {
@@ -3516,7 +3586,7 @@ if (topbar) new ResizeObserver(stick).observe(topbar);
     const shown = list.classList.toggle("folded") === false;
     fold.setAttribute("aria-expanded", String(shown));
     const n = F.items.filter(f => f.severity !== "critical").length;
-    fold.textContent = shown ? "свернуть" : `показать ещё ${n} (внимание и к сведению)`;
+    fold.textContent = shown ? T("collapse") : T("show {n} more (warning and info)", {n});
   });
 })();
 
@@ -3546,7 +3616,14 @@ fromHash();
 </html>
 """
 
-TEMPLATE = TEMPLATE.replace("</style>", (Path(__file__).with_name("workspace.css").read_text(encoding="utf-8")) + "\n</style>")
+BRAND = Path(__file__).with_name("brand")
+#: The PassionCode design system, vendored byte for byte (brand/manifest.json
+#: pins its source commit and SHA-256), then the dashboard's own layout.
+TEMPLATE = (TEMPLATE
+            .replace("__PC_TOKENS__", (BRAND / "passioncode-tokens.css").read_text(encoding="utf-8"))
+            .replace("</style>", (Path(__file__).with_name("workspace.css").read_text(encoding="utf-8")) + "\n</style>"))
+import shell as _shell
+TEMPLATE = TEMPLATE.replace("__ICON__", _shell.ICON)
 
 if __name__ == "__main__":
     OUT.parent.mkdir(parents=True, exist_ok=True)

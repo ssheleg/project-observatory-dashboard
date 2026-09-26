@@ -1,6 +1,6 @@
 # Compatibility and upgrades
 
-The application release is **0.3.12**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
+The application release is **0.4.0**. The complete engine and each user's workspace are separate. Updating program files never intentionally replaces configuration, registry data, credentials, history or local dashboards. The previously published portable 0.1 command set remains a compatibility entry point; its smaller data model is not interchangeable with the complete engine's SQLite database.
 
 ## SQLite runtime prerequisite
 
@@ -67,7 +67,7 @@ The full source publication deliberately has no ancestry from a private operatio
 each project id, which ids are retired, and repositories' former names. It is written by the emit
 step. A workspace upgraded from 0.2.x gets it on the first emit with every existing id unchanged.
 An unreadable map stops the emit step instead of re-minting ids. Contract:
-[docs/design/IDENTITY.md](https://github.com/ssheleg/project-observatory-dashboard/blob/main/docs/design/IDENTITY.md).
+[docs/design/IDENTITY.md](https://github.com/passioncode-ai/project-observatory-dashboard/blob/main/docs/design/IDENTITY.md).
 
 ## Registry: provenance and account-qualified ids (0.3.1)
 

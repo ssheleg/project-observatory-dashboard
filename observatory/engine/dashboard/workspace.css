@@ -1,4 +1,5 @@
-/* Workspace composition. Workbench owns tokens; this file owns layout.
+/* Workspace composition. The PassionCode design system owns tokens
+ * (brand/passioncode-tokens.css); this file owns layout.
  * Split pages have a navigation rail. The standalone document keeps its tabs.
  * Primary row identities stay visible; disclosure is reserved for detail. */
 body[data-page] {
@@ -21,11 +22,8 @@ body[data-page] .nav-rail {
   overflow-y: auto;
 }
 body[data-page] .brand {
-  display: block;
   padding: 0 var(--space-2);
-  font-size: var(--t-body);
-  line-height: 1.5;
-  letter-spacing: 0;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 body[data-page] .pages {
@@ -65,7 +63,7 @@ body[data-page] .pages a.pg[aria-current="page"] {
   border-color: var(--border);
   border-left-color: var(--accent);
   border-left-width: 2px;
-  color: var(--ink);
+  color: var(--accent);
   font-weight: 600;
 }
 body[data-page] .pages a.pg .n {
@@ -74,18 +72,17 @@ body[data-page] .pages a.pg .n {
   opacity: 1;
   color: var(--muted);
 }
-body[data-page] .theme {
+body[data-page] .locale-switch {
   display: flex;
-  flex-wrap: wrap;
   margin: auto 0 0;
   flex: 0 0 auto;
-  border-radius: var(--r-control);
-  overflow: visible;
 }
-body[data-page] .theme button {
+body[data-page] .locale-switch button {
   flex: 1;
   padding: var(--space-2) var(--space-1);
-  border-radius: var(--r-control);
+}
+body[data-page] .family-link {
+  padding: 0 var(--space-2);
 }
 body[data-page] main.workspace {
   min-width: 0;
@@ -352,8 +349,9 @@ body[data-page="health"] .hrow b {
   }
   body[data-page] .pages a.pg { margin: 0; }
   .nav-heading, .nav-label { margin-bottom: var(--space-1); }
-  body[data-page] .theme { align-self: flex-start; margin: 0; }
-  body[data-page] .theme button { padding: var(--space-2); }
+  body[data-page] .locale-switch { align-self: flex-start; margin: 0; }
+  body[data-page] .locale-switch button { padding: var(--space-2) var(--space-3); }
+  body[data-page] .family-link { padding: 0; }
   body[data-page] main.workspace { margin-left: 0; padding: var(--space-3); }
   body[data-page] .controls > input[type="search"] { flex-basis: 100%; }
   body[data-page] .controls > select { width: 100%; }
@@ -404,7 +402,7 @@ body[data-page] .finding-body .act { display: block; margin: var(--space-3) 0; f
   body[data-page] .nav-group { display: contents; }
   body[data-page] .nav-heading { display: none; }
   body[data-page] .pages a.pg { padding: var(--space-2) var(--space-1); font-size: var(--t-label); }
-  body[data-page] .theme { justify-self: start; }
-  body[data-page] .theme button { padding: var(--space-1) var(--space-2); }
+  body[data-page] .locale-switch { justify-self: start; }
+  body[data-page] .locale-switch button { padding: var(--space-1) var(--space-3); }
   body[data-page="findings"] .f > .chip { justify-self: start; }
 }

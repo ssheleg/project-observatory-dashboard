@@ -10,7 +10,7 @@ credential values, private project names or screenshots of someone's dashboard.
 ## Reporting
 
 Report unacceptable behaviour privately to the maintainer through
-[a private report](https://github.com/ssheleg/project-observatory-dashboard/security/advisories/new)
+[a private report](https://github.com/passioncode-ai/project-observatory-dashboard/security/advisories/new)
 or the contact listed at <https://sshlg.me>. Reports are handled confidentially. The maintainer may
 edit or remove contributions and restrict participation, following the Covenant's enforcement
 guidelines.

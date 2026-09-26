@@ -72,7 +72,7 @@ def findings(path: pathlib.Path, known_folders: set[str], data_root: pathlib.Pat
         return []
     still.sort(key=lambda t: (-t[1], t[0]))
     total_sessions = sum(n for _c, n, _r in still)
-    named = ", ".join(f"{pathlib.Path(c).name} ({n} сесс.{', ' + r if r else ''})" for c, n, r in still[:LISTED])
+    named = ", ".join(f"{pathlib.Path(c).name} ({n} sess.{', ' + r if r else ''})" for c, n, r in still[:LISTED])
     more = len(still) - min(len(still), LISTED)
     return [{
         "type": "project.seen_unobserved",

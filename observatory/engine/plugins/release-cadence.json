@@ -6,14 +6,14 @@
     {
       "name": "release.tags",
       "unit": "tags",
-      "label": "тегов",
+      "label": "release tags",
       "means": "Tags in one project checkout, counted with git for-each-ref refs/tags. The first checkout by relation order supplies one measurement per project. Zero means no tags were found, not that no software was shipped. The release.count role lets consumers ask for the count without depending on the plugin name.",
       "role": "release.count"
     },
     {
       "name": "release.days_since_last",
       "unit": "days",
-      "label": "дней с релиза",
+      "label": "days since release",
       "means": "Days since the NEWEST tag's own date, read from `%(creatordate:short)` — the tag's date for an annotated tag and the commit's for a lightweight one, which is the only date the latter has. `git log --no-walk --tags` would read the COMMIT instead and report the work rather than the release, which differ whenever a release is cut from a stabilised branch. OMITTED entirely for a checkout with no tags: zero days would read as 'released today', the opposite of never, so absence is the answer and `release.tags` carries the count."
     }
   ],

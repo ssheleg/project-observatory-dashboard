@@ -2,8 +2,8 @@ Contract: brand-contract v1
 
 | Key | Text (primary) | Location | Scenario | Status | Kind |
 |---|---|---|---|---|---|
-| dashboard.source_summary | Реестр из подключённых источников: папки проектов, репозитории и заметки. | observatory/engine/dashboard/build_dashboard.py:866 | OSS-10 | proposed | copy |
-| dashboard.secret_files | файлы в собственной папке secrets/ проекта; | observatory/engine/dashboard/build_dashboard.py:2860 | OSS-10 | proposed | copy |
+| dashboard.source_summary | A registry built from the connected sources: project folders, | observatory/engine/dashboard/build_dashboard.py:873 | OSS-10 | proposed | copy |
+| dashboard.secret_files | files in the project's own secrets/ folder; | observatory/engine/dashboard/build_dashboard.py:2658 | OSS-10 | proposed | copy |
 
 | site.copy_setup | Copy setup prompt | site/index.html | SITE-12 | proposed | copy |
 | site.read_setup | Read the setup prompt | site/index.html | SITE-12 | proposed | copy |

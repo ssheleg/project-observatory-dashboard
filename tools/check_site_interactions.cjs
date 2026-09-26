@@ -28,7 +28,7 @@ function setup(clipboard) {
   assert.equal(good.nodes['#copy-prompt'].disabled,true);
   release();await copying;
   assert.equal(written,promptText);
-  assert.match(written,/github.com\/ssheleg\/project-observatory-dashboard/);
+  assert.match(written,/github.com\/passioncode-ai\/project-observatory-dashboard/);
   assert.equal(good.nodes['#copy-prompt'].disabled,false);
   assert.match(good.nodes['#copy-status'].textContent,/Copied/);
   await good.nodes['#copy-prompt'].click();

@@ -220,7 +220,7 @@ def test_every_bridge_leads_somewhere_that_exists() -> None:
     review = (ROOT / "tools/review.py").read_text(encoding="utf-8")
     check("the observer's two bad states each carry a command",
           "SERVERD_FIX" in src and 'toolCommand("serverd.py", ["--run"])' in src
-          and 'toolCommand("serverd.py", ["--status"])' in src, "S4 said МОЛЧИТ and named no verb")
+          and 'toolCommand("serverd.py", ["--status"])' in src, "S4 said SILENT and named no verb")
     check("and `--install` is a flag serverd actually has",
           '"--install"' in serverd, "the button would print an argparse error")
     from tools import serverd as service
@@ -235,7 +235,7 @@ def test_every_bridge_leads_somewhere_that_exists() -> None:
     for verb in ("promote", "reject"):
         check(f"and `{verb}` is a verb review.py takes", f'"{verb}"' in review, "")
     check("the page never claims to decide anything itself",
-          "--yes" in src and "терминал" in src,
+          "--yes" in src and "the decision is taken in a terminal" in src,
           "the TTY rule is the point; a button that looked like a decision would undo it")
     check("the drift tile links to the table with its own filter on",
           'href="projects.html?f=drift"' in src and 'data-f="drift"' in src, "")
@@ -256,10 +256,10 @@ def test_the_keys_page_offers_the_doors_own_verbs() -> None:
     """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the page has sections and names the doors first",
-          "CRED_SECTIONS" in src and '"Двери"' in src
-          and src.index('"Двери"') < src.index('"Выпущенные ключи"'), "")
+          "CRED_SECTIONS" in src and 'T("Doors")' in src
+          and src.index('T("Doors")') < src.index('T("Issued keys")'), "")
     check("an empty section says so in words rather than vanishing",
-          "ни одного ключа ещё не выпущено" in src,
+          "no key minted yet" in src,
           "a section that disappears teaches that what is shown is all there is")
     check("a door is derived from who the registry says reads the file",
           "doorOf" in src and "read_by" in src,
@@ -291,7 +291,7 @@ def test_the_keys_page_offers_the_doors_own_verbs() -> None:
           'act === "leak"' in src and "where" in src and "--where" in src, "")
     check("issuing asks for a name, a ceiling and a destination — never a value",
           'act === "mint"' in src and "destination" in src
-          and "значение" not in src.split('act === "mint"')[1][:600], "")
+          and "value" not in src.split('act === "mint"')[1][:600].lower(), "")
     ks = (ROOT / "tools/keyserver.py").read_text(encoding="utf-8")
     check("and the server checks that destination against this estate",
           "check_destination" in ks and "known_projects" in ks,
@@ -316,7 +316,7 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
           "rdap.org/domain/" in src and "dig +short" in src
           and "dash.cloudflare.com" in src, "")
     check("the ENV table retains project context and says each group's size",
-          "grp-fold" in src and "data-envgroup" in src and "переменных" in src,
+          "grp-fold" in src and "data-envgroup" in src and 'T("{n} variables", {n: es.length})' in src,
           "project context must state how many variables it describes")
     # Filter expansion is driven on rendered fixture data by tests/env_tab_check.js
     # (suite env_page); the source expression is not pinned here.
@@ -346,19 +346,19 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
               f'colspan="{said}" over {cols} columns')
 
 
-def test_the_shell_names_the_page_and_offers_the_theme() -> None:
+def test_the_shell_names_the_page_and_offers_the_language() -> None:
     """Backlog D-03/D-04/D-05 (audit A-01, A-14, A-15): nine pages shared one
     title and one heading, the theme followed the OS with no way to choose,
     and the way out scrolled away on a long table."""
     pages = built()
     titles = {n: re.search(r"<title>([^<]*)</title>", h).group(1) for n, h in pages.items() if h}
     check("every page has its own title, and they differ",
-          len(set(titles.values())) == len(titles) and all("Обсерватория" in v for v in titles.values()),
+          len(set(titles.values())) == len(titles) and all("Project Observatory" in v for v in titles.values()),
           str(titles))
     for name, html in pages.items():
         if not html:
             continue
-        h1 = re.search(r"<h1>([^<]*)</h1>", html)
+        h1 = re.search(r"<h1\b[^>]*>([^<]*)</h1>", html)
         check(f"{name}: the heading is the page's name, not the site's",
               bool(h1) and h1.group(1) == dict((n, tt) for n, tt, _k in shell.PAGES)[name], h1 and h1.group(1))
         check(f"{name}: the page says what question it answers",
@@ -366,12 +366,14 @@ def test_the_shell_names_the_page_and_offers_the_theme() -> None:
         check(f"{name}: navigation precedes the workspace heading",
               html.index('id="topbar"') < html.index("<header>"),
               "the navigation remains the first way out of each screen")
-        check(f"{name}: the theme control has all three states",
-              all(f'data-mode="{m}"' in html for m in ("system", "light", "dark")), "")
+        # 0.4.0: one fixed PassionCode dark theme; the rail's switch is the
+        # reader's LANGUAGE, one button per supported locale.
+        check(f"{name}: the language switch offers every locale",
+              all(f'data-locale="{m}"' in html for m in ("en", "ru")) and 'data-theme="dark"' in html, "")
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
-    check("the stored theme is applied in the head, before first paint",
-          src.index('localStorage.getItem("observatory.theme")') < src.index("<style>"),
-          "applied from the bottom script, the page paints one theme and then the other")
+    check("the stored language is applied in the head, before first paint",
+          src.index('localStorage.getItem("observatory.locale")') < src.index("<style>"),
+          "applied from the bottom script, the page would paint one language and read in another")
     check("«/» focuses the search from anywhere on a table page",
           'ev.key !== "/"' in src and 'q.focus()' in src, "the pack's keyboard-first rule")
 
@@ -385,26 +387,26 @@ def test_the_live_verbs_have_a_listener_and_the_pages_can_be_live() -> None:
           'closest("[data-act][data-cred]")' in src and "credAction(btn, c)" in src,
           "five write routes were unreachable from the UI")
     check("the findings ack copies through the one clipboard path",
-          "copyText(cmd)" in src and "window.prompt(\"команда:\"" not in src, "")
+          "copyText(cmd)" in src and "window.prompt(" not in src, "")
     ks = (ROOT / "tools/keyserver.py").read_text(encoding="utf-8")
     check("the keyserver serves the split pages from the shell's whitelist",
           "_page_for" in ks and "shell.NAMES" in ks and "ASSET_JS" in ks, "")
 
 
 def test_every_table_says_what_narrowed_it() -> None:
-    """IS-06/IS-11 (audit A-06, A-10): «Ничего не найдено» named nothing."""
+    """IS-06/IS-11 (audit A-06, A-10): a bare "Nothing found" named nothing."""
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     check("the bare empty state is gone from every renderer",
-          "'<p class=\"empty\">Ничего не найдено</p>'" not in src, "")
+          "'<p class=\"empty\">Nothing found</p>'" not in src, "")
     check("a nothing-matches state names the narrowing and offers one way to clear",
           "function nothingFound" in src and "data-clear" in src
-          and "Здесь пусто" in src, "nothing-yet and nothing-matches are different screens")
+          and "Empty here" in src, "nothing-yet and nothing-matches are different screens")
     check("every table renders the filter line above itself",
           src.count("filterLine(") >= 7, str(src.count("filterLine(")))
     check("a chip pressed by the address says so",
-          'c.dataset.fromUrl = "1"' in src and "(из ссылки)" in src, "")
+          'c.dataset.fromUrl = "1"' in src and "(from a link)" in src, "")
     check("the MCP page has its own chips, an agent select and no throw",
-          'id="seg-mcp"' in src and 'mcp:      ["все агенты"' in src
+          'id="seg-mcp"' in src and 'mcp:      [T("all agents")' in src
           and "if (sg) sg.hidden" in src, "")
 
 
@@ -447,8 +449,8 @@ def test_the_findings_page_is_a_working_surface() -> None:
     # D-10: the project panel says what the project authenticates
     # with — the small inverse of the keys document's `used_by`, built in Python
     # so it rides every page, each row linking to `creds.html#c-<slug>`.
-    check("the panel has a «Ключи» section fed by the small per-project key map",
-          "<h3>Ключи</h3>" in src and '"keys": KEYS,' in src and "(D.keys || {})[r.id]" in src
+    check("the panel has a Keys section fed by the small per-project key map",
+          '<h3>${T("Keys")}</h3>' in src and '"keys": KEYS,' in src and "(D.keys || {})[r.id]" in src
           and 'href="${E(k.href || ("creds.html#c-" + k.slug))}"' in src, "")
     # The keys a project holds in its own `.env` files are in the map too,
     # joined by FOLDER, each linking to its ENV row; the map rides on the
@@ -458,7 +460,7 @@ def test_the_findings_page_is_a_working_surface() -> None:
     check("and the map is sliced off every page but projects",
           'out["keys"] = None' in (ROOT / "dashboard/shell.py").read_text(encoding="utf-8"), "")
     check("and a key row says leaked / unsigned in words, never colour alone",
-          'chip("утечка не закрыта", "danger")' in src and 'chip("не подписан", "warn")' in src, "")
+          'chip(T("leak not closed"), "danger")' in src and 'chip(T("not signed"), "warn")' in src, "")
     # D-15: EVERY LIVE VERB THE PAGE OFFERS IS A ROUTE THE SERVER HAS.
     # `_door()` was called by three routes and defined nowhere for a week; the
     # page's third element and the server's ACTIONS table are checked against
@@ -610,7 +612,7 @@ if __name__ == "__main__":
                test_every_bridge_leads_somewhere_that_exists,
                test_the_keys_page_offers_the_doors_own_verbs,
                test_the_estate_pages_hand_over_commands_and_fold_what_is_long,
-               test_the_shell_names_the_page_and_offers_the_theme,
+               test_the_shell_names_the_page_and_offers_the_language,
                test_the_live_verbs_have_a_listener_and_the_pages_can_be_live,
                test_every_table_says_what_narrowed_it,
                test_the_findings_page_is_a_working_surface,

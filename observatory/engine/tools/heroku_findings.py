@@ -136,7 +136,7 @@ def orphan_app(apps: list[dict]) -> list[dict]:
                    f"measured — Heroku's own Deploy tab, or a checkout carrying the "
                    f"application's git remote — so an orphan means neither exists, "
                    f"not that nobody looked."),
-        "action": ("open the Heroku tab and filter to «нет проекта»; where you know "
+        "action": ("open the Heroku page and filter to “no project”; where you know "
                    "the answer, add it to collectors/heroku_links.json with the "
                    "evidence that proves it"),
     }

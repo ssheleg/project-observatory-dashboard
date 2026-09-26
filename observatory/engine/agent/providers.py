@@ -70,7 +70,7 @@ KEY_FILES = ((pathlib.Path(os.environ["OBSERVATORY_KEY_FILE"]),)
              if os.environ.get("OBSERVATORY_KEY_FILE") else
              (paths.STATE / ".openrouter-key",
               paths.source_path("secret_store", paths.SECRETS) / 'openrouter'))
-UA = "project-observatory/0.1 (+https://github.com/ssheleg/project-observatory-dashboard)"
+UA = "project-observatory/0.1 (+https://github.com/passioncode-ai/project-observatory-dashboard)"
 
 
 class ProviderError(Exception):
@@ -528,7 +528,7 @@ def _post(base_url: str, key: str, body: dict, timeout: int = 120) -> dict:
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                  "User-Agent": UA,
                  # OpenRouter attributes traffic by these two. They are not secrets.
-                 "HTTP-Referer": "https://github.com/ssheleg/project-observatory-dashboard",
+                 "HTTP-Referer": "https://github.com/passioncode-ai/project-observatory-dashboard",
                  "X-Title": "Project Observatory"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:

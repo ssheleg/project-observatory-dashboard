@@ -1,6 +1,10 @@
 # Project Observatory
 
-**See what changed across your projects, what needs attention, and where agent work left a trace.** Project Observatory is the local observation component of the [ssheleg harness](https://skills.sshlg.me/harness/). Skills guide the work; Observatory records and checks the state around it.
+**See what changed across your projects, what needs attention, and where agent work left a trace.** Project Observatory is an open-source tool from [PassionCode.ai](https://passioncode.ai/), available today beside [Switchboard](https://passioncode.ai/switchboard/), and the local observation component of the [ssheleg harness](https://skills.sshlg.me/harness/). Skills guide the work; Observatory records and checks the state around it.
+
+![The Project Observatory overview page: findings from critical to info, project and activity counters, and a card per section, in the PassionCode dark theme](site/assets/dashboard-overview-en.png)
+
+<sub>The real dashboard, rendered by `tools/demo_estate.py` over a fictional company's projects — no workspace, registry or key was read. Also in [Russian](docs/images/dashboard-overview-ru.png); the [projects page](docs/images/dashboard-projects-en.png).</sub>
 
 Version 0.2 brings the original engine into the public distribution: project and repository inventory, findings, history, metrics, a local dashboard, MCP, credential tools and optional provider integrations. Every user supplies their own project paths, accounts and keys. Private operational data and Git history are excluded from the source distribution.
 
@@ -9,7 +13,7 @@ Version 0.2 brings the original engine into the public distribution: project and
 The complete engine supports macOS and Linux, Python 3.11+ and SQLite 3.37+ with loadable-extension support. Git and Node.js are needed for the complete local checks. On macOS, use an extension-enabled Python build such as Homebrew Python; some bundled builds cannot load sqlite-vec. The [onboarding guide](docs/ONBOARDING.md) checks this before setup.
 
 ```sh
-git clone https://github.com/ssheleg/project-observatory-dashboard.git
+git clone https://github.com/passioncode-ai/project-observatory-dashboard.git
 cd project-observatory-dashboard
 python3 -m venv .venv
 . .venv/bin/activate
@@ -30,6 +34,17 @@ project-observatory full open            # builds the pages if needed, opens the
 project-observatory full open --serve    # serves them on 127.0.0.1:47311 (needed for the keys page's live actions)
 ```
 
+### Choose the dashboard's language
+
+The dashboard speaks English by default and Russian by choice. Set the language for your workspace, then rebuild the pages:
+
+```sh
+project-observatory full configure interface locale ru   # or: en
+project-observatory full open --rebuild
+```
+
+Each reader can also switch with **EN / RU** in the navigation rail; that choice stays in the browser and works for pages opened as local files. Interface strings are translated; the texts the finding rules write stay in English. To add or change a string, see [Contributing](CONTRIBUTING.md#interface-strings).
+
 `--no-browser` prints the address instead of opening it; `--rebuild` rebuilds the pages first; `--port` picks another loopback port. The pages live in `$OBSERVATORY_HOME/docs/dashboard/`, and `project-observatory full local` refreshes what they show. The server binds `127.0.0.1` only.
 
 ### Connect Claude Code (plugin updates automatically)
@@ -40,7 +55,7 @@ project-observatory full agent status    # installed vs shipped version, auto-up
 project-observatory full agent uninstall # removes the plugin and only the settings install added
 ```
 
-`install` adds the `ssheleg/project-observatory-dashboard` marketplace to Claude Code, installs `observatory-log@observatory-log`, turns plugin auto-update on and sets `OBSERVATORY_ROOT`/`OBSERVATORY_HOME` in Claude Code's user settings so the hooks find your workspace. It backs up `~/.claude/settings.json` once and keeps every other setting. Pass `--no-auto-update` to keep updates manual (`claude plugin update observatory-log@observatory-log`). An earlier directory-sourced install is replaced by the GitHub one. Without the helper: `/plugin marketplace add ssheleg/project-observatory-dashboard`, then `/plugin install observatory-log@observatory-log`. Restart Claude Code sessions after any change; plugins load at session start.
+`install` adds the `passioncode-ai/project-observatory-dashboard` marketplace to Claude Code, installs `observatory-log@observatory-log`, turns plugin auto-update on and sets `OBSERVATORY_ROOT`/`OBSERVATORY_HOME` in Claude Code's user settings so the hooks find your workspace. It backs up `~/.claude/settings.json` once and keeps every other setting. Pass `--no-auto-update` to keep updates manual (`claude plugin update observatory-log@observatory-log`). An earlier directory-sourced install is replaced by the GitHub one. Without the helper: `/plugin marketplace add passioncode-ai/project-observatory-dashboard`, then `/plugin install observatory-log@observatory-log`. Restart Claude Code sessions after any change; plugins load at session start.
 
 ## What the complete engine does
 
@@ -97,15 +112,16 @@ Checks use synthetic projects and credentials. Real provider acceptance, externa
 
 [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Migration map](docs/MIGRATION.md) · [Release handoff](docs/HANDOFF.md)
 
-MIT licensed.
+MIT licensed. Part of [PassionCode.ai](https://passioncode.ai/) — the design system is [PassionCode 1.0.0](https://passioncode.ai/design-system/).
 
 
 ### Repository name and existing installations
 
-The public repository was renamed to `ssheleg/project-observatory-dashboard`.
+The repository moved to the PassionCode.ai organization as `passioncode-ai/project-observatory-dashboard` in 0.4.0 (it was `ssheleg/project-observatory-dashboard`, and before that `ssheleg/project-observatory-open-source`).
 The Python package and command remain `project-observatory`; no workspace migration
 or key rotation is required just for the repository rename. Existing clones can
-update their remote with `git remote set-url origin https://github.com/ssheleg/project-observatory-dashboard.git`.
+update their remote with `git remote set-url origin https://github.com/passioncode-ai/project-observatory-dashboard.git`,
+and `project-observatory full agent install` moves the plugin marketplace to the new address.
 Published v0.2.0 Fabric schema identifiers retain their original URLs and content
 hashes. Do not rewrite them in an existing installation. GitHub redirects the old
 repository path; verify pinned URL resolution before removing any compatibility URL.

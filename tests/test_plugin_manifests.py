@@ -1,6 +1,6 @@
 """The companion plugin is published from the repository root and shipped in the wheel.
 
-`claude plugin marketplace add ssheleg/project-observatory-dashboard` reads the root
+`claude plugin marketplace add passioncode-ai/project-observatory-dashboard` reads the root
 manifest; directory installs read the one inside the engine. Both must describe
 the same plugin at the same version, and the root one must point at real files.
 """
@@ -42,7 +42,7 @@ class PluginManifestTest(unittest.TestCase):
 
     def test_homepage_is_this_repository(self):
         plugin = load(ENGINE_SKILL / "plugins/observatory-log/.claude-plugin/plugin.json")
-        self.assertEqual(plugin["homepage"], "https://github.com/ssheleg/project-observatory-dashboard")
+        self.assertEqual(plugin["homepage"], "https://github.com/passioncode-ai/project-observatory-dashboard")
 
 
 if __name__ == "__main__":

@@ -6,13 +6,13 @@
     {
       "name": "ga.sessions_1d",
       "unit": "sessions",
-      "label": "сессий/сут",
+      "label": "sessions/day",
       "means": "GA4 sessions for the last complete UTC day, per property, attributed to a project either by the mapping file's explicit project id or by the property's declared host through plugins/hostmap.py."
     },
     {
       "name": "ga.users_1d",
       "unit": "users",
-      "label": "польз./сут",
+      "label": "users/day",
       "means": "GA4 active users for the same day and property. Kept beside Cloudflare's uniques deliberately: the two disagree by design (JS consent vs edge counting), and the gap between them is itself a signal about consent rates and blockers."
     }
   ],

@@ -6,21 +6,21 @@
     {
       "name": "disk.bytes",
       "unit": "bytes",
-      "label": "на диске",
+      "label": "on disk",
       "means": "Total size of the project's local folders, excluding .git, node_modules and virtualenvs — what the working tree costs, not what its history does.",
       "role": "footprint.bytes"
     },
     {
       "name": "disk.worktree_bytes",
       "unit": "bytes",
-      "label": "в worktree",
+      "label": "in worktrees",
       "role": "footprint.extra.bytes",
       "means": "Total bytes in the project's extra checkouts recorded in repositories[].local.extra_clones. Uses the same exclusions as disk.bytes, including reinstallable dependency directories. Kept separate so additional checkouts do not change the meaning of the primary working-tree series."
     },
     {
       "name": "disk.reclaimable_bytes",
       "unit": "bytes",
-      "label": "вернётся",
+      "label": "reclaimable",
       "role": "footprint.reclaimable.bytes",
       "means": "Bytes in reinstallable directories excluded from disk.bytes, including node_modules, virtualenvs, build outputs and ecosystem caches, across the project's checkouts. This estimates recreatable disk usage; the metric itself deletes nothing."
     }

@@ -31,11 +31,11 @@ still reads, and no core file has learned a name.
 "пакетов 70 packages" does not. A declared label is the whole caption, which puts
 the whole caption in the hands of the person who knows what the number means.
 
-**Russian, because the page is.** `unit` values are already English nouns
-rendered onto a Russian page (`70 packages`), so the page mixes today; a Russian
-caption is the improvement, and a manifest is configuration rather than prose.
-`unit` itself is left alone: it is stored in the `metrics` table beside every
-value and changing it would rewrite data to fix a caption.
+**An English message id, translated by the page.** Since 0.4.0 the page speaks
+English or Russian, so a caption is an English id that `dashboard/locales/ru.json`
+translates for the plugins shipped here; a third-party plugin's caption reads as
+its author wrote it. `unit` itself is left alone: it is stored in the `metrics`
+table beside every value and changing it would rewrite data to fix a caption.
 """
 from __future__ import annotations
 import json, pathlib, re, subprocess, sys
@@ -91,15 +91,18 @@ def test_a_label_is_short_enough_to_sit_in_a_chip() -> None:
 
 
 def test_the_label_does_not_repeat_the_unit() -> None:
-    """"пакетов 70 packages" is what happens when the caption joins the unit
-    instead of replacing it."""
+    """A caption that only restates its unit adds nothing: the renderer shows
+    the caption IN PLACE of the unit ("dependencies 70", never "dependencies 70
+    packages" — see `metrics()` in the page script), so a caption must say
+    something the unit does not. English captions name their noun, as the unit
+    does, which is why the rule compares whole words rather than substrings."""
     bad = []
     for m in manifests():
         for met in m.get("metrics", []):
             lab, unit = str(met.get("label") or ""), str(met.get("unit") or "")
-            if lab and unit and unit.lower() in lab.lower():
-                bad.append(f"{met['name']}: {lab!r} contains {unit!r}")
-    check("a caption does not contain its own unit", not bad, str(bad))
+            if lab and unit and lab.strip().lower() == unit.strip().lower():
+                bad.append(f"{met['name']}: {lab!r} only restates {unit!r}")
+    check("a caption says more than its unit", not bad, str(bad))
 
 
 # ─────────── the payload carries it ────────────────────────────────────

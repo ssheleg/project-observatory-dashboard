@@ -67,7 +67,7 @@ function makeDom(opts) {
     chips.push(c);
   }
   const document = {
-    documentElement: { setAttribute() {}, style: { setProperty() {} } },
+    documentElement: { setAttribute() {}, getAttribute: () => "en", style: { setProperty() {} } },
     body: { appendChild() {}, removeChild() {} },
     getElementById: byId,
     createElement: () => node("created"),
@@ -97,7 +97,10 @@ function makeDom(opts) {
     ResizeObserver: class { observe() {} },
     // The page reads the address for a pressed filter chip (DEC-0233); both of
     // these are things every browser provides and this stub did not.
-    URLSearchParams,
+    URLSearchParams, Intl,
+    // The reader's language choice, as the EN/RU switch stores it.
+    localStorage: { getItem: k => (k === "observatory.locale" ? opts.locale || null : null),
+                    setItem() {}, removeItem() {} },
     console: { log() {}, warn() {}, error() {} },
   };
   context.window.document = document;
@@ -129,7 +132,7 @@ check("it writes a table rather than an empty state", out.includes("<table>"), o
 // The header cell is a sortable button since D-11 (DEC-0246): the word is
 // still there, wrapped in `th[data-sort="name"] > button.sort`.
 check("the table is the ENV one",
-      out.includes("<th>Переменная</th>") || /<th aria-sort="[a-z]+" data-sort="name"><button class="sort"[^>]*>Переменная<\/button><\/th>/.test(out),
+      out.includes("<th>Variable</th>") || /<th aria-sort="[a-z]+" data-sort="name"><button class="sort"[^>]*>Variable<\/button><\/th>/.test(out),
       out.slice(0, 200));
 const rows = (out.match(/<tr id="e-/g) || []).length;
 check("it renders rows", rows > 1, `${rows} rows`);
@@ -139,8 +142,8 @@ check("the tab count is filled", dom.byId("n-env").textContent !== "", "empty");
 // value, so it must not offer to: the control it renders is the command, and
 // the reveal button belongs only to the served build.
 check("a file:// page offers a command, never a reveal",
-      out.includes("скопировать команду") && !out.includes(">показать<"),
-      out.includes(">показать<") ? "it rendered a reveal button" : "no command button");
+      out.includes("copy the command") && !out.includes(">show<"),
+      out.includes(">show<") ? "it rendered a reveal button" : "no command button");
 check("no value-shaped payload reached the page",
       !html.includes('"fingerprint"'),
       "the page carries a fingerprint, which belongs only to the gitignored scan");
@@ -150,7 +153,7 @@ const before = rows;
 const tpl = dom.chips.find(c => c.dataset.f === "e-tpl");
 tpl.onclick();
 const after = (dom.byId("out").innerHTML.match(/<tr id="e-/g) || []).length;
-check("the `+ шаблоны` chip widens the selection", after > before, `${before} -> ${after}`);
+check("the `+ templates` chip widens the selection", after > before, `${before} -> ${after}`);
 tpl.onclick();
 const back = (dom.byId("out").innerHTML.match(/<tr id="e-/g) || []).length;
 check("and releasing it narrows again", back === before, `${before} -> ${after} -> ${back}`);
@@ -159,16 +162,24 @@ check("and releasing it narrows again", back === before, `${before} -> ${after} 
 const shared = dom.chips.find(c => c.dataset.f === "e-shared");
 shared.onclick();
 const sharedRows = (dom.byId("out").innerHTML.match(/<tr id="e-/g) || []).length;
-check("`общее с другим проектом` narrows", sharedRows < before && sharedRows > 0,
+check("`shared with another project` narrows", sharedRows < before && sharedRows > 0,
       `${before} -> ${sharedRows}`);
 check("matching groups are open while a filter is active", !dom.byId("out").innerHTML.includes('class="grp folded"'));
-check("one variable uses the singular form", dom.byId("out").innerHTML.includes('1 переменная') && !dom.byId("out").innerHTML.includes('1 переменных'));
+check("one variable uses the singular form", /\b1 variable(?!s)/.test(dom.byId("out").innerHTML) && !dom.byId("out").innerHTML.includes('1 variables'));
+{
+  // Russian has three forms; the page chooses by Intl.PluralRules, not by hand.
+  const ru = run({ hash: "#env", locale: "ru" });
+  ru.chips.find(c => c.dataset.f === "e-shared").onclick();
+  const o = ru.byId("out").innerHTML;
+  check("in Russian one variable is «1 переменная»", o.includes("1 переменная") && !o.includes("1 переменных"), o.slice(0, 160));
+  check("and the Russian table heads in Russian", o.includes("Переменная</button>"), o.slice(0, 160));
+}
 shared.onclick();
 check("clearing filters keeps the record list visible", !dom.byId("out").innerHTML.includes('class="grp folded"'));
 const commandHttp = run({hash:"#env", protocol:"http:", href:"http://127.0.0.1:7717/"});
 const commandText = commandHttp.byId("out").innerHTML;
-check("HTTP without an action token describes command mode", commandText.includes('режим команд') && !commandText.includes('страница открыта из файла'));
-check("command mode does not claim execution", commandText.includes('выполните') && !commandText.includes('>показать<'));
+check("HTTP without an action token describes command mode", commandText.includes('command mode') && !commandText.includes('opened from a file'));
+check("command mode does not claim execution", commandText.includes('run it in a terminal') && !commandText.includes('>show<'));
 
 // ── two apps compared with one folder: both verdicts are shown ─────────────
 {
@@ -203,8 +214,8 @@ if (live) {
   const lout = live.byId("out").innerHTML;
   check("the served build renders", true);
   check("and it offers the reveal instead of the command",
-        lout.includes(">показать<") && !lout.includes("скопировать команду"),
-        lout.includes("скопировать команду") ? "it still renders the command" : "no reveal button");
+        lout.includes(">show<") && !lout.includes("copy the command"),
+        lout.includes("copy the command") ? "it still renders the command" : "no reveal button");
   check("the reveal names its variable, so a click cannot mean another row",
         /data-env="[^"]+ [A-Z_]/.test(lout), "no data-env carrying a path and a name");
 }

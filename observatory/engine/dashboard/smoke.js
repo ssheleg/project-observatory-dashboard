@@ -102,7 +102,7 @@ function el(id) {
   return node;
 }
 const document = {
-  documentElement: { setAttribute() {}, style: { setProperty() {} } },
+  documentElement: { setAttribute() {}, getAttribute() { return null; }, style: { setProperty() {} } },
   getElementById: id => el(id),
   querySelector: () => el("sel"),
   querySelectorAll: () => [],

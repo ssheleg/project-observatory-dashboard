@@ -4,21 +4,29 @@
 // and drives it with a stub fetch: a refusal with a reason, a dropped connection,
 // a timeout, an unreadable answer to success, and a server fault.
 //
-//   node tests/action_outcome_check.mjs <built page.html>
+//   node tests/action_outcome_check.mjs <built page.html> [locale]
+//
+// The messages go through the page's own language runtime (the catalog and
+// `T`), taken from the same page, in the locale the second argument names.
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const html = readFileSync(process.argv[2], "utf8");
 const m = html.match(/class Uncertain extends Error \{\}[\s\S]*?\nasync function call\([\s\S]*?\n\}\n/);
 if (!m) { console.log(JSON.stringify({ error: "call() not found in the page" })); process.exit(1); }
+const lang = html.match(/const I18N = [\s\S]*?\nfunction T\([\s\S]*?\n\}\n/);
+if (!lang) { console.log(JSON.stringify({ error: "the language runtime was not found in the page" })); process.exit(1); }
+const locale = process.argv[3] || "en";
 
 const results = {};
 async function run(name, fetchImpl, ms) {
   const ctx = vm.createContext({
-    fetch: fetchImpl, AbortController, setTimeout, clearTimeout, JSON, Math, Error,
-    TOKEN: "t", document: { body: { dataset: { page: "creds" } } },
+    fetch: fetchImpl, AbortController, setTimeout, clearTimeout, JSON, Math, Error, Number, Object, Intl, String,
+    TOKEN: "t", localStorage: { getItem: () => locale },
+    document: { body: { dataset: { page: "creds" } },
+                documentElement: { getAttribute: () => "en" } },
   });
-  vm.runInContext(m[0] + "\nthis.call = call; this.Uncertain = Uncertain;", ctx);
+  vm.runInContext(lang[0] + m[0] + "\nthis.call = call; this.Uncertain = Uncertain;", ctx);
   try {
     await ctx.call("probe", {}, ms);
     results[name] = "ok";

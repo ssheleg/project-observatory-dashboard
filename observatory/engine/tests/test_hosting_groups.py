@@ -76,7 +76,7 @@ def main() -> int:
     check("the page runs without throwing", r.get("threw") is None, str(r.get("threw")))
     groups = sum(r.get("counts", {}).values())
     check("one project, three groups: production, staging and not specified", groups == 3, str(r.get("counts")))
-    out2 = subprocess.run([node, str(ROOT / "tests/render_dashboard.mjs"), str(page), "--count", "окружение не указано"],
+    out2 = subprocess.run([node, str(ROOT / "tests/render_dashboard.mjs"), str(page), "--count", "environment not stated"],
                           cwd=ROOT, capture_output=True, text=True, timeout=300)
     check("the unplaced app is visible as not specified", sum(json.loads(out2.stdout).get("counts", {}).values()) == 1,
           out2.stdout[-300:])

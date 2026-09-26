@@ -1,15 +1,73 @@
 {
   "about": "Names that a maintainer's private identifier list may contain but this repository publishes on purpose. check_public_release.py subtracts them from --private-denylist. Every entry needs a reason; adding one is a review decision, not a way to silence a finding.",
   "identifiers": [
-    {"token": "sergey sheleg", "reason": "the author, credited in package metadata, the plugin manifests, the site and the articles"},
-    {"token": "nicegram", "reason": "the author's public biography (docs/brand/facts.md), repeated in the articles"},
-    {"token": "sshlg-skills", "reason": "the author's published skill family, cited as a public repository"},
-    {"token": "make-skill", "reason": "published member of the skill family, a public repository"},
-    {"token": "seo-aeo-audit", "reason": "published member of the skill family, a public repository"},
-    {"token": "agent-stack", "reason": "published member of the skill family, a public repository"},
-    {"token": "sheleg-dev", "reason": "published member of the skill family, a public repository"},
-    {"token": "telegram-dev", "reason": "published member of the skill family, a public repository"},
-    {"token": "xr-dev", "reason": "published member of the skill family, a public repository"},
-    {"token": "оператор", "reason": "the ordinary Russian word for 'operator', used in interface text"}
+    {
+      "token": "sergey sheleg",
+      "reason": "the author, credited in package metadata, the plugin manifests, the site and the articles"
+    },
+    {
+      "token": "nicegram",
+      "reason": "the author's public biography (docs/brand/facts.md), repeated in the articles"
+    },
+    {
+      "token": "sshlg-skills",
+      "reason": "the author's published skill family, cited as a public repository"
+    },
+    {
+      "token": "make-skill",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "seo-aeo-audit",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "agent-stack",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "sheleg-dev",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "telegram-dev",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "xr-dev",
+      "reason": "published member of the skill family, a public repository"
+    },
+    {
+      "token": "оператор",
+      "reason": "the ordinary Russian word for 'operator', used in interface text"
+    },
+    {
+      "token": "passioncode",
+      "reason": "the product family and its public organization: the dashboard's rail, the website, the brand manifest"
+    },
+    {
+      "token": "passioncode.ai",
+      "reason": "the family's public website, linked from the dashboard, the site and the README"
+    },
+    {
+      "token": "passioncode-ai",
+      "reason": "the public GitHub organization that owns this repository since 0.4.0"
+    },
+    {
+      "token": "passioncode-ai.github.io",
+      "reason": "the public repository of the PassionCode design system, pinned by commit in dashboard/brand/manifest.json"
+    },
+    {
+      "token": "switchboard",
+      "reason": "PassionCode's public open-source tool, named on the website beside Observatory"
+    },
+    {
+      "token": "fabric-switchboard",
+      "reason": "Switchboard's public repository"
+    },
+    {
+      "token": "project-observatory-contract",
+      "reason": "the public Fabric contract repository (passioncode-ai/project-observatory-contract), named in the 0.4.0 handoff"
+    }
   ]
 }

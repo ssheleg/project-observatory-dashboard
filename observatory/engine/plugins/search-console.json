@@ -6,13 +6,13 @@
     {
       "name": "search.clicks_1d",
       "unit": "clicks",
-      "label": "кликов/сут",
+      "label": "clicks/day",
       "means": "Clicks from Google Search on the property's pages, one complete UTC day lagged by three because GSC revises its last ~48 hours. Property -> project attribution goes through plugins/hostmap.py, the same join every traffic plugin uses."
     },
     {
       "name": "search.impressions_1d",
       "unit": "impressions",
-      "label": "показов/сут",
+      "label": "impressions/day",
       "means": "Impressions in Google Search results for the same day and property. Beside clicks it answers whether a site is invisible or merely unclicked — two different problems with two different remedies."
     }
   ],

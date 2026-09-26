@@ -42,6 +42,26 @@ facts and never turn occurrence counts into unique-secret or breach counts.
 New public assets require an explicit path and content review before entering
 the release allowlist.
 
+## Interface strings
+
+The dashboard's text is English in the code and translated from one catalog per
+language (`observatory/engine/dashboard/locales/`), read by both the page builder and
+the page script. To add or change a string:
+
+- write it in English as the message id: `T("{n} projects", {n})` in the page script,
+  `t("…")`, `t.mark("…")` or `t.attr(name, "…")` in Python, or `data-t` on a static
+  element of the template;
+- add the Russian to `locales/ru.json`, with the same `{placeholders}`; a count takes
+  a plural object (`one`, `few`, `many`, `other` in Russian, `one`, `other` in `en.json`);
+- when one English text needs two Russian forms, give it a context: `domain@@not measured`;
+- run `python -m unittest observatory/engine/tests/test_i18n.py` (from `observatory/engine`),
+  which fails on a missing or unused translation, mismatched placeholders, incomplete plural
+  forms or Russian text left in the sources.
+
+Finding texts written by the rules in `tools/*_findings.py` are data in English, not
+interface strings. The PassionCode design tokens in `dashboard/brand/` are vendored
+bytes: change them at the canonical source, then copy and repin (`brand/README.md`).
+
 ## Comments and design notes
 
 This repository is the engine's upstream, so its comments and docstrings are the design record:
