@@ -149,9 +149,9 @@ def test_a_page_carries_only_what_it_renders() -> None:
                      "folded_by_type": {"t": 4}},
     }
     idx = shell.slice_for("index", payload)
-    check("the index carries the criticals and says how many are elsewhere",
-          [f["id"] for f in idx["findings"]["items"]] == ["a"]
-          and idx["findings"]["elsewhere"] == 2, json.dumps(idx["findings"])[:160])
+    check("the index previews every severity and says how many are elsewhere",
+          [f["id"] for f in idx["findings"]["items"]] == ["a", "b", "c"]
+          and idx["findings"]["elsewhere"] == 0, json.dumps(idx["findings"])[:160])
     check("without their detail — it is on the findings page, in full",
           idx["findings"]["items"][0]["detail"] == "", str(idx["findings"]["items"][0]))
     check("and the counts still name every severity",
@@ -303,8 +303,8 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
 
     The Heroku table named an application and left the operator to retype it
     into every command; the domains table raised three questions it could not
-    answer and pointed nowhere; the ENV table was 250 rows over 88 projects —
-    fifteen thousand pixels — when a reader opening it wants ONE project.
+    answer and pointed nowhere. ENV metadata stays visible by default under
+    UI-01; project filters and group counts retain orientation in a long list.
     """
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
     for cmd in ("heroku ps:restart -a ", "heroku logs -t -a ", "heroku apps:info -a "):
@@ -315,9 +315,9 @@ def test_the_estate_pages_hand_over_commands_and_fold_what_is_long() -> None:
     check("a domain row points at RDAP, DNS and its Cloudflare zone",
           "rdap.org/domain/" in src and "dig +short" in src
           and "dash.cloudflare.com" in src, "")
-    check("the ENV table folds by project and says each group's size",
+    check("the ENV table retains project context and says each group's size",
           "grp-fold" in src and "data-envgroup" in src and "переменных" in src,
-          "a fold that hides a count is the cap this repository refuses")
+          "project context must state how many variables it describes")
     # Filter expansion is driven on rendered fixture data by tests/env_tab_check.js
     # (suite env_page); the source expression is not pinned here.
     check("and a secret tracked by git opens its own group",
@@ -363,9 +363,9 @@ def test_the_shell_names_the_page_and_offers_the_theme() -> None:
               bool(h1) and h1.group(1) == dict((n, tt) for n, tt, _k in shell.PAGES)[name], h1 and h1.group(1))
         check(f"{name}: the page says what question it answers",
               shell.QUESTIONS[name].split(" ")[0] in html, "IS-01: a page of everything")
-        check(f"{name}: the top bar is the first thing in the body",
-              html.index('<div class="topbar"') < html.index("<header>"),
-              "a sticky bar declared after the header is not the way out")
+        check(f"{name}: navigation precedes the workspace heading",
+              html.index('id="topbar"') < html.index("<header>"),
+              "the navigation remains the first way out of each screen")
         check(f"{name}: the theme control has all three states",
               all(f'data-mode="{m}"' in html for m in ("system", "light", "dark")), "")
     src = (ROOT / "dashboard/build_dashboard.py").read_text(encoding="utf-8")
@@ -428,18 +428,13 @@ def test_the_findings_page_is_a_working_surface() -> None:
           '"env.html#e-" + anchorSlug(rest)' in src and '"mcp.html#m-" + anchorSlug(rest)' in src, "")
     check("and a row named in the address is revealed inside a folded group",
           "function revealHash" in src and 'closest("tbody.grp.folded")' in src
-          and "revealHash();" in src.split("function render() {", 1)[1][:200], "")
-    # D-12: the env page's fold atom on every grouped table — six
-    # renderers, one `grpHead`, projects folded by default and everything open
-    # under any narrowing.
-    check("every grouped table folds through one header helper",
-          src.count("${grpHead(") >= 6 and "function grpHead" in src and "function foldOpen" in src,
-          f"grpHead used {src.count('${grpHead(')} times")
-    check("projects fold by default and open under a narrowing; the rest are open",
-          "foldOpen(false)" in src and src.count(", true)}") >= 5, "")
+          and "revealHash();" in src.split("function render() {", 1)[1].split("\nfunction ", 1)[0], "")
+    # UI-01 supersedes the previous owner-group collapse choice. Runtime
+    # visibility checks live in test_workspace_redesign; group disclosures may
+    # remain for secondary content but may not hide the initial record list.
     # D-11: column sort spoken by `aria-sort`, one state per page in
-    # sessionStorage so it survives the search's re-renders, rows sorted INSIDE
-    # their groups, missing values last either way.
+    # sessionStorage so it survives search re-renders, with missing values last
+    # either way. Cross-group comparison is executed in workspace_redesign.
     check("sortable headers exist on every table and speak aria-sort",
           "function sortTh" in src and 'aria-sort="${dir}"' in src and src.count("sortTh(") >= 12,
           f"sortTh used {src.count('sortTh(')} times")

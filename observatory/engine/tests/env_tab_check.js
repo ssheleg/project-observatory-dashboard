@@ -164,7 +164,7 @@ check("`общее с другим проектом` narrows", sharedRows < befo
 check("matching groups are open while a filter is active", !dom.byId("out").innerHTML.includes('class="grp folded"'));
 check("one variable uses the singular form", dom.byId("out").innerHTML.includes('1 переменная') && !dom.byId("out").innerHTML.includes('1 переменных'));
 shared.onclick();
-check("clearing filters restores normal folding", dom.byId("out").innerHTML.includes('class="grp folded"'));
+check("clearing filters keeps the record list visible", !dom.byId("out").innerHTML.includes('class="grp folded"'));
 const commandHttp = run({hash:"#env", protocol:"http:", href:"http://127.0.0.1:7717/"});
 const commandText = commandHttp.byId("out").innerHTML;
 check("HTTP without an action token describes command mode", commandText.includes('режим команд') && !commandText.includes('страница открыта из файла'));

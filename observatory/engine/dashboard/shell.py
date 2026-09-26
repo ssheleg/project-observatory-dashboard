@@ -38,20 +38,27 @@ PAGES: tuple[tuple[str, str, str], ...] = (
 #: page said what it showed or over what scope. The sentence is the page's own
 #: heading; the measurement stamp follows it on every page.
 QUESTIONS: dict[str, str] = {
-    "index":    "Что требует человека сегодня, и куда двинулся эстейт.",
-    "findings": "Всё открытое на доске — по важности и по типу; заглушенное отдельно.",
-    "projects": "Каждый проект эстейта: из чего состоит, что с ним происходило, кто его ведёт.",
-    "domains":  "Каждое имя, которым эстейт владеет: чьё оно, отвечает ли, где смотреть.",
-    "heroku":   "Где живёт прод, что он стоит, и с чем он сконфигурирован.",
-    "creds":    "Каждый ключ: его дверь, состояние, кто им пользуется, для чего он.",
-    "env":      "Что лежит в рабочих копиях по проектам, что общее, и что у прода.",
-    "mcp":      "Какие MCP-серверы объявлены у агентов, и отвечают ли они.",
-    "traffic":  "Сколько людей приходит в каждый продукт, и к какому проекту привязана каждая property.",
-    "health":   "Смотрит ли обсерватория ещё, и что ждёт решения человека.",
+    "index":    "Что требует внимания и что изменилось в проектах.",
+    "findings": "Проблемы, следующие действия и история скрытых находок.",
+    "projects": "Проекты, их состояние, ресурсы и последние изменения.",
+    "domains":  "Домены, доступность, сроки и связанные проекты.",
+    "heroku":   "Приложения, состояние, развёртывания и стоимость.",
+    "creds":    "Ключи, их назначение, состояние и доступные действия.",
+    "env":      "Переменные по проектам и сравнение с рабочими окружениями.",
+    "mcp":      "Серверы агентов, подключения и доступность.",
+    "traffic":  "Аудитория продуктов, источники данных и связанные проекты.",
+    "health":   "Состояние наблюдателя, свежесть данных и очередь решений.",
 }
 TITLE_SUFFIX = "Обсерватория"
 NAMES = tuple(p[0] for p in PAGES)
 TABLE_PAGES = tuple(p[0] for p in PAGES if p[2] == "table")
+NAV_GROUPS = (
+    ("work", "Работа", ("index", "projects", "findings")),
+    ("infrastructure", "Инфраструктура", ("heroku", "domains", "traffic")),
+    ("access", "Доступ", ("creds", "env", "mcp")),
+    ("system", "Система", ("health",)),
+)
+OVERVIEW_FINDINGS_LIMIT = 8
 
 #: What a lite project row keeps on pages that only look projects UP — the
 #: domains page names a project, the creds page names an owner — but never
@@ -60,28 +67,28 @@ LITE_ROW_KEYS = ("id", "name", "anchor", "products", "tier", "lifecycle")
 
 
 def nav_html(page: str, counts: dict[str, int | str]) -> str:
-    """The top bar: brand, the nine pages with their badges, the theme control.
-
-    Sticky and first in the document (S12; backlog D-05): on a long table the
-    way out must not scroll away. The theme control is three buttons rather
-    than a toggle because «система» is a real third state — it follows the OS
-    and re-follows it — and a two-state switch would have to lie about one of
-    the three.
-    """
-    items = []
-    for name, title, _kind in PAGES:
-        n = counts.get(name)
-        badge = f' <span class="n">{n}</span>' if n not in (None, "") else ""
-        cur = ' aria-current="page"' if name == page else ""
-        items.append(f'<a class="pg" href="{name}.html"{cur}>{title}{badge}</a>')
+    """Grouped navigation keeps every route reachable without disclosure."""
+    titles = {name: title for name, title, _kind in PAGES}
+    groups = []
+    for key, label, names in NAV_GROUPS:
+        items = []
+        for name in names:
+            n = counts.get(name)
+            badge = f' <span class="n">{n}</span>' if n not in (None, "") else ""
+            cur = ' aria-current="page"' if name == page else ""
+            items.append(f'<a class="pg" href="{name}.html"{cur}>{titles[name]}{badge}</a>')
+        groups.append(f'<section class="nav-group" aria-labelledby="nav-{key}">'
+                      f'<h2 class="nav-heading" id="nav-{key}">{label}</h2>'
+                      + "".join(items) + "</section>")
     theme = ('<div class="theme" role="group" aria-label="Тема">'
              '<button type="button" data-mode="system" aria-pressed="false" title="как в системе">система</button>'
              '<button type="button" data-mode="light" aria-pressed="false">светлая</button>'
              '<button type="button" data-mode="dark" aria-pressed="false">тёмная</button></div>')
-    return ('<div class="topbar" id="topbar">'
+    return ('<a class="skip-link" href="#workspace">К содержимому</a>'
+            '<aside class="topbar nav-rail" id="topbar">'
             f'<a class="brand" href="index.html">{TITLE_SUFFIX}</a>'
-            '<nav class="pages" id="pages" aria-label="Разделы">' + "".join(items) + "</nav>"
-            + theme + "</div>")
+            '<nav class="pages" id="pages" aria-label="Разделы">' + "".join(groups) + "</nav>"
+            + theme + "</aside>")
 
 
 def counts_of(payload: dict) -> dict[str, int | str]:
@@ -94,13 +101,12 @@ def counts_of(payload: dict) -> dict[str, int | str]:
     mcp = payload.get("mcp") or {}
     env = payload.get("env") or {}
     creds = payload.get("creds") or {}
-    # THE INDEX AND HEALTH BADGES ARE THE TWO NUMBERS A PERSON OPENS FOR (D-05):
-    # what is critical, and what waits for them. Zero is shown as nothing — a
-    # «0» beside «Обзор» is noise, an absent badge is calm.
-    health = payload.get("health") or {}
+    # Navigation badges count the destination's inventory. Overview and Health
+    # are summaries, not inventories; severity and review totals belong in
+    # their labelled content rather than beside an unrelated route name.
     return {
-        "index": c.get("critical") or "",
-        "health": health.get("proposed") or "",
+        "index": "",
+        "health": "",
         "findings": open_findings or "",
         "projects": len(payload.get("rows") or []),
         "domains": len({d["name"] for d in payload.get("domains") or []}
@@ -120,23 +126,32 @@ def _observer(health: dict) -> str:
     if not isinstance(age, (int, float)):
         return "наблюдатель не измерен"
     if age == -1:
-        return "наблюдатель не запущен"
+        return "при измерении наблюдатель не был запущен"
     if age < 90:
-        return "наблюдатель жив"
-    return f"наблюдатель молчит {int(age // 60)} мин"
+        return "при измерении наблюдатель работал"
+    return f"при измерении не отвечал {int(age // 60)} мин"
 
 
 def _traffic_line(payload: dict) -> str:
-    """Users over thirty days, and how much of it nothing claims — because the
-    second number is the one that decides whether the first can be trusted."""
+    """A resource sum, with unknown coverage kept distinct from measured zero."""
     g = payload.get("google") or {}
     tt = g.get("totals") or {}
     if not g:
         return "аналитика не сканировалась"
-    users = tt.get("users_30d") or 0
-    loose = tt.get("users_30d_unclaimed") or 0
-    return (f"{users:,}".replace(",", " ") + " польз./30 дн"
-            + (f" · {loose:,}".replace(",", " ") + " без проекта" if loose else ""))
+    users = tt.get("users_30d")
+    loose = tt.get("users_30d_unclaimed")
+    unknown = tt.get("unknown_properties") or 0
+    measured = tt.get("measured_properties")
+    line = ("аудитория не измерена" if users is None else
+            f"{users:,}".replace(",", " ") + " польз./30 дн · сумма по ресурсам")
+    if unknown:
+        line += (" · частично" if users is not None else "")
+        if measured is not None:
+            line += f" · измерено ресурсов: {measured}"
+        line += f" · без измерения: {unknown}"
+    if loose is not None:
+        line += f" · {loose:,}".replace(",", " ") + " без проекта"
+    return line
 
 
 def cards_html(payload: dict, counts: dict) -> str:
@@ -212,12 +227,15 @@ def slice_for(page: str, payload: dict) -> dict:
             h["wallet"]["_on_health_page"] = True
         out["health"] = h
     if page == "index" and payload.get("findings"):
-        # THE INDEX SHOWS WHAT NEEDS A PERSON NOW (S12): the counts, the
-        # criticals, and a link to the rest. The findings page carries all.
+        # The preview is bounded, but totals describe the whole findings list.
+        # Warnings remain visible when there are no criticals. Clear inherited
+        # folding: a preview must not conceal rows behind nonexistent controls.
         f = dict(payload["findings"])
         items = f.get("items") or []
-        f["items"] = [{**x, "detail": ""} for x in items
-                      if x.get("severity") == "critical"]
+        rank = {"critical": 0, "warning": 1, "info": 2}
+        ranked = sorted(items, key=lambda item: rank.get(item.get("severity"), 3))
+        f["items"] = [{**x, "detail": "", "action": "", "folded": False}
+                      for x in ranked[:OVERVIEW_FINDINGS_LIMIT]]
         f["folded_by_type"] = {}
         f["elsewhere"] = len(items) - len(f["items"])
         out["findings"] = f
@@ -268,6 +286,20 @@ def page_html(template: str, page: str, payload: dict) -> str:
     # `drawTab` wrote into them on every render. Stripped at build; the script
     # asks before writing a counter (`setN`), so the single page keeps its strip.
     template = re.sub(r'<nav class="tabs"[^>]*>.*?</nav>\s*', "", template, count=1, flags=re.S)
+    if page == "index":
+        # Reading and keyboard order must match the visual attention-first
+        # layout. CSS order alone would leave assistive navigation behind the
+        # less important inventory and activity counters.
+        attention = '<section id="findings"></section>'
+        template = template.replace(attention, "", 1)
+        template = template.replace('<div class="tiles" id="tiles">',
+                                    attention + '\n<div class="tiles" id="tiles">', 1)
+    # The table renderer owns #out, not the document's main landmark. Overview,
+    # Findings and Health hide #out, so their primary content needs a shared
+    # visible main as well. Scripts stay outside the content landmark.
+    template = re.sub(r'<main(\s+id="out"[^>]*)></main>', r'<div\1></div>', template, count=1)
+    template = template.replace("__NAV__", '__NAV__\n<main id="workspace" class="workspace" tabindex="-1">', 1)
+    template = template.replace("</footer>", "</footer>\n</main>", 1)
     return (template.replace("__PAGE__", page)
             .replace("__TITLE__", f"{title} — {TITLE_SUFFIX}")
             .replace("__H1__", title)

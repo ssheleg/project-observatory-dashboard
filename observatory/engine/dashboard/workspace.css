@@ -1,0 +1,410 @@
+/* Workspace composition. Workbench owns tokens; this file owns layout.
+ * Split pages have a navigation rail. The standalone document keeps its tabs.
+ * Primary row identities stay visible; disclosure is reserved for detail. */
+body[data-page] {
+  --rail-width: calc(var(--space-6) * 6 + var(--space-2));
+  min-width: 0;
+}
+body[data-page] .nav-rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--rail-width);
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-3) var(--space-4);
+  border: 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+body[data-page] .brand {
+  display: block;
+  padding: 0 var(--space-2);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+body[data-page] .pages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.nav-group { min-width: 0; }
+.nav-heading, .nav-label {
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-2);
+  font: 600 var(--t-chip)/1.5 var(--font-ui);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+body[data-page] .pages a.pg {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+  padding: var(--space-2);
+  font-size: var(--t-body);
+  line-height: 1.4;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink);
+}
+body[data-page] .pages a.pg:hover {
+  background: var(--panel-2);
+  text-decoration: none;
+}
+body[data-page] .pages a.pg[aria-current="page"] {
+  background: var(--accent-weak);
+  border-color: var(--border);
+  border-left-color: var(--accent);
+  border-left-width: 2px;
+  color: var(--ink);
+  font-weight: 600;
+}
+body[data-page] .pages a.pg .n {
+  font-size: var(--t-chip);
+  font-weight: 400;
+  opacity: 1;
+  color: var(--muted);
+}
+body[data-page] .theme {
+  display: flex;
+  flex-wrap: wrap;
+  margin: auto 0 0;
+  flex: 0 0 auto;
+  border-radius: var(--r-control);
+  overflow: visible;
+}
+body[data-page] .theme button {
+  flex: 1;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--r-control);
+}
+body[data-page] main.workspace {
+  min-width: 0;
+  margin-left: var(--rail-width);
+  padding: var(--space-5);
+}
+body[data-page] main.workspace > header {
+  padding: 0 0 var(--space-4);
+  background: transparent;
+  border: 0;
+}
+body[data-page] h1 { font-size: var(--t-section); }
+body[data-page] .sub {
+  margin: var(--space-2) 0 0;
+  max-width: 90ch;
+  font-size: var(--t-label);
+}
+body[data-page] .controls {
+  position: static;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  gap: var(--space-2);
+  align-items: center;
+}
+body[data-page] .controls > input[type="search"] {
+  min-width: min(100%, 24ch);
+  flex: 1 1 40%;
+}
+body[data-page] .controls > select { max-width: 100%; }
+body[data-page] .controls .seg { flex-basis: 100%; }
+body[data-page] .controls .view { margin: 0; }
+body[data-page] .filters { margin: 0; }
+.list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+}
+.list-tools label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--t-label);
+}
+.list-tools select { max-width: 100%; }
+.list-summary, .action-mode {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  font-size: var(--t-label);
+  line-height: 1.6;
+}
+.list-summary b, .list-summary strong,
+.action-mode b, .action-mode strong { color: var(--ink); }
+.action-mode { border-left: 2px solid var(--accent); }
+body[data-page] #out { min-width: 0; }
+body[data-page] .card { margin-top: var(--space-3); }
+body[data-page] table { font-size: var(--t-label); }
+body[data-page] thead th {
+  top: 0;
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.4;
+  padding: var(--space-3) var(--space-2);
+}
+body[data-page] tbody td {
+  padding: var(--space-3) var(--space-2);
+  overflow-wrap: anywhere;
+}
+body[data-page] td.num { white-space: normal; }
+body[data-page] tbody .name { font-size: var(--t-body); }
+body[data-page] tbody .anchor { margin-top: var(--space-1); }
+body[data-page] tbody .verbs { gap: var(--space-1); }
+body[data-page] .chip-btn { border-radius: var(--r-control); }
+.project-summary col:nth-child(1) { width: 26%; }
+.project-summary col:nth-child(2) { width: 12%; }
+.project-summary col:nth-child(3) { width: 24%; }
+.project-summary col:nth-child(4) { width: 20%; }
+.project-summary col:nth-child(5) { width: 18%; }
+
+.project-meta {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--t-label);
+  line-height: 1.5;
+}
+.project-summary .desc {
+  margin-top: var(--space-1);
+  font-size: var(--t-label);
+}
+.resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--t-label);
+}
+.resource-links a { overflow-wrap: anywhere; }
+/* Unknown is information, not disabled content. */
+.none { opacity: 1; }
+body[data-page] a:not(.pg):not(.brand):not(.chip-btn):not(.tile):not(.mod) {
+  text-underline-offset: .2em;
+}
+body[data-page] tbody a,
+body[data-page] .dlist a { text-decoration: underline; }
+/* On tinted or ground surfaces use ink; accent remains the focus/border cue. */
+body[data-page] header a,
+body[data-page] footer a,
+body[data-page] .list-tools a,
+body[data-page] tr:hover a,
+body[data-page] tr:target a,
+body[data-page] .f:target a { color: var(--ink); }
+body[data-page] #findings {
+  margin: var(--space-4) 0 0;
+}
+body[data-page] .fh {
+  flex-wrap: wrap;
+  text-transform: none;
+  letter-spacing: 0;
+}
+body[data-page] .f {
+  align-items: baseline;
+  padding: var(--space-3) var(--space-4);
+}
+body[data-page] .f .d { color: var(--ink); }
+body[data-page] .fbar .fq { min-width: min(100%, 22ch); }
+body[data-page] .tiles { margin: var(--space-4) 0 0; }
+body[data-page] .mods { margin: var(--space-4) 0; }
+body[data-page] .mods .mod:hover { border-color: var(--border-strong); }
+body[data-page] footer {
+  margin-top: var(--space-5);
+  padding: var(--space-4) 0 0;
+}
+body[data-page] footer > section { margin-bottom: var(--space-4); }
+body[data-page] #panel {
+  padding: var(--space-5);
+  scroll-margin-top: var(--space-4);
+}
+body[data-page] #panel h2 { font-size: var(--t-section); margin: 0; }
+body[data-page] #panel h3 { font-size: var(--t-body); margin-top: var(--space-5); }
+body[data-page] #panel .dlist li { font-size: var(--t-label); margin-bottom: var(--space-1); }
+body[data-page="health"] #tiles,
+body[data-page="health"] #more-tiles,
+body[data-page="health"] #work,
+body[data-page="health"] #work-h { display: none; }
+body[data-page="health"] footer {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0;
+  padding-top: 0;
+  border: 0;
+}
+body[data-page="health"] #observer {
+  order: -1;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--panel);
+}
+body[data-page="health"] #queue-s { order: 0; }
+body[data-page="health"] footer h3 { text-transform: none; letter-spacing: 0; font-size: var(--t-body); }
+body[data-page="health"] .health {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
+}
+body[data-page="health"] .hrow {
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--t-label);
+  overflow-wrap: anywhere;
+}
+body[data-page="health"] .hrow b {
+  font-size: var(--t-body);
+  line-height: 1.5;
+}
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  transform: translateY(-200%);
+  padding: var(--space-3) var(--space-4);
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px solid var(--accent);
+  border-radius: var(--r-control);
+}
+.skip-link:focus { transform: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.workspace:focus { outline: none; }
+
+@media (max-width: 1100px) {
+  body[data-page] main.workspace { padding: var(--space-4); }
+  /* Keep the legacy 1100px card breakpoint explicit after the workspace
+   * overrides. Sorting remains available in the separate list toolbar. */
+  body[data-page] table,
+  body[data-page] tbody,
+  body[data-page] tbody tr,
+  body[data-page] tbody td,
+  body[data-page] tbody th { display: block; width: 100%; }
+  body[data-page] thead,
+  body[data-page] colgroup { display: none; }
+  body[data-page] .card table { table-layout: auto; }
+  body[data-page="health"] .health { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-page] tbody tr {
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border-strong);
+  }
+  body[data-page] tbody tr:last-child { border-bottom: 0; }
+  body[data-page] tbody td {
+    display: block;
+    padding: var(--space-1) 0;
+    border: 0;
+    text-align: left;
+    width: 100%;
+  }
+  body[data-page] tbody td:first-child {
+    padding-top: 0;
+    margin-bottom: var(--space-2);
+  }
+  body[data-page] tbody td:first-child::before { display: none; }
+  body[data-page] tbody td::before {
+    margin: var(--space-1) 0;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  body[data-page] tbody td.e { display: block; }
+  body[data-page] .project-summary .desc { display: block; overflow: visible; }
+  body[data-page] .project-summary .resource-links { gap: var(--space-2); }
+  body[data-page] .list-tools { align-items: flex-start; }
+  body[data-page] .list-tools select { min-height: var(--space-6); }
+}
+
+@media (max-width: 760px) {
+  body[data-page="health"] .health { grid-template-columns: minmax(0, 1fr); }
+  body[data-page] .nav-rail {
+    position: static;
+    width: auto;
+    height: auto;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+  body[data-page] .brand { padding: 0; }
+  body[data-page] .pages {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  body[data-page] .pages a.pg { margin: 0; }
+  .nav-heading, .nav-label { margin-bottom: var(--space-1); }
+  body[data-page] .theme { align-self: flex-start; margin: 0; }
+  body[data-page] .theme button { padding: var(--space-2); }
+  body[data-page] main.workspace { margin-left: 0; padding: var(--space-3); }
+  body[data-page] .controls > input[type="search"] { flex-basis: 100%; }
+  body[data-page] .controls > select { width: 100%; }
+  body[data-page] .fbar > .fq { flex: 1 1 100%; }
+  body[data-page] .fbar .fshown { margin-left: 0; }
+  body[data-page] .f { padding: var(--space-3); }
+  body[data-page] #panel { padding: var(--space-4); }
+  body[data-page] .dhead { align-items: flex-start; }
+  body[data-page] .list-tools > label { flex: 1 1 100%; }
+  body[data-page] .list-tools > label select { flex: 1; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+
+.resource-detail { margin-top: var(--space-2); }
+.resource-detail summary { cursor: pointer; text-decoration: underline; text-underline-offset: .2em; }
+.resource-detail b { display: block; margin-top: var(--space-2); }
+body[data-page="index"] .fdetail { margin-left: auto; white-space: nowrap; }
+body[data-page="index"] .f .d:empty { display: none; }
+body[data-page] tbody th {
+  text-transform: none;
+  letter-spacing: 0;
+  padding: var(--space-2);
+  font-size: var(--t-label);
+}
+body[data-page] tbody th .anchor { font-weight: 400; }
+.action-mode summary { cursor: pointer; text-decoration: underline; text-underline-offset: .2em; }
+.action-mode details { margin-top: var(--space-1); overflow-wrap: anywhere; }
+body[data-page="findings"] .flist > .f {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+}
+body[data-page="findings"] .f > .t { min-width: 0; }
+.finding-body { grid-column: 2; min-width: 0; max-width: 90ch; }
+.finding-body summary { cursor: pointer; color: var(--muted); text-decoration: underline; text-underline-offset: .2em; }
+body[data-page] .finding-body .d,
+body[data-page] .finding-body .act { display: block; margin: var(--space-3) 0; font-style: normal; }
+@media (max-width: 760px) {
+  body[data-page="findings"] .flist > .f { grid-template-columns: minmax(0, 1fr); }
+  .finding-body { grid-column: 1; }
+}
+@media (max-width: 760px) {
+  body[data-page] .nav-rail { display: grid; grid-template-columns: 1fr; gap: var(--space-2); }
+  body[data-page] .pages { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-1); }
+  body[data-page] .nav-group { display: contents; }
+  body[data-page] .nav-heading { display: none; }
+  body[data-page] .pages a.pg { padding: var(--space-2) var(--space-1); font-size: var(--t-label); }
+  body[data-page] .theme { justify-self: start; }
+  body[data-page] .theme button { padding: var(--space-1) var(--space-2); }
+  body[data-page="findings"] .f > .chip { justify-self: start; }
+}

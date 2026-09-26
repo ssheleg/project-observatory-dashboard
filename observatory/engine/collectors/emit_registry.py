@@ -557,11 +557,14 @@ if GOOGLE_SRC.is_file():
     _gdoc = google_registry.document(_gscan, _grows, OBS)
     _stamped("google-properties.json", _gdoc)
     _gt = _gdoc["totals"]
+    _gusers = "unknown" if _gt["users_30d"] is None else f"{_gt['users_30d']:,}"
+    _gloose = "unknown" if _gt["users_30d_unclaimed"] is None else f"{_gt['users_30d_unclaimed']:,}"
     print(f"google-properties.json: {_gt['properties']} property(ies) in "
           f"{_gt['accounts']} account(s), {_gt['linked_to_a_project']} linked, "
           f"{_gt['outside_the_estate']} outside, {_gt['unclaimed']} unclaimed "
-          f"({_gt['users_30d_unclaimed']:,} users/30d), "
-          f"{_gt['users_30d']:,} users/30d in all")
+          f"({_gloose} users/30d), "
+          f"{_gusers} summed users/30d; {_gt['measured_properties']} measured, "
+          f"{_gt['unknown_properties']} unknown")
 
 # WHAT PRODUCTION HOLDS, as verdicts. Two inputs, both gitignored: the remote
 # scan's fingerprints and the local env scan's. The document written from them

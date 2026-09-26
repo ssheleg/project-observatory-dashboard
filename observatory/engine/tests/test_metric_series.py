@@ -251,14 +251,15 @@ def test_adding_a_plugin_touches_no_file_outside_plugins() -> None:
     hay = [p for p in ROOT.rglob("*.py") if ".venv" not in p.parts
            and "plugins" not in p.parts and "tests" not in p.parts and p != packaging]
     hay += [p for p in ROOT.rglob("*.sh") if ".venv" not in p.parts]
+    # Parse each source once; every declared name is still checked against every
+    # file. Re-tokenizing the entire engine per metric made this guard time out.
+    sources = {}
+    for f in hay:
+        text = f.read_text(encoding="utf-8", errors="replace")
+        sources[str(f.relative_to(ROOT))] = (source_reader.code_keeping_strings(text)
+                                             if f.suffix == ".py" else text)
     for needle in names:
-        hits = []
-        for f in hay:
-            text = f.read_text(encoding="utf-8", errors="replace")
-            code = (source_reader.code_keeping_strings(text)
-                    if f.suffix == ".py" else text)
-            if needle in code:
-                hits.append(str(f.relative_to(ROOT)))
+        hits = [path for path, code in sources.items() if needle in code]
         check(f"no core file names `{needle}` in code", not hits, str(hits[:3]))
 
 

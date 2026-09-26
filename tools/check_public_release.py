@@ -64,7 +64,36 @@ def _deny_pattern(deny: tuple[str, ...]) -> re.Pattern | None:
     values = sorted({v for v in deny if v}, key=len, reverse=True)
     if not values:
         return None
-    return re.compile(r"(?<![A-Za-z0-9_.-])(?:" + "|".join(map(re.escape, values)) + r")(?:\.git)?(?![A-Za-z0-9_.-])",
+    # Factor common prefixes instead of trying thousands of alternatives at
+    # every candidate position. Length buckets preserve longest-first matching,
+    # including case-insensitive branches that happen to overlap.
+    def factor(words: list[str]) -> str:
+        trie = {}
+        for word in words:
+            node = trie
+            for char in word:
+                node = node.setdefault(char, {})
+            node[None] = {}
+
+        def emit(node: dict) -> str:
+            prefix = ""
+            while len(node) == 1 and None not in node:
+                char, node = next(iter(node.items()))
+                prefix += char
+            branches = [re.escape(char) + emit(child) for char, child in node.items()
+                        if char is not None]
+            if None in node:
+                branches.append("")
+            suffix = branches[0] if len(branches) == 1 else "(?:" + "|".join(branches) + ")"
+            return re.escape(prefix) + suffix
+
+        return emit(trie)
+
+    buckets: dict[int, list[str]] = {}
+    for value in values:
+        buckets.setdefault(len(value), []).append(value)
+    alternatives = "|".join(factor(words) for words in buckets.values())
+    return re.compile(r"(?<![A-Za-z0-9_.-])(?:" + alternatives + r")(?:\.git)?(?![A-Za-z0-9_.-])",
                       re.IGNORECASE)
 
 

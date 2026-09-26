@@ -7,6 +7,8 @@ import importlib.util
 import io
 import json
 import os
+import re
+import random
 from pathlib import Path
 import stat
 import subprocess
@@ -61,6 +63,24 @@ class ReleaseBoundaryTests(unittest.TestCase):
     def test_private_identifier_match_is_case_insensitive_but_not_substring(self):
         self.assertEqual(privacy.scan_text('public-Confidential-Fixture-tools',['confidential-fixture']),{})
         self.assertTrue(privacy.scan_text('CONFIDENTIAL-FIXTURE.git',['confidential-fixture']))
+    def test_factored_private_matcher_matches_flat_reference(self):
+        rng = random.Random(42)
+        values = ["alpha", "alpha/beta", "ALPHA/beta/long", "fixture.key",
+                  "fixture+key", "i", "K", "s", "имя", "ab[cd]", "long" * 400]
+        values += ["shared-prefix/" + "".join(rng.choices("abcXYZ012.-_", k=n))
+                   for n in range(1, 45)]
+        ordered = sorted(set(values), key=len, reverse=True)
+        flat = re.compile(r"(?<![A-Za-z0-9_.-])(?:" + "|".join(map(re.escape, ordered))
+                          + r")(?:\.git)?(?![A-Za-z0-9_.-])", re.IGNORECASE)
+        factored = privacy._deny_pattern(tuple(values))
+        text = " ".join(prefix + value + suffix for value in values
+                        for prefix in ("", "prefix-", "(", "/")
+                        for suffix in ("", ".git", "-tail", ")", "/child"))
+        text += " ALPHA/BETA/long İ ı K ſ ИМЯ fixture+key ab[cd] "
+        self.assertEqual([(m.span(), m.group()) for m in factored.finditer(text)],
+                         [(m.span(), m.group()) for m in flat.finditer(text)])
+        self.assertIsNone(privacy._deny_pattern(tuple()))
+
     def test_public_identifiers_are_subtracted_and_private_ones_still_found(self):
         # tools/public-identifiers.json: names published on purpose leave the private list.
         public=sorted(privacy.public_identifiers())[0]

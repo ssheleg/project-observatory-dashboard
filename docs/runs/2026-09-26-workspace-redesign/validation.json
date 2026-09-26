@@ -1,0 +1,842 @@
+{
+  "scope": "synthetic-offline",
+  "portable_initial_full_pass": {
+    "suites": 58,
+    "status": "PASS",
+    "receipt": "observed release gate session 65537; top-level phase then rejected stale version literals"
+  },
+  "portable_final_first_attempt": {
+    "schema_version": 1,
+    "coverage": "synthetic-offline",
+    "status": "FAIL",
+    "suites": [
+      {
+        "file": "tests/test_ledger.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 16.91,
+        "pass_assertions": 38,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "ledger/run.log"
+      },
+      {
+        "file": "tests/test_time.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 15.7,
+        "pass_assertions": 23,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "time/run.log"
+      },
+      {
+        "file": "tests/test_provider_boundary.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 20.49,
+        "pass_assertions": 34,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "provider_boundary/run.log"
+      },
+      {
+        "file": "tests/test_provider_health.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 17.28,
+        "pass_assertions": 15,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "provider_health/run.log"
+      },
+      {
+        "file": "tests/test_credential_doors.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 18.5,
+        "pass_assertions": 55,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "credential_doors/run.log"
+      },
+      {
+        "file": "tests/test_vault.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 122.14,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": "",
+        "log": "vault/run.log"
+      },
+      {
+        "file": "tests/test_plugins.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 30.79,
+        "pass_assertions": 34,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "plugins/run.log"
+      },
+      {
+        "file": "tests/test_wire_contract.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 20.94,
+        "pass_assertions": 43,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "wire_contract/run.log"
+      },
+      {
+        "file": "tests/test_metric_series.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 39.96,
+        "pass_assertions": 61,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "metric_series/run.log"
+      },
+      {
+        "file": "tests/test_analytics_plugins.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 18.45,
+        "pass_assertions": 58,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "analytics_plugins/run.log"
+      },
+      {
+        "file": "tests/test_mcp_wire.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 73.0,
+        "pass_assertions": 23,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "mcp_wire/run.log"
+      },
+      {
+        "file": "tests/test_wire_inputs.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 65.1,
+        "pass_assertions": 15,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "wire_inputs/run.log"
+      },
+      {
+        "file": "tests/test_retention.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 58.91,
+        "pass_assertions": 34,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "retention/run.log"
+      },
+      {
+        "file": "tests/test_provenance.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 26.95,
+        "pass_assertions": 16,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "provenance/run.log"
+      },
+      {
+        "file": "tests/test_events.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 47.61,
+        "pass_assertions": 25,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "events/run.log"
+      },
+      {
+        "file": "tests/test_fingerprints.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 43.38,
+        "pass_assertions": 17,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "fingerprints/run.log"
+      },
+      {
+        "file": "tests/test_pages.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 71.29,
+        "pass_assertions": 225,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "pages/run.log"
+      },
+      {
+        "file": "tests/test_dashboard_render.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 122.96,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": "",
+        "log": "dashboard_render/run.log"
+      },
+      {
+        "file": "tests/test_atomic_writers.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 61.24,
+        "pass_assertions": 28,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "atomic_writers/run.log"
+      },
+      {
+        "file": "tests/test_ack.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 121.59,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": "",
+        "log": "ack/run.log"
+      },
+      {
+        "file": "tests/test_rollup.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 65.87,
+        "pass_assertions": 21,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "rollup/run.log"
+      },
+      {
+        "file": "tests/test_runtime_identity.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 122.08,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": "",
+        "log": "runtime_identity/run.log"
+      },
+      {
+        "file": "tests/test_remote_env.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 76.94,
+        "pass_assertions": 92,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "remote_env/run.log"
+      },
+      {
+        "file": "tests/test_project_identity.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 125.15,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": "",
+        "log": "project_identity/run.log"
+      },
+      {
+        "file": "tests/test_sessions.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 59.78,
+        "pass_assertions": 50,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "sessions/run.log"
+      },
+      {
+        "file": "tests/test_env_page.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 38.48,
+        "pass_assertions": 20,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "env_page/run.log"
+      },
+      {
+        "file": "tests/test_metric_labels.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 48.01,
+        "pass_assertions": 22,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "metric_labels/run.log"
+      },
+      {
+        "file": "tests/test_hosting_groups.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 49.39,
+        "pass_assertions": 5,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "hosting_groups/run.log"
+      },
+      {
+        "file": "tests/test_action_outcomes.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 43.43,
+        "pass_assertions": 9,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "action_outcomes/run.log"
+      },
+      {
+        "file": "tests/test_workspace_redesign.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 64.46,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 7,
+        "log": "workspace_redesign/run.log"
+      },
+      {
+        "file": "tests/test_google_identity.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 45.35,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 12,
+        "log": "google_identity/run.log"
+      },
+      {
+        "file": "tests/test_workspace.py",
+        "status": "TIMEOUT",
+        "exit_code": 124,
+        "seconds": 121.82,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "failure_tail": ".......",
+        "log": "workspace/run.log"
+      },
+      {
+        "file": "tests/test_workspace_upgrade.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 75.82,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 26,
+        "log": "workspace_upgrade/run.log"
+      },
+      {
+        "file": "tests/test_workspace_boundaries.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 21.47,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 20,
+        "log": "workspace_boundaries/run.log"
+      },
+      {
+        "file": "tests/test_dashboard_shell.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 5.6,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 6,
+        "log": "dashboard_shell/run.log"
+      },
+      {
+        "file": "tests/test_workspace_scheduler.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 39.34,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 17,
+        "log": "workspace_scheduler/run.log"
+      },
+      {
+        "file": "tests/test_schema_compatibility.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 41.17,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 20,
+        "log": "schema_compatibility/run.log"
+      },
+      {
+        "file": "tests/test_keyserver_boundary.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 16.01,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 19,
+        "log": "keyserver_boundary/run.log"
+      },
+      {
+        "file": "tests/test_private_sources.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 39.29,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 5,
+        "log": "private_sources/run.log"
+      },
+      {
+        "file": "tests/test_public_contracts.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 50.25,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 14,
+        "log": "public_contracts/run.log"
+      },
+      {
+        "file": "tests/test_vault_boundaries.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 38.22,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 15,
+        "log": "vault_boundaries/run.log"
+      },
+      {
+        "file": "tests/test_provider_secret_boundaries.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 14.6,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 12,
+        "log": "provider_secret_boundaries/run.log"
+      },
+      {
+        "file": "tests/test_cli_compatibility.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 9.04,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 17,
+        "log": "cli_compatibility/run.log"
+      },
+      {
+        "file": "tests/test_dashboard_portability.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 12.41,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 9,
+        "log": "dashboard_portability/run.log"
+      },
+      {
+        "file": "tests/test_agent_plugin.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 60.12,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 10,
+        "log": "agent_plugin/run.log"
+      },
+      {
+        "file": "tests/test_audit_regressions.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.17,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 4,
+        "log": "audit_regressions/run.log"
+      },
+      {
+        "file": "tests/test_identity_map.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 3.1,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 13,
+        "log": "identity_map/run.log"
+      },
+      {
+        "file": "tests/test_zone_accounts.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.38,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 1,
+        "log": "zone_accounts/run.log"
+      },
+      {
+        "file": "tests/test_deployed_commit.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 3.14,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 2,
+        "log": "deployed_commit/run.log"
+      },
+      {
+        "file": "tests/test_scrub_incremental.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 3.19,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 6,
+        "log": "scrub_incremental/run.log"
+      },
+      {
+        "file": "tests/test_leak_scan_incremental.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.0,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 6,
+        "log": "leak_scan_incremental/run.log"
+      },
+      {
+        "file": "tests/test_tick_health.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.14,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 4,
+        "log": "tick_health/run.log"
+      },
+      {
+        "file": "tests/test_accounts.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.25,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 5,
+        "log": "accounts/run.log"
+      },
+      {
+        "file": "tests/test_environments.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 3.59,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 9,
+        "log": "environments/run.log"
+      },
+      {
+        "file": "tests/test_credential_bindings.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 3.22,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 4,
+        "log": "credential_bindings/run.log"
+      },
+      {
+        "file": "tests/test_local_keys.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 11.31,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 5,
+        "log": "local_keys/run.log"
+      },
+      {
+        "file": "tests/test_trap_anchors.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 2.65,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 1,
+        "log": "trap_anchors/run.log"
+      },
+      {
+        "file": "tests/test_leak_coverage.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 1.84,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 4,
+        "log": "leak_coverage/run.log"
+      }
+    ],
+    "not_run": [
+      {
+        "scope": "live-provider-acceptance",
+        "status": "NOT_RUN",
+        "reason": "Requires independently configured provider accounts and explicit opt-in; no credentials are inherited."
+      },
+      {
+        "scope": "external-mcp-host-admission",
+        "status": "NOT_RUN",
+        "reason": "The local stdio protocol is tested; acceptance by another host requires a separate configured fixture run."
+      },
+      {
+        "scope": "live-secret-rotation-and-delivery",
+        "status": "NOT_RUN",
+        "reason": "Synthetic credential boundaries are tested; real rotation/delivery must be independently authorized."
+      }
+    ],
+    "suite_count": 58,
+    "python": "3.14.7"
+  },
+  "final_footer": {
+    "schema_version": 1,
+    "coverage": "synthetic-offline",
+    "status": "PASS",
+    "suites": [
+      {
+        "file": "tests/test_workspace_redesign.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 29.72,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 8,
+        "log": "workspace_redesign/run.log"
+      }
+    ],
+    "not_run": [
+      {
+        "scope": "live-provider-acceptance",
+        "status": "NOT_RUN",
+        "reason": "Requires independently configured provider accounts and explicit opt-in; no credentials are inherited."
+      },
+      {
+        "scope": "external-mcp-host-admission",
+        "status": "NOT_RUN",
+        "reason": "The local stdio protocol is tested; acceptance by another host requires a separate configured fixture run."
+      },
+      {
+        "scope": "live-secret-rotation-and-delivery",
+        "status": "NOT_RUN",
+        "reason": "Synthetic credential boundaries are tested; real rotation/delivery must be independently authorized."
+      }
+    ],
+    "suite_count": 1,
+    "python": "3.14.7"
+  },
+  "timeout_retry": {
+    "schema_version": 1,
+    "coverage": "synthetic-offline",
+    "status": "PASS",
+    "suites": [
+      {
+        "file": "tests/test_vault.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 57.36,
+        "pass_assertions": 92,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "vault/run.log"
+      },
+      {
+        "file": "tests/test_dashboard_render.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 27.65,
+        "pass_assertions": 34,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "dashboard_render/run.log"
+      },
+      {
+        "file": "tests/test_ack.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 35.53,
+        "pass_assertions": 26,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "ack/run.log"
+      },
+      {
+        "file": "tests/test_runtime_identity.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 99.56,
+        "pass_assertions": 108,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "runtime_identity/run.log"
+      },
+      {
+        "file": "tests/test_project_identity.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 72.53,
+        "pass_assertions": 79,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 0,
+        "log": "project_identity/run.log"
+      },
+      {
+        "file": "tests/test_workspace.py",
+        "status": "PASS",
+        "exit_code": 0,
+        "seconds": 36.66,
+        "pass_assertions": 0,
+        "fail_assertions": 0,
+        "skip_assertions": 0,
+        "unittest_cases": 8,
+        "log": "workspace/run.log"
+      }
+    ],
+    "not_run": [
+      {
+        "scope": "live-provider-acceptance",
+        "status": "NOT_RUN",
+        "reason": "Requires independently configured provider accounts and explicit opt-in; no credentials are inherited."
+      },
+      {
+        "scope": "external-mcp-host-admission",
+        "status": "NOT_RUN",
+        "reason": "The local stdio protocol is tested; acceptance by another host requires a separate configured fixture run."
+      },
+      {
+        "scope": "live-secret-rotation-and-delivery",
+        "status": "NOT_RUN",
+        "reason": "Synthetic credential boundaries are tested; real rotation/delivery must be independently authorized."
+      }
+    ],
+    "suite_count": 6,
+    "python": "3.14.7"
+  },
+  "top_level": {
+    "status": "PASS",
+    "cases": 60,
+    "command": "python -m unittest discover -s tests",
+    "source_inventory": "PASS",
+    "additional_proof": "factored deny matcher equals original flat regex on longest-prefix, case, punctuation, Unicode and long-identifier fixtures"
+  },
+  "privacy": {
+    "gate": "public-release-privacy",
+    "passed": true,
+    "files_checked": 382,
+    "history_blobs_checked": 0,
+    "private_denylist_entries": 3776,
+    "findings": [],
+    "limits": "Pattern/identifier checks cannot prove absence of every secret or private fact. Review source, metadata and release scope independently. Match values and paths are never printed.",
+    "public_identifiers_subtracted": 10
+  },
+  "provider_mutations": "NOT_RUN",
+  "screen_reader": "NOT_RUN",
+  "local_portable_result": {
+    "status": "PASS",
+    "unique_suites": 58,
+    "explanation": "52 PASS in final full attempt; all six TIMEOUT suites rerun PASS with jobs=2, timeout=300; final footer regression separately PASS (8 cases)"
+  },
+  "package": {
+    "status": "PASS",
+    "runtime_files": 278,
+    "archive_files": 284,
+    "command": "python tools/check_package.py <built-wheel>"
+  },
+  "privacy_initial": {
+    "status": "FAIL",
+    "reason": "four public design-tool names overlapped private identifier vocabulary; unnecessary names removed from process prose",
+    "credential_pattern_matches": 0
+  }
+}

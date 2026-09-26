@@ -167,7 +167,12 @@ def test_the_rendered_chip_shows_the_caption() -> None:
     html = page.read_text(encoding='utf-8')
     match = re.search(r'const D = (\{.*?\});\n', html, re.S)
     payload = json.loads(match.group(1))
-    metric = next(m for row in payload['rows'] for m in row.get('metrics', []))
+    project = next(row for row in payload['rows'] if row.get('metrics'))
+    metric = project['metrics'][0]
+    # UI-03 keeps the complete metric set in project detail. Drive its actual
+    # opening so this still proves visible captions, not only payload fields.
+    detail_call = '<script>detail(' + json.dumps(project['id']) + ');</script>'
+    page.write_text(html + detail_call, encoding='utf-8')
     def drive(needle):
         p = subprocess.run(['node', str(ROOT/'tests/render_dashboard.mjs'), str(page), '--count', needle],
                            cwd=ROOT, capture_output=True, text=True, timeout=120)
@@ -178,13 +183,13 @@ def test_the_rendered_chip_shows_the_caption() -> None:
         check('the page script runs without throwing', not got.get('threw'), str(got.get('threw')))
         return got
     got = drive(metric['l'])
-    check('the rendered chip contains its declared caption', sum(got.get('counts', {}).values()) > 0)
+    check('the project detail chip contains its declared caption', got.get('counts', {}).get('panel', 0) > 0)
     for row in payload['rows']:
         for m in row.get('metrics', []):
             m.pop('l', None)
-    page.write_text(html[:match.start(1)] + json.dumps(payload, ensure_ascii=False) + html[match.end(1):])
+    page.write_text(html[:match.start(1)] + json.dumps(payload, ensure_ascii=False) + html[match.end(1):] + detail_call, encoding='utf-8')
     got = drive(metric['n'])
-    check('without a caption the rendered chip contains the metric name', sum(got.get('counts', {}).values()) > 0)
+    check('without a caption the detail chip contains the metric name', got.get('counts', {}).get('panel', 0) > 0)
 
 
 if __name__ == "__main__":
