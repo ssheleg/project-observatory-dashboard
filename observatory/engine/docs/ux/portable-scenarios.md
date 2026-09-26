@@ -17,6 +17,17 @@ These supplement the original product scenarios. Approved scope: operator reques
 | OSS-11 | See what a project runs where | The projects table groups each project's apps by the environment they serve. Production comes first, and the account is shown on hover. An app no override or provider placed in an environment is shown as not specified | Never inferred from an app's name. `config/environments.json` places an app, and `tests/test_hosting_groups.py` covers the grouping |
 | OSS-12 | Act on a key from the live dashboard | A refusal the server explains says "не вышло" (failed) with its reason, and the action can be retried. A timeout, a dropped connection, an unreadable answer or a server fault says "исход неизвестен · проверьте" (outcome unknown, check) and locks the button | A repeat after a lost answer could mint or revoke twice, so the button stays locked until a rescan shows what happened. Covered by `tests/test_action_outcomes.py` |
 
+## Dashboard workspace scenarios (2026-09-26)
+
+| ID | User goal | Observable result | Recovery and invariant |
+|---|---|---|---|
+| OSS-13 | Enter an inventory and compare records | Projects/ENV show records immediately; every list exposes selection and global sorting | Primary identities never hidden by default; search covers full metadata; empty source differs from no matches |
+| OSS-14 | Understand a project and return | Compact row shows purpose/activity/resources; detail gives full linked repositories, sites, deployments and keys | Close preserves list and returns focus; deep links retained |
+| OSS-15 | Triage and revisit findings | Overview counts all open severities; list shows matching rows and acknowledged history even with zero open findings | Preview names its boundary and links to full list; no invisible critical overflow |
+| OSS-16 | Know what an action does | Capability stated before Keys/ENV rows; copy/manual/live verbs clearly differ | Copy never claims execution; uncertain outcomes and reveal protections remain |
+| OSS-17 | Compare infrastructure/traffic | Cost and measurement context above lists; zero distinct from missing/error | Contradictory chips cannot remain selected; evidence remains accessible |
+| OSS-18 | Navigate and inspect observer | Ten destinations, visible main, page search, narrow-screen sort; Health begins with observer/recovery | Snapshot claims qualified by time; keyboard/theme retained; actions never replay on navigation |
+
 OSS-10 regression evidence: `tests/test_dashboard_portability.py` executes generated
 commands against inert synthetic tools from an unrelated working directory. Nine
 tests cover workspace selection, quoted provider names and movement evidence,
