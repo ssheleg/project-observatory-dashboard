@@ -37,7 +37,7 @@ no private operational ancestry. Original installed services were not switched.
 
 ## Published release and deployment
 
-- [0.2.0 release](https://github.com/ssheleg/project-observatory-open-source/releases/tag/v0.2.0): source `fb8d692416da63323d29ae4f89ab71f5c5ba3faa`, inspected wheel and SHA256SUMS. Downloaded release assets match the reviewed archive.
+- [0.2.0 release](https://github.com/passioncode-ai/project-observatory-dashboard/releases/tag/v0.2.0): source `fb8d692416da63323d29ae4f89ab71f5c5ba3faa`, inspected wheel and SHA256SUMS. Downloaded release assets match the reviewed archive.
 - [Engine CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35599940689): Linux Python 3.11/3.14 and macOS Python 3.14 all pass.
 - [Website compatibility correction](https://github.com/ssheleg/project-observatory-open-source/commit/c773b5d483a75e7c79fce520a97d4a85c1d6a300): content-versioned CSS/JS prevents previous browser caches breaking new pages; eight static negative probes pass. [CI](https://github.com/ssheleg/project-observatory-open-source/actions/runs/35600519090) passes all platforms.
 - [Production](https://observatory.sshlg.me/) and [article](https://observatory.sshlg.me/field-notes/): deployed website commit above, Cloudflare deployment `6a319bfa-aa59-48a3-ad31-4843a1809c64`. Ten served files match source bytes; the eleventh file supplies verified response headers.
@@ -48,6 +48,10 @@ CI, asset digests and deployment. The website-only fix did not change the wheel.
 This follow-up changes documentation only and does not imply another deployment.
 
 ## Next task and prerequisites
+
+**Status 2026-09-26 (evening), newest first:** 0.4.0 — English/Russian dashboard, the PassionCode
+design system and the move to `passioncode-ai`. Entry point and open work:
+[runs/2026-09-26-i18n-passioncode](runs/2026-09-26-i18n-passioncode/README.md).
 
 **Status 2026-09-23 (evening):** 0.2.0 shipped with defects that the private predecessor had
 already fixed, one of them a security defect (a local `rotate` marked a leaked credential as closed;
